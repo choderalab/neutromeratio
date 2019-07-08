@@ -5,6 +5,7 @@ Using neural net potentials to sample tautomer states.
 
 # Add imports here
 from .neutromeratio import *
+from .utils import *
 
 # Handle versioneer
 from ._version import get_versions
