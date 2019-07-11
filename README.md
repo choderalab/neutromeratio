@@ -8,7 +8,7 @@ Using neural net potentials to sample tautomer states.
 
 ### Copyright
 
-Copyright (c) 2019, marcus wieder & josh fass//mskcc
+Copyright (c) 2019, Marcus Wieder & Josh Fass // MSKCC
 
 
 #### Acknowledgements
