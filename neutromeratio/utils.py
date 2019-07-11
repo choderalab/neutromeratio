@@ -250,6 +250,10 @@ class MC_mover(object):
         self.atom_list = atom_list
         self.accept_counter = 0
         self.reject_counter = 0
+        self.bond_lenght_dict = { 'CH' : 1.09 * unit.angstrom,
+                                    'OH' : 0.96 * unit.angstrom,
+                                        'NH' : 1.01 * unit.angstrom}
+
 
     def perform_mc_move(self, coordinates, ts, model, species, device):
 
@@ -324,7 +328,7 @@ class MC_mover(object):
         def sample_spherical(ndim=3, mean_bond_length=0.96, std_bond_length=0.15):
             vec = np.random.randn(ndim)
             vec /= np.linalg.norm(vec, axis=0)
-            bond_length = np.random.randn() * std_bond_length + mean_bond_length
+            bond_length = np.random.randn() * std_bond_length + (mean_bond_length / unit.angstrom)
             return vec * bond_length * unit.angstrom
 
 
@@ -333,7 +337,10 @@ class MC_mover(object):
         acceptor_coordinate = coordinates_in_angstroms[self.acceptor_idx] * unit.angstrom
 
         # generate new hydrogen atom position and replace old coordinates
-        new_hydrogen_coordinate = acceptor_coordinate + sample_spherical()
+        acceptor_element = self.atom_list[self.acceptor_idx]
+        bond_length = self.bond_lenght_dict[f"{acceptor_element}H"]
+        print('BondLength: {}'.format(bond_length))
+        new_hydrogen_coordinate = acceptor_coordinate + sample_spherical(mean_bond_length=bond_length)
         coordinates_in_angstroms[self.hydrogen_idx] = new_hydrogen_coordinate
 
         return coordinates_in_angstroms
