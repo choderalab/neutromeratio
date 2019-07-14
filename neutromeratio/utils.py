@@ -255,7 +255,7 @@ class MC_mover(object):
                                         'NH' : 1.01 * unit.angstrom}
 
 
-    def perform_mc_move(self, coordinates, ts, model, species, device):
+    def perform_mc_move(self, coordinates, ts, model, species, device, mod_bond_length, std_bond_length):
 
         # convert coordinates to angstroms
         coordinates_before_move = coordinates.value_in_unit(unit.angstrom)
@@ -266,7 +266,7 @@ class MC_mover(object):
         # convert energy from hartrees to kJ/mol
         e_start = (energy_in_hartree.item()* hartree_to_kJ_mol) * energy_unit
 
-        coordinates_after_move = self._move_hydrogen_to_donor_idx(coordinates_before_move)
+        coordinates_after_move = self._move_hydrogen_to_donor_idx(coordinates_before_move, mod_bond_length, std_bond_length)
 
         # get energy after MC move
         _, energy_in_hartree = model((species, torch.tensor([coordinates_after_move],
@@ -332,6 +332,9 @@ class MC_mover(object):
             vec = np.random.randn(ndim)
             vec /= np.linalg.norm(vec, axis=0)
             bond_length = np.random.randn() * std_bond_length + (mean_bond_length / unit.angstrom)
+            print('Effective bond length: {}'.format(bond_length))
+            print('Equilibrium bond length: {}'.format(mean_bond_length))
+            print('Std bond length: {}'.format(std_bond_length))
             return vec * bond_length * unit.angstrom
 
 
