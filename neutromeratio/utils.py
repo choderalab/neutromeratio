@@ -328,7 +328,7 @@ class MC_mover(object):
         coordinates_in_angstroms :numpy array, unit'd
             coordinates
         """
-        def sample_spherical(ndim=3, mean_bond_length=0.96, std_bond_length):
+        def sample_spherical(ndim=3, mean_bond_length=0.96, std_bond_length=0.25):
             vec = np.random.randn(ndim)
             vec /= np.linalg.norm(vec, axis=0)
             bond_length = np.random.randn() * std_bond_length + (mean_bond_length / unit.angstrom)
