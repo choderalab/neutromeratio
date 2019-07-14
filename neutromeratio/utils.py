@@ -312,20 +312,23 @@ class MC_mover(object):
 
 
 
-    def _move_hydrogen_to_donor_idx(self, coordinates_in_angstroms):
+    def _move_hydrogen_to_donor_idx(self, coordinates_in_angstroms, mod_bond_length = 1.0, std_bond_length = 0.15):
         """Moves a single hydrogen (specified in self.hydrogen_idx) from an acceptor
         atom (self.acceptor_idx) to a new position around the donor atom (self.donor_idx).
         Parameters
         ----------
         coordinates_in_angstroms :numpy array, unit'd
             coordinates
+        mod_bond_length: multiplicator to the equilibrium bond length defined by the element of the
+            hydrogen acceptor
+        std_bond_length: the standard deviation of the proposed bond length.
 
         Returns
         -------
         coordinates_in_angstroms :numpy array, unit'd
             coordinates
         """
-        def sample_spherical(ndim=3, mean_bond_length=0.96, std_bond_length=0.15):
+        def sample_spherical(ndim=3, mean_bond_length=0.96, std_bond_length):
             vec = np.random.randn(ndim)
             vec /= np.linalg.norm(vec, axis=0)
             bond_length = np.random.randn() * std_bond_length + (mean_bond_length / unit.angstrom)
@@ -339,7 +342,7 @@ class MC_mover(object):
         # generate new hydrogen atom position and replace old coordinates
         acceptor_element = self.atom_list[self.acceptor_idx]
         bond_length = self.bond_lenght_dict[f"{acceptor_element}H"]
-        new_hydrogen_coordinate = acceptor_coordinate + sample_spherical(mean_bond_length=bond_length)
+        new_hydrogen_coordinate = acceptor_coordinate + sample_spherical(mean_bond_length=(bond_length * mod_bond_length), std_bond_length)
         coordinates_in_angstroms[self.hydrogen_idx] = new_hydrogen_coordinate
 
         return coordinates_in_angstroms
