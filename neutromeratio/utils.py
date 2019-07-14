@@ -332,9 +332,9 @@ class MC_mover(object):
             vec = np.random.randn(ndim)
             vec /= np.linalg.norm(vec, axis=0)
             bond_length = np.random.randn() * std_bond_length + (mean_bond_length / unit.angstrom)
-            print('Effective bond length: {}'.format(bond_length))
-            print('Equilibrium bond length: {}'.format(mean_bond_length))
-            print('Std bond length: {}'.format(std_bond_length))
+            #print('Effective bond length: {}'.format(bond_length))
+            #print('Equilibrium bond length: {}'.format(mean_bond_length))
+            #print('Std bond length: {}'.format(std_bond_length))
             return vec * bond_length * unit.angstrom
 
 
