@@ -345,7 +345,7 @@ class MC_mover(object):
         # generate new hydrogen atom position and replace old coordinates
         acceptor_element = self.atom_list[self.acceptor_idx]
         bond_length = self.bond_lenght_dict[f"{acceptor_element}H"]
-        new_hydrogen_coordinate = acceptor_coordinate + sample_spherical(mean_bond_length=(bond_length * mod_bond_length), std_bond_length)
+        new_hydrogen_coordinate = acceptor_coordinate + sample_spherical(mean_bond_length=(bond_length * mod_bond_length), std_bond_length=std_bond_length)
         coordinates_in_angstroms[self.hydrogen_idx] = new_hydrogen_coordinate
 
         return coordinates_in_angstroms
