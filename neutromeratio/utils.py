@@ -326,11 +326,11 @@ class MC_mover(object):
         coordinates_in_angstroms :numpy array, unit'd
             coordinates
         """
-        def sample_spherical(ndim=3, mean_bond_length):
+        def sample_spherical(ndim=3, mean_bond_length=1.0):
             """
             Generates new coordinates for a hydrogen around a heavy atom acceptor.
             Bond length is defined by the hydrogen - acceptor element equilibrium bond length,
-            definded in self.bond_lenght_dict, standard deviation of bond length is defined
+            definded in self.bond_lenght_dict. Standard deviation of bond length is defined
             in self.std_bond_length.
             A bias to the bond length can be intruduced through self.mod_bond_length.
             The effective bond length is mean_bond_length *= self.mod_bond_length.
