@@ -308,7 +308,7 @@ class MC_mover(object):
         a = (-beta * total_energy_kJ_mol)
         mean = self.equilibrium_bond_length / unit.angstrom
         std = self.std_bond_length
-        x = self.effective_bond_length
+        x = self.effective_bond_length / unit.angstrom
 
         return a * norm.pdf(x, loc=mean, scale=std)
 
