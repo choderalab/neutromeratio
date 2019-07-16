@@ -254,6 +254,7 @@ class MC_mover(object):
                                     'OH' : 0.96 * unit.angstrom,
                                         'NH' : 1.01 * unit.angstrom}
         self.mod_bond_length = 1.0
+        self.equilibrium_bond_length = self.bond_lenght_dict['{}H'.format(self.atom_list[self.acceptor_idx])]
         self.std_bond_length = 0.15
 
     def perform_mc_move(self, coordinates, ts, model, species, device):
@@ -266,6 +267,7 @@ class MC_mover(object):
                                requires_grad=True, device=device, dtype=torch.float32)))
         # convert energy from hartrees to kJ/mol
         e_start = (energy_in_hartree.item()* hartree_to_kJ_mol) * energy_unit
+        log_p_initial = self.compute_log_probability(e_start)
 
         coordinates_after_move = self._move_hydrogen_to_donor_idx(coordinates_before_move)
 
@@ -275,7 +277,9 @@ class MC_mover(object):
 
         # convert energy from hartrees to kJ/mol
         e_finish = (energy_in_hartree.item()* hartree_to_kJ_mol) * energy_unit
-        e = self.compute_log_probability(e_finish - e_start)
+        log_p_final = self.compute_log_probability(e_finish)
+        work = -(log_P_final - log_P_initial)
+
         accept = self.accept_reject(e)
         coordinates_after_move = (coordinates_after_move* unit.angstrom)
         coordinates_before_move = (coordinates_before_move* unit.angstrom)
@@ -286,6 +290,22 @@ class MC_mover(object):
         else:
             self.reject_counter += 1
             return False, coordinates_before_move, e
+
+    def accept_reject(self, log_P_accept: float) -> bool:
+        """Perform acceptance/rejection check according to the Metropolis-Hastings acceptance criterium."""
+        # think more about symmetric
+        return (log_P_accept > 0.0) or (random.random() < math.exp(log_P_accept))
+
+    def compute_log_probability(self, total_energy_kJ_mol):
+        """
+        Compute log probability
+        """
+
+        beta = 1.0 / kT  # inverse temperature
+        a = (-beta * total_energy_kJ_mol)
+        prop_dist = np.random.randn() * self.std_bond_length + (self.equilibrium_bond_length / unit.angstrom)
+        return
+
 
     def _move_hydrogen_out_of_mol_env(self, coordinates_in_angstroms):
         """Moves a single hydrogen (specified in self.hydrogen_idx) from an acceptor
@@ -304,11 +324,8 @@ class MC_mover(object):
 
         # get coordinates of acceptor atom and hydrogen that moves
         hydrogen_coordinate = coordinates_in_angstroms[self.hydrogen_idx] * unit.angstrom
-
         # generate new hydrogen atom position and replace old coordinates
         coordinates_in_angstroms[self.hydrogen_idx] = hydrogen_coordinate * 10
-
-
         return coordinates_in_angstroms
 
 
@@ -326,7 +343,7 @@ class MC_mover(object):
         coordinates_in_angstroms :numpy array, unit'd
             coordinates
         """
-        def sample_spherical(ndim=3, mean_bond_length=1.0):
+        def sample_spherical(ndim=3):
             """
             Generates new coordinates for a hydrogen around a heavy atom acceptor.
             Bond length is defined by the hydrogen - acceptor element equilibrium bond length,
@@ -337,7 +354,7 @@ class MC_mover(object):
             """
             vec = np.random.randn(ndim)
             vec /= np.linalg.norm(vec, axis=0)
-            mean_bond_length *= self.mod_bond_length
+            mean_bond_length = self.equilibrium_bond_length * self.mod_bond_length
             bond_length = np.random.randn() * self.std_bond_length + (mean_bond_length / unit.angstrom)
             #print('Effective bond length: {}'.format(bond_length))
             #print('Equilibrium bond length: {}'.format(mean_bond_length))
@@ -350,27 +367,12 @@ class MC_mover(object):
         acceptor_coordinate = coordinates_in_angstroms[self.acceptor_idx] * unit.angstrom
 
         # generate new hydrogen atom position and replace old coordinates
-        acceptor_element = self.atom_list[self.acceptor_idx]
-        bond_length = self.bond_lenght_dict[f"{acceptor_element}H"]
-        new_hydrogen_coordinate = acceptor_coordinate + sample_spherical(mean_bond_length=bond_length)
+        new_hydrogen_coordinate = acceptor_coordinate + sample_spherical()
         coordinates_in_angstroms[self.hydrogen_idx] = new_hydrogen_coordinate
 
         return coordinates_in_angstroms
 
 
-    def accept_reject(self, log_P_accept: float) -> bool:
-        """Perform acceptance/rejection check according to the Metropolis-Hastings acceptance criterium."""
-        # think more about symmetric
-        return (log_P_accept > 0.0) or (random.random() < math.exp(log_P_accept))
-
-    def compute_log_probability(self, total_energy_kJ_mol):
-        """
-        Compute log probability
-        """
-
-        beta = 1.0 / kT  # inverse temperature
-
-        return -beta * total_energy_kJ_mol
 
 
 def generate_nglview_object(top_file, traj_file):
