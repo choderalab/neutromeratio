@@ -300,11 +300,14 @@ class MC_mover(object):
         """
         Compute log probability
         """
-
         beta = 1.0 / kT  # inverse temperature
         a = (-beta * total_energy_kJ_mol)
+        print(a)
         prop_dist = np.random.randn() * self.std_bond_length + (self.equilibrium_bond_length / unit.angstrom)
-        return
+        print(prop_dist)
+        print(a*prop_dist)
+
+        return a * prop_dist
 
 
     def _move_hydrogen_out_of_mol_env(self, coordinates_in_angstroms):
