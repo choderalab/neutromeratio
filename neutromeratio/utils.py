@@ -310,7 +310,7 @@ class MC_mover(object):
         std = self.std_bond_length
         x = self.effective_bond_length / unit.angstrom
 
-        return a * norm.pdf(x, loc=mean, scale=std)
+        return a + norm.pdf(x, loc=mean, scale=std)
 
 
 
