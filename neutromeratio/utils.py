@@ -279,7 +279,7 @@ class MC_mover(object):
         e_finish = (energy_in_hartree.item()* hartree_to_kJ_mol) * energy_unit
         log_P_final = self.compute_log_probability(e_finish)
         work = -(log_P_final - log_P_initial)
-
+        print(work)
         accept = self.accept_reject(work)
         coordinates_after_move = (coordinates_after_move* unit.angstrom)
         coordinates_before_move = (coordinates_before_move* unit.angstrom)
@@ -302,11 +302,7 @@ class MC_mover(object):
         """
         beta = 1.0 / kT  # inverse temperature
         a = (-beta * total_energy_kJ_mol)
-        print(a)
         prop_dist = np.random.randn() * self.std_bond_length + (self.equilibrium_bond_length / unit.angstrom)
-        print(prop_dist)
-        print(a*prop_dist)
-
         return a * prop_dist
 
 
