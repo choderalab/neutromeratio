@@ -286,10 +286,10 @@ class MC_mover(object):
 
         if accept:
             self.accept_counter += 1
-            return True, coordinates_after_move, e
+            return True, coordinates_after_move, work
         else:
             self.reject_counter += 1
-            return False, coordinates_before_move, e
+            return False, coordinates_before_move, work
 
     def accept_reject(self, log_P_accept: float) -> bool:
         """Perform acceptance/rejection check according to the Metropolis-Hastings acceptance criterium."""
