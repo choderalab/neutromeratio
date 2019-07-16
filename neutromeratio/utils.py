@@ -271,7 +271,6 @@ class MC_mover(object):
                                requires_grad=True, device=device, dtype=torch.float32)))
         # convert energy from hartrees to kJ/mol
         e_start = (energy_in_hartree.item()* hartree_to_kJ_mol) * energy_unit
-        log_P_initial = self.compute_log_probability(e_start)
 
         coordinates_after_move = self._move_hydrogen_to_donor_idx(coordinates_before_move)
 
@@ -281,10 +280,10 @@ class MC_mover(object):
 
         # convert energy from hartrees to kJ/mol
         e_finish = (energy_in_hartree.item()* hartree_to_kJ_mol) * energy_unit
-        log_P_final = self.compute_log_probability(e_finish)
-        print(log_P_final - log_P_initial)
+        log_P = self.compute_log_probability(e_finish - e_start)
+        print(log_P)
 
-        work = -(log_P_final - log_P_initial)
+        work = -(log_P)
         print(work)
         accept = self.accept_reject(work)
         coordinates_after_move = (coordinates_after_move* unit.angstrom)
@@ -312,9 +311,6 @@ class MC_mover(object):
         mean = self.equilibrium_bond_length / unit.angstrom
         std = self.std_bond_length
         x = self.effective_bond_length / unit.angstrom
-        print(a)
-        print(norm.pdf(x, loc=mean, scale=std))
-        print(a + norm.pdf(x, loc=mean, scale=std))
         return a + norm.pdf(x, loc=mean, scale=std)
 
 
