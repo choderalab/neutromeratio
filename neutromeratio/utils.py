@@ -10,6 +10,7 @@ import random
 import copy
 import math
 from tqdm import tqdm
+from scipy.stats import norm
 
 # temperature, mass, and related constants
 temperature = 300 * unit.kelvin
@@ -251,11 +252,13 @@ class MC_mover(object):
         self.accept_counter = 0
         self.reject_counter = 0
         self.bond_lenght_dict = { 'CH' : 1.09 * unit.angstrom,
-                                    'OH' : 0.96 * unit.angstrom,
-                                        'NH' : 1.01 * unit.angstrom}
+                                'OH' : 0.96 * unit.angstrom,
+                                'NH' : 1.01 * unit.angstrom
+                                }
         self.mod_bond_length = 1.0
         self.equilibrium_bond_length = self.bond_lenght_dict['{}H'.format(self.atom_list[self.acceptor_idx])]
         self.std_bond_length = 0.15
+        self.effective_bond_length = None
 
     def perform_mc_move(self, coordinates, ts, model, species, device):
 
@@ -300,13 +303,15 @@ class MC_mover(object):
         """
         Compute log probability
         """
+
         beta = 1.0 / kT  # inverse temperature
         a = (-beta * total_energy_kJ_mol)
-        prop_dist = np.random.randn() * self.std_bond_length + (self.equilibrium_bond_length / unit.angstrom)
-        print(prop_dist)
-        print(a)
-        print(a * prop_dist)
-        return a * prop_dist
+        mean = self.equilibrium_bond_length / unit.angstrom
+        std = self.std_bond_length
+        x = self.effective_bond_length
+
+        return a * norm.pdf(x, loc=mean, scale=std)
+
 
 
     def _move_hydrogen_out_of_mol_env(self, coordinates_in_angstroms):
@@ -361,6 +366,7 @@ class MC_mover(object):
             #print('Effective bond length: {}'.format(bond_length))
             #print('Equilibrium bond length: {}'.format(mean_bond_length))
             #print('Std bond length: {}'.format(std_bond_length))
+            self.effective_bond_length = bond_length * unit.angstrom
             return vec * bond_length * unit.angstrom
 
 
