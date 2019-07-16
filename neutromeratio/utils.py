@@ -267,7 +267,7 @@ class MC_mover(object):
                                requires_grad=True, device=device, dtype=torch.float32)))
         # convert energy from hartrees to kJ/mol
         e_start = (energy_in_hartree.item()* hartree_to_kJ_mol) * energy_unit
-        log_p_initial = self.compute_log_probability(e_start)
+        log_P_initial = self.compute_log_probability(e_start)
 
         coordinates_after_move = self._move_hydrogen_to_donor_idx(coordinates_before_move)
 
@@ -277,7 +277,7 @@ class MC_mover(object):
 
         # convert energy from hartrees to kJ/mol
         e_finish = (energy_in_hartree.item()* hartree_to_kJ_mol) * energy_unit
-        log_p_final = self.compute_log_probability(e_finish)
+        log_P_final = self.compute_log_probability(e_finish)
         work = -(log_P_final - log_P_initial)
 
         accept = self.accept_reject(e)
