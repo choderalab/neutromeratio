@@ -302,9 +302,11 @@ class MC_mover(object):
         """
         beta = 1.0 / kT  # inverse temperature
         a = (-beta * total_energy_kJ_mol)
-        prop_density = np.random.randn() * self.std_bond_length + (self.equilibrium_bond_length / unit.angstrom)
-        return a * prop_dens_function
-
+        prop_dist = np.random.randn() * self.std_bond_length + (self.equilibrium_bond_length / unit.angstrom)
+        print(prop_dist)
+        print(a)
+        print(a * prop_dist)
+        return a * prop_dist
 
 
     def _move_hydrogen_out_of_mol_env(self, coordinates_in_angstroms):
