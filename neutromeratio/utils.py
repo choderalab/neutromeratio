@@ -280,7 +280,7 @@ class MC_mover(object):
         log_P_final = self.compute_log_probability(e_finish)
         work = -(log_P_final - log_P_initial)
 
-        accept = self.accept_reject(e)
+        accept = self.accept_reject(work)
         coordinates_after_move = (coordinates_after_move* unit.angstrom)
         coordinates_before_move = (coordinates_before_move* unit.angstrom)
 
