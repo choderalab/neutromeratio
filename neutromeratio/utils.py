@@ -240,6 +240,21 @@ def ANI1ccx_force_and_energy(x, device, model, species, platform):
 
     return F_in_openmm_unit * (unit.kilojoule_per_mole / unit.nanometer), energy_in_kJ_mol.item()
 
+def reduce(E):
+    """
+    Convert unit'd energy into a unitless reduced potential energy.
+
+    In NVT:
+        u(x) = U(x) / kBT
+    """
+    return E / kT
+
+def energy_function(coordinates, model, species, device):
+
+    _, energy_in_hartree = model((species, torch.tensor([coordinates],
+                           requires_grad=True, device=device, dtype=torch.float32)))
+    # convert energy from hartrees to kJ/mol
+    return (energy_in_hartree.item()* hartree_to_kJ_mol) * energy_unit
 
 
 class MC_mover(object):
@@ -249,98 +264,63 @@ class MC_mover(object):
         self.hydrogen_idx = hydrogen_idx
         self.acceptor_idx = acceptor_idx
         self.atom_list = atom_list
-        self.accept_counter = 0
-        self.reject_counter = 0
+        self.mc_accept_counter = 0
+        self.mc_reject_counter = 0
         self.bond_lenght_dict = { 'CH' : 1.09 * unit.angstrom,
                                 'OH' : 0.96 * unit.angstrom,
                                 'NH' : 1.01 * unit.angstrom
                                 }
-        self.mod_bond_length = 1.0
-        self.equilibrium_bond_length = self.bond_lenght_dict['{}H'.format(self.atom_list[self.acceptor_idx])]
-        self.std_bond_length = 0.15
-        # the currente bond length for this MC move is called 'effective_bond_length'
-        self.effective_bond_length = None
+        self.acceptor_mod_bond_length = 1.0
+        self.donor_mod_bond_length = 1.0
+        self.acceptor_element = self.atom_list[self.acceptor_idx]
+        self.donor_element = self.atom_list[self.donor_idx]
+        self.acceptor_hydrogen_equilibrium_bond_length = self.bond_lenght_dict['{}H'.format(self.acceptor_element)]
+        self.donor_hydrogen_equilibrium_bond_length = self.bond_lenght_dict['{}H'.format(self.donor_element)]
+        self.acceptor_hydrogen_stddev_bond_length = 0.15 * unit.angstrom
+        self.donor_hydrogen_stddev_bond_length = 0.15 * unit.angstrom
 
     def perform_mc_move(self, coordinates, ts, model, species, device):
 
         # convert coordinates to angstroms
-        coordinates_before_move = coordinates.value_in_unit(unit.angstrom)
+        # coordinates_before_move
+        coordinates_A = coordinates.value_in_unit(unit.angstrom)
+
+        #coordinates_after_move
+        coordinates_B = self._move_hydrogen_to_acceptor_idx(coordinates_A)
+        delta_u = reduce(energy_function(coordinates_B, model, species, device) - energy_function(coordinates_A, model, species, device))
 
         # get energy befor MC move
-        _, energy_in_hartree = model((species, torch.tensor([coordinates_before_move],
-                               requires_grad=True, device=device, dtype=torch.float32)))
-        # convert energy from hartrees to kJ/mol
-        e_start = (energy_in_hartree.item()* hartree_to_kJ_mol) * energy_unit
+        log_p_forward = self.log_probability_of_proposal_to_B(coordinates_A, coordinates_B)
+        log_p_reverse = self.log_probability_of_proposal_to_A(coordinates_B, coordinates_A)
+        work = - ((- delta_u) + (log_p_reverse - log_p_forward))
+        return coordinates_B * unit.angstrom, work
 
-        coordinates_after_move = self._move_hydrogen_to_donor_idx(coordinates_before_move)
 
-        # get energy after MC move
-        _, energy_in_hartree = model((species, torch.tensor([coordinates_after_move],
-                               requires_grad=True, device=device, dtype=torch.float32)))
+    def _log_probability_of_radial_proposal(self, r, r_mean, r_stddev):
+        """Logpdf of N(r : mu=r_mean, sigma=r_stddev)"""
+        return norm.logpdf(r, loc=r_mean, scale=r_stddev)
 
-        # convert energy from hartrees to kJ/mol
-        e_finish = (energy_in_hartree.item()* hartree_to_kJ_mol) * energy_unit
-        log_P = self.compute_log_probability(e_finish - e_start)
-        print(log_P)
+    def log_probability_of_proposal_to_B(self, X, X_prime):
+        """log g_{A \to B}(X --> X_prime)"""
+        assert(np.allclose(X[self.acceptor_idx], X_prime[self.acceptor_idx]))
+        r = np.linalg.norm(X_prime[self.hydrogen_idx] - X_prime[self.acceptor_idx])
+        return self._log_probability_of_radial_proposal(r, self.acceptor_hydrogen_equilibrium_bond_length * (1/unit.angstrom), self.acceptor_hydrogen_stddev_bond_length * (1/unit.angstrom))
 
-        work = -(log_P)
-        print(work)
-        accept = self.accept_reject(work)
-        coordinates_after_move = (coordinates_after_move* unit.angstrom)
-        coordinates_before_move = (coordinates_before_move* unit.angstrom)
+    def log_probability_of_proposal_to_A(self, X, X_prime):
+        """log g_{B \to A}(X --> X_prime)"""
+        assert(np.allclose(X[self.donor_idx], X_prime[self.donor_idx]))
+        r = np.linalg.norm(X[self.hydrogen_idx] - X[self.donor_idx])
+        return self._log_probability_of_radial_proposal(r, self.donor_hydrogen_equilibrium_bond_length * (1/unit.angstrom), self.donor_hydrogen_stddev_bond_length * (1/unit.angstrom))
 
-        if accept:
-            self.accept_counter += 1
-            return True, coordinates_after_move, work
-        else:
-            self.reject_counter += 1
-            return False, coordinates_before_move, work
 
     def accept_reject(self, log_P_accept: float) -> bool:
         """Perform acceptance/rejection check according to the Metropolis-Hastings acceptance criterium."""
         # think more about symmetric
         return (log_P_accept > 0.0) or (random.random() < math.exp(log_P_accept))
 
-    def compute_log_probability(self, total_energy_kJ_mol):
-        """
-        Compute log probability
-        """
-
-        beta = 1.0 / kT  # inverse temperature
-        a = (-beta * total_energy_kJ_mol)
-        mean = self.equilibrium_bond_length / unit.angstrom
-        std = self.std_bond_length
-        x = self.effective_bond_length / unit.angstrom
-        return a + norm.pdf(x, loc=mean, scale=std)
-
-
-
-    def _move_hydrogen_out_of_mol_env(self, coordinates_in_angstroms):
-        """Moves a single hydrogen (specified in self.hydrogen_idx) from an acceptor
-        atom (self.acceptor_idx) to a new position 10 Angstrom away from its current position.
-
-        Parameters
-        ----------
-        coordinates_in_angstroms :numpy array, unit'd
-            coordinates
-
-        Returns
-        -------
-        coordinates_in_angstroms :numpy array, unit'd
-            coordinates
-        """
-
-        # get coordinates of acceptor atom and hydrogen that moves
-        hydrogen_coordinate = coordinates_in_angstroms[self.hydrogen_idx] * unit.angstrom
-        # generate new hydrogen atom position and replace old coordinates
-        coordinates_in_angstroms[self.hydrogen_idx] = hydrogen_coordinate * 10
-        return coordinates_in_angstroms
-
-
-
-    def _move_hydrogen_to_donor_idx(self, coordinates_in_angstroms):
-        """Moves a single hydrogen (specified in self.hydrogen_idx) from an acceptor
-        atom (self.acceptor_idx) to a new position around the donor atom (self.donor_idx).
+    def _move_hydrogen_to_acceptor_idx(self, coordinates_in_angstroms):
+        """Moves a single hydrogen (specified in self.hydrogen_idx) from a donor
+        atom (self.donor_idx) to a new position around the acceptor atom (self.acceptor_idx).
         Parameters
         ----------
         coordinates_in_angstroms :numpy array, unit'd
@@ -360,15 +340,13 @@ class MC_mover(object):
             A bias to the bond length can be intruduced through self.mod_bond_length.
             The effective bond length is mean_bond_length *= self.mod_bond_length.
             """
-            vec = np.random.randn(ndim)
-            vec /= np.linalg.norm(vec, axis=0)
-            mean_bond_length = self.equilibrium_bond_length * self.mod_bond_length
-            bond_length = np.random.randn() * self.std_bond_length + (mean_bond_length / unit.angstrom)
-            #print('Effective bond length: {}'.format(bond_length))
-            #print('Equilibrium bond length: {}'.format(mean_bond_length))
-            #print('Std bond length: {}'.format(std_bond_length))
-            self.effective_bond_length = bond_length * unit.angstrom
-            return vec * bond_length * unit.angstrom
+            # sample a random direction
+            unit_vector = np.random.randn(ndim)
+            unit_vector /= np.linalg.norm(unit_vector, axis=0)
+            # sample a random length
+            mean_bond_length = self.acceptor_hydrogen_equilibrium_bond_length * self.acceptor_mod_bond_length
+            effective_bond_length = (np.random.randn() * self.acceptor_hydrogen_stddev_bond_length + mean_bond_length)
+            return (unit_vector * effective_bond_length)
 
 
         # get coordinates of acceptor atom and hydrogen that moves
