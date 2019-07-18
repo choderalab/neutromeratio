@@ -299,9 +299,8 @@ class MC_mover(object):
         # convert coordinates to angstroms
         # coordinates_before_move
         coordinates_A = coordinates.value_in_unit(unit.angstrom)
-
         #coordinates_after_move
-        coordinates_B = self._move_hydrogen_to_acceptor_idx(coordinates_A)
+        coordinates_B = self._move_hydrogen_to_acceptor_idx(copy.deepcopy(coordinates_A))
         delta_u = reduce(energy_function(coordinates_B, model, species, device) - energy_function(coordinates_A, model, species, device))
 
         # get energy befor MC move
@@ -328,7 +327,8 @@ class MC_mover(object):
         assert(np.allclose(X[self.donor_idx], X_prime[self.donor_idx]))
         # calculates the effective bond length of the current conformation between the
         # hydrogen atom and the donor atom (i.e. effective_bond_length)
-        r = np.linalg.norm(X[self.hydrogen_idx] - X[self.donor_idx])
+        print(self.donor_element)
+        r = np.linalg.norm(X_prime[self.hydrogen_idx] - X_prime[self.donor_idx])
         return self._log_probability_of_radial_proposal(r, self.donor_hydrogen_mean_bond_length * (1/unit.angstrom), self.donor_hydrogen_stddev_bond_length * (1/unit.angstrom))
 
 
