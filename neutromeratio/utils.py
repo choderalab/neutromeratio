@@ -327,7 +327,6 @@ class MC_mover(object):
         assert(np.allclose(X[self.donor_idx], X_prime[self.donor_idx]))
         # calculates the effective bond length of the current conformation between the
         # hydrogen atom and the donor atom (i.e. effective_bond_length)
-        print(self.donor_element)
         r = np.linalg.norm(X_prime[self.hydrogen_idx] - X_prime[self.donor_idx])
         return self._log_probability_of_radial_proposal(r, self.donor_hydrogen_mean_bond_length * (1/unit.angstrom), self.donor_hydrogen_stddev_bond_length * (1/unit.angstrom))
 
