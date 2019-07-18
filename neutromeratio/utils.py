@@ -284,6 +284,9 @@ class MC_mover(object):
         self.acceptor_hydrogen_stddev_bond_length = 0.15 * unit.angstrom
         self.donor_hydrogen_stddev_bond_length = 0.15 * unit.angstrom
 
+        self.acceptor_hydrogen_mean_bond_length = self.acceptor_hydrogen_equilibrium_bond_length * self.acceptor_mod_bond_length
+        self.donor_hydrogen_mean_bond_length = self.donor_hydrogen_equilibrium_bond_length * self.donor_mod_bond_length
+
     def perform_mc_move(self, coordinates, model, species, device):
         """
         Moves a hydrogen (self.hydrogen_idx) from a starting position connected to a heavy atom
@@ -307,7 +310,6 @@ class MC_mover(object):
         work = - ((- delta_u) + (log_p_reverse - log_p_forward))
         return coordinates_B * unit.angstrom, work
 
-
     def _log_probability_of_radial_proposal(self, r, r_mean, r_stddev):
         """Logpdf of N(r : mu=r_mean, sigma=r_stddev)"""
         return norm.logpdf(r, loc=r_mean, scale=r_stddev)
@@ -319,10 +321,7 @@ class MC_mover(object):
         # calculates the effective bond length of the current conformation between the
         # hydrogen atom and the acceptor atom (i.e. effective_bond_length)
         r = np.linalg.norm(X_prime[self.hydrogen_idx] - X_prime[self.acceptor_idx])
-        # the mean bond length is the self.acceptor_hydrogen_equilibrium_bond_length
-        # if there is no modifying bond length factor defined
-        mean_bond_length = (self.acceptor_hydrogen_equilibrium_bond_length * self.acceptor_mod_bond_length)
-        return self._log_probability_of_radial_proposal(r, mean_bond_length * (1/unit.angstrom), self.acceptor_hydrogen_stddev_bond_length * (1/unit.angstrom))
+        return self._log_probability_of_radial_proposal(r, self.acceptor_hydrogen_mean_bond_length * (1/unit.angstrom), self.acceptor_hydrogen_stddev_bond_length * (1/unit.angstrom))
 
     def log_probability_of_proposal_to_A(self, X, X_prime):
         """log g_{B \to A}(X --> X_prime)"""
@@ -330,10 +329,7 @@ class MC_mover(object):
         # calculates the effective bond length of the current conformation between the
         # hydrogen atom and the donor atom (i.e. effective_bond_length)
         r = np.linalg.norm(X[self.hydrogen_idx] - X[self.donor_idx])
-        # the mean bond length is the self.donor_hydrogen_equilibrium_bond_length
-        # if there is no modifying bond length factor defined
-        mean_bond_length = (self.donor_hydrogen_equilibrium_bond_length * self.donor_mod_bond_length)
-        return self._log_probability_of_radial_proposal(r, mean_bond_length * (1/unit.angstrom), self.donor_hydrogen_stddev_bond_length * (1/unit.angstrom))
+        return self._log_probability_of_radial_proposal(r, self.donor_hydrogen_mean_bond_length * (1/unit.angstrom), self.donor_hydrogen_stddev_bond_length * (1/unit.angstrom))
 
 
     def accept_reject(self, log_P_accept: float) -> bool:
@@ -367,8 +363,7 @@ class MC_mover(object):
             unit_vector = np.random.randn(ndim)
             unit_vector /= np.linalg.norm(unit_vector, axis=0)
             # sample a random length
-            mean_bond_length = self.acceptor_hydrogen_equilibrium_bond_length * self.acceptor_mod_bond_length
-            effective_bond_length = (np.random.randn() * self.acceptor_hydrogen_stddev_bond_length + mean_bond_length)
+            effective_bond_length = (np.random.randn() * self.acceptor_hydrogen_stddev_bond_length + self.acceptor_hydrogen_mean_bond_length)
             return (unit_vector * effective_bond_length)
 
 
