@@ -270,8 +270,7 @@ class MC_mover(object):
                                 'OH' : 0.96 * unit.angstrom,
                                 'NH' : 1.01 * unit.angstrom
                                 }
-        # a multiplicator to the equilibrium bond length
-        # mean_bond_length = self.acceptor_hydrogen_equilibrium_bond_length * self.acceptor_mod_bond_length
+        # a multiplicator to the equilibrium bond length to get the mean bond length
         self.acceptor_mod_bond_length = 1.0
         self.donor_mod_bond_length = 1.0
         # element of the hydrogen acceptor and donor
@@ -283,7 +282,7 @@ class MC_mover(object):
         # the stddev for the bond length
         self.acceptor_hydrogen_stddev_bond_length = 0.15 * unit.angstrom
         self.donor_hydrogen_stddev_bond_length = 0.15 * unit.angstrom
-
+        # the mean bond length is the bond length that is actually used for proposing coordinates
         self.acceptor_hydrogen_mean_bond_length = self.acceptor_hydrogen_equilibrium_bond_length * self.acceptor_mod_bond_length
         self.donor_hydrogen_mean_bond_length = self.donor_hydrogen_equilibrium_bond_length * self.donor_mod_bond_length
 
@@ -303,8 +302,9 @@ class MC_mover(object):
         coordinates_B = self._move_hydrogen_to_acceptor_idx(copy.deepcopy(coordinates_A))
         delta_u = reduce(energy_function(coordinates_B, model, species, device) - energy_function(coordinates_A, model, species, device))
 
-        # get energy befor MC move
+        # log probability of forward proposal from the initial coordinates (coordinate_A) to proposed coordinates (coordinate_B)
         log_p_forward = self.log_probability_of_proposal_to_B(coordinates_A, coordinates_B)
+        # log probability of reverse proposal given the proposed coordinates (coordinate_B)
         log_p_reverse = self.log_probability_of_proposal_to_A(coordinates_B, coordinates_A)
         work = - ((- delta_u) + (log_p_reverse - log_p_forward))
         return coordinates_B * unit.angstrom, work
@@ -317,16 +317,16 @@ class MC_mover(object):
         """log g_{A \to B}(X --> X_prime)"""
         # test if acceptor atoms are similar in both coordinate sets
         assert(np.allclose(X[self.acceptor_idx], X_prime[self.acceptor_idx]))
-        # calculates the effective bond length of the current conformation between the
-        # hydrogen atom and the acceptor atom (i.e. effective_bond_length)
+        # calculates the effective bond length of the proposed conformation between the
+        # hydrogen atom and the acceptor atom
         r = np.linalg.norm(X_prime[self.hydrogen_idx] - X_prime[self.acceptor_idx])
         return self._log_probability_of_radial_proposal(r, self.acceptor_hydrogen_mean_bond_length * (1/unit.angstrom), self.acceptor_hydrogen_stddev_bond_length * (1/unit.angstrom))
 
     def log_probability_of_proposal_to_A(self, X, X_prime):
         """log g_{B \to A}(X --> X_prime)"""
         assert(np.allclose(X[self.donor_idx], X_prime[self.donor_idx]))
-        # calculates the effective bond length of the current conformation between the
-        # hydrogen atom and the donor atom (i.e. effective_bond_length)
+        # calculates the effective bond length of the initial conformation between the
+        # hydrogen atom and the donor atom
         r = np.linalg.norm(X_prime[self.hydrogen_idx] - X_prime[self.donor_idx])
         return self._log_probability_of_radial_proposal(r, self.donor_hydrogen_mean_bond_length * (1/unit.angstrom), self.donor_hydrogen_stddev_bond_length * (1/unit.angstrom))
 
