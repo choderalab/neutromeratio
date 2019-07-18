@@ -283,13 +283,13 @@ class MC_mover(object):
         self.acceptor_hydrogen_stddev_bond_length = 0.15 * unit.angstrom
         self.donor_hydrogen_stddev_bond_length = 0.15 * unit.angstrom
         # the mean bond length is the bond length that is actually used for proposing coordinates
-        @property
-        def acceptor_hydrogen_mean_bond_length(self):
-            return self.acceptor_hydrogen_equilibrium_bond_length * self.acceptor_mod_bond_length
+    @property
+    def acceptor_hydrogen_mean_bond_length(self):
+        return self.acceptor_hydrogen_equilibrium_bond_length * self.acceptor_mod_bond_length
 
-        @property
-        def donor_hydrogen_mean_bond_length(self):
-            return self.donor_hydrogen_equilibrium_bond_length * self.donor_mod_bond_length
+    @property
+    def donor_hydrogen_mean_bond_length(self):
+        return self.donor_hydrogen_equilibrium_bond_length * self.donor_mod_bond_length
 
     def perform_mc_move(self, coordinates, model, species, device):
         """
