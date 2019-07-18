@@ -270,17 +270,29 @@ class MC_mover(object):
                                 'OH' : 0.96 * unit.angstrom,
                                 'NH' : 1.01 * unit.angstrom
                                 }
+        # a multiplicator to the equilibrium bond length
+        # mean_bond_length = self.acceptor_hydrogen_equilibrium_bond_length * self.acceptor_mod_bond_length
         self.acceptor_mod_bond_length = 1.0
         self.donor_mod_bond_length = 1.0
+        # element of the hydrogen acceptor and donor
         self.acceptor_element = self.atom_list[self.acceptor_idx]
         self.donor_element = self.atom_list[self.donor_idx]
+        # the equilibrium bond length taken from self.bond_length_dict
         self.acceptor_hydrogen_equilibrium_bond_length = self.bond_lenght_dict['{}H'.format(self.acceptor_element)]
         self.donor_hydrogen_equilibrium_bond_length = self.bond_lenght_dict['{}H'.format(self.donor_element)]
+        # the stddev for the bond length
         self.acceptor_hydrogen_stddev_bond_length = 0.15 * unit.angstrom
         self.donor_hydrogen_stddev_bond_length = 0.15 * unit.angstrom
 
-    def perform_mc_move(self, coordinates, ts, model, species, device):
-
+    def perform_mc_move(self, coordinates, model, species, device):
+        """
+        Moves a hydrogen (self.hydrogen_idx) from a starting position connected to a heavy atom
+        donor (self.donor_idx) to a new position around an acceptor atom (self.acceptor_idx).
+        The new coordinates are sampled from a radial distribution, with the center beeing the acceptor atom,
+        the mean: mean_bond_length = self.acceptor_hydrogen_equilibrium_bond_length * self.acceptor_mod_bond_length
+        and standard deviation: self.acceptor_hydrogen_stddev_bond_length.
+        Calculates the log probability of the forward and reverse proposal and returns the work.
+        """
         # convert coordinates to angstroms
         # coordinates_before_move
         coordinates_A = coordinates.value_in_unit(unit.angstrom)
@@ -302,15 +314,26 @@ class MC_mover(object):
 
     def log_probability_of_proposal_to_B(self, X, X_prime):
         """log g_{A \to B}(X --> X_prime)"""
+        # test if acceptor atoms are similar in both coordinate sets
         assert(np.allclose(X[self.acceptor_idx], X_prime[self.acceptor_idx]))
+        # calculates the effective bond length of the current conformation between the
+        # hydrogen atom and the acceptor atom (i.e. effective_bond_length)
         r = np.linalg.norm(X_prime[self.hydrogen_idx] - X_prime[self.acceptor_idx])
-        return self._log_probability_of_radial_proposal(r, self.acceptor_hydrogen_equilibrium_bond_length * (1/unit.angstrom), self.acceptor_hydrogen_stddev_bond_length * (1/unit.angstrom))
+        # the mean bond length is the self.acceptor_hydrogen_equilibrium_bond_length
+        # if there is no modifying bond length factor defined
+        mean_bond_length = (self.acceptor_hydrogen_equilibrium_bond_length * self.acceptor_mod_bond_length)
+        return self._log_probability_of_radial_proposal(r, mean_bond_length * (1/unit.angstrom), self.acceptor_hydrogen_stddev_bond_length * (1/unit.angstrom))
 
     def log_probability_of_proposal_to_A(self, X, X_prime):
         """log g_{B \to A}(X --> X_prime)"""
         assert(np.allclose(X[self.donor_idx], X_prime[self.donor_idx]))
+        # calculates the effective bond length of the current conformation between the
+        # hydrogen atom and the donor atom (i.e. effective_bond_length)
         r = np.linalg.norm(X[self.hydrogen_idx] - X[self.donor_idx])
-        return self._log_probability_of_radial_proposal(r, self.donor_hydrogen_equilibrium_bond_length * (1/unit.angstrom), self.donor_hydrogen_stddev_bond_length * (1/unit.angstrom))
+        # the mean bond length is the self.donor_hydrogen_equilibrium_bond_length
+        # if there is no modifying bond length factor defined
+        mean_bond_length = (self.donor_hydrogen_equilibrium_bond_length * self.donor_mod_bond_length)
+        return self._log_probability_of_radial_proposal(r, mean_bond_length * (1/unit.angstrom), self.donor_hydrogen_stddev_bond_length * (1/unit.angstrom))
 
 
     def accept_reject(self, log_P_accept: float) -> bool:
