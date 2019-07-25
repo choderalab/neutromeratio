@@ -107,9 +107,7 @@ def performe_md_mc_protocoll(x0:unit.Quantity,
     
 
     trange = tqdm(range(nr_of_mc_trials))
-
     traj_in_nm = []
-    work_value = []
     
     for _ in trange:
 
@@ -118,6 +116,7 @@ def performe_md_mc_protocoll(x0:unit.Quantity,
         # MC move
         new_coordinates, work = hydrogen_mover.perform_mc_move(final_coordinate_set)
         hydrogen_mover.list_of_proposed_coordinates.append(new_coordinates)
+        hydrogen_mover.list_of_initial_coordinates.append(final_coordinate_set)
         hydrogen_mover.work_values.append(work)
         # update new coordinates for langevin dynamics
         x0 = final_coordinate_set
@@ -126,12 +125,9 @@ def performe_md_mc_protocoll(x0:unit.Quantity,
         
         
 
-
-
-def use_precalculated_md_and_performe_mc(
-                            top:str,
-                            trajs:list,
-                            hydrogen_movers:list):
+def use_precalculated_md_and_performe_mc(top:str,
+                                        trajs:list,
+                                        hydrogen_movers:list):
 
     """
     Iterates over a trajectory and performs MC moves.
@@ -145,5 +141,6 @@ def use_precalculated_md_and_performe_mc(
             # MC move
             new_coordinates, work = hydrogen_mover.perform_mc_move(coordinates)
             hydrogen_mover.list_of_proposed_coordinates.append(new_coordinates)
+            hydrogen_mover.list_of_initial_coordinates.append(final_coordinate_set)
             hydrogen_mover.work_values.append(work)
             

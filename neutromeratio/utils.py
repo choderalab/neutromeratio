@@ -36,7 +36,7 @@ def get_donor_atom_idx(m1:Chem.Mol, m2:Chem.Mol) -> dict:
     hydrogen_idx_that_moves = -1
     for a in m1.GetAtoms():
         if a.GetIdx() not in substructure_idx_m1:
-            print('m1: Index of atom that moves: {}.'.format(a.GetIdx()))
+            print('Index of atom that moves: {}.'.format(a.GetIdx()))
             hydrogen_idx_that_moves = a.GetIdx()
 
     # get idx of connected heavy atom which is the donor atom

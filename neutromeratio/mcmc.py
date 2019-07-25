@@ -35,6 +35,7 @@ class MC_mover(object):
         self.donor_hydrogen_stddev_bond_length = 0.15 * unit.angstrom
         # the mean bond length is the bond length that is actually used for proposing coordinates
         self.list_of_proposed_coordinates = []
+        self.list_of_initial_coordinates = []
         self.work_values = []
     
     @property
@@ -44,6 +45,36 @@ class MC_mover(object):
     @property
     def donor_hydrogen_mean_bond_length(self):
         return self.donor_hydrogen_equilibrium_bond_length * self.donor_mod_bond_length
+
+    def write_xyz_files(self, ts:int, name:str='test'):
+        """
+        Writes xyz files in current directory.
+        The files are saved in {name}_ts{ts}_initial.xyz and {name}_ts{ts}_proposed.xyz.
+        Parameters
+        ----------
+        atoms: list of atoms (in a single string) 
+        coordinates: numpy array with coordinates
+        name: name of the file
+        """
+    
+        f_initial = open(f"{name}_ts{ts}_initial.xyz", 'w')
+        f_proposed = open(f"{name}_ts{ts}_proposed.xyz", 'w')
+        
+        f_initial.write('{}\n'.format(len(self.atom_list)))
+        f_proposed.write('{}\n'.format(len(self.atom_list)))
+        
+        f_initial.write('{}\n'.format('writing mols'))
+        f_proposed.write('{}\n'.format('writing mols'))
+
+        coordinates_in_angstroms = self.list_of_initial_coordinates[ts].value_in_unit(unit.angstrom)
+        for atom, coordinate in zip(self.atom_list, coordinates_in_angstroms):
+            f_initial.write('  {:2}   {: 11.9f}  {: 11.9f}  {: 11.9f}\n'.format(atom, coordinate[0], coordinate[1], coordinate[2]))
+
+        coordinates_in_angstroms = self.list_of_proposed_coordinates[ts].value_in_unit(unit.angstrom)
+        for atom, coordinate in zip(self.atom_list, coordinates_in_angstroms):
+            f_proposed.write('  {:2}   {: 11.9f}  {: 11.9f}  {: 11.9f}\n'.format(atom, coordinate[0], coordinate[1], coordinate[2]))
+
+
 
 class Instantenous_MC_Mover(MC_mover):
 
