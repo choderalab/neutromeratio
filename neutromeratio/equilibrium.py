@@ -12,9 +12,7 @@ import os
 
 class LangevinDynamics(object):
 
-    def __init__(self, atom_list:str, device:torch.device, model:torchani.models.ANI1ccx, temperature:int, force:ANI1cxx_force_and_energy):
-        self.device = device
-        self.model = model
+    def __init__(self, atom_list:str, temperature:int, force:ANI1cxx_force_and_energy):
         self.force = force
         self.temperature = temperature
         self.atom_list = atom_list
@@ -22,8 +20,8 @@ class LangevinDynamics(object):
 
     def run_dynamics(self, x0:np.ndarray, 
                     n_steps:int=100,
-                    stepsize:int=1 * unit.femtosecond,
-                    collision_rate:int=10/unit.picoseconds,
+                    stepsize:unit.Quantity=1 * unit.femtosecond,
+                    collision_rate:unit.Quantity=10/unit.picoseconds,
                      progress_bar:bool=False
             ):
         """Unadjusted Langevin dynamics.
@@ -102,57 +100,50 @@ class LangevinDynamics(object):
         return traj, x
 
 
-def performe_md_mc_protocoll(name:str, 
-                            run:int,
-                            x0,
+def performe_md_mc_protocoll(x0:unit.Quantity,
                             nr_of_mc_trials:int, 
                             hydrogen_mover:MC_mover,
-                            langevin_dynamics:LangevinDynamics,
-                            from_mol_tautomer_idx:int, 
-                            to_mol_tautomer_idx:int):
+                            langevin_dynamics:LangevinDynamics):
+    
 
-    if not os.path.exists(f"../data/structures/{name}/"):
-        os.mkdir(f"../data/structures/{name}/")
-
-    # generating mdtraj traj object
-    topology = md.load(f"../data/structures/{name}/{name}_tautomer_{from_mol_tautomer_idx}.pdb").topology
-
-    print(f"Run Nr: {run}")
     trange = tqdm(range(nr_of_mc_trials))
 
     traj_in_nm = []
     work_value = []
     
-    for mc_moves in trange:
+    for _ in trange:
 
         trajectory, final_coordinate_set = langevin_dynamics.run_dynamics(x0)
-        traj_in_nm += [x / unit.nanometer for x in trajectory]
-        
-        # for debug purpose: write out mol before MC move
-        write_xyz_file(hydrogen_mover.atom_list, final_coordinate_set, name=f"{name}_t{from_mol_tautomer_idx}", identifier=f"{run}_{mc_moves}_0_pre_jump")
+        traj_in_nm += [x / unit.nanometer for x in trajectory]      
         # MC move
         new_coordinates, work = hydrogen_mover.perform_mc_move(final_coordinate_set)
-        work_value.append(work)
-        # for debug purpose: write out mol after MC move
-        write_xyz_file(hydrogen_mover.atom_list, new_coordinates, name=f"{name}_t{from_mol_tautomer_idx}", identifier=f"{run}_{mc_moves}_1_post_jump")
+        hydrogen_mover.list_of_proposed_coordinates.append(new_coordinates)
+        hydrogen_mover.work_values.append(work)
         # update new coordinates for langevin dynamics
         x0 = final_coordinate_set
+
+    return traj_in_nm
         
         
-    ani_traj = md.Trajectory(traj_in_nm, topology)
-    ani_traj.save(f"../data/md_mc_sampling/{name}/{name}_t{from_mol_tautomer_idx}_run{run}_anicxx.dcd")
-
-    f = open(f"../data/md_mc_sampling/{name}/{name}_from_t{from_mol_tautomer_idx}_to_t{to_mol_tautomer_idx}_run{run}_work.csv", 'w+')
-    for i, j in zip(range(nr_of_mc_trials), work_value):
-        f.write('{}, {}\n'.format(i, j))
-    f.close()
 
 
 
-def use_precalculated_md_and_performe_mc(name:str, 
-                            run:int,
-                            hydrogen_mover:MC_mover,
-                            from_mol_tautomer_idx:int, 
-                            to_mol_tautomer_idx:int):
+def use_precalculated_md_and_performe_mc(
+                            top:str,
+                            trajs:list,
+                            hydrogen_movers:list):
 
-    pass
+    """
+    Iterates over a trajectory and performs MC moves.
+    The hydrogen_movers specify a list of MC_mover objects that should be used on the same coordinate set. 
+    """
+    topology = md.load(top).topology
+    traj = md.load(trajs, top=topology)
+    for x in traj:
+        coordinates = x.xyz[0] * unit.nanometer
+        for hydrogen_mover in hydrogen_movers:
+            # MC move
+            new_coordinates, work = hydrogen_mover.perform_mc_move(coordinates)
+            hydrogen_mover.list_of_proposed_coordinates.append(new_coordinates)
+            hydrogen_mover.work_values.append(work)
+            

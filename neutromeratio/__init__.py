@@ -15,7 +15,7 @@ logging.basicConfig(format=FORMAT,
 from .utils import *
 #from .neutromeratio import *
 from .mcmc import Instantenous_MC_Mover
-from .equilibrium import LangevinDynamics, performe_md_mc_protocoll
+from .equilibrium import LangevinDynamics, performe_md_mc_protocoll, use_precalculated_md_and_performe_mc
 from .config import *
 from .ani import ANI1cxx_force_and_energy, from_mol_to_ani_input
 

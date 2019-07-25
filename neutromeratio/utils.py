@@ -153,7 +153,7 @@ def display_mol(mol:Chem.Mol):
     display(mol)
 
 
-def generate_nglview_object(top_file:str, traj_file:str) -> nglview.NGLWidget:
+def generate_nglview_object(top_file:str, traj_files:list) -> nglview.NGLWidget:
     """
     Generates nglview object from topology and trajectory files.
     Parameters
@@ -167,6 +167,6 @@ def generate_nglview_object(top_file:str, traj_file:str) -> nglview.NGLWidget:
     """
 
     topology = md.load(top_file).topology
-    ani_traj = md.load(traj_file, top=topology)
+    ani_traj = md.load(traj_files, top=topology)
 
     return nglview.show_mdtraj(ani_traj)
