@@ -127,17 +127,6 @@ def generate_rdkit_mol(smiles:str) -> Chem.Mol:
     return m
 
 
-def from_mol_to_ani_input(mol: Chem.Mol) -> dict:
-    # generates atom_list and coord_list entries from rdkit mol
-    atom_list = []
-    coord_list = []
-    for a in mol.GetAtoms():
-        atom_list.append(a.GetSymbol())
-        pos = mol.GetConformer().GetAtomPosition(a.GetIdx())
-        coord_list.append([pos.x, pos.y, pos.z])
-    return { 'atom_list' : ''.join(atom_list), 'coord_list' : coord_list}
-
-
 def reduced_pot(E:float) -> float:
     """
     Convert unit'd energy into a unitless reduced potential energy.
@@ -147,7 +136,11 @@ def reduced_pot(E:float) -> float:
     """
     return E / kT
 
-def display_mol(mol):
+def display_mol(mol:Chem.Mol):
+    """
+    Gets mol as input and displays its 2D Structure using IPythonConsole.
+    """
+
     from rdkit.Chem.Draw import IPythonConsole
     def mol_with_atom_index(mol):
         atoms = mol.GetNumAtoms()

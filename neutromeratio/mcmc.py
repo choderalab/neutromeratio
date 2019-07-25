@@ -43,7 +43,9 @@ class MC_mover(object):
     def donor_hydrogen_mean_bond_length(self):
         return self.donor_hydrogen_equilibrium_bond_length * self.donor_mod_bond_length
 
-    def perform_mc_move(self, coordinates, model, species, device):
+class Instantenous_MC_Mover(MC_mover):
+
+    def perform_mc_move(self, coordinates):
         """
         Moves a hydrogen (self.hydrogen_idx) from a starting position connected to a heavy atom
         donor (self.donor_idx) to a new position around an acceptor atom (self.acceptor_idx).
@@ -57,8 +59,8 @@ class MC_mover(object):
         coordinates_A = coordinates.in_units_of(unit.angstrom)
         #coordinates_after_move
         coordinates_B = self._move_hydrogen_to_acceptor_idx(copy.deepcopy(coordinates_A))
-        energy_B = self.energy_function(coordinates_B, device, model, species)
-        energy_A = self.energy_function(coordinates_A, device, model, species)
+        energy_B = self.energy_function.calculate_energy(coordinates_B)
+        energy_A = self.energy_function.calculate_energy(coordinates_A)
         delta_u = reduced_pot(energy_B - energy_A)
 
         # log probability of forward proposal from the initial coordinates (coordinate_A) to proposed coordinates (coordinate_B)
