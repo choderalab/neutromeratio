@@ -7,7 +7,15 @@ import simtk
 from rdkit import Chem
 
 
-class ANI1cxx_force_and_energy(object):
+class ANI1_force_and_energy(object):
+    """
+    Performs energy and force calculations.
+    
+    Parameters
+    ----------
+    device:
+    """
+
 
     def __init__(self, device:torch.device, model:torchani.models.ANI1ccx, species:torch.Tensor, platform:str):
         self.device = device

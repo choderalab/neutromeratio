@@ -4,7 +4,7 @@ from simtk import unit
 from tqdm import tqdm
 from .utils import write_xyz_file
 from .mcmc import MC_mover
-from .ani import ANI1cxx_force_and_energy
+from .ani import ANI1_force_and_energy
 import mdtraj as md
 import torchani
 import torch
@@ -12,7 +12,7 @@ import os
 
 class LangevinDynamics(object):
 
-    def __init__(self, atom_list:str, temperature:int, force:ANI1cxx_force_and_energy):
+    def __init__(self, atom_list:str, temperature:int, force:ANI1_force_and_energy):
         self.force = force
         self.temperature = temperature
         self.atom_list = atom_list
@@ -104,7 +104,25 @@ def performe_md_mc_protocoll(x0:unit.Quantity,
                             nr_of_mc_trials:int,
                             hydrogen_mover:MC_mover,
                             langevin_dynamics:LangevinDynamics):
+    """
+    Performing instantaneous MC and langevin dynamics.
+    Given a coordinate set the forces with respect to the coordinates are calculated.
     
+    Parameters
+    ----------
+    x0 : array of floats, unit'd (distance unit)
+        initial configuration
+    nr_of_mc_trials:int
+                    nr of MC moves that should be performed
+    hydrogen_mover: MC_mover object
+                    specifies how the MC moves are performed
+    lengevin_dynamics: LangevinDynamics object
+
+
+    Returns
+    -------
+    traj : array of floats, unit'd (distance unit)
+    """    
 
     trange = tqdm(range(nr_of_mc_trials))
     traj_in_nm = []
@@ -127,15 +145,27 @@ def performe_md_mc_protocoll(x0:unit.Quantity,
 
 def use_precalculated_md_and_performe_mc(top:str,
                                         trajs:list,
-                                        hydrogen_movers:list):
+                                        hydrogen_movers:list,
+                                        mc_every_nth_frame:int):
 
     """
     Iterates over a trajectory and performs MC moves.
     The hydrogen_movers specify a list of MC_mover objects that should be used on the same coordinate set. 
+    Parameters
+    ----------
+    top : str
+            file path to topology file
+    trajs: list[str]
+            list of file paths to traj files
+    hydrogen_movers: list[MC_mover]
+            all MC_movers specified in this list are subsequently applied to the same coordinate set
+    mc_every_nth_frame: int
+            performs MC every nth frame
+
     """
     topology = md.load(top).topology
     traj = md.load(trajs, top=topology)
-    for x in traj:
+    for x in traj[::mc_every_nth_frame]:
         coordinates = x.xyz[0] * unit.nanometer
         for hydrogen_mover in hydrogen_movers:
             # MC move

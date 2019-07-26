@@ -17,7 +17,7 @@ from .utils import *
 from .mcmc import Instantenous_MC_Mover
 from .equilibrium import LangevinDynamics, performe_md_mc_protocoll, use_precalculated_md_and_performe_mc
 from .config import *
-from .ani import ANI1cxx_force_and_energy, from_mol_to_ani_input
+from .ani import ANI1_force_and_energy, from_mol_to_ani_input
 
 # Handle versioneer
 from ._version import get_versions
