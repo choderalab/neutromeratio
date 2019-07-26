@@ -16,7 +16,20 @@ class ANI1cxx_force_and_energy(object):
         self.platform = platform
 
     def calculate_force(self, x:simtk.unit.quantity.Quantity)->simtk.unit.quantity.Quantity:
+        """
+        Given a coordinate set the forces with respect to the coordinates are calculated.
         
+        Parameters
+        ----------
+        x : array of floats, unit'd (distance unit)
+            initial configuration
+
+        Returns
+        -------
+        F : float, unit'd
+            
+        """
+
         assert(type(x) == unit.Quantity)
         coordinates = torch.tensor([x.value_in_unit(unit.nanometer)],
                                 requires_grad=True, device=self.device, dtype=torch.float32)
@@ -40,7 +53,19 @@ class ANI1cxx_force_and_energy(object):
 
     
     def calculate_energy(self, x:simtk.unit.quantity.Quantity)->simtk.unit.quantity.Quantity:
-    
+        """
+        Given a coordinate set (x) the energy is calculated in kJ/mol.
+
+        Parameters
+        ----------
+        x : array of floats, unit'd (distance unit)
+            initial configuration
+
+        Returns
+        -------
+        E : float, unit'd 
+        """
+
         assert(type(x) == unit.Quantity)
 
         coordinates = torch.tensor([x.value_in_unit(unit.angstrom)],
@@ -56,7 +81,14 @@ class ANI1cxx_force_and_energy(object):
 
 def from_mol_to_ani_input(mol: Chem.Mol) -> dict:
     """
-    Generates atom_list and coord_list entries from rdkit mol
+    Generates atom_list and coord_list entries from rdkit mol.
+    Parameters
+    ----------
+    mol : rdkit.Chem.Mol
+
+    Returns
+    -------
+    { 'atom_list' : atom_list, 'coord_list' : coord_list} 
     """
     
     atom_list = []
