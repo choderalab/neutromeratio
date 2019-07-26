@@ -5,6 +5,9 @@ from .config import nm_to_angstroms, hartree_to_kJ_mol
 from simtk import unit
 import simtk
 from rdkit import Chem
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class ANI1_force_and_energy(object):
@@ -106,3 +109,6 @@ def from_mol_to_ani_input(mol: Chem.Mol) -> dict:
         pos = mol.GetConformer().GetAtomPosition(a.GetIdx())
         coord_list.append([pos.x, pos.y, pos.z])
     return { 'atom_list' : ''.join(atom_list), 'coord_list' : coord_list}
+
+
+

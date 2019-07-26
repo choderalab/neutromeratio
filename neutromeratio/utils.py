@@ -9,6 +9,9 @@ import mdtraj as md
 import numpy as np
 from .config import kT
 import nglview
+import logging
+
+logger = logging.getLogger(__name__)
 
 def get_donor_atom_idx(m1:Chem.Mol, m2:Chem.Mol) -> dict:
     """
@@ -88,17 +91,15 @@ def write_xyz_file(atom_list:str, coordinates:np.array, name:str='test', identif
     for atom, coordinate in zip(atom_list, coordinates_in_angstroms):
         f.write('  {:2}   {: 11.9f}  {: 11.9f}  {: 11.9f}\n'.format(atom, coordinate[0], coordinate[1], coordinate[2]))
 
-def write_pdb(mol:Chem.Mol, path:str, name:str, tautomer_id:int) -> str:
+def write_pdb(mol:Chem.Mol, filepath:str) -> str:
     """
     Writes pdb file in path directory. If directory does not exist it is created.
     The file is saved in {path}/{name}_{tautomer_id}.pdb.
     Parameters
     ----------
     mol: the mol that should be saved.
-    path: the location the pdb file should be saved
-    name: name of the file
-    tautomer_id: tautomer id
-
+    filepath
+    
     Returns
     ----------
     PDBfile as string
@@ -107,7 +108,7 @@ def write_pdb(mol:Chem.Mol, path:str, name:str, tautomer_id:int) -> str:
     if not os.path.exists(path):
         os.mkdir(path)
 
-    Chem.MolToPDBFile(mol, '{}/{}_{}.pdb'.format(path, name, tautomer_id))
+    Chem.MolToPDBFile(mol, filepath)
     return Chem.MolToPDBBlock(mol)
 
 def generate_rdkit_mol(smiles:str) -> Chem.Mol:

@@ -8,7 +8,9 @@ from .ani import ANI1_force_and_energy
 import mdtraj as md
 import torchani
 import torch
-import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 class LangevinDynamics(object):
 

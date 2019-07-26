@@ -8,6 +8,9 @@ import math
 import logging
 from collections import defaultdict
 
+logger = logging.getLogger(__name__)
+
+
 class MC_mover(object):
 
     def __init__(self, donor_idx:int, hydrogen_idx:int, acceptor_idx:int, atom_list:str, energy_function):

@@ -4,7 +4,6 @@ Using neural net potentials to sample tautomer states.
 """
 
 import logging
-logger = logging.getLogger(__name__)
 
 FORMAT = "[%(filename)s:%(lineno)s - %(funcName)1s()] %(message)s"
 logging.basicConfig(format=FORMAT,
