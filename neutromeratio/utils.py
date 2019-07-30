@@ -7,9 +7,12 @@ import copy
 import os
 import mdtraj as md
 import numpy as np
-from .config import kT
+from .constants import kT
 import nglview
 import logging
+from rdkit.Chem.Draw import IPythonConsole
+from IPython.core.display import display
+
 
 logger = logging.getLogger(__name__)
 
@@ -30,66 +33,71 @@ def get_donor_atom_idx(m1:Chem.Mol, m2:Chem.Mol) -> dict:
     m1 = copy.deepcopy(m1)
     m2 = copy.deepcopy(m2)
     # find substructure and generate mol from substructure
-    sub = rdFMCS.FindMCS([m1, m2], bondCompare=Chem.rdFMCS.BondCompare.CompareOrder.CompareAny)
-    mcsp = Chem.MolFromSmarts(sub.smartsString, False)
-    g = Chem.MolFromSmiles(Chem.MolToSmiles(mcsp, allHsExplicit=True), sanitize=False)
-    substructure_idx_m1 = m1.GetSubstructMatch(g)
+    sub_m = rdFMCS.FindMCS([m1, m2], bondCompare=Chem.rdFMCS.BondCompare.CompareOrder.CompareAny)
+    mcsp = Chem.MolFromSmarts(sub_m.smartsString, False)
+
+    # the order of the substructure lists are the same for both 
+    # substructure matches => substructure_idx_m1[i] = substructure_idx_m2[i]
+    substructure_idx_m1 = m1.GetSubstructMatch(mcsp)
+    substructure_idx_m2 = m2.GetSubstructMatch(mcsp)
 
     #get idx of hydrogen that moves to new position
     hydrogen_idx_that_moves = -1
     for a in m1.GetAtoms():
         if a.GetIdx() not in substructure_idx_m1:
-            print('Index of atom that moves: {}.'.format(a.GetIdx()))
+            logger.info('Index of atom that moves: {}.'.format(a.GetIdx()))
             hydrogen_idx_that_moves = a.GetIdx()
 
     # get idx of connected heavy atom which is the donor atom
     # there can only be one neighbor, therefor it is valid to take the first neighbor of the hydrogen
     donor = int(m1.GetAtomWithIdx(hydrogen_idx_that_moves).GetNeighbors()[0].GetIdx())
-    return { 'donor': donor, 'hydrogen_idx' : hydrogen_idx_that_moves }
+    logger.info('Index of atom that donates hydrogen: {}'.format(donor))
+
+    logging.debug(substructure_idx_m1)
+    logging.debug(substructure_idx_m2)
+    for i in range(len(substructure_idx_m1)):
+        a1 = m1.GetAtomWithIdx(substructure_idx_m1[i])
+        if a1.GetSymbol() != 'H':
+            a2 = m2.GetAtomWithIdx(substructure_idx_m2[i])
+            # get acceptor - there are two heavy atoms between the mols that have 
+            # not the same number of atom neighbors
+            a1_neighbors = a1.GetNeighbors()
+            a2_neighbors = a2.GetNeighbors()
+            acceptor_count = 0
+            if (len(a1_neighbors)) != (len(a2_neighbors)):
+                if substructure_idx_m1[i] == donor:
+                    continue
+                acceptor = substructure_idx_m1[i]
+                logger.info('Index of atom that accepts hydrogen: {}'.format(acceptor))
+                acceptor_count += 1
+                if acceptor_count > 1:
+                    raise RuntimeError('There are too many potential acceptor atoms.')
+
+    AllChem.Compute2DCoords(m1)
+    display_mol(m1)
+    # testing: - donor can never be a hydrogen
+    #            - donor idx can not be hydrogen idx
+    # thinking about testing
+
+    return { 'donor': donor, 'hydrogen_idx' : hydrogen_idx_that_moves, 'acceptor' : acceptor}
 
 
-def write_xyz_traj_file(atoms:str, coordinates:np.array, name:str='test'):
+def generate_xyz_string(atom_list:str, coordinates:unit.quantity.Quantity) -> str:
     """
-    Writes xyz trajectory file in current directory.
-    The trajectory is saved in traj_{name}.xyz.
+    Returns xyz file as string.
     Parameters
     ----------
     atoms: list of atoms (in a single string) 
     coordinates: numpy array with coordinates
-    name: name of the traj
     """
-    if os.path.exists('traj_{}.xyz'.format(name)):
-        f = open('traj_{}.xyz'.format(name), 'a')
-    else:
-        f = open('traj_{}.xyz'.format(name), 'w')
+    s = '{}\n'.format(len(atom_list))
+    s += '{}\n'.format('writing mols')
 
-    for frame in coordinates:
-        frame_in_angstrom = frame.value_in_unit(unit.angstrom)
-        f.write('{}\n'.format(len(atoms)))
-        f.write('{}\n'.format('writing mols'))
-        for atom, coordinate in zip(atoms, frame_in_angstrom):
-            f.write('  {:2}   {: 11.9f}  {: 11.9f}  {: 11.9f}\n'.format(atom, coordinate[0], coordinate[1], coordinate[2]))
-
-def write_xyz_file(atom_list:str, coordinates:np.array, name:str='test', identifier:str='0_0'):
-    """
-    Writes xyz file in ./mc_confs directory. If directory does not exist it is created.
-    The file is saved in {name}_{identifier}.xyz.
-    Parameters
-    ----------
-    atoms: list of atoms (in a single string) 
-    coordinates: numpy array with coordinates
-    name: name of the file
-    """
-    
-    if not os.path.exists('mc_confs'):
-        os.mkdir('mc_confs')
-
-    f = open('mc_confs/{}_{}.xyz'.format(name, identifier), 'w')
-    f.write('{}\n'.format(len(atom_list)))
-    f.write('{}\n'.format('writing mols'))
     coordinates_in_angstroms = coordinates.value_in_unit(unit.angstrom)
     for atom, coordinate in zip(atom_list, coordinates_in_angstroms):
-        f.write('  {:2}   {: 11.9f}  {: 11.9f}  {: 11.9f}\n'.format(atom, coordinate[0], coordinate[1], coordinate[2]))
+        s += '  {:2}   {: 11.9f}  {: 11.9f}  {: 11.9f}\n'.format(atom, coordinate[0], coordinate[1], coordinate[2])
+    
+    return s
 
 def write_pdb(mol:Chem.Mol, filepath:str) -> str:
     """
@@ -104,9 +112,6 @@ def write_pdb(mol:Chem.Mol, filepath:str) -> str:
     ----------
     PDBfile as string
     """
-
-    if not os.path.exists(path):
-        os.mkdir(path)
 
     Chem.MolToPDBFile(mol, filepath)
     return Chem.MolToPDBBlock(mol)
@@ -142,7 +147,6 @@ def display_mol(mol:Chem.Mol):
     Gets mol as input and displays its 2D Structure using IPythonConsole.
     """
 
-    from rdkit.Chem.Draw import IPythonConsole
     def mol_with_atom_index(mol):
         atoms = mol.GetNumAtoms()
         for idx in range( atoms ):
@@ -171,3 +175,70 @@ def generate_nglview_object(top_file:str, traj_files:list) -> nglview.NGLWidget:
     ani_traj = md.load(traj_files, top=topology)
 
     return nglview.show_mdtraj(ani_traj)
+
+def from_mol_to_ani_input(mol: Chem.Mol) -> dict:
+    """
+    Generates atom_list and coord_list entries from rdkit mol.
+    Parameters
+    ----------
+    mol : rdkit.Chem.Mol
+
+    Returns
+    -------
+    { 'atom_list' : atom_list, 'coord_list' : coord_list} 
+    """
+    
+    atom_list = []
+    coord_list = []
+    for a in mol.GetAtoms():
+        atom_list.append(a.GetSymbol())
+        pos = mol.GetConformer().GetAtomPosition(a.GetIdx())
+        coord_list.append([pos.x, pos.y, pos.z])
+    return { 'atom_list' : ''.join(atom_list), 'coord_list' : np.array(coord_list) * unit.angstrom}
+
+
+
+def construct_hybrid(ani_input:dict, tautomer_transformation:dict):
+    
+    import torchani
+    import torch
+    from .ani import ANI1_force_and_energy
+    from .mcmc import Instantenous_MC_Mover
+
+    # hard-coded default values to calculate new hydrogen coordinates
+    platform = 'cpu'  
+    device = torch.device(platform)
+    model = torchani.models.ANI1ccx()
+    model = model.to(device)
+    torch.set_num_threads(2)
+
+    species = model.species_to_tensor(ani_input['atom_list']).to(device).unsqueeze(0)
+
+    energy_function = ANI1_force_and_energy(device = device,
+                                            model = model,
+                                            species = species,
+                                            platform = platform)
+
+    hydrogen_mover = Instantenous_MC_Mover(donor_idx = tautomer_transformation['donor'], 
+                                        hydrogen_idx = tautomer_transformation['hydrogen_idx'], 
+                                        acceptor_idx = tautomer_transformation['acceptor'], 
+                                        atom_list = ani_input['atom_list'], 
+                                        energy_function = energy_function)
+
+    x0 = (ani_input['coord_list'])
+    coord = None
+    min_work_value = 10**6
+    for _ in range(100):
+
+        new_coordinate_set, work = hydrogen_mover.perform_mc_move(x0)
+        if work < min_work_value:
+            coord = new_coordinate_set
+
+    coord_of_dummy_hydrogen = coord[tautomer_transformation['hydrogen_idx']]
+
+    tmp = list(copy.deepcopy(ani_input['coord_list']).value_in_unit(unit.angstrom))
+    coord_of_dummy_hydrogen = list(coord_of_dummy_hydrogen.value_in_unit(unit.angstrom))
+    tmp.append(coord_of_dummy_hydrogen)
+
+    ani_input['hybrid_coord_list'] = np.array(tmp) * unit.angstrom
+    ani_input['hybrid_atom_list'] = ani_input['atom_list'] + 'H'

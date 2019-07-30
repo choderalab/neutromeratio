@@ -3,17 +3,22 @@ import random
 import numpy as np
 from simtk import unit
 import copy
-from .utils import reduced_pot
+from .utils import reduced_pot, generate_xyz_string
 import math
 import logging
-from collections import defaultdict
 
 logger = logging.getLogger(__name__)
 
 
-class MC_mover(object):
+class Instantenous_MC_Mover(object):
+    
+    def __init__(self, 
+                donor_idx:int, 
+                hydrogen_idx:int, 
+                acceptor_idx:int, 
+                atom_list:str, 
+                energy_function):
 
-    def __init__(self, donor_idx:int, hydrogen_idx:int, acceptor_idx:int, atom_list:str, energy_function):
         self.donor_idx = donor_idx
         self.hydrogen_idx = hydrogen_idx
         self.acceptor_idx = acceptor_idx
@@ -21,13 +26,12 @@ class MC_mover(object):
         self.energy_function = energy_function
         self.mc_accept_counter = 0
         self.mc_reject_counter = 0
+        
         self.bond_lenght_dict = { 'CH' : 1.09 * unit.angstrom,
                                 'OH' : 0.96 * unit.angstrom,
                                 'NH' : 1.01 * unit.angstrom
                                 }
-        # a multiplicator to the equilibrium bond length to get the mean bond length
-        self.acceptor_mod_bond_length = 1.0
-        self.donor_mod_bond_length = 1.0
+
         # element of the hydrogen acceptor and donor
         self.acceptor_element = self.atom_list[self.acceptor_idx]
         self.donor_element = self.atom_list[self.donor_idx]
@@ -41,16 +45,8 @@ class MC_mover(object):
         self.proposed_coordinates = []
         self.initial_coordinates = []
         self.work_values = []
-    
-    @property
-    def acceptor_hydrogen_mean_bond_length(self):
-        return self.acceptor_hydrogen_equilibrium_bond_length * self.acceptor_mod_bond_length
 
-    @property
-    def donor_hydrogen_mean_bond_length(self):
-        return self.donor_hydrogen_equilibrium_bond_length * self.donor_mod_bond_length
-
-    def write_xyz_files(self, ts:int, name:str='test'):
+    def write_xyz_files(self, ts:int, filename:str):
         """
         Writes xyz files in current directory.
         The files are saved in {name}_ts{ts}_initial.xyz and {name}_ts{ts}_proposed.xyz.
@@ -60,29 +56,23 @@ class MC_mover(object):
         coordinates: numpy array with coordinates
         name: name of the file
         """
-    
-        f_initial = open(f"{name}_ts{ts}_initial.xyz", 'w')
-        f_proposed = open(f"{name}_ts{ts}_proposed.xyz", 'w')
-        
-        f_initial.write('{}\n'.format(len(self.atom_list)))
-        f_proposed.write('{}\n'.format(len(self.atom_list)))
-        
-        f_initial.write('{}\n'.format('writing mols'))
-        f_proposed.write('{}\n'.format('writing mols'))
 
-        coordinates_in_angstroms = self.initial_coordinates[ts].value_in_unit(unit.angstrom)
-        for atom, coordinate in zip(self.atom_list, coordinates_in_angstroms):
-            f_initial.write('  {:2}   {: 11.9f}  {: 11.9f}  {: 11.9f}\n'.format(atom, coordinate[0], coordinate[1], coordinate[2]))
+        coordinates = self.initial_coordinates[ts]
+        f_initial = open(f"{filename}_ts{ts}_initial.xyz", 'w')
+        xyz_string = generate_xyz_string(self.atom_list, coordinates)
+        for line in xyz_string:
+            f_initial.write(line)
+        f_initial.close()
 
-        coordinates_in_angstroms = self.proposed_coordinates[ts].value_in_unit(unit.angstrom)
-        for atom, coordinate in zip(self.atom_list, coordinates_in_angstroms):
-            f_proposed.write('  {:2}   {: 11.9f}  {: 11.9f}  {: 11.9f}\n'.format(atom, coordinate[0], coordinate[1], coordinate[2]))
+        coordinates = self.proposed_coordinates[ts]
+        f_proposed = open(f"{filename}_ts{ts}_proposed.xyz", 'w')
+        xyz_string = generate_xyz_string(self.atom_list, coordinates)
+        for line in xyz_string:
+            f_proposed.write(line)
+        f_proposed.close()
 
 
-
-class Instantenous_MC_Mover(MC_mover):
-
-    def perform_mc_move(self, coordinates):
+    def perform_mc_move(self, coordinates:unit.quantity.Quantity):
         """
         Moves a hydrogen (self.hydrogen_idx) from a starting position connected to a heavy atom
         donor (self.donor_idx) to a new position around an acceptor atom (self.acceptor_idx).
@@ -107,33 +97,33 @@ class Instantenous_MC_Mover(MC_mover):
         work = - ((- delta_u) + (log_p_reverse - log_p_forward))
         return coordinates_B, work
 
-    def _log_probability_of_radial_proposal(self, r:float, r_mean:float, r_stddev:float)->float:
+    def _log_probability_of_radial_proposal(self, r:float, r_mean:float, r_stddev:float) -> float:
         """Logpdf of N(r : mu=r_mean, sigma=r_stddev)"""
         return norm.logpdf(r, loc=r_mean, scale=r_stddev)
 
-    def log_probability_of_proposal_to_B(self, X:np.ndarray, X_prime:np.ndarray):
+    def log_probability_of_proposal_to_B(self, X:unit.quantity.Quantity, X_prime:unit.quantity.Quantity) -> float:
         """log g_{A \to B}(X --> X_prime)"""
         # test if acceptor atoms are similar in both coordinate sets
         assert(np.allclose(X[self.acceptor_idx], X_prime[self.acceptor_idx]))
         # calculates the effective bond length of the proposed conformation between the
         # hydrogen atom and the acceptor atom
         r = np.linalg.norm(X_prime[self.hydrogen_idx] - X_prime[self.acceptor_idx])
-        return self._log_probability_of_radial_proposal(r, self.acceptor_hydrogen_mean_bond_length * (1/unit.angstrom), self.acceptor_hydrogen_stddev_bond_length * (1/unit.angstrom))
+        return self._log_probability_of_radial_proposal(r, self.acceptor_hydrogen_equilibrium_bond_length * (1/unit.angstrom), self.acceptor_hydrogen_stddev_bond_length * (1/unit.angstrom))
 
-    def log_probability_of_proposal_to_A(self, X, X_prime):
+    def log_probability_of_proposal_to_A(self, X:unit.quantity.Quantity, X_prime:unit.quantity.Quantity) -> float:
         """log g_{B \to A}(X --> X_prime)"""
         assert(np.allclose(X[self.donor_idx], X_prime[self.donor_idx]))
         # calculates the effective bond length of the initial conformation between the
         # hydrogen atom and the donor atom
         r = np.linalg.norm(X_prime[self.hydrogen_idx] - X_prime[self.donor_idx])
-        return self._log_probability_of_radial_proposal(r, self.donor_hydrogen_mean_bond_length * (1/unit.angstrom), self.donor_hydrogen_stddev_bond_length * (1/unit.angstrom))
+        return self._log_probability_of_radial_proposal(r, self.donor_hydrogen_equilibrium_bond_length * (1/unit.angstrom), self.donor_hydrogen_stddev_bond_length * (1/unit.angstrom))
 
     def accept_reject(self, log_P_accept: float) -> bool:
         """Perform acceptance/rejection check according to the Metropolis-Hastings acceptance criterium."""
         # think more about symmetric
         return (log_P_accept > 0.0) or (random.random() < math.exp(log_P_accept))
 
-    def _move_hydrogen_to_acceptor_idx(self, coordinates:np.ndarray)->np.ndarray:
+    def _move_hydrogen_to_acceptor_idx(self, coordinates:unit.quantity.Quantity) -> unit.quantity.Quantity:
         """Moves a single hydrogen (specified in self.hydrogen_idx) from a donor
         atom (self.donor_idx) to a new position around the acceptor atom (self.acceptor_idx).
         Parameters
@@ -159,7 +149,7 @@ class Instantenous_MC_Mover(MC_mover):
             unit_vector = np.random.randn(ndim)
             unit_vector /= np.linalg.norm(unit_vector, axis=0)
             # sample a random length
-            effective_bond_length = (np.random.randn() * self.acceptor_hydrogen_stddev_bond_length + self.acceptor_hydrogen_mean_bond_length)
+            effective_bond_length = (np.random.randn() * self.acceptor_hydrogen_stddev_bond_length + self.acceptor_hydrogen_equilibrium_bond_length)
             return (unit_vector * effective_bond_length)
 
 
@@ -171,3 +161,27 @@ class Instantenous_MC_Mover(MC_mover):
         coordinates[self.hydrogen_idx] = new_hydrogen_coordinate
 
         return coordinates
+
+
+
+class NonequilibriumMC(object):
+
+        def __init__(self, 
+                donor_idx:int, 
+                hydrogen_idx:int, 
+                dummy_hydrogen_idx:int, 
+                acceptor_idx:int, 
+                atom_list:str, 
+                energy_function):
+
+        self.donor_idx = donor_idx
+        self.hydrogen_idx = hydrogen_idx
+        self.dummy_hydrogen_idx = dummy_hydrogen_idx
+        self.acceptor_idx = acceptor_idx
+        self.atom_list = atom_list
+        self.energy_function = energy_function
+        self.work_values = []
+
+
+E_j(lambda) = (1 - lambda ) * E_j_without_i + lambda * E_j_with_i 
+

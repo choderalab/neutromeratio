@@ -1,8 +1,8 @@
 import numpy as np
-from .config import speed_unit, distance_unit, kB
+from .constants import speed_unit, distance_unit, kB
 from simtk import unit
 from tqdm import tqdm
-from .utils import write_xyz_file
+from .utils import generate_xyz_string
 from .mcmc import MC_mover
 from .ani import ANI1_force_and_energy
 import mdtraj as md
@@ -21,10 +21,10 @@ class LangevinDynamics(object):
 
 
     def run_dynamics(self, x0:np.ndarray, 
-                    n_steps:int=100,
-                    stepsize:unit.Quantity=1 * unit.femtosecond,
-                    collision_rate:unit.Quantity=10/unit.picoseconds,
-                     progress_bar:bool=False
+                    n_steps:int = 100,
+                    stepsize:unit.quantity.Quantity = 1 * unit.femtosecond,
+                    collision_rate:unit.quantity.Quantity = 10/unit.picoseconds,
+                     progress_bar:bool = False
             ):
         """Unadjusted Langevin dynamics.
 
@@ -99,13 +99,15 @@ class LangevinDynamics(object):
                 print("Numerical instability encountered!")
                 return traj
             traj.append(x)
-        return traj, x
+        return traj
 
 
-def performe_md_mc_protocoll(x0:unit.Quantity,
-                            nr_of_mc_trials:int,
+def performe_md_mc_protocoll(x0:unit.quantity.Quantity,
                             hydrogen_mover:MC_mover,
-                            langevin_dynamics:LangevinDynamics):
+                            langevin_dynamics:LangevinDynamics,
+                            nr_of_mc_trials:int = 500,
+                            nr_of_md_steps:int = 100
+                            ):
     """
     Performing instantaneous MC and langevin dynamics.
     Given a coordinate set the forces with respect to the coordinates are calculated.
@@ -131,7 +133,8 @@ def performe_md_mc_protocoll(x0:unit.Quantity,
     
     for _ in trange:
 
-        trajectory, final_coordinate_set = langevin_dynamics.run_dynamics(x0)
+        trajectory = langevin_dynamics.run_dynamics(x0, nr_of_md_steps = nr_of_md_steps)
+        final_coordinate_set = trajectory[-1]
         traj_in_nm += [x / unit.nanometer for x in trajectory]      
         # MC move
         new_coordinates, work = hydrogen_mover.perform_mc_move(final_coordinate_set)
