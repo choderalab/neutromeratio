@@ -101,7 +101,44 @@ class ANI1_force_and_energy(object):
 
 
 
+class AlchemicalANI(torchani.models.ANI1ccx):
+    def __init__(self, alchemical_atoms=[0]):
+        """Scale the contributions of alchemical atoms to the energy."""
+        super().__init__()
+        self.alchemical_atoms = alchemical_atoms
 
+    def forward(self, species_coordinates, lam=1.0):
+        raise (NotImplementedError)
+
+
+class DirectAlchemicalANI(AlchemicalANI):
+    def __init__(self, alchemical_atoms=[0]):
+        """Scale the direct contributions of alchemical atoms to the energy sum,
+        ignoring indirect contributions
+        """
+        super().__init__(alchemical_atoms)
+
+
+class AEVScalingAlchemicalANI(AlchemicalANI):
+    def __init__(self, alchemical_atoms=[0]):
+        """Scale indirect contributions of alchemical atoms to the energy sum by
+        interpolating neighbors' Atomic Environment Vectors.
+
+        (Also scale direct contributions, as in DirectAlchemicalANI)
+        """
+        super().__init__(alchemical_atoms)
+
+
+class LinearAlchemicalANI(AlchemicalANI):
+    def __init__(self, alchemical_atoms=[0]):
+        """Scale the indirect contributions of alchemical atoms to the energy sum by
+        linearly interpolating, for other atom i, between the energy E_i^0 it would compute
+        in the _complete absence_ of the alchemical atoms, and the energy E_i^1 it would compute
+        in the _presence_ of the alchemical atoms.
+
+        (Also scale direct contributions, as in DirectAlchemicalANI)
+        """
+        super().__init__(alchemical_atoms)
 
 
 
