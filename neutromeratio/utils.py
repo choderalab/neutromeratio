@@ -118,7 +118,7 @@ def write_pdb(mol:Chem.Mol, filepath:str) -> str:
 
 def generate_rdkit_mol(smiles:str) -> Chem.Mol:
     """
-    Geneartes a rdkit mol object with 3D coordinates from smiles
+    Generates a rdkit mol object with 3D coordinates from smiles
     Parameters
     ----------
     smiles: smiles string
@@ -203,7 +203,7 @@ def construct_hybrid(ani_input:dict, tautomer_transformation:dict):
     import torchani
     import torch
     from .ani import ANI1_force_and_energy
-    from .mcmc import Instantenous_MC_Mover
+    from .mcmc import Instantaneous_MC_Mover
 
     # hard-coded default values to calculate new hydrogen coordinates
     platform = 'cpu'  
@@ -219,11 +219,11 @@ def construct_hybrid(ani_input:dict, tautomer_transformation:dict):
                                             species = species,
                                             platform = platform)
 
-    hydrogen_mover = Instantenous_MC_Mover(donor_idx = tautomer_transformation['donor'], 
-                                        hydrogen_idx = tautomer_transformation['hydrogen_idx'], 
-                                        acceptor_idx = tautomer_transformation['acceptor'], 
-                                        atom_list = ani_input['atom_list'], 
-                                        energy_function = energy_function)
+    hydrogen_mover = Instantaneous_MC_Mover(donor_idx = tautomer_transformation['donor'],
+                                            hydrogen_idx = tautomer_transformation['hydrogen_idx'],
+                                            acceptor_idx = tautomer_transformation['acceptor'],
+                                            atom_list = ani_input['atom_list'],
+                                            energy_function = energy_function)
 
     x0 = (ani_input['coord_list'])
     coord = None
