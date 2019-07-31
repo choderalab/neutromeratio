@@ -104,9 +104,72 @@ class ANI1_force_and_energy(object):
 
 
 
+class AlchemicalANI(torchani.models.ANI1ccx):
+    def __init__(self, alchemical_atoms=[0]):
+        """Scale the contributions of alchemical atoms to the energy."""
+        super().__init__()
+        self.alchemical_atoms = alchemical_atoms
+
+    def forward(self, species_coordinates, lam=1.0):
+        raise (NotImplementedError)
 
 
+class DirectAlchemicalANI(AlchemicalANI):
+    def __init__(self, alchemical_atoms=[0]):
+        """Scale the direct contributions of alchemical atoms to the energy sum,
+        ignoring indirect contributions
+        """
+        super().__init__(alchemical_atoms)
 
+
+class AEVScalingAlchemicalANI(AlchemicalANI):
+    def __init__(self, alchemical_atoms=[0]):
+        """Scale indirect contributions of alchemical atoms to the energy sum by
+        interpolating neighbors' Atomic Environment Vectors.
+
+        (Also scale direct contributions, as in DirectAlchemicalANI)
+        """
+        super().__init__(alchemical_atoms)
+
+
+class LinearAlchemicalANI(AlchemicalANI):
+    def __init__(self, alchemical_atoms=[0]):
+        """Scale the indirect contributions of alchemical atoms to the energy sum by
+        linearly interpolating, for other atom i, between the energy E_i^0 it would compute
+        in the _complete absence_ of the alchemical atoms, and the energy E_i^1 it would compute
+        in the _presence_ of the alchemical atoms.
+        (Also scale direct contributions, as in DirectAlchemicalANI)
+        """
+
+        super().__init__(alchemical_atoms)
+
+    def forward(self, species_coordinates, lam=1.0):
+        # for now, to avoid possibility of indexing bugs,
+        # only allow one alchemical atom, and it must be the 0th one.
+        # this logic should easily extend to lists of atoms...
+        assert (self.alchemical_atoms == [0])
+
+        # LAMBDA = 1: fully interacting
+        # species, AEVs of fully interacting system
+        species, coordinates = species_coordinates
+        species, aevs = self.aev_computer(species_coordinates)
+        # neural net output given these AEVs
+        nn_1 = self.neural_networks((species, aevs))[1]
+        # in units of hartree
+        E_1 = self.energy_shifter((species, nn_1))[1]
+
+        # LAMBDA = 0: fully removed
+        # species, AEVs of all other atoms, in absence of alchemical atoms
+        mod_species, mod_coordinates = species[:, 1:], coordinates[:, 1:]
+        mod_aevs = self.aev_computer((mod_species, mod_coordinates))[1]
+        # neural net output given these modified AEVs
+        nn_0 = self.neural_networks((mod_species, mod_aevs))[1]
+        E_0 = self.energy_shifter((species, nn_0))[1]
+
+        # alternative way to handle the offset
+        # E_0 = self.energy_shifter((mod_species, nn_0))[1]
+
+        return species, (lam * E_1) + ((1 - lam) * E_0)
 
 
 
