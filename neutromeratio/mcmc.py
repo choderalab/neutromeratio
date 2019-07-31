@@ -10,7 +10,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class Instantenous_MC_Mover(object):
+class Instantaneous_MC_Mover(object):
     
     def __init__(self, 
                 donor_idx:int, 
@@ -27,17 +27,17 @@ class Instantenous_MC_Mover(object):
         self.mc_accept_counter = 0
         self.mc_reject_counter = 0
         
-        self.bond_lenght_dict = { 'CH' : 1.09 * unit.angstrom,
+        self.bond_length_dict = {'CH' : 1.09 * unit.angstrom,
                                 'OH' : 0.96 * unit.angstrom,
                                 'NH' : 1.01 * unit.angstrom
-                                }
+                                 }
 
         # element of the hydrogen acceptor and donor
         self.acceptor_element = self.atom_list[self.acceptor_idx]
         self.donor_element = self.atom_list[self.donor_idx]
         # the equilibrium bond length taken from self.bond_length_dict
-        self.acceptor_hydrogen_equilibrium_bond_length = self.bond_lenght_dict['{}H'.format(self.acceptor_element)]
-        self.donor_hydrogen_equilibrium_bond_length = self.bond_lenght_dict['{}H'.format(self.donor_element)]
+        self.acceptor_hydrogen_equilibrium_bond_length = self.bond_length_dict['{}H'.format(self.acceptor_element)]
+        self.donor_hydrogen_equilibrium_bond_length = self.bond_length_dict['{}H'.format(self.donor_element)]
         # the stddev for the bond length
         self.acceptor_hydrogen_stddev_bond_length = 0.15 * unit.angstrom
         self.donor_hydrogen_stddev_bond_length = 0.15 * unit.angstrom
@@ -76,7 +76,7 @@ class Instantenous_MC_Mover(object):
         """
         Moves a hydrogen (self.hydrogen_idx) from a starting position connected to a heavy atom
         donor (self.donor_idx) to a new position around an acceptor atom (self.acceptor_idx).
-        The new coordinates are sampled from a radial distribution, with the center beeing the acceptor atom,
+        The new coordinates are sampled from a radial distribution, with the center being the acceptor atom,
         the mean: mean_bond_length = self.acceptor_hydrogen_equilibrium_bond_length * self.acceptor_mod_bond_length
         and standard deviation: self.acceptor_hydrogen_stddev_bond_length.
         Calculates the log probability of the forward and reverse proposal and returns the work.
@@ -119,7 +119,7 @@ class Instantenous_MC_Mover(object):
         return self._log_probability_of_radial_proposal(r, self.donor_hydrogen_equilibrium_bond_length * (1/unit.angstrom), self.donor_hydrogen_stddev_bond_length * (1/unit.angstrom))
 
     def accept_reject(self, log_P_accept: float) -> bool:
-        """Perform acceptance/rejection check according to the Metropolis-Hastings acceptance criterium."""
+        """Perform acceptance/rejection check according to the Metropolis-Hastings acceptance criterion."""
         # think more about symmetric
         return (log_P_accept > 0.0) or (random.random() < math.exp(log_P_accept))
 
@@ -140,9 +140,9 @@ class Instantenous_MC_Mover(object):
             """
             Generates new coordinates for a hydrogen around a heavy atom acceptor.
             Bond length is defined by the hydrogen - acceptor element equilibrium bond length,
-            definded in self.bond_lenght_dict. Standard deviation of bond length is defined
+            defined in self.bond_length_dict. Standard deviation of bond length is defined
             in self.std_bond_length.
-            A bias to the bond length can be intruduced through self.mod_bond_length.
+            A bias to the bond length can be introduced through self.mod_bond_length.
             The effective bond length is mean_bond_length *= self.mod_bond_length.
             """
             # sample a random direction
@@ -166,13 +166,13 @@ class Instantenous_MC_Mover(object):
 
 class NonequilibriumMC(object):
 
-        def __init__(self, 
-                donor_idx:int, 
-                hydrogen_idx:int, 
-                dummy_hydrogen_idx:int, 
-                acceptor_idx:int, 
-                atom_list:str, 
-                energy_function):
+    def __init__(self,
+            donor_idx:int,
+            hydrogen_idx:int,
+            dummy_hydrogen_idx:int,
+            acceptor_idx:int,
+            atom_list:str,
+            energy_function):
 
         self.donor_idx = donor_idx
         self.hydrogen_idx = hydrogen_idx
@@ -183,5 +183,4 @@ class NonequilibriumMC(object):
         self.work_values = []
 
 
-E_j(lambda) = (1 - lambda ) * E_j_without_i + lambda * E_j_with_i 
-
+# E_j(lambda) = (1 - lambda ) * E_j_without_i + lambda * E_j_with_i

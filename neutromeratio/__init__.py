@@ -12,8 +12,8 @@ logging.basicConfig(format=FORMAT,
 
 # Add imports here
 from .utils import construct_hybrid, from_mol_to_ani_input, get_donor_atom_idx, write_pdb, generate_nglview_object, generate_rdkit_mol, display_mol, generate_xyz_string
-from .mcmc import Instantenous_MC_Mover
-from .equilibrium import LangevinDynamics, performe_md_mc_protocoll, use_precalculated_md_and_performe_mc
+from .mcmc import Instantaneous_MC_Mover
+from .equilibrium import LangevinDynamics, perform_md_mc_protocol, use_precalculated_md_and_perform_mc
 from .ani import ANI1_force_and_energy
 
 # TODO: generating waterbox
