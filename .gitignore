@@ -101,6 +101,8 @@ ENV/
 # mypy
 .mypy_cache/
 
+# PyCharm project settings
+.idea
 
 #mw added
 .xyz
