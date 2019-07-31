@@ -12,7 +12,7 @@ import openmoltools as omtff
 from io import StringIO
 from lxml import etree
 import simtk.openmm.app as app
-from torchani.models.ANI1ccx
+import torchani.models.ANI1ccx
 
 gaff_default = os.path.join("../data/gaff2.xml")
 logger = logging.getLogger(__name__)

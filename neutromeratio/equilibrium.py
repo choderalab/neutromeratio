@@ -102,12 +102,12 @@ class LangevinDynamics(object):
         return traj
 
 
-def performe_md_mc_protocoll(x0:unit.quantity.Quantity,
-                            hydrogen_mover:MC_mover,
-                            langevin_dynamics:LangevinDynamics,
-                            nr_of_mc_trials:int = 500,
-                            nr_of_md_steps:int = 100
-                            ):
+def perform_md_mc_protocol(x0:unit.quantity.Quantity,
+                           hydrogen_mover:MC_mover,
+                           langevin_dynamics:LangevinDynamics,
+                           nr_of_mc_trials:int = 500,
+                           nr_of_md_steps:int = 100
+                           ):
     """
     Performing instantaneous MC and langevin dynamics.
     Given a coordinate set the forces with respect to the coordinates are calculated.
@@ -120,7 +120,7 @@ def performe_md_mc_protocoll(x0:unit.quantity.Quantity,
                     nr of MC moves that should be performed
     hydrogen_mover: MC_mover object
                     specifies how the MC moves are performed
-    lengevin_dynamics: LangevinDynamics object
+    langevin_dynamics: LangevinDynamics object
 
 
     Returns
@@ -148,7 +148,7 @@ def performe_md_mc_protocoll(x0:unit.quantity.Quantity,
         
         
 
-def use_precalculated_md_and_performe_mc(top:str,
+def use_precalculated_md_and_perform_mc(top:str,
                                         trajs:list,
                                         hydrogen_movers:list,
                                         mc_every_nth_frame:int):
