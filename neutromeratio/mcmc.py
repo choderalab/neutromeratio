@@ -10,8 +10,9 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class Instantenous_MC_Mover(object):
-    
+
+class MC_Mover(object):
+
     def __init__(self, 
                 donor_idx:int, 
                 hydrogen_idx:int, 
@@ -71,6 +72,10 @@ class Instantenous_MC_Mover(object):
             f_proposed.write(line)
         f_proposed.close()
 
+
+
+class Instantenous_MC_Mover(MC_Mover):
+    
 
     def perform_mc_move(self, coordinates:unit.quantity.Quantity):
         """
@@ -164,24 +169,52 @@ class Instantenous_MC_Mover(object):
 
 
 
-class NonequilibriumMC(object):
+class NonequilibriumMC(MC_Mover):
 
-        def __init__(self, 
+
+    def __init__(self, 
                 donor_idx:int, 
                 hydrogen_idx:int, 
-                dummy_hydrogen_idx:int, 
                 acceptor_idx:int, 
-                atom_list:str, 
+                atom_list:str,
+                atom_masking_list:list, 
                 energy_function):
+        
+        super(MC_Mover, self).__init__(donor_idx, 
+                                                    hydrogen_idx,
+                                                    acceptor_idx,
+                                                    atom_list,
+                                                    energy_function)
+        
+        self.atom_masking_list = atom_masking_list # same order as atom_list -> boolean list filled with False except for the atom that is affected
 
-        self.donor_idx = donor_idx
-        self.hydrogen_idx = hydrogen_idx
-        self.dummy_hydrogen_idx = dummy_hydrogen_idx
-        self.acceptor_idx = acceptor_idx
-        self.atom_list = atom_list
-        self.energy_function = energy_function
-        self.work_values = []
 
 
-E_j(lambda) = (1 - lambda ) * E_j_without_i + lambda * E_j_with_i 
+    def perform_mc_move(self, coordinates:unit.quantity.Quantity):
+        """
+        Moves a hydrogen (self.hydrogen_idx) from a starting position connected to a heavy atom
+        donor (self.donor_idx) to a new position around an acceptor atom (self.acceptor_idx).
+        The new coordinates are sampled from a radial distribution, with the center beeing the acceptor atom,
+        the mean: mean_bond_length = self.acceptor_hydrogen_equilibrium_bond_length * self.acceptor_mod_bond_length
+        and standard deviation: self.acceptor_hydrogen_stddev_bond_length.
+        Calculates the log probability of the forward and reverse proposal and returns the work.
+        """
+        # convert coordinates to angstroms
+        # coordinates_before_move
+        coordinates_A = coordinates.in_units_of(unit.angstrom)
+        #coordinates_after_move
+        coordinates_B = self._move_hydrogen_to_acceptor_idx(copy.deepcopy(coordinates_A))
+        energy_B = self.energy_function.calculate_energy(coordinates_B)
+        energy_A = self.energy_function.calculate_energy(coordinates_A)
+        delta_u = reduced_pot(energy_B - energy_A)
+
+        # log probability of forward proposal from the initial coordinates (coordinate_A) to proposed coordinates (coordinate_B)
+        log_p_forward = self.log_probability_of_proposal_to_B(coordinates_A, coordinates_B)
+        # log probability of reverse proposal given the proposed coordinates (coordinate_B)
+        log_p_reverse = self.log_probability_of_proposal_to_A(coordinates_B, coordinates_A)
+        work = - ((- delta_u) + (log_p_reverse - log_p_forward))
+        return coordinates_B, work
+
+
+
 

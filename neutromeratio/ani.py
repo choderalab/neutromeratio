@@ -12,10 +12,13 @@ import openmoltools as omtff
 from io import StringIO
 from lxml import etree
 import simtk.openmm.app as app
-from torchani.models.ANI1ccx
 
 gaff_default = os.path.join("../data/gaff2.xml")
 logger = logging.getLogger(__name__)
+
+
+
+
 
 
 class ANI1_force_and_energy(object):
@@ -97,6 +100,8 @@ class ANI1_force_and_energy(object):
         energy_in_kJ_mol = energy_in_hartree * hartree_to_kJ_mol
 
         return energy_in_kJ_mol.item() * unit.kilojoule_per_mole
+
+
 
 
 

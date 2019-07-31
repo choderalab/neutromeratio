@@ -3,7 +3,7 @@ from .constants import speed_unit, distance_unit, kB
 from simtk import unit
 from tqdm import tqdm
 from .utils import generate_xyz_string
-from .mcmc import MC_mover
+from .mcmc import MC_Mover
 from .ani import ANI1_force_and_energy
 import mdtraj as md
 import torchani
@@ -103,7 +103,7 @@ class LangevinDynamics(object):
 
 
 def performe_md_mc_protocoll(x0:unit.quantity.Quantity,
-                            hydrogen_mover:MC_mover,
+                            hydrogen_mover:MC_Mover,
                             langevin_dynamics:LangevinDynamics,
                             nr_of_mc_trials:int = 500,
                             nr_of_md_steps:int = 100
@@ -133,7 +133,7 @@ def performe_md_mc_protocoll(x0:unit.quantity.Quantity,
     
     for _ in trange:
 
-        trajectory = langevin_dynamics.run_dynamics(x0, nr_of_md_steps = nr_of_md_steps)
+        trajectory = langevin_dynamics.run_dynamics(x0, nr_of_md_steps)
         final_coordinate_set = trajectory[-1]
         traj_in_nm += [x / unit.nanometer for x in trajectory]      
         # MC move
