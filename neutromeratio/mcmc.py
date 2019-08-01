@@ -247,7 +247,7 @@ class NonequilibriumMC(MC_Mover):
             trajectory = self.langevin_dynamics.run_dynamics(x0, nr_of_md_steps)
             final_coordinate_set = trajectory[-1]
             # MC move
-            work_values.append(self.perform_mc_move(final_coordinate_set, lambda_value))
+            work_values.append(self.propagate_lambda(final_coordinate_set, lambda_value))
             # update new coordinates for langevin dynamics
             x0 = final_coordinate_set
             traj_in_nm += [x / unit.nanometer for x in trajectory]
@@ -263,7 +263,7 @@ class NonequilibriumMC(MC_Mover):
             trajectory = self.langevin_dynamics.run_dynamics(x0, nr_of_md_steps)
             final_coordinate_set = trajectory[-1]
             # MC move
-            work_values.append(self.perform_mc_move(final_coordinate_set, lambda_value))
+            work_values.append(self.propagate_lambda(final_coordinate_set, lambda_value))
             # update new coordinates for langevin dynamics
             x0 = final_coordinate_set
             traj_in_nm += [x / unit.nanometer for x in trajectory]
@@ -271,15 +271,16 @@ class NonequilibriumMC(MC_Mover):
         return work_values, traj_in_nm
 
 
-    def perform_mc_move(self, coordinates:unit.quantity.Quantity, lambda_value:float):
+    def propagate_lambda(self, coordinates:unit.quantity.Quantity, lambda_value:float):
         """
         """
-        # convert coordinates to angstroms
-        # coordinates_before_move
-        coordinates = coordinates.in_units_of(unit.angstrom)
-        energy_A = self.energy_function.calculate_energy(coordinates)
 
+        coordinates = coordinates.in_units_of(unit.angstrom)
+        # energy of current state
+        energy_A = self.energy_function.calculate_energy(coordinates)
+        # set new lambda value
         self.energy_function.lambda_value = lambda_value
+        # energy of propagated state
         energy_B = self.energy_function.calculate_energy(coordinates)
 
 
