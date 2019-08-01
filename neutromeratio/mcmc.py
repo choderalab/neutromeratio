@@ -49,6 +49,44 @@ class MC_Mover(object):
         self.initial_coordinates = []
         self.work_values = []
 
+    def _move_hydrogen_to_acceptor_idx(self, coordinates:unit.quantity.Quantity) -> unit.quantity.Quantity:
+        """Moves a single hydrogen (specified in self.hydrogen_idx) from a donor
+        atom (self.donor_idx) to a new position around the acceptor atom (self.acceptor_idx).
+        Parameters
+        ----------
+        coordinates_in_angstroms :numpy array, unit'd
+            coordinates
+
+        Returns
+        -------
+        coordinates_in_angstroms :numpy array, unit'd
+            coordinates
+        """
+        def sample_spherical(ndim=3):
+            """
+            Generates new coordinates for a hydrogen around a heavy atom acceptor.
+            Bond length is defined by the hydrogen - acceptor element equilibrium bond length,
+            defined in self.bond_length_dict. Standard deviation of bond length is defined
+            in self.std_bond_length.
+            A bias to the bond length can be introduced through self.mod_bond_length.
+            The effective bond length is mean_bond_length *= self.mod_bond_length.
+            """
+            # sample a random direction
+            unit_vector = np.random.randn(ndim)
+            unit_vector /= np.linalg.norm(unit_vector, axis=0)
+            # sample a random length
+            effective_bond_length = (np.random.randn() * self.acceptor_hydrogen_stddev_bond_length + self.acceptor_hydrogen_equilibrium_bond_length)
+            return (unit_vector * effective_bond_length)
+
+
+        # get coordinates of acceptor atom and hydrogen that moves
+        acceptor_coordinate = coordinates[self.acceptor_idx]
+
+        # generate new hydrogen atom position and replace old coordinates
+        new_hydrogen_coordinate = acceptor_coordinate + sample_spherical()
+        coordinates[self.hydrogen_idx] = new_hydrogen_coordinate
+
+        return coordinates
 
 
 class Instantaneous_MC_Mover(MC_Mover):
@@ -131,48 +169,9 @@ class Instantaneous_MC_Mover(MC_Mover):
         # think more about symmetric
         return (log_P_accept > 0.0) or (random.random() < math.exp(log_P_accept))
 
-    def _move_hydrogen_to_acceptor_idx(self, coordinates:unit.quantity.Quantity) -> unit.quantity.Quantity:
-        """Moves a single hydrogen (specified in self.hydrogen_idx) from a donor
-        atom (self.donor_idx) to a new position around the acceptor atom (self.acceptor_idx).
-        Parameters
-        ----------
-        coordinates_in_angstroms :numpy array, unit'd
-            coordinates
-
-        Returns
-        -------
-        coordinates_in_angstroms :numpy array, unit'd
-            coordinates
-        """
-        def sample_spherical(ndim=3):
-            """
-            Generates new coordinates for a hydrogen around a heavy atom acceptor.
-            Bond length is defined by the hydrogen - acceptor element equilibrium bond length,
-            defined in self.bond_length_dict. Standard deviation of bond length is defined
-            in self.std_bond_length.
-            A bias to the bond length can be introduced through self.mod_bond_length.
-            The effective bond length is mean_bond_length *= self.mod_bond_length.
-            """
-            # sample a random direction
-            unit_vector = np.random.randn(ndim)
-            unit_vector /= np.linalg.norm(unit_vector, axis=0)
-            # sample a random length
-            effective_bond_length = (np.random.randn() * self.acceptor_hydrogen_stddev_bond_length + self.acceptor_hydrogen_equilibrium_bond_length)
-            return (unit_vector * effective_bond_length)
-
-
-        # get coordinates of acceptor atom and hydrogen that moves
-        acceptor_coordinate = coordinates[self.acceptor_idx]
-
-        # generate new hydrogen atom position and replace old coordinates
-        new_hydrogen_coordinate = acceptor_coordinate + sample_spherical()
-        coordinates[self.hydrogen_idx] = new_hydrogen_coordinate
-
-        return coordinates
 
     def performe_md_mc_protocoll(self,
                                 x0:unit.quantity.Quantity,
-                                lambda_value:int,
                                 nr_of_mc_trials:int = 500,
                                 nr_of_md_steps:int = 100,
                                 ):
@@ -195,7 +194,8 @@ class Instantaneous_MC_Mover(MC_Mover):
 
         trange = tqdm(range(nr_of_mc_trials))
         traj_in_nm = []
-        
+        work_values = []
+
         for _ in trange:
 
             trajectory = self.langevin_dynamics.run_dynamics(x0, nr_of_md_steps)
@@ -205,11 +205,11 @@ class Instantaneous_MC_Mover(MC_Mover):
             new_coordinates, work = self.perform_mc_move(final_coordinate_set)
             self.proposed_coordinates.append(new_coordinates)
             self.initial_coordinates.append(final_coordinate_set)
-            self.work_values.append(work)
+            work_values.append(work)
             # update new coordinates for langevin dynamics
             x0 = final_coordinate_set
 
-        return traj_in_nm
+        return work_values, traj_in_nm
 
 
 
@@ -240,18 +240,33 @@ class NonequilibriumMC(MC_Mover):
         traj_in_nm = []       
         work_values = []
 
-        for lambda_value in tqdm(np.linspace(1, 0, nr_of_mc_trials)):
+        logging.info('Decoupling hydrogen ...')
+        # decouple the hydrogen from the environment
+        for lambda_value in tqdm(np.linspace(1, 0, nr_of_mc_trials/2)):
             
             trajectory = self.langevin_dynamics.run_dynamics(x0, nr_of_md_steps)
             final_coordinate_set = trajectory[-1]
             # MC move
             work_values.append(self.perform_mc_move(final_coordinate_set, lambda_value))
-            #self.proposed_coordinates.append(new_coordinates)
-            #self.initial_coordinates.append(final_coordinate_set)
-            #self.work_values.append(work)
             # update new coordinates for langevin dynamics
             x0 = final_coordinate_set
-            traj_in_nm += [x / unit.nanometer for x in trajectory]      
+            traj_in_nm += [x / unit.nanometer for x in trajectory]
+
+        logging.info('Moving hydrogen ...')
+        # move the hydrogen to a new position
+        x0 = self._move_hydrogen_to_acceptor_idx(copy.deepcopy(final_coordinate_set))
+
+        logging.info('Recoupling hydrogen ...')
+        # couple the hydrogen to new environment
+        for lambda_value in tqdm(np.linspace(0, 1, nr_of_mc_trials/2)):
+            
+            trajectory = self.langevin_dynamics.run_dynamics(x0, nr_of_md_steps)
+            final_coordinate_set = trajectory[-1]
+            # MC move
+            work_values.append(self.perform_mc_move(final_coordinate_set, lambda_value))
+            # update new coordinates for langevin dynamics
+            x0 = final_coordinate_set
+            traj_in_nm += [x / unit.nanometer for x in trajectory]
 
         return work_values, traj_in_nm
 
