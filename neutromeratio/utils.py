@@ -59,12 +59,13 @@ def get_donor_atom_idx(m1:Chem.Mol, m2:Chem.Mol) -> dict:
         a1 = m1.GetAtomWithIdx(substructure_idx_m1[i])
         if a1.GetSymbol() != 'H':
             a2 = m2.GetAtomWithIdx(substructure_idx_m2[i])
-            # get acceptor - there are two heavy atoms between the mols that have 
-            # not the same number of atom neighbors
+            # get acceptor - there are two heavy atoms that have 
+            # not the same number of neighbors
             a1_neighbors = a1.GetNeighbors()
             a2_neighbors = a2.GetNeighbors()
             acceptor_count = 0
             if (len(a1_neighbors)) != (len(a2_neighbors)):
+                # we are only interested in the one that is not already the donor
                 if substructure_idx_m1[i] == donor:
                     continue
                 acceptor = substructure_idx_m1[i]

@@ -3,7 +3,6 @@ from .constants import speed_unit, distance_unit, kB
 from simtk import unit
 from tqdm import tqdm
 from .utils import generate_xyz_string
-from .mcmc import MC_Mover
 from .ani import ANI1_force_and_energy
 import mdtraj as md
 import torchani
@@ -102,49 +101,6 @@ class LangevinDynamics(object):
         return traj
 
 
-def performe_md_mc_protocoll(x0:unit.quantity.Quantity,
-                            hydrogen_mover:MC_Mover,
-                            langevin_dynamics:LangevinDynamics,
-                            nr_of_mc_trials:int = 500,
-                            nr_of_md_steps:int = 100
-                            ):
-    """
-    Performing instantaneous MC and langevin dynamics.
-    Given a coordinate set the forces with respect to the coordinates are calculated.
-    
-    Parameters
-    ----------
-    x0 : array of floats, unit'd (distance unit)
-        initial configuration
-    nr_of_mc_trials:int
-                    nr of MC moves that should be performed
-    hydrogen_mover: MC_mover object
-                    specifies how the MC moves are performed
-    lengevin_dynamics: LangevinDynamics object
-
-
-    Returns
-    -------
-    traj : array of floats, unit'd (distance unit)
-    """    
-
-    trange = tqdm(range(nr_of_mc_trials))
-    traj_in_nm = []
-    
-    for _ in trange:
-
-        trajectory = langevin_dynamics.run_dynamics(x0, nr_of_md_steps)
-        final_coordinate_set = trajectory[-1]
-        traj_in_nm += [x / unit.nanometer for x in trajectory]      
-        # MC move
-        new_coordinates, work = hydrogen_mover.perform_mc_move(final_coordinate_set)
-        hydrogen_mover.proposed_coordinates.append(new_coordinates)
-        hydrogen_mover.initial_coordinates.append(final_coordinate_set)
-        hydrogen_mover.work_values.append(work)
-        # update new coordinates for langevin dynamics
-        x0 = final_coordinate_set
-
-    return traj_in_nm
         
         
 

@@ -35,6 +35,7 @@ class ANI1_force_and_energy(object):
         self.model = model
         self.species = species
         self.platform = platform
+        self.lambda_value = 1.0
 
         # TODO: check availablity of platform
 
@@ -57,7 +58,7 @@ class ANI1_force_and_energy(object):
         coordinates = torch.tensor([x.value_in_unit(unit.nanometer)],
                                 requires_grad=True, device=self.device, dtype=torch.float32)
 
-        _, energy_in_hartree = self.model((self.species, coordinates * nm_to_angstroms))
+        _, energy_in_hartree = self.model((self.species, coordinates * nm_to_angstroms, self.lambda_value))
 
         # convert energy from hartrees to kJ/mol
         energy_in_kJ_mol = energy_in_hartree * hartree_to_kJ_mol
@@ -75,7 +76,7 @@ class ANI1_force_and_energy(object):
         return F * (unit.kilojoule_per_mole / unit.nanometer)
 
     
-    def calculate_energy(self, x:simtk.unit.quantity.Quantity, lambda_list:list)->simtk.unit.quantity.Quantity:
+    def calculate_energy(self, x:simtk.unit.quantity.Quantity)->simtk.unit.quantity.Quantity:
         """
         Given a coordinate set (x) the energy is calculated in kJ/mol.
 
@@ -94,7 +95,7 @@ class ANI1_force_and_energy(object):
         coordinates = torch.tensor([x.value_in_unit(unit.angstrom)],
                                 requires_grad=True, device=self.device, dtype=torch.float32)
 
-        _, energy_in_hartree = self.model((self.species, coordinates))
+        _, energy_in_hartree = self.model((self.species, coordinates, self.lambda_value))
 
         # convert energy from hartrees to kJ/mol
         energy_in_kJ_mol = energy_in_hartree * hartree_to_kJ_mol
@@ -133,7 +134,7 @@ class AEVScalingAlchemicalANI(AlchemicalANI):
 
 
 class LinearAlchemicalANI(AlchemicalANI):
-    def __init__(self, alchemical_atoms=[0]):
+    def __init__(self, alchemical_atoms):
         """Scale the indirect contributions of alchemical atoms to the energy sum by
         linearly interpolating, for other atom i, between the energy E_i^0 it would compute
         in the _complete absence_ of the alchemical atoms, and the energy E_i^1 it would compute
@@ -143,16 +144,15 @@ class LinearAlchemicalANI(AlchemicalANI):
 
         super().__init__(alchemical_atoms)
 
-    def forward(self, species_coordinates, lam=1.0):
+    def forward(self, species_coordinates):
         # for now, to avoid possibility of indexing bugs,
-        # only allow one alchemical atom, and it must be the 0th one.
+        # only allow one alchemical atom,.
         # this logic should easily extend to lists of atoms...
-        assert (self.alchemical_atoms == [0])
 
         # LAMBDA = 1: fully interacting
         # species, AEVs of fully interacting system
-        species, coordinates = species_coordinates
-        species, aevs = self.aev_computer(species_coordinates)
+        species, coordinates, lam = species_coordinates
+        species, aevs = self.aev_computer(species_coordinates[:-1])
         # neural net output given these AEVs
         nn_1 = self.neural_networks((species, aevs))[1]
         # in units of hartree
@@ -160,7 +160,8 @@ class LinearAlchemicalANI(AlchemicalANI):
 
         # LAMBDA = 0: fully removed
         # species, AEVs of all other atoms, in absence of alchemical atoms
-        mod_species, mod_coordinates = species[:, 1:], coordinates[:, 1:]
+        mod_species = torch.cat((species[:, :self.alchemical_atoms],  species[:, self.alchemical_atoms+1:]), dim=1)
+        mod_coordinates = torch.cat((coordinates[:, :self.alchemical_atoms],  coordinates[:, self.alchemical_atoms+1:]), dim=1) 
         mod_aevs = self.aev_computer((mod_species, mod_coordinates))[1]
         # neural net output given these modified AEVs
         nn_0 = self.neural_networks((mod_species, mod_aevs))[1]

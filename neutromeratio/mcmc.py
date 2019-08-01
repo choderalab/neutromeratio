@@ -6,9 +6,10 @@ import copy
 from .utils import reduced_pot, generate_xyz_string
 import math
 import logging
+from tqdm import tqdm
+from .equilibrium import LangevinDynamics
 
 logger = logging.getLogger(__name__)
-
 
 
 class MC_Mover(object):
@@ -18,27 +19,29 @@ class MC_Mover(object):
                 hydrogen_idx:int, 
                 acceptor_idx:int, 
                 atom_list:str, 
-                energy_function):
+                energy_function,
+                langevin_dynamics:LangevinDynamics):
 
         self.donor_idx = donor_idx
         self.hydrogen_idx = hydrogen_idx
         self.acceptor_idx = acceptor_idx
         self.atom_list = atom_list
         self.energy_function = energy_function
+        self.langevin_dynamics = langevin_dynamics
         self.mc_accept_counter = 0
         self.mc_reject_counter = 0
         
-        self.bond_lenght_dict = { 'CH' : 1.09 * unit.angstrom,
+        self.bond_length_dict = {'CH' : 1.09 * unit.angstrom,
                                 'OH' : 0.96 * unit.angstrom,
                                 'NH' : 1.01 * unit.angstrom
-                                }
+                                 }
 
         # element of the hydrogen acceptor and donor
         self.acceptor_element = self.atom_list[self.acceptor_idx]
         self.donor_element = self.atom_list[self.donor_idx]
         # the equilibrium bond length taken from self.bond_length_dict
-        self.acceptor_hydrogen_equilibrium_bond_length = self.bond_lenght_dict['{}H'.format(self.acceptor_element)]
-        self.donor_hydrogen_equilibrium_bond_length = self.bond_lenght_dict['{}H'.format(self.donor_element)]
+        self.acceptor_hydrogen_equilibrium_bond_length = self.bond_length_dict['{}H'.format(self.acceptor_element)]
+        self.donor_hydrogen_equilibrium_bond_length = self.bond_length_dict['{}H'.format(self.donor_element)]
         # the stddev for the bond length
         self.acceptor_hydrogen_stddev_bond_length = 0.15 * unit.angstrom
         self.donor_hydrogen_stddev_bond_length = 0.15 * unit.angstrom
@@ -72,16 +75,14 @@ class MC_Mover(object):
             f_proposed.write(line)
         f_proposed.close()
 
-
-
-class Instantenous_MC_Mover(MC_Mover):
+class Instantaneous_MC_Mover(MC_Mover):
     
 
     def perform_mc_move(self, coordinates:unit.quantity.Quantity):
         """
         Moves a hydrogen (self.hydrogen_idx) from a starting position connected to a heavy atom
         donor (self.donor_idx) to a new position around an acceptor atom (self.acceptor_idx).
-        The new coordinates are sampled from a radial distribution, with the center beeing the acceptor atom,
+        The new coordinates are sampled from a radial distribution, with the center being the acceptor atom,
         the mean: mean_bond_length = self.acceptor_hydrogen_equilibrium_bond_length * self.acceptor_mod_bond_length
         and standard deviation: self.acceptor_hydrogen_stddev_bond_length.
         Calculates the log probability of the forward and reverse proposal and returns the work.
@@ -124,7 +125,7 @@ class Instantenous_MC_Mover(MC_Mover):
         return self._log_probability_of_radial_proposal(r, self.donor_hydrogen_equilibrium_bond_length * (1/unit.angstrom), self.donor_hydrogen_stddev_bond_length * (1/unit.angstrom))
 
     def accept_reject(self, log_P_accept: float) -> bool:
-        """Perform acceptance/rejection check according to the Metropolis-Hastings acceptance criterium."""
+        """Perform acceptance/rejection check according to the Metropolis-Hastings acceptance criterion."""
         # think more about symmetric
         return (log_P_accept > 0.0) or (random.random() < math.exp(log_P_accept))
 
@@ -145,9 +146,9 @@ class Instantenous_MC_Mover(MC_Mover):
             """
             Generates new coordinates for a hydrogen around a heavy atom acceptor.
             Bond length is defined by the hydrogen - acceptor element equilibrium bond length,
-            definded in self.bond_lenght_dict. Standard deviation of bond length is defined
+            defined in self.bond_length_dict. Standard deviation of bond length is defined
             in self.std_bond_length.
-            A bias to the bond length can be intruduced through self.mod_bond_length.
+            A bias to the bond length can be introduced through self.mod_bond_length.
             The effective bond length is mean_bond_length *= self.mod_bond_length.
             """
             # sample a random direction
@@ -167,34 +168,96 @@ class Instantenous_MC_Mover(MC_Mover):
 
         return coordinates
 
+    def performe_md_mc_protocoll(self,
+                                x0:unit.quantity.Quantity,
+                                lambda_value:int,
+                                nr_of_mc_trials:int = 500,
+                                nr_of_md_steps:int = 100,
+                                ):
+        """
+        Performing instantaneous MC and langevin dynamics.
+        Given a coordinate set the forces with respect to the coordinates are calculated.
+        
+        Parameters
+        ----------
+        x0 : array of floats, unit'd (distance unit)
+            initial configuration
+        nr_of_mc_trials:int
+                        nr of MC moves that should be performed
+
+
+        Returns
+        -------
+        traj : array of floats, unit'd (distance unit)
+        """    
+
+        trange = tqdm(range(nr_of_mc_trials))
+        traj_in_nm = []
+        
+        for _ in trange:
+
+            trajectory = self.langevin_dynamics.run_dynamics(x0, nr_of_md_steps)
+            final_coordinate_set = trajectory[-1]
+            traj_in_nm += [x / unit.nanometer for x in trajectory]      
+            # MC move
+            new_coordinates, work = self.perform_mc_move(final_coordinate_set)
+            self.proposed_coordinates.append(new_coordinates)
+            self.initial_coordinates.append(final_coordinate_set)
+            self.work_values.append(work)
+            # update new coordinates for langevin dynamics
+            x0 = final_coordinate_set
+
+        return traj_in_nm
+
 
 
 class NonequilibriumMC(MC_Mover):
 
-
-    def __init__(self, 
-                donor_idx:int, 
-                hydrogen_idx:int, 
-                acceptor_idx:int, 
-                atom_list:str,
-                atom_masking_list:list, 
-                energy_function):
+    def performe_md_mc_protocoll(self,
+                                x0:unit.quantity.Quantity,
+                                nr_of_mc_trials:int = 500,
+                                nr_of_md_steps:int = 50
+                                ):
+        """
+        Performing instantaneous MC and langevin dynamics.
+        Given a coordinate set the forces with respect to the coordinates are calculated.
         
-        super(MC_Mover, self).__init__(donor_idx, 
-                                                    hydrogen_idx,
-                                                    acceptor_idx,
-                                                    atom_list,
-                                                    energy_function)
-        
-        self.atom_masking_list = atom_masking_list # same order as atom_list -> boolean list filled with False except for the atom that is affected
+        Parameters
+        ----------
+        x0 : array of floats, unit'd (distance unit)
+            initial configuration
+        nr_of_mc_trials:int
+                        nr of MC moves that should be performed
 
+
+        Returns
+        -------
+        traj : array of floats, unit'd (distance unit)
+        """    
+
+        traj_in_nm = []
+        
+        for lambda_value in tqdm(np.linspace(1, 0, nr_of_mc_trials)):
+            self.energy_function.lambda_value = lambda_value
+            trajectory = self.langevin_dynamics.run_dynamics(x0, nr_of_md_steps)
+            final_coordinate_set = trajectory[-1]
+            traj_in_nm += [x / unit.nanometer for x in trajectory]      
+            # MC move
+            self.perform_mc_move(final_coordinate_set)
+            #self.proposed_coordinates.append(new_coordinates)
+            #self.initial_coordinates.append(final_coordinate_set)
+            #self.work_values.append(work)
+            # update new coordinates for langevin dynamics
+            x0 = final_coordinate_set
+
+        return traj_in_nm
 
 
     def perform_mc_move(self, coordinates:unit.quantity.Quantity):
         """
         Moves a hydrogen (self.hydrogen_idx) from a starting position connected to a heavy atom
         donor (self.donor_idx) to a new position around an acceptor atom (self.acceptor_idx).
-        The new coordinates are sampled from a radial distribution, with the center beeing the acceptor atom,
+        The new coordinates are sampled from a radial distribution, with the center being the acceptor atom,
         the mean: mean_bond_length = self.acceptor_hydrogen_equilibrium_bond_length * self.acceptor_mod_bond_length
         and standard deviation: self.acceptor_hydrogen_stddev_bond_length.
         Calculates the log probability of the forward and reverse proposal and returns the work.
@@ -202,19 +265,18 @@ class NonequilibriumMC(MC_Mover):
         # convert coordinates to angstroms
         # coordinates_before_move
         coordinates_A = coordinates.in_units_of(unit.angstrom)
-        #coordinates_after_move
-        coordinates_B = self._move_hydrogen_to_acceptor_idx(copy.deepcopy(coordinates_A))
-        energy_B = self.energy_function.calculate_energy(coordinates_B)
         energy_A = self.energy_function.calculate_energy(coordinates_A)
-        delta_u = reduced_pot(energy_B - energy_A)
+
+
+
+        #coordinates_after_move
+        #coordinates_B = self._move_hydrogen_to_acceptor_idx(copy.deepcopy(coordinates_A))
+        #energy_B = self.energy_function.calculate_energy(coordinates_B)
+        #delta_u = reduced_pot(energy_B - energy_A)
 
         # log probability of forward proposal from the initial coordinates (coordinate_A) to proposed coordinates (coordinate_B)
-        log_p_forward = self.log_probability_of_proposal_to_B(coordinates_A, coordinates_B)
+        #log_p_forward = self.log_probability_of_proposal_to_B(coordinates_A, coordinates_B)
         # log probability of reverse proposal given the proposed coordinates (coordinate_B)
-        log_p_reverse = self.log_probability_of_proposal_to_A(coordinates_B, coordinates_A)
-        work = - ((- delta_u) + (log_p_reverse - log_p_forward))
-        return coordinates_B, work
-
-
-
-
+        #log_p_reverse = self.log_probability_of_proposal_to_A(coordinates_B, coordinates_A)
+        #work = - ((- delta_u) + (log_p_reverse - log_p_forward))
+        #return coordinates_A, work
