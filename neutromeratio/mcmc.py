@@ -45,10 +45,14 @@ class MC_Mover(object):
         # the stddev for the bond length
         self.acceptor_hydrogen_stddev_bond_length = 0.15 * unit.angstrom
         self.donor_hydrogen_stddev_bond_length = 0.15 * unit.angstrom
-        # the mean bond length is the bond length that is actually used for proposing coordinates
         self.proposed_coordinates = []
         self.initial_coordinates = []
         self.work_values = []
+
+
+
+class Instantaneous_MC_Mover(MC_Mover):
+
 
     def write_xyz_files(self, ts:int, filename:str):
         """
@@ -74,8 +78,6 @@ class MC_Mover(object):
         for line in xyz_string:
             f_proposed.write(line)
         f_proposed.close()
-
-class Instantaneous_MC_Mover(MC_Mover):
     
 
     def perform_mc_move(self, coordinates:unit.quantity.Quantity):
@@ -236,14 +238,14 @@ class NonequilibriumMC(MC_Mover):
         """    
 
         traj_in_nm = []       
-        work_value = 0
+        work_values = []
 
         for lambda_value in tqdm(np.linspace(1, 0, nr_of_mc_trials)):
             
             trajectory = self.langevin_dynamics.run_dynamics(x0, nr_of_md_steps)
             final_coordinate_set = trajectory[-1]
             # MC move
-            work_value += self.perform_mc_move(final_coordinate_set, lambda_value)
+            work_values.append(self.perform_mc_move(final_coordinate_set, lambda_value))
             #self.proposed_coordinates.append(new_coordinates)
             #self.initial_coordinates.append(final_coordinate_set)
             #self.work_values.append(work)
@@ -251,7 +253,7 @@ class NonequilibriumMC(MC_Mover):
             x0 = final_coordinate_set
             traj_in_nm += [x / unit.nanometer for x in trajectory]      
 
-        return work_value, traj_in_nm
+        return work_values, traj_in_nm
 
 
     def perform_mc_move(self, coordinates:unit.quantity.Quantity, lambda_value:float):

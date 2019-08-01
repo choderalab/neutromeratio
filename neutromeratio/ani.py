@@ -18,9 +18,6 @@ logger = logging.getLogger(__name__)
 
 
 
-
-
-
 class ANI1_force_and_energy(object):
     """
     Performs energy and force calculations.
