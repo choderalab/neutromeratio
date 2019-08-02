@@ -12,6 +12,7 @@ import openmoltools as omtff
 from io import StringIO
 from lxml import etree
 import simtk.openmm.app as app
+from .restraints import flat_bottom_position_restraint
 
 gaff_default = os.path.join("../data/gaff2.xml")
 logger = logging.getLogger(__name__)
@@ -27,12 +28,18 @@ class ANI1_force_and_energy(object):
     device:
     """
 
-    def __init__(self, device:torch.device, model:torchani.models.ANI1ccx, species:torch.Tensor, platform:str):
+    def __init__(self, device:torch.device, model:torchani.models.ANI1ccx, atom_list:list, platform:str, tautomer_transformation:dict={}, bond_restraint:bool=False):
+        
         self.device = device
         self.model = model
-        self.species = species
+        self.species = model.species_to_tensor(atom_list).to(device).unsqueeze(0)
+        self.atom_list = atom_list
         self.platform = platform
         self.lambda_value = 1.0
+        self.bias = []
+        self.tautomer_transformation = tautomer_transformation
+        self.bond_restraint = bond_restraint
+        self.restrain_acceptor_or_donor:str='acceptor'
 
         # TODO: check availablity of platform
 
@@ -59,6 +66,11 @@ class ANI1_force_and_energy(object):
 
         # convert energy from hartrees to kJ/mol
         energy_in_kJ_mol = energy_in_hartree * hartree_to_kJ_mol
+
+        if self.bond_restraint:
+            bias = flat_bottom_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, self.restrain_acceptor_or_donor)
+            self.bias.append(bias)
+            energy_in_kJ_mol = energy_in_kJ_mol + bias
 
         # derivative of E (in kJ/mol) w.r.t. coordinates (in nm)
         derivative = torch.autograd.grad((energy_in_kJ_mol).sum(), coordinates)[0]
@@ -96,10 +108,10 @@ class ANI1_force_and_energy(object):
 
         # convert energy from hartrees to kJ/mol
         energy_in_kJ_mol = energy_in_hartree * hartree_to_kJ_mol
-
+        if self.bond_restraint:
+            bias = flat_bottom_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, self.restrain_acceptor_or_donor)
+            energy_in_kJ_mol = energy_in_kJ_mol + bias
         return energy_in_kJ_mol.item() * unit.kilojoule_per_mole
-
-
 
 
 class AlchemicalANI(torchani.models.ANI1ccx):

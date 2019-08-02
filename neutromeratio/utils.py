@@ -27,7 +27,7 @@ def get_donor_atom_idx(m1:Chem.Mol, m2:Chem.Mol) -> dict:
     
     Returns
     -------
-    dict('donor': donor_idx, 'hydrogen_idx' : hydrogen_idx_that_moves)
+    dict('donor_idx': donor_idx, 'hydrogen_idx' : hydrogen_idx_that_moves)
     """
 
     m1 = copy.deepcopy(m1)
@@ -80,7 +80,7 @@ def get_donor_atom_idx(m1:Chem.Mol, m2:Chem.Mol) -> dict:
     #            - donor idx can not be hydrogen idx
     # thinking about testing
 
-    return { 'donor': donor, 'hydrogen_idx' : hydrogen_idx_that_moves, 'acceptor' : acceptor}
+    return { 'donor_idx': donor, 'hydrogen_idx' : hydrogen_idx_that_moves, 'acceptor_idx' : acceptor}
 
 
 def generate_xyz_string(atom_list:str, coordinates:unit.quantity.Quantity) -> str:

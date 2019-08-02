@@ -8,7 +8,7 @@ import math
 import logging
 from tqdm import tqdm
 from .equilibrium import LangevinDynamics
-from .restraints import flatt_bottom_position_restraint
+from .constants import bond_length_dict
 
 logger = logging.getLogger(__name__)
 
@@ -32,11 +32,7 @@ class MC_Mover(object):
         self.mc_accept_counter = 0
         self.mc_reject_counter = 0
         
-        self.bond_length_dict = {'CH' : 1.09 * unit.angstrom,
-                                'OH' : 0.96 * unit.angstrom,
-                                'NH' : 1.01 * unit.angstrom
-                                 }
-
+        self.bond_length_dict = bond_length_dict
         # element of the hydrogen acceptor and donor
         self.acceptor_element = self.atom_list[self.acceptor_idx]
         self.donor_element = self.atom_list[self.donor_idx]
@@ -229,6 +225,7 @@ class NonequilibriumMC(MC_Mover):
 
         logging.info('Decoupling hydrogen ...')
         # decouple the hydrogen from the environment
+        self.energy_function.restrain_acceptor_or_donor = 'donor'
         for lambda_value in tqdm(np.linspace(1, 0, nr_of_mc_trials/2)):
             
             trajectory = self.langevin_dynamics.run_dynamics(x0, nr_of_md_steps)
@@ -240,11 +237,16 @@ class NonequilibriumMC(MC_Mover):
             traj_in_nm += [x / unit.nanometer for x in trajectory]
 
         logging.info('Moving hydrogen ...')
+        # turn of the bond restraint
         # move the hydrogen to a new position
+        self.energy_function.bond_restraint = False
         x0 = self._move_hydrogen_to_acceptor_idx(copy.deepcopy(final_coordinate_set))
+        # turn on the bond restraint
+        self.energy_function.bond_restraint = True
 
         logging.info('Recoupling hydrogen ...')
         # couple the hydrogen to new environment
+        self.energy_function.restrain_acceptor_or_donor = 'acceptor'
         for lambda_value in tqdm(np.linspace(0, 1, nr_of_mc_trials/2)):
             
             trajectory = self.langevin_dynamics.run_dynamics(x0, nr_of_md_steps)
@@ -259,6 +261,8 @@ class NonequilibriumMC(MC_Mover):
 
     def propagate_lambda(self, coordinates:unit.quantity.Quantity, lambda_value:float):
         """
+        Lambda value that controls the coupling of the hydrogen to the environment is 
+        propagated here.
         """
 
         coordinates = coordinates.in_units_of(unit.angstrom)
