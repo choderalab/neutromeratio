@@ -8,6 +8,7 @@ import math
 import logging
 from tqdm import tqdm
 from .equilibrium import LangevinDynamics
+from .restraints import flatt_bottom_position_restraint
 
 logger = logging.getLogger(__name__)
 
@@ -221,20 +222,6 @@ class NonequilibriumMC(MC_Mover):
                                 nr_of_md_steps:int = 50
                                 ):
         """
-        Performing instantaneous MC and langevin dynamics.
-        Given a coordinate set the forces with respect to the coordinates are calculated.
-        
-        Parameters
-        ----------
-        x0 : array of floats, unit'd (distance unit)
-            initial configuration
-        nr_of_mc_trials:int
-                        nr of MC moves that should be performed
-
-
-        Returns
-        -------
-        traj : array of floats, unit'd (distance unit)
         """    
 
         traj_in_nm = []       
@@ -262,7 +249,6 @@ class NonequilibriumMC(MC_Mover):
             
             trajectory = self.langevin_dynamics.run_dynamics(x0, nr_of_md_steps)
             final_coordinate_set = trajectory[-1]
-            # MC move
             work_values.append(self.propagate_lambda(final_coordinate_set, lambda_value))
             # update new coordinates for langevin dynamics
             x0 = final_coordinate_set
