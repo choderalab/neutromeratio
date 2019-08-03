@@ -3,9 +3,12 @@ from .constants import nm_to_angstroms
 import numpy as np
 import torch
 from .constants import bond_length_dict
+import logging
+
+logger = logging.getLogger(__name__)
 
 
-def flat_bottom_position_restraint(x, tautomer_transformation:dict, atom_list:list, restrain_acceptor_or_donor:str):
+def flat_bottom_position_restraint(x, tautomer_transformation:dict, atom_list:list, restrain_acceptor:bool, restrain_donor:bool):
     
     """
     Applies a flat bottom positional restraint that mimiks a bond between .
@@ -28,7 +31,13 @@ def flat_bottom_position_restraint(x, tautomer_transformation:dict, atom_list:li
     """
 
     k = 100
-    heavy_atom_idx = tautomer_transformation['{}_idx'.format(restrain_acceptor_or_donor)]
+    if restrain_acceptor:
+        heavy_atom_idx = tautomer_transformation['acceptor_idx']
+    elif restrain_donor:
+        heavy_atom_idx = tautomer_transformation['donor_idx']
+    else:
+        raise RuntimeError('Something went wrong.')
+    
     heavy_atom_element = atom_list[heavy_atom_idx]
     mean_bond_length = bond_length_dict['{}H'.format(heavy_atom_element)]
 
@@ -41,4 +50,5 @@ def flat_bottom_position_restraint(x, tautomer_transformation:dict, atom_list:li
         e = k * (distance - upper_bound)**2
     else:
         e = torch.tensor([0.0])
+    logging.debug('Bias introduced: {:0.4f}'.format(e.item()))
     return e

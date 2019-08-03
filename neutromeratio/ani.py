@@ -39,7 +39,8 @@ class ANI1_force_and_energy(object):
         self.bias = []
         self.tautomer_transformation = tautomer_transformation
         self.bond_restraint = bond_restraint
-        self.restrain_acceptor_or_donor:str='acceptor'
+        self.restrain_acceptor = False
+        self.restrain_donor = False
 
         # TODO: check availablity of platform
 
@@ -67,8 +68,8 @@ class ANI1_force_and_energy(object):
         # convert energy from hartrees to kJ/mol
         energy_in_kJ_mol = energy_in_hartree * hartree_to_kJ_mol
 
-        if self.bond_restraint:
-            bias = flat_bottom_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, self.restrain_acceptor_or_donor)
+        if self.restrain_acceptor or self.restrain_donor:
+            bias = flat_bottom_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor = self.restrain_acceptor, restrain_donor = self.restrain_donor)
             self.bias.append(bias)
             energy_in_kJ_mol = energy_in_kJ_mol + bias
 
@@ -101,15 +102,15 @@ class ANI1_force_and_energy(object):
 
         assert(type(x) == unit.Quantity)
 
-        coordinates = torch.tensor([x.value_in_unit(unit.angstrom)],
+        coordinates = torch.tensor([x.value_in_unit(unit.nanometer)],
                                 requires_grad=True, device=self.device, dtype=torch.float32)
 
-        _, energy_in_hartree = self.model((self.species, coordinates, self.lambda_value))
+        _, energy_in_hartree = self.model((self.species, coordinates * nm_to_angstroms, self.lambda_value))
 
         # convert energy from hartrees to kJ/mol
         energy_in_kJ_mol = energy_in_hartree * hartree_to_kJ_mol
-        if self.bond_restraint:
-            bias = flat_bottom_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, self.restrain_acceptor_or_donor)
+        if self.restrain_acceptor or self.restrain_donor:
+            bias = flat_bottom_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor = self.restrain_acceptor, restrain_donor = self.restrain_donor)
             energy_in_kJ_mol = energy_in_kJ_mol + bias
         return energy_in_kJ_mol.item() * unit.kilojoule_per_mole
 

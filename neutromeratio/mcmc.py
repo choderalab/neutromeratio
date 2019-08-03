@@ -84,37 +84,7 @@ class MC_Mover(object):
         coordinates[self.hydrogen_idx] = new_hydrogen_coordinate
 
         return coordinates
-
-
-class Instantaneous_MC_Mover(MC_Mover):
-
-
-    def write_xyz_files(self, ts:int, filename:str):
-        """
-        Writes xyz files in current directory.
-        The files are saved in {name}_ts{ts}_initial.xyz and {name}_ts{ts}_proposed.xyz.
-        Parameters
-        ----------
-        atoms: list of atoms (in a single string) 
-        coordinates: numpy array with coordinates
-        name: name of the file
-        """
-
-        coordinates = self.initial_coordinates[ts]
-        f_initial = open(f"{filename}_ts{ts}_initial.xyz", 'w')
-        xyz_string = generate_xyz_string(self.atom_list, coordinates)
-        for line in xyz_string:
-            f_initial.write(line)
-        f_initial.close()
-
-        coordinates = self.proposed_coordinates[ts]
-        f_proposed = open(f"{filename}_ts{ts}_proposed.xyz", 'w')
-        xyz_string = generate_xyz_string(self.atom_list, coordinates)
-        for line in xyz_string:
-            f_proposed.write(line)
-        f_proposed.close()
     
-
     def perform_mc_move(self, coordinates:unit.quantity.Quantity):
         """
         Moves a hydrogen (self.hydrogen_idx) from a starting position connected to a heavy atom
@@ -165,6 +135,37 @@ class Instantaneous_MC_Mover(MC_Mover):
         """Perform acceptance/rejection check according to the Metropolis-Hastings acceptance criterion."""
         # think more about symmetric
         return (log_P_accept > 0.0) or (random.random() < math.exp(log_P_accept))
+
+
+
+class Instantaneous_MC_Mover(MC_Mover):
+
+
+    def write_xyz_files(self, ts:int, filename:str):
+        """
+        Writes xyz files in current directory.
+        The files are saved in {name}_ts{ts}_initial.xyz and {name}_ts{ts}_proposed.xyz.
+        Parameters
+        ----------
+        atoms: list of atoms (in a single string) 
+        coordinates: numpy array with coordinates
+        name: name of the file
+        """
+
+        coordinates = self.initial_coordinates[ts]
+        f_initial = open(f"{filename}_ts{ts}_initial.xyz", 'w')
+        xyz_string = generate_xyz_string(self.atom_list, coordinates)
+        for line in xyz_string:
+            f_initial.write(line)
+        f_initial.close()
+
+        coordinates = self.proposed_coordinates[ts]
+        f_proposed = open(f"{filename}_ts{ts}_proposed.xyz", 'w')
+        xyz_string = generate_xyz_string(self.atom_list, coordinates)
+        for line in xyz_string:
+            f_proposed.write(line)
+        f_proposed.close()
+    
 
 
     def performe_md_mc_protocoll(self,
@@ -225,13 +226,14 @@ class NonequilibriumMC(MC_Mover):
 
         logging.info('Decoupling hydrogen ...')
         # decouple the hydrogen from the environment
-        self.energy_function.restrain_acceptor_or_donor = 'donor'
+        self.energy_function.restrain_donor = True
+        self.energy_function.restrain_acceptor = False
+
         for lambda_value in tqdm(np.linspace(1, 0, nr_of_mc_trials/2)):
             
             trajectory = self.langevin_dynamics.run_dynamics(x0, nr_of_md_steps)
             final_coordinate_set = trajectory[-1]
-            # MC move
-            work_values.append(self.propagate_lambda(final_coordinate_set, lambda_value))
+            work_values.append(self.pertubate_lambda(final_coordinate_set, lambda_value))
             # update new coordinates for langevin dynamics
             x0 = final_coordinate_set
             traj_in_nm += [x / unit.nanometer for x in trajectory]
@@ -239,27 +241,30 @@ class NonequilibriumMC(MC_Mover):
         logging.info('Moving hydrogen ...')
         # turn of the bond restraint
         # move the hydrogen to a new position
-        self.energy_function.bond_restraint = False
-        x0 = self._move_hydrogen_to_acceptor_idx(copy.deepcopy(final_coordinate_set))
-        # turn on the bond restraint
-        self.energy_function.bond_restraint = True
-
+        x0, work_of_hydrogen_move = self.perform_mc_move(copy.deepcopy(final_coordinate_set))
+        logging.info('Work of Hydrogen move: {:0.4f}'.format(work_of_hydrogen_move))
         logging.info('Recoupling hydrogen ...')
         # couple the hydrogen to new environment
-        self.energy_function.restrain_acceptor_or_donor = 'acceptor'
+        # turn on the bond restraint
+        self.energy_function.restrain_donor = False
+        self.energy_function.restrain_acceptor = True
         for lambda_value in tqdm(np.linspace(0, 1, nr_of_mc_trials/2)):
             
             trajectory = self.langevin_dynamics.run_dynamics(x0, nr_of_md_steps)
             final_coordinate_set = trajectory[-1]
-            work_values.append(self.propagate_lambda(final_coordinate_set, lambda_value))
+            work_values.append(self.pertubate_lambda(final_coordinate_set, lambda_value))
             # update new coordinates for langevin dynamics
             x0 = final_coordinate_set
             traj_in_nm += [x / unit.nanometer for x in trajectory]
 
+        # adding work of hydrogen moving to the work_values
+        adding_to = int(len(work_values)/2)
+        work_values[adding_to] += work_of_hydrogen_move 
+        
         return work_values, traj_in_nm
 
 
-    def propagate_lambda(self, coordinates:unit.quantity.Quantity, lambda_value:float):
+    def pertubate_lambda(self, coordinates:unit.quantity.Quantity, lambda_value:float):
         """
         Lambda value that controls the coupling of the hydrogen to the environment is 
         propagated here.
@@ -276,3 +281,33 @@ class NonequilibriumMC(MC_Mover):
 
         return reduced_pot(energy_B - energy_A)
 
+    def perform_mc_move(self, coordinates:unit.quantity.Quantity):
+        """
+        Moves a hydrogen (self.hydrogen_idx) from a starting position connected to a heavy atom
+        donor (self.donor_idx) to a new position around an acceptor atom (self.acceptor_idx).
+        The new coordinates are sampled from a radial distribution, with the center being the acceptor atom,
+        the mean: mean_bond_length = self.acceptor_hydrogen_equilibrium_bond_length * self.acceptor_mod_bond_length
+        and standard deviation: self.acceptor_hydrogen_stddev_bond_length.
+        Calculates the log probability of the forward and reverse proposal and returns the work.
+        """
+
+        # coordinates_before_move
+        coordinates_A = coordinates.in_units_of(unit.angstrom)
+        self.energy_function.restrain_donor = True
+        self.energy_function.restrain_acceptor = False
+        energy_A = self.energy_function.calculate_energy(coordinates_A)
+
+        #coordinates_after_move
+        coordinates_B = self._move_hydrogen_to_acceptor_idx(copy.deepcopy(coordinates_A))
+        self.energy_function.restrain_donor = False
+        self.energy_function.restrain_acceptor = True
+        energy_B = self.energy_function.calculate_energy(coordinates_B)
+
+        delta_u = reduced_pot(energy_B - energy_A)
+        logging.info('delta_u : {:0.4f}'.format(delta_u))
+        # log probability of forward proposal from the initial coordinates (coordinate_A) to proposed coordinates (coordinate_B)
+        log_p_forward = self.log_probability_of_proposal_to_B(coordinates_A, coordinates_B)
+        # log probability of reverse proposal given the proposed coordinates (coordinate_B)
+        log_p_reverse = self.log_probability_of_proposal_to_A(coordinates_B, coordinates_A)
+        work = - ((- delta_u) + (log_p_reverse - log_p_forward))
+        return coordinates_B, work
