@@ -242,6 +242,7 @@ class NonequilibriumMC(MC_Mover):
         # turn of the bond restraint
         # move the hydrogen to a new position
         x0, work_of_hydrogen_move = self.perform_mc_move(copy.deepcopy(final_coordinate_set))
+        work_values.append(work_of_hydrogen_move)
         logging.info('Work of Hydrogen move: {:0.4f}'.format(work_of_hydrogen_move))
         logging.info('Recoupling hydrogen ...')
         # couple the hydrogen to new environment
@@ -257,10 +258,7 @@ class NonequilibriumMC(MC_Mover):
             x0 = final_coordinate_set
             traj_in_nm += [x / unit.nanometer for x in trajectory]
 
-        # adding work of hydrogen moving to the work_values
-        adding_to = int(len(work_values)/2)
-        work_values[adding_to] += work_of_hydrogen_move 
-        
+       
         return work_values, traj_in_nm
 
 
