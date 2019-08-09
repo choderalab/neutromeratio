@@ -13,6 +13,7 @@ from io import StringIO
 from lxml import etree
 import simtk.openmm.app as app
 from .restraints import flat_bottom_position_restraint
+from .mcmc import reduced_pot
 
 gaff_default = os.path.join("../data/gaff2.xml")
 logger = logging.getLogger(__name__)
@@ -106,7 +107,6 @@ class ANI1_force_and_energy(object):
                                 requires_grad=True, device=self.device, dtype=torch.float32)
 
         _, energy_in_hartree = self.model((self.species, coordinates * nm_to_angstroms, self.lambda_value))
-
         # convert energy from hartrees to kJ/mol
         energy_in_kJ_mol = energy_in_hartree * hartree_to_kJ_mol
         if self.restrain_acceptor or self.restrain_donor:
@@ -115,11 +115,15 @@ class ANI1_force_and_energy(object):
         return energy_in_kJ_mol.item() * unit.kilojoule_per_mole
 
 
+
+
 class AlchemicalANI(torchani.models.ANI1ccx):
+    
     def __init__(self, alchemical_atoms=[0]):
         """Scale the contributions of alchemical atoms to the energy."""
         super().__init__()
         self.alchemical_atoms = alchemical_atoms
+        self.test = True
 
     def forward(self, species_coordinates, lam=1.0):
         raise (NotImplementedError)
@@ -143,6 +147,27 @@ class AEVScalingAlchemicalANI(AlchemicalANI):
         super().__init__(alchemical_atoms)
 
 
+
+class DoubleAniModel(torchani.nn.ANIModel):
+
+    def forward(self, species_aev):
+        # change dtype
+        species, aev = species_aev
+        species_ = species.flatten()
+        present_species = torchani.utils.present_species(species)
+        aev = aev.flatten(0, 1)
+
+        output = torch.full_like(species_, self.padding_fill,
+                                dtype=torch.float32)
+        for i in present_species:
+            mask = (species_ == i)
+            input_ = aev.index_select(0, mask.nonzero().squeeze())
+            output.masked_scatter_(mask, self[i](input_).squeeze())
+        
+        output = output.view_as(species)
+        return species, self.reducer(output.double(), dim=1)
+        
+
 class LinearAlchemicalANI(AlchemicalANI):
     def __init__(self, alchemical_atoms):
         """Scale the indirect contributions of alchemical atoms to the energy sum by
@@ -152,7 +177,8 @@ class LinearAlchemicalANI(AlchemicalANI):
         (Also scale direct contributions, as in DirectAlchemicalANI)
         """
 
-        super().__init__(alchemical_atoms)
+        super().__init__(alchemical_atoms)      
+        self.neural_networks = self._load_model_ensemble(self.species, self.ensemble_prefix, self.ensemble_size)
 
     def forward(self, species_coordinates):
         # for now, to avoid possibility of indexing bugs,
@@ -165,9 +191,7 @@ class LinearAlchemicalANI(AlchemicalANI):
         species, aevs = self.aev_computer(species_coordinates[:-1])
         # neural net output given these AEVs
         nn_1 = self.neural_networks((species, aevs))[1]
-        # in units of hartree
         E_1 = self.energy_shifter((species, nn_1))[1]
-
         # LAMBDA = 0: fully removed
         # species, AEVs of all other atoms, in absence of alchemical atoms
         mod_species = torch.cat((species[:, :self.alchemical_atoms],  species[:, self.alchemical_atoms+1:]), dim=1)
@@ -176,13 +200,44 @@ class LinearAlchemicalANI(AlchemicalANI):
         # neural net output given these modified AEVs
         nn_0 = self.neural_networks((mod_species, mod_aevs))[1]
         E_0 = self.energy_shifter((species, nn_0))[1]
-
+        
+        #################################
         # alternative way to handle the offset
         # E_0 = self.energy_shifter((mod_species, nn_0))[1]
+        #################################
 
         return species, (lam * E_1) + ((1 - lam) * E_0)
 
 
+    def _load_model_ensemble(self, species, prefix, count):
+        """Returns an instance of :class:`torchani.Ensemble` loaded from
+        NeuroChem's network directories beginning with the given prefix.
+        Arguments:
+            species (:class:`collections.abc.Sequence`): Sequence of strings for
+                chemical symbols of each supported atom type in correct order.
+            prefix (str): Prefix of paths of directory that networks configurations
+                are stored.
+            count (int): Number of models in the ensemble.
+        """
+        models = []
+        for i in range(count):
+            network_dir = os.path.join('{}{}'.format(prefix, i), 'networks')
+            models.append(self._load_model(species, network_dir))
+        return torchani.nn.Ensemble(models)
+
+    def _load_model(self, species, dir_):
+        """Returns an instance of :class:`torchani.ANIModel` loaded from
+        NeuroChem's network directory.
+        Arguments:
+            species (:class:`collections.abc.Sequence`): Sequence of strings for
+                chemical symbols of each supported atom type in correct order.
+            dir_ (str): String for directory storing network configurations.
+        """
+        models = []
+        for i in species:
+            filename = os.path.join(dir_, 'ANN-{}.nnf'.format(i))
+            models.append(torchani.neurochem.load_atomic_network(filename))
+        return DoubleAniModel(models)
 
 
 

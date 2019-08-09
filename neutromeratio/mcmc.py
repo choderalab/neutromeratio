@@ -277,8 +277,10 @@ class NonequilibriumMC(MC_Mover):
         self.energy_function.lambda_value = lambda_value
         # energy of propagated state
         energy_B = self.energy_function.calculate_energy(coordinates)
-
-
+        print(energy_A)
+        print(reduced_pot(energy_A))
+        print(reduced_pot(energy_B))
+        print('Diff: {}'.format(reduced_pot(energy_B - energy_A)))
         return reduced_pot(energy_B - energy_A)
 
     def perform_mc_move(self, coordinates:unit.quantity.Quantity):
