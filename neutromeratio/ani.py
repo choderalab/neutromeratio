@@ -15,6 +15,7 @@ import simtk.openmm.app as app
 from .restraints import flat_bottom_position_restraint
 from .mcmc import reduced_pot
 
+
 gaff_default = os.path.join("../data/gaff2.xml")
 logger = logging.getLogger(__name__)
 
@@ -64,8 +65,12 @@ class ANI1_force_and_energy(object):
         coordinates = torch.tensor([x.value_in_unit(unit.nanometer)],
                                 requires_grad=True, device=self.device, dtype=torch.float32)
 
-        _, energy_in_hartree = self.model((self.species, coordinates * nm_to_angstroms, self.lambda_value))
-
+        if isinstance(self.model, torchani.models.ANI1ccx):
+            _, energy_in_hartree = self.model((self.species, coordinates * nm_to_angstroms))
+        elif isinstance(self.model, AlchemicalANI):
+            _, energy_in_hartree = self.model((self.species, coordinates * nm_to_angstroms, self.lambda_value))
+        else:
+            raise NotImplementedError('Only Ani1ccx or AlchemicalAni models are allowed.')
         # convert energy from hartrees to kJ/mol
         energy_in_kJ_mol = energy_in_hartree * hartree_to_kJ_mol
 
@@ -106,7 +111,12 @@ class ANI1_force_and_energy(object):
         coordinates = torch.tensor([x.value_in_unit(unit.nanometer)],
                                 requires_grad=True, device=self.device, dtype=torch.float32)
 
-        _, energy_in_hartree = self.model((self.species, coordinates * nm_to_angstroms, self.lambda_value))
+        if isinstance(self.model, torchani.models.ANI1ccx):
+            _, energy_in_hartree = self.model((self.species, coordinates * nm_to_angstroms))
+        elif isinstance(self.model, AlchemicalANI):
+            _, energy_in_hartree = self.model((self.species, coordinates * nm_to_angstroms, self.lambda_value))
+        else:
+            raise NotImplementedError('Only Ani1ccx or AlchemicalAni models are allowed.')
         # convert energy from hartrees to kJ/mol
         energy_in_kJ_mol = energy_in_hartree * hartree_to_kJ_mol
         if self.restrain_acceptor or self.restrain_donor:
@@ -181,9 +191,7 @@ class LinearAlchemicalANI(AlchemicalANI):
         self.neural_networks = self._load_model_ensemble(self.species, self.ensemble_prefix, self.ensemble_size)
 
     def forward(self, species_coordinates):
-        # for now, to avoid possibility of indexing bugs,
-        # only allow one alchemical atom,.
-        # this logic should easily extend to lists of atoms...
+        # for now only allow one alchemical atom
 
         # LAMBDA = 1: fully interacting
         # species, AEVs of fully interacting system
@@ -200,11 +208,6 @@ class LinearAlchemicalANI(AlchemicalANI):
         # neural net output given these modified AEVs
         nn_0 = self.neural_networks((mod_species, mod_aevs))[1]
         E_0 = self.energy_shifter((species, nn_0))[1]
-        
-        #################################
-        # alternative way to handle the offset
-        # E_0 = self.energy_shifter((mod_species, nn_0))[1]
-        #################################
 
         return species, (lam * E_1) + ((1 - lam) * E_0)
 

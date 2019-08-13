@@ -97,14 +97,7 @@ def gaussian_position_restraint(x, tautomer_transformation:dict, atom_list:list,
     
 
     # PLACEHOLDER FUNCTION
-    #if distance <= lower_bound:
-    #    e = k * (lower_bound - distance)**2
-    #elif distance >= upper_bound:
-    #    e = k * (distance - upper_bound)**2
-    #else:
-    #    e = torch.tensor([0.0])
-    e = torch.tensor([0.0])
-    # PLACEHOLDER FUNCTION
+    e = k * (lower_bound - distance)**2
     
     logging.debug('Bias introduced: {:0.4f}'.format(e.item()))
     return e
