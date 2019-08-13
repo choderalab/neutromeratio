@@ -229,6 +229,10 @@ class NonequilibriumMC(MC_Mover):
         self.energy_function.restrain_donor = True
         self.energy_function.restrain_acceptor = False
 
+        # initial sampling
+        trajectory = self.langevin_dynamics.run_dynamics(x0, 1000)
+
+        x0 = trajectory[-1]
         for lambda_value in tqdm(np.linspace(1, 0, nr_of_mc_trials/2)):
             
             trajectory = self.langevin_dynamics.run_dynamics(x0, nr_of_md_steps)
