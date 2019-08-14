@@ -14,7 +14,7 @@ from lxml import etree
 import simtk.openmm.app as app
 from .restraints import flat_bottom_position_restraint
 from .mcmc import reduced_pot
-
+import neutromeratio
 
 gaff_default = os.path.join("../data/gaff2.xml")
 logger = logging.getLogger(__name__)
@@ -65,9 +65,10 @@ class ANI1_force_and_energy(object):
         coordinates = torch.tensor([x.value_in_unit(unit.nanometer)],
                                 requires_grad=True, device=self.device, dtype=torch.float32)
 
-        if isinstance(self.model, torchani.models.ANI1ccx):
+
+        if type(self.model) is torchani.models.ANI1ccx:
             _, energy_in_hartree = self.model((self.species, coordinates * nm_to_angstroms))
-        elif isinstance(self.model, AlchemicalANI):
+        elif type(self.model) is neutromeratio.ani.LinearAlchemicalANI:
             _, energy_in_hartree = self.model((self.species, coordinates * nm_to_angstroms, self.lambda_value))
         else:
             raise NotImplementedError('Only Ani1ccx or AlchemicalAni models are allowed.')
@@ -111,9 +112,9 @@ class ANI1_force_and_energy(object):
         coordinates = torch.tensor([x.value_in_unit(unit.nanometer)],
                                 requires_grad=True, device=self.device, dtype=torch.float32)
 
-        if isinstance(self.model, torchani.models.ANI1ccx):
+        if type(self.model) is torchani.models.ANI1ccx:
             _, energy_in_hartree = self.model((self.species, coordinates * nm_to_angstroms))
-        elif isinstance(self.model, AlchemicalANI):
+        elif type(self.model) is neutromeratio.ani.LinearAlchemicalANI:
             _, energy_in_hartree = self.model((self.species, coordinates * nm_to_angstroms, self.lambda_value))
         else:
             raise NotImplementedError('Only Ani1ccx or AlchemicalAni models are allowed.')
