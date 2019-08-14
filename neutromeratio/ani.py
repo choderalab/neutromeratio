@@ -30,7 +30,7 @@ class ANI1_force_and_energy(object):
     device:
     """
 
-    def __init__(self, device:torch.device, model:torchani.models.ANI1ccx, atom_list:list, platform:str, tautomer_transformation:dict={}, bond_restraint:bool=False):
+    def __init__(self, device:torch.device, model:torchani.models.ANI1ccx, atom_list:list, platform:str, tautomer_transformation:dict={}):
         
         self.device = device
         self.model = model
@@ -40,7 +40,6 @@ class ANI1_force_and_energy(object):
         self.lambda_value = 1.0
         self.bias = []
         self.tautomer_transformation = tautomer_transformation
-        self.bond_restraint = bond_restraint
         self.restrain_acceptor = False
         self.restrain_donor = False
 
