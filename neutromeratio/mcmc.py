@@ -186,11 +186,11 @@ class Instantaneous_MC_Mover(MC_Mover):
 
 class NonequilibriumMC(MC_Mover):
 
-    def performe_md_mc_protocoll(self,
-                                x0:unit.quantity.Quantity,
-                                nr_of_mc_trials:int = 500,
-                                nr_of_md_steps:int = 20
-                                ):
+    def perform_md_mc_protocol(self,
+                               x0:unit.quantity.Quantity,
+                               nr_of_mc_trials:int = 500,
+                               nr_of_md_steps:int = 20
+                               ):
         """
         """    
 
