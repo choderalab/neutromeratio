@@ -141,11 +141,11 @@ class MC_Mover(object):
 class Instantaneous_MC_Mover(MC_Mover):
 
 
-    def performe_md_mc_protocoll(self,
-                                x0:unit.quantity.Quantity,
-                                nr_of_mc_trials:int = 500,
-                                nr_of_md_steps:int = 100,
-                                ):
+    def perform_md_mc_protocol(self,
+                               x0:unit.quantity.Quantity,
+                               nr_of_mc_trials:int = 500,
+                               nr_of_md_steps:int = 100,
+                               ):
         """
         Performing instantaneous MC and langevin dynamics.
         Given a coordinate set the forces with respect to the coordinates are calculated.
