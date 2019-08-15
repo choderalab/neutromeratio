@@ -2,7 +2,6 @@ import numpy as np
 from .constants import speed_unit, distance_unit, kB
 from simtk import unit
 from tqdm import tqdm
-from .utils import generate_xyz_string
 from .ani import ANI1_force_and_energy
 import mdtraj as md
 import torchani
@@ -19,7 +18,7 @@ class LangevinDynamics(object):
         self.atom_list = atom_list
 
 
-    def run_dynamics(self, x0:np.ndarray, 
+    def run_dynamics(self, x0:unit.Quantity,
                     n_steps:int = 100,
                     stepsize:unit.quantity.Quantity = 1 * unit.femtosecond,
                     collision_rate:unit.quantity.Quantity = 10/unit.picoseconds,
@@ -78,16 +77,16 @@ class LangevinDynamics(object):
         for _ in trange:
 
             # v
-            v += (stepsize * 0.5) * F / masses[:,None]
+            v += (stepsize * 0.5) * F / masses[:, None]
             # r
             x += (stepsize * 0.5) * v
             # o
-            v = (a * v) + (b * sigma_v[:,None] * np.random.randn(*x.shape))
+            v = (a * v) + (b * sigma_v[:, None] * np.random.randn(*x.shape))
             # r
             x += (stepsize * 0.5) * v
             F = self.force.calculate_force(x)
             # v
-            v += (stepsize * 0.5) * F / masses[:,None]
+            v += (stepsize * 0.5) * F / masses[:, None]
 
             norm_F = np.linalg.norm(F)
             # report gradient norm
@@ -95,7 +94,9 @@ class LangevinDynamics(object):
                 trange.set_postfix({'|force|': norm_F})
             # check positions and forces are finite
             if (not np.isfinite(x).all()) or (not np.isfinite(norm_F)):
-                print("Numerical instability encountered!")
+                message = "Numerical instability encountered!"
+                print(message)
+                logger.log(message)
                 return traj
             traj.append(x)
         return traj
@@ -134,4 +135,3 @@ def use_precalculated_md_and_perform_mc(top:str,
             hydrogen_mover.proposed_coordinates.append(new_coordinates)
             hydrogen_mover.initial_coordinates.append(coordinates)
             hydrogen_mover.work_values.append(work)
-            
