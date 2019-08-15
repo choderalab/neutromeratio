@@ -10,7 +10,7 @@ import logging
 from openeye import oechem
 import openmoltools as omtff
 from io import StringIO
-from lxml import etree
+#from lxml import etree
 import simtk.openmm.app as app
 from .restraints import flat_bottom_position_restraint
 from .mcmc import reduced_pot
