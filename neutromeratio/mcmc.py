@@ -212,7 +212,7 @@ class NonequilibriumMC(MC_Mover):
             
             trajectory = self.langevin_dynamics.run_dynamics(x0, nr_of_md_steps)
             final_coordinate_set = trajectory[-1]
-            work_values.append(self.pertubate_lambda(final_coordinate_set, lambda_value))
+            work_values.append(self.perturb_lambda(final_coordinate_set, lambda_value))
             # update new coordinates for langevin dynamics
             x0 = final_coordinate_set
             traj_in_nm += [x / unit.nanometer for x in trajectory]
@@ -234,7 +234,7 @@ class NonequilibriumMC(MC_Mover):
             
             trajectory = self.langevin_dynamics.run_dynamics(x0, nr_of_md_steps)
             final_coordinate_set = trajectory[-1]
-            work_values.append(self.pertubate_lambda(final_coordinate_set, lambda_value))
+            work_values.append(self.perturb_lambda(final_coordinate_set, lambda_value))
             # update new coordinates for langevin dynamics
             x0 = final_coordinate_set
             traj_in_nm += [x / unit.nanometer for x in trajectory]
@@ -243,7 +243,7 @@ class NonequilibriumMC(MC_Mover):
         return work_values, traj_in_nm
 
 
-    def pertubate_lambda(self, coordinates:unit.quantity.Quantity, lambda_value:float):
+    def perturb_lambda(self, coordinates:unit.quantity.Quantity, lambda_value:float):
         """
         Lambda value that controls the coupling of the hydrogen to the environment is 
         propagated here.
