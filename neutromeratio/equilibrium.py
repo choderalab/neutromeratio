@@ -104,7 +104,7 @@ class LangevinDynamics(object):
         
         
 
-def use_precalculated_md_and_performe_mc(top:str,
+def use_precalculated_md_and_perform_mc(top:str,
                                         trajs:list,
                                         hydrogen_movers:list,
                                         mc_every_nth_frame:int):
