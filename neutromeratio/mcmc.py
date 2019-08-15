@@ -189,17 +189,13 @@ class NonequilibriumMC(MC_Mover):
     def perform_md_mc_protocol(self,
                                x0:unit.quantity.Quantity,
                                nr_of_mc_trials:int = 500,
-                               nr_of_md_steps:int = 20
+                               nr_of_md_steps:int = 1,
                                ):
         """
         """    
 
         traj_in_nm = []       
         work_values = []
-
-        # initial sampling
-        trajectory = self.langevin_dynamics.run_dynamics(x0, 5000)
-        x0 = trajectory[-1]
 
 
         logging.info('Decoupling hydrogen ...')
@@ -208,7 +204,7 @@ class NonequilibriumMC(MC_Mover):
         self.energy_function.restrain_acceptor = False
 
 
-        for lambda_value in tqdm(np.linspace(1, 0, nr_of_mc_trials/2)):
+        for lambda_value in tqdm(np.linspace(1, 0, int(nr_of_mc_trials/2))):
             
             trajectory = self.langevin_dynamics.run_dynamics(x0, nr_of_md_steps)
             final_coordinate_set = trajectory[-1]
@@ -230,7 +226,7 @@ class NonequilibriumMC(MC_Mover):
         # turn on the bond restraint
         self.energy_function.restrain_donor = False
         self.energy_function.restrain_acceptor = True
-        for lambda_value in tqdm(np.linspace(0, 1, nr_of_mc_trials/2)):
+        for lambda_value in tqdm(np.linspace(0, 1, int(nr_of_mc_trials/2))):
             
             trajectory = self.langevin_dynamics.run_dynamics(x0, nr_of_md_steps)
             final_coordinate_set = trajectory[-1]
