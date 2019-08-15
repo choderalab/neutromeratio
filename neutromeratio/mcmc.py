@@ -141,33 +141,6 @@ class MC_Mover(object):
 class Instantaneous_MC_Mover(MC_Mover):
 
 
-    def write_xyz_files(self, ts:int, filename:str):
-        """
-        Writes xyz files in current directory.
-        The files are saved in {name}_ts{ts}_initial.xyz and {name}_ts{ts}_proposed.xyz.
-        Parameters
-        ----------
-        atoms: list of atoms (in a single string) 
-        coordinates: numpy array with coordinates
-        name: name of the file
-        """
-
-        coordinates = self.initial_coordinates[ts]
-        f_initial = open(f"{filename}_ts{ts}_initial.xyz", 'w')
-        xyz_string = generate_xyz_string(self.atom_list, coordinates)
-        for line in xyz_string:
-            f_initial.write(line)
-        f_initial.close()
-
-        coordinates = self.proposed_coordinates[ts]
-        f_proposed = open(f"{filename}_ts{ts}_proposed.xyz", 'w')
-        xyz_string = generate_xyz_string(self.atom_list, coordinates)
-        for line in xyz_string:
-            f_proposed.write(line)
-        f_proposed.close()
-    
-
-
     def performe_md_mc_protocoll(self,
                                 x0:unit.quantity.Quantity,
                                 nr_of_mc_trials:int = 500,
