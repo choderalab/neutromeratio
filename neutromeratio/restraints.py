@@ -12,6 +12,10 @@ def flat_bottom_position_restraint(x, tautomer_transformation:dict, atom_list:li
     
     """
     Applies a flat bottom positional restraint.
+class Restraint():
+    def __init__(self, heavy_atom_index, hydrogen_index):
+        self.heavy_atom_index = heavy_atom_index
+        self.hydrogen_index = hydrogen_index
 
     Parameters
     ----------
@@ -25,6 +29,8 @@ def flat_bottom_position_restraint(x, tautomer_transformation:dict, atom_list:li
         should the acceptor be restraint
     restrain_donor : boold
         should the donor be restraint
+    def forward(self, x):
+        raise NotImplementedError
 
     Returns
     -------
