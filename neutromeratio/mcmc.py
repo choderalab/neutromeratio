@@ -3,7 +3,7 @@ import random
 import numpy as np
 from simtk import unit
 import copy
-from .utils import reduced_pot, generate_xyz_string
+from .utils import reduced_pot
 import math
 import logging
 from tqdm import tqdm
