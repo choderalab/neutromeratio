@@ -17,7 +17,7 @@ from IPython.core.display import display
 logger = logging.getLogger(__name__)
 
 # TODO: rename this function!
-def get_donor_atom_idx(m1:Chem.Mol, m2:Chem.Mol) -> dict:
+def get_tautomer_transformation(m1:Chem.Mol, m2:Chem.Mol) -> dict:
     """
     Returns the atom index of the hydrogen donor atom and hydrogen atom that moves.
     This index is consistent with the indexing of m1.
