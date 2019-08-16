@@ -12,7 +12,7 @@ import openmoltools as omtff
 from io import StringIO
 #from lxml import etree
 import simtk.openmm.app as app
-from .restraints import flat_bottom_position_restraint
+from .restraints import FlatBottomRestraint
 from .mcmc import reduced_pot
 import neutromeratio
 
@@ -45,6 +45,22 @@ class ANI1_force_and_energy(object):
 
         # TODO: check availablity of platform
 
+
+    def compute_restraint(self, coordinates):
+        if self.restrain_acceptor or self.restrain_donor:
+            if self.restrain_acceptor:
+                heavy_atom_idx = self.tautomer_transformation['acceptor_idx']
+            elif self.restrain_donor:
+                heavy_atom_idx = self.tautomer_transformation['donor_idx']
+
+            restraint = FlatBottomRestraint(
+                heavy_atom_index=heavy_atom_idx,
+                hydrogen_index=self.tautomer_transformation['hydrogen_idx'])
+            bias = restraint.forward(coordinates)
+        else:
+            bias = 0
+        return bias
+
     def calculate_force(self, x:simtk.unit.quantity.Quantity)->simtk.unit.quantity.Quantity:
         """
         Given a coordinate set the forces with respect to the coordinates are calculated.
@@ -74,10 +90,9 @@ class ANI1_force_and_energy(object):
         # convert energy from hartrees to kJ/mol
         energy_in_kJ_mol = energy_in_hartree * hartree_to_kJ_mol
 
-        if self.restrain_acceptor or self.restrain_donor:
-            bias = flat_bottom_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor = self.restrain_acceptor, restrain_donor = self.restrain_donor)
-            self.bias.append(bias)
-            energy_in_kJ_mol = energy_in_kJ_mol + bias
+        bias = self.compute_restraint(coordinates)
+        self.bias.append(bias)
+        energy_in_kJ_mol = energy_in_kJ_mol + bias
 
         # derivative of E (in kJ/mol) w.r.t. coordinates (in nm)
         derivative = torch.autograd.grad((energy_in_kJ_mol).sum(), coordinates)[0]
@@ -119,12 +134,10 @@ class ANI1_force_and_energy(object):
             raise NotImplementedError('Only Ani1ccx or AlchemicalAni models are allowed.')
         # convert energy from hartrees to kJ/mol
         energy_in_kJ_mol = energy_in_hartree * hartree_to_kJ_mol
-        if self.restrain_acceptor or self.restrain_donor:
-            bias = flat_bottom_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor = self.restrain_acceptor, restrain_donor = self.restrain_donor)
-            energy_in_kJ_mol = energy_in_kJ_mol + bias
+
+        bias = self.compute_restraint(x)
+        energy_in_kJ_mol = energy_in_kJ_mol + bias
         return energy_in_kJ_mol.item() * unit.kilojoule_per_mole
-
-
 
 
 class AlchemicalANI(torchani.models.ANI1ccx):
