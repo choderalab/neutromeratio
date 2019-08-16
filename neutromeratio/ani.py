@@ -120,16 +120,9 @@ class ANI1_force_and_energy(object):
             bias_flat_bottom = flat_bottom_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor = self.restrain_acceptor, restrain_donor = self.restrain_donor)
             bias_harmonic = harmonic_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor = self.restrain_acceptor, restrain_donor = self.restrain_donor)           
             bias = (bias_flat_bottom * self.lambda_value) + ((1 - self.lambda_value) * bias_harmonic)
-            #logging.info('Harmonic bias: {}'.format(bias_harmonic.item()))
-            #logging.info('Flat bottom bias: {}'.format(bias_flat_bottom.item()))
             energy_in_kJ_mol = energy_in_kJ_mol + bias
-            #logging.info('Bias: {}'.format(bias.item()))
-            #logging.info('E: {}'.format(energy_in_kJ_mol.item()))
 
         return energy_in_kJ_mol.item() * unit.kilojoule_per_mole
-
-
-
 
 class AlchemicalANI(torchani.models.ANI1ccx):
     
