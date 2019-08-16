@@ -234,7 +234,7 @@ class NonequilibriumMC(MC_Mover):
             # update new coordinates for langevin dynamics
             x0 = final_coordinate_set
             traj_in_nm += [x / unit.nanometer for x in trajectory]
-
+        logging.info('work: {:.4f} kT'.format(sum(work_values)))
        
         return work_values, traj_in_nm
 
