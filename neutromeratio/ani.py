@@ -135,7 +135,7 @@ class ANI1_force_and_energy(object):
         # convert energy from hartrees to kJ/mol
         energy_in_kJ_mol = energy_in_hartree * hartree_to_kJ_mol
 
-        bias = self.compute_restraint(x)
+        bias = self.compute_restraint(coordinates)
         energy_in_kJ_mol = energy_in_kJ_mol + bias
         return energy_in_kJ_mol.item() * unit.kilojoule_per_mole
 
