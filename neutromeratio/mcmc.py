@@ -40,8 +40,8 @@ class MC_Mover(object):
         self.acceptor_hydrogen_equilibrium_bond_length = self.bond_length_dict['{}H'.format(self.acceptor_element)]
         self.donor_hydrogen_equilibrium_bond_length = self.bond_length_dict['{}H'.format(self.donor_element)]
         # the stddev for the bond length
-        self.acceptor_hydrogen_stddev_bond_length = 0.15 * unit.angstrom
-        self.donor_hydrogen_stddev_bond_length = 0.15 * unit.angstrom
+        self.acceptor_hydrogen_stddev_bond_length = 0.10 * unit.angstrom
+        self.donor_hydrogen_stddev_bond_length = 0.10 * unit.angstrom
 
     def _move_hydrogen_to_acceptor_idx(self, coordinates:unit.quantity.Quantity) -> unit.quantity.Quantity:
         """Moves a single hydrogen (specified in self.hydrogen_idx) from a donor
