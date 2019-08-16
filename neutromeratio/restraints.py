@@ -26,7 +26,8 @@ class FlatBottomRestraint(Restraint):
 
     def forward(self, x):
         """Assumes x is in units of nanometers"""
-        assert (len(x) == 1)  # TODO: assumes x is a [1, n_atoms, 3] tensor
+
+        #assert (len(x) == 1)  # TODO: assumes x is a [1, n_atoms, 3] tensor
         distance_in_angstroms = (
                 torch.norm(x[0][self.hydrogen_index] - x[0][self.heavy_atom_index]) * nm_to_angstroms).double()
 
