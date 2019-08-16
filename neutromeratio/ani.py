@@ -116,6 +116,7 @@ class ANI1_force_and_energy(object):
         _, energy_in_hartree = self.model((self.species, coordinates * nm_to_angstroms, self.lambda_value))
         # convert energy from hartrees to kJ/mol
         energy_in_kJ_mol = energy_in_hartree * hartree_to_kJ_mol
+
         if self.restrain_acceptor or self.restrain_donor:
             bias_flat_bottom = flat_bottom_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor = self.restrain_acceptor, restrain_donor = self.restrain_donor)
             bias_harmonic = harmonic_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor = self.restrain_acceptor, restrain_donor = self.restrain_donor)           
@@ -126,10 +127,10 @@ class ANI1_force_and_energy(object):
 
 class AlchemicalANI(torchani.models.ANI1ccx):
     
-    def __init__(self, alchemical_atoms=[0]):
+    def __init__(self, alchemical_atom=0):
         """Scale the contributions of alchemical atoms to the energy."""
         super().__init__()
-        self.alchemical_atoms = alchemical_atoms
+        self.alchemical_atom = alchemical_atom
         self.test = True
 
     def forward(self, species_coordinates, lam=1.0):
@@ -137,21 +138,21 @@ class AlchemicalANI(torchani.models.ANI1ccx):
 
 
 class DirectAlchemicalANI(AlchemicalANI):
-    def __init__(self, alchemical_atoms=[0]):
+    def __init__(self, alchemical_atom=0):
         """Scale the direct contributions of alchemical atoms to the energy sum,
         ignoring indirect contributions
         """
-        super().__init__(alchemical_atoms)
+        super().__init__(alchemical_atom)
 
 
 class AEVScalingAlchemicalANI(AlchemicalANI):
-    def __init__(self, alchemical_atoms=[0]):
+    def __init__(self, alchemical_atom=0):
         """Scale indirect contributions of alchemical atoms to the energy sum by
         interpolating neighbors' Atomic Environment Vectors.
 
         (Also scale direct contributions, as in DirectAlchemicalANI)
         """
-        super().__init__(alchemical_atoms)
+        super().__init__(alchemical_atom)
 
 
 
@@ -176,7 +177,7 @@ class DoubleAniModel(torchani.nn.ANIModel):
         
 
 class LinearAlchemicalANI(AlchemicalANI):
-    def __init__(self, alchemical_atoms):
+    def __init__(self, alchemical_atom):
         """Scale the indirect contributions of alchemical atoms to the energy sum by
         linearly interpolating, for other atom i, between the energy E_i^0 it would compute
         in the _complete absence_ of the alchemical atoms, and the energy E_i^1 it would compute
@@ -184,7 +185,7 @@ class LinearAlchemicalANI(AlchemicalANI):
         (Also scale direct contributions, as in DirectAlchemicalANI)
         """
 
-        super().__init__(alchemical_atoms)      
+        super().__init__(alchemical_atom)      
         self.neural_networks = self._load_model_ensemble(self.species, self.ensemble_prefix, self.ensemble_size)
 
     def forward(self, species_coordinates):
@@ -203,8 +204,8 @@ class LinearAlchemicalANI(AlchemicalANI):
         else:
             # LAMBDA = 0: fully removed
             # species, AEVs of all other atoms, in absence of alchemical atoms
-            mod_species = torch.cat((species[:, :self.alchemical_atoms],  species[:, self.alchemical_atoms+1:]), dim=1)
-            mod_coordinates = torch.cat((coordinates[:, :self.alchemical_atoms],  coordinates[:, self.alchemical_atoms+1:]), dim=1) 
+            mod_species = torch.cat((species[:, :self.alchemical_atom],  species[:, self.alchemical_atom+1:]), dim=1)
+            mod_coordinates = torch.cat((coordinates[:, :self.alchemical_atom],  coordinates[:, self.alchemical_atom+1:]), dim=1) 
             mod_aevs = self.aev_computer((mod_species, mod_coordinates))[1]
             # neural net output given these modified AEVs
             nn_0 = self.neural_networks((mod_species, mod_aevs))[1]
