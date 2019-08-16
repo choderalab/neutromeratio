@@ -40,8 +40,8 @@ class MC_Mover(object):
         self.acceptor_hydrogen_equilibrium_bond_length = self.bond_length_dict['{}H'.format(self.acceptor_element)]
         self.donor_hydrogen_equilibrium_bond_length = self.bond_length_dict['{}H'.format(self.donor_element)]
         # the stddev for the bond length
-        self.acceptor_hydrogen_stddev_bond_length = 0.03 * unit.angstrom
-        self.donor_hydrogen_stddev_bond_length = 0.03 * unit.angstrom
+        self.acceptor_hydrogen_stddev_bond_length = 0.15 * unit.angstrom
+        self.donor_hydrogen_stddev_bond_length = 0.15 * unit.angstrom
 
     def _move_hydrogen_to_acceptor_idx(self, coordinates:unit.quantity.Quantity) -> unit.quantity.Quantity:
         """Moves a single hydrogen (specified in self.hydrogen_idx) from a donor
@@ -274,8 +274,7 @@ class NonequilibriumMC(MC_Mover):
             traj_in_nm += [x / unit.nanometer for x in trajectory]
 
        
-        return {'work' : work_values,
-                'work_of_hydrogen_move' : work_of_hydrogen_move}, traj_in_nm
+        return {'work' : work_values, 'work_of_hydrogen_move' : work_of_hydrogen_move}, traj_in_nm
 
 
     def pertubate_lambda(self, coordinates:unit.quantity.Quantity, lambda_value:float):

@@ -32,7 +32,7 @@ def flat_bottom_position_restraint(x, tautomer_transformation:dict, atom_list:li
         bias
     """
 
-    k = 10
+    k = 5
     if restrain_acceptor:
         heavy_atom_idx = tautomer_transformation['acceptor_idx']
     elif restrain_donor:
@@ -80,7 +80,7 @@ def harmonic_position_restraint(x, tautomer_transformation:dict, atom_list:list,
         bias
     """
 
-    k = 2
+    k = 5
     if restrain_acceptor:
         heavy_atom_idx = tautomer_transformation['acceptor_idx']
     elif restrain_donor:

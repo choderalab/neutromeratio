@@ -73,12 +73,11 @@ class ANI1_force_and_energy(object):
 
         if self.restrain_acceptor or self.restrain_donor:
             bias_flat_bottom = flat_bottom_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor = self.restrain_acceptor, restrain_donor = self.restrain_donor)
-            self.bias_flat_bottom.append(bias_flat_bottom)
-
             bias_harmonic = harmonic_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor = self.restrain_acceptor, restrain_donor = self.restrain_donor)
-            self.bias_harmonic.append(bias_harmonic)
-            
-            bias = (bias_flat_bottom * self.lambda_value + (1 - self.lambda_value) * bias_harmonic)
+            bias = (bias_flat_bottom * self.lambda_value) + ((1 - self.lambda_value) * bias_harmonic)
+
+            self.bias_flat_bottom.append(bias_flat_bottom)
+            self.bias_harmonic.append(bias_harmonic)            
             self.bias_applied.append(bias)
             energy_in_kJ_mol = energy_in_kJ_mol + bias
 
@@ -119,11 +118,14 @@ class ANI1_force_and_energy(object):
         energy_in_kJ_mol = energy_in_hartree * hartree_to_kJ_mol
         if self.restrain_acceptor or self.restrain_donor:
             bias_flat_bottom = flat_bottom_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor = self.restrain_acceptor, restrain_donor = self.restrain_donor)
-
-            bias_harmonic = harmonic_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor = self.restrain_acceptor, restrain_donor = self.restrain_donor)
-            
-            bias = 2 * (bias_flat_bottom * self.lambda_value + (1 - self.lambda_value) * bias_harmonic)
+            bias_harmonic = harmonic_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor = self.restrain_acceptor, restrain_donor = self.restrain_donor)           
+            bias = (bias_flat_bottom * self.lambda_value) + ((1 - self.lambda_value) * bias_harmonic)
+            #logging.info('Harmonic bias: {}'.format(bias_harmonic.item()))
+            #logging.info('Flat bottom bias: {}'.format(bias_flat_bottom.item()))
             energy_in_kJ_mol = energy_in_kJ_mol + bias
+            #logging.info('Bias: {}'.format(bias.item()))
+            #logging.info('E: {}'.format(energy_in_kJ_mol.item()))
+
         return energy_in_kJ_mol.item() * unit.kilojoule_per_mole
 
 
@@ -203,7 +205,7 @@ class LinearAlchemicalANI(AlchemicalANI):
         nn_1 = self.neural_networks((species, aevs))[1]
         E_1 = self.energy_shifter((species, nn_1))[1]
         
-        if float(lam) == 0.0 or float(lam) == 1.0:
+        if float(lam) == 1.0:
             E = E_1
         else:
             # LAMBDA = 0: fully removed
