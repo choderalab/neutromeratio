@@ -12,7 +12,7 @@ import openmoltools as omtff
 from io import StringIO
 from lxml import etree
 import simtk.openmm.app as app
-from .restraints import flat_bottom_position_restraint
+from .restraints import flat_bottom_position_restraint, harmonic_position_restraint
 from .mcmc import reduced_pot
 import neutromeratio
 
@@ -38,7 +38,9 @@ class ANI1_force_and_energy(object):
         self.atom_list = atom_list
         self.platform = platform
         self.lambda_value = 1.0
-        self.bias = []
+        self.bias_harmonic = []
+        self.bias_flat_bottom = []
+        self.bias_applied = []
         self.tautomer_transformation = tautomer_transformation
         self.restrain_acceptor = False
         self.restrain_donor = False
@@ -65,18 +67,19 @@ class ANI1_force_and_energy(object):
                                 requires_grad=True, device=self.device, dtype=torch.float32)
 
 
-        if type(self.model) is torchani.models.ANI1ccx:
-            _, energy_in_hartree = self.model((self.species, coordinates * nm_to_angstroms))
-        elif type(self.model) is neutromeratio.ani.LinearAlchemicalANI:
-            _, energy_in_hartree = self.model((self.species, coordinates * nm_to_angstroms, self.lambda_value))
-        else:
-            raise NotImplementedError('Only Ani1ccx or AlchemicalAni models are allowed.')
+        _, energy_in_hartree = self.model((self.species, coordinates * nm_to_angstroms, self.lambda_value))
         # convert energy from hartrees to kJ/mol
         energy_in_kJ_mol = energy_in_hartree * hartree_to_kJ_mol
 
         if self.restrain_acceptor or self.restrain_donor:
-            bias = flat_bottom_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor = self.restrain_acceptor, restrain_donor = self.restrain_donor)
-            self.bias.append(bias)
+            bias_flat_bottom = flat_bottom_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor = self.restrain_acceptor, restrain_donor = self.restrain_donor)
+            self.bias_flat_bottom.append(bias_flat_bottom)
+
+            bias_harmonic = harmonic_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor = self.restrain_acceptor, restrain_donor = self.restrain_donor)
+            self.bias_harmonic.append(bias_harmonic)
+            
+            bias = (bias_flat_bottom * self.lambda_value + (1 - self.lambda_value) * bias_harmonic)
+            self.bias_applied.append(bias)
             energy_in_kJ_mol = energy_in_kJ_mol + bias
 
         # derivative of E (in kJ/mol) w.r.t. coordinates (in nm)
@@ -111,16 +114,15 @@ class ANI1_force_and_energy(object):
         coordinates = torch.tensor([x.value_in_unit(unit.nanometer)],
                                 requires_grad=True, device=self.device, dtype=torch.float32)
 
-        if type(self.model) is torchani.models.ANI1ccx:
-            _, energy_in_hartree = self.model((self.species, coordinates * nm_to_angstroms))
-        elif type(self.model) is neutromeratio.ani.LinearAlchemicalANI:
-            _, energy_in_hartree = self.model((self.species, coordinates * nm_to_angstroms, self.lambda_value))
-        else:
-            raise NotImplementedError('Only Ani1ccx or AlchemicalAni models are allowed.')
+        _, energy_in_hartree = self.model((self.species, coordinates * nm_to_angstroms, self.lambda_value))
         # convert energy from hartrees to kJ/mol
         energy_in_kJ_mol = energy_in_hartree * hartree_to_kJ_mol
         if self.restrain_acceptor or self.restrain_donor:
-            bias = flat_bottom_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor = self.restrain_acceptor, restrain_donor = self.restrain_donor)
+            bias_flat_bottom = flat_bottom_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor = self.restrain_acceptor, restrain_donor = self.restrain_donor)
+
+            bias_harmonic = harmonic_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor = self.restrain_acceptor, restrain_donor = self.restrain_donor)
+            
+            bias = 2 * (bias_flat_bottom * self.lambda_value + (1 - self.lambda_value) * bias_harmonic)
             energy_in_kJ_mol = energy_in_kJ_mol + bias
         return energy_in_kJ_mol.item() * unit.kilojoule_per_mole
 
@@ -200,16 +202,20 @@ class LinearAlchemicalANI(AlchemicalANI):
         # neural net output given these AEVs
         nn_1 = self.neural_networks((species, aevs))[1]
         E_1 = self.energy_shifter((species, nn_1))[1]
-        # LAMBDA = 0: fully removed
-        # species, AEVs of all other atoms, in absence of alchemical atoms
-        mod_species = torch.cat((species[:, :self.alchemical_atoms],  species[:, self.alchemical_atoms+1:]), dim=1)
-        mod_coordinates = torch.cat((coordinates[:, :self.alchemical_atoms],  coordinates[:, self.alchemical_atoms+1:]), dim=1) 
-        mod_aevs = self.aev_computer((mod_species, mod_coordinates))[1]
-        # neural net output given these modified AEVs
-        nn_0 = self.neural_networks((mod_species, mod_aevs))[1]
-        E_0 = self.energy_shifter((species, nn_0))[1]
-
-        return species, (lam * E_1) + ((1 - lam) * E_0)
+        
+        if float(lam) == 0.0 or float(lam) == 1.0:
+            E = E_1
+        else:
+            # LAMBDA = 0: fully removed
+            # species, AEVs of all other atoms, in absence of alchemical atoms
+            mod_species = torch.cat((species[:, :self.alchemical_atoms],  species[:, self.alchemical_atoms+1:]), dim=1)
+            mod_coordinates = torch.cat((coordinates[:, :self.alchemical_atoms],  coordinates[:, self.alchemical_atoms+1:]), dim=1) 
+            mod_aevs = self.aev_computer((mod_species, mod_coordinates))[1]
+            # neural net output given these modified AEVs
+            nn_0 = self.neural_networks((mod_species, mod_aevs))[1]
+            E_0 = self.energy_shifter((species, nn_0))[1]
+            E = (lam * E_1) + ((1 - lam) * E_0)
+        return species, E
 
 
     def _load_model_ensemble(self, species, prefix, count):

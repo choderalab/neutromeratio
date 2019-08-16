@@ -52,11 +52,11 @@ def flat_bottom_position_restraint(x, tautomer_transformation:dict, atom_list:li
         e = k * (distance.double() - upper_bound)**2
     else:
         e = torch.tensor([0.0], dtype=torch.double)
-    logging.debug('Bias introduced: {:0.4f}'.format(e.item()))
+    logging.debug('Flat bottom bias introduced: {:0.4f}'.format(e.item()))
     return e
 
 
-def gaussian_position_restraint(x, tautomer_transformation:dict, atom_list:list, restrain_acceptor:bool, restrain_donor:bool):
+def harmonic_position_restraint(x, tautomer_transformation:dict, atom_list:list, restrain_acceptor:bool, restrain_donor:bool):
     
     """
     Applies a gaussian positional restraint.
@@ -80,7 +80,7 @@ def gaussian_position_restraint(x, tautomer_transformation:dict, atom_list:list,
         bias
     """
 
-    k = 10
+    k = 2
     if restrain_acceptor:
         heavy_atom_idx = tautomer_transformation['acceptor_idx']
     elif restrain_donor:
@@ -89,15 +89,13 @@ def gaussian_position_restraint(x, tautomer_transformation:dict, atom_list:list,
         raise RuntimeError('Something went wrong.')
     
     heavy_atom_element = atom_list[heavy_atom_idx]
-    mean_bond_length = bond_length_dict['{}H'.format(heavy_atom_element)]
+    mean_bond_length = (bond_length_dict['{}H'.format(heavy_atom_element)]).value_in_unit(unit.angstrom)
+    logging.debug('Mean bond length: {}'.format(mean_bond_length))
 
-    upper_bound = mean_bond_length.value_in_unit(unit.angstrom) + 0.2
-    lower_bound = mean_bond_length.value_in_unit(unit.angstrom) - 0.2
     distance = torch.norm(x[0][tautomer_transformation['hydrogen_idx']] - x[0][heavy_atom_idx]) * nm_to_angstroms
+    logging.debug('Distance: {}'.format(distance))
     
-
-    # PLACEHOLDER FUNCTION
-    e = k * (lower_bound - distance)**2
+    e = k * (distance.double() - mean_bond_length)**2
     
-    logging.debug('Bias introduced: {:0.4f}'.format(e.item()))
+    logging.debug('Harmonic bias introduced: {:0.4f}'.format(e.item()))
     return e

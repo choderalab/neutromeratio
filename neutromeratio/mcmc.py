@@ -40,11 +40,8 @@ class MC_Mover(object):
         self.acceptor_hydrogen_equilibrium_bond_length = self.bond_length_dict['{}H'.format(self.acceptor_element)]
         self.donor_hydrogen_equilibrium_bond_length = self.bond_length_dict['{}H'.format(self.donor_element)]
         # the stddev for the bond length
-        self.acceptor_hydrogen_stddev_bond_length = 0.15 * unit.angstrom
-        self.donor_hydrogen_stddev_bond_length = 0.15 * unit.angstrom
-        self.proposed_coordinates = []
-        self.initial_coordinates = []
-        self.work_values = []
+        self.acceptor_hydrogen_stddev_bond_length = 0.03 * unit.angstrom
+        self.donor_hydrogen_stddev_bond_length = 0.03 * unit.angstrom
 
     def _move_hydrogen_to_acceptor_idx(self, coordinates:unit.quantity.Quantity) -> unit.quantity.Quantity:
         """Moves a single hydrogen (specified in self.hydrogen_idx) from a donor
@@ -85,31 +82,6 @@ class MC_Mover(object):
 
         return coordinates
     
-    def perform_mc_move(self, coordinates:unit.quantity.Quantity):
-        """
-        Moves a hydrogen (self.hydrogen_idx) from a starting position connected to a heavy atom
-        donor (self.donor_idx) to a new position around an acceptor atom (self.acceptor_idx).
-        The new coordinates are sampled from a radial distribution, with the center being the acceptor atom,
-        the mean: mean_bond_length = self.acceptor_hydrogen_equilibrium_bond_length * self.acceptor_mod_bond_length
-        and standard deviation: self.acceptor_hydrogen_stddev_bond_length.
-        Calculates the log probability of the forward and reverse proposal and returns the work.
-        """
-        # convert coordinates to angstroms
-        # coordinates_before_move
-        coordinates_A = coordinates.in_units_of(unit.angstrom)
-        #coordinates_after_move
-        coordinates_B = self._move_hydrogen_to_acceptor_idx(copy.deepcopy(coordinates_A))
-        energy_B = self.energy_function.calculate_energy(coordinates_B)
-        energy_A = self.energy_function.calculate_energy(coordinates_A)
-        delta_u = reduced_pot(energy_B - energy_A)
-
-        # log probability of forward proposal from the initial coordinates (coordinate_A) to proposed coordinates (coordinate_B)
-        log_p_forward = self.log_probability_of_proposal_to_B(coordinates_A, coordinates_B)
-        # log probability of reverse proposal given the proposed coordinates (coordinate_B)
-        log_p_reverse = self.log_probability_of_proposal_to_A(coordinates_B, coordinates_A)
-        work = - ((- delta_u) + (log_p_reverse - log_p_forward))
-        return coordinates_B, work
-
     def _log_probability_of_radial_proposal(self, r:float, r_mean:float, r_stddev:float) -> float:
         """Logpdf of N(r : mu=r_mean, sigma=r_stddev)"""
         return norm.logpdf(r, loc=r_mean, scale=r_stddev)
@@ -166,8 +138,41 @@ class Instantaneous_MC_Mover(MC_Mover):
             f_proposed.write(line)
         f_proposed.close()
     
+    def perform_mc_move(self, coordinates:unit.quantity.Quantity):
+        """
+        Moves a hydrogen (self.hydrogen_idx) from a starting position connected to a heavy atom
+        donor (self.donor_idx) to a new position around an acceptor atom (self.acceptor_idx).
+        The new coordinates are sampled from a radial distribution, with the center being the acceptor atom,
+        the mean: mean_bond_length = self.acceptor_hydrogen_equilibrium_bond_length * self.acceptor_mod_bond_length
+        and standard deviation: self.acceptor_hydrogen_stddev_bond_length.
+        Calculates the log probability of the forward and reverse proposal and returns the work.
+        """
+        work_components = dict() 
+        # convert coordinates to angstroms
+        # coordinates_before_move
+        coordinates_A = coordinates.in_units_of(unit.angstrom)
+        #coordinates_after_move
+        coordinates_B = self._move_hydrogen_to_acceptor_idx(copy.deepcopy(coordinates_A))
+        energy_B = self.energy_function.calculate_energy(coordinates_B)
+        energy_A = self.energy_function.calculate_energy(coordinates_A)
+        delta_u = reduced_pot(energy_B - energy_A)
+        # log probability of forward proposal from the initial coordinates (coordinate_A) to proposed coordinates (coordinate_B)
+        log_p_forward = self.log_probability_of_proposal_to_B(coordinates_A, coordinates_B)
+        # log probability of reverse proposal given the proposed coordinates (coordinate_B)
+        log_p_reverse = self.log_probability_of_proposal_to_A(coordinates_B, coordinates_A)
+        work = - ((- delta_u) + (log_p_reverse - log_p_forward))
+
+        work_components = { 'energy_A' : energy_A, 
+                            'energy_B' : energy_B,
+                            'log_p_forward' : log_p_forward,
+                            'log_p_reverse' : log_p_reverse,
+                            'work' : work
+                            }
+        return coordinates_B, work_components
 
 
+
+    # NOTE: carful! changed where I store work values - now they are returned!
     def performe_md_mc_protocoll(self,
                                 x0:unit.quantity.Quantity,
                                 nr_of_mc_trials:int = 500,
@@ -193,6 +198,9 @@ class Instantaneous_MC_Mover(MC_Mover):
         trange = tqdm(range(nr_of_mc_trials))
         traj_in_nm = []
         work_values = []
+        proposed_coordinates = []
+        initial_coordinates = []
+        work_values = []
 
         for _ in trange:
 
@@ -201,13 +209,18 @@ class Instantaneous_MC_Mover(MC_Mover):
             traj_in_nm += [x / unit.nanometer for x in trajectory]      
             # MC move
             new_coordinates, work = self.perform_mc_move(final_coordinate_set)
-            self.proposed_coordinates.append(new_coordinates)
-            self.initial_coordinates.append(final_coordinate_set)
-            work_values.append(work)
+            proposed_coordinates.append(new_coordinates)
+            initial_coordinates.append(final_coordinate_set)
+            work_values.append(work['work'])
             # update new coordinates for langevin dynamics
             x0 = final_coordinate_set
 
-        return work_values, traj_in_nm
+        return {'work_values' : work_values,
+                'traj' : traj_in_nm, 
+                'proposed_coordinates' : proposed_coordinates, 
+                'initial_coordinates' : initial_coordinates
+                }
+         
 
 
 
@@ -224,16 +237,10 @@ class NonequilibriumMC(MC_Mover):
         traj_in_nm = []       
         work_values = []
 
-        # initial sampling
-        trajectory = self.langevin_dynamics.run_dynamics(x0, 5000)
-        x0 = trajectory[-1]
-
-
         logging.info('Decoupling hydrogen ...')
         # decouple the hydrogen from the environment
         self.energy_function.restrain_donor = True
         self.energy_function.restrain_acceptor = False
-
 
         for lambda_value in tqdm(np.linspace(1, 0, nr_of_mc_trials/2)):
             
@@ -245,13 +252,13 @@ class NonequilibriumMC(MC_Mover):
             traj_in_nm += [x / unit.nanometer for x in trajectory]
 
         logging.info('Moving hydrogen ...')
-        # turn of the bond restraint
+        # turn off the bond restraint
         # move the hydrogen to a new position
         x0, work_of_hydrogen_move = self.perform_mc_move(copy.deepcopy(final_coordinate_set))
         traj_in_nm += [x0 / unit.nanometer]
 
-        work_values.append(work_of_hydrogen_move)
-        logging.info('Work of Hydrogen move: {:0.4f}'.format(work_of_hydrogen_move))
+        work_values.append(work_of_hydrogen_move['work'])
+        logging.info('Work of Hydrogen move: {:0.4f}'.format(work_of_hydrogen_move['work']))
         logging.info('Recoupling hydrogen ...')
         # couple the hydrogen to new environment
         # turn on the bond restraint
@@ -267,7 +274,8 @@ class NonequilibriumMC(MC_Mover):
             traj_in_nm += [x / unit.nanometer for x in trajectory]
 
        
-        return work_values, traj_in_nm
+        return {'work' : work_values,
+                'work_of_hydrogen_move' : work_of_hydrogen_move}, traj_in_nm
 
 
     def pertubate_lambda(self, coordinates:unit.quantity.Quantity, lambda_value:float):
@@ -314,4 +322,11 @@ class NonequilibriumMC(MC_Mover):
         # log probability of reverse proposal given the proposed coordinates (coordinate_B)
         log_p_reverse = self.log_probability_of_proposal_to_A(coordinates_B, coordinates_A)
         work = - ((- delta_u) + (log_p_reverse - log_p_forward))
-        return coordinates_B, work
+        work_components = { 'energy_A' : energy_A, 
+                            'energy_B' : energy_B,
+                            'delta_u' : delta_u,
+                            'log_p_forward' : log_p_forward,
+                            'log_p_reverse' : log_p_reverse,
+                            'work' : work
+                            }
+        return coordinates_B, work_components

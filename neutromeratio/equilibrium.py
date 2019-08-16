@@ -23,7 +23,7 @@ class LangevinDynamics(object):
                     n_steps:int = 100,
                     stepsize:unit.quantity.Quantity = 1 * unit.femtosecond,
                     collision_rate:unit.quantity.Quantity = 10/unit.picoseconds,
-                     progress_bar:bool = False
+                     progress_bar:bool = False,
             ):
         """Unadjusted Langevin dynamics.
 
