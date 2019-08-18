@@ -113,7 +113,7 @@ class MC_Mover(object):
 class Instantaneous_MC_Mover(MC_Mover):
 
 
-    def write_xyz_files(self, initial_coordinates, proposed_coordinates, ts:int, filename:str):
+    def write_xyz_files(self, initial_coordinates:unit.quantity.Quantity, proposed_coordinates:unit.quantity.Quantity, ts:int, filename:str):
         """
         Writes xyz files in current directory.
         The files are saved in {name}_ts{ts}_initial.xyz and {name}_ts{ts}_proposed.xyz.
@@ -125,18 +125,18 @@ class Instantaneous_MC_Mover(MC_Mover):
         """
 
         f_initial = open(f"{filename}_ts{ts}_initial.xyz", 'w')
-        xyz_string = generate_xyz_string(self.atom_list, coordinates)
+        xyz_string = generate_xyz_string(self.atom_list, initial_coordinates)
         for line in xyz_string:
             f_initial.write(line)
         f_initial.close()
 
         f_proposed = open(f"{filename}_ts{ts}_proposed.xyz", 'w')
-        xyz_string = generate_xyz_string(self.atom_list, coordinates)
+        xyz_string = generate_xyz_string(self.atom_list, proposed_coordinates)
         for line in xyz_string:
             f_proposed.write(line)
         f_proposed.close()
     
-    def perform_mc_move(self, coordinates:unit.quantity.Quantity):
+    def perform_mc_move(self, coordinates:unit.quantity.Quantity) -> list:
         """
         Moves a hydrogen (self.hydrogen_idx) from a starting position connected to a heavy atom
         donor (self.donor_idx) to a new position around an acceptor atom (self.acceptor_idx).
@@ -166,6 +166,7 @@ class Instantaneous_MC_Mover(MC_Mover):
                             'log_p_reverse' : log_p_reverse,
                             'work' : work
                             }
+        
         return coordinates_B, work_components
 
 
@@ -175,7 +176,7 @@ class Instantaneous_MC_Mover(MC_Mover):
                                 x0:unit.quantity.Quantity,
                                 nr_of_mc_trials:int = 500,
                                 nr_of_md_steps:int = 100,
-                                ):
+                                ) -> dict:
         """
         Performing instantaneous MC and langevin dynamics.
         Given a coordinate set the forces with respect to the coordinates are calculated.
@@ -228,7 +229,7 @@ class NonequilibriumMC(MC_Mover):
                                 x0:unit.quantity.Quantity,
                                 nr_of_mc_trials:int = 500,
                                 nr_of_md_steps:int = 20
-                                ):
+                                ) -> dict:
         """
         """    
 
@@ -275,7 +276,7 @@ class NonequilibriumMC(MC_Mover):
         return {'work' : work_values, 'work_of_hydrogen_move' : work_of_hydrogen_move}, traj_in_nm
 
 
-    def pertubate_lambda(self, coordinates:unit.quantity.Quantity, lambda_value:float):
+    def pertubate_lambda(self, coordinates:unit.quantity.Quantity, lambda_value:float) -> float:
         """
         Lambda value that controls the coupling of the hydrogen to the environment is 
         propagated here.
@@ -290,7 +291,7 @@ class NonequilibriumMC(MC_Mover):
         energy_B = self.energy_function.calculate_energy(coordinates)
         return reduced_pot(energy_B - energy_A)
 
-    def perform_mc_move(self, coordinates:unit.quantity.Quantity):
+    def perform_mc_move(self, coordinates:unit.quantity.Quantity) -> list:
         """
         Moves a hydrogen (self.hydrogen_idx) from a starting position connected to a heavy atom
         donor (self.donor_idx) to a new position around an acceptor atom (self.acceptor_idx).

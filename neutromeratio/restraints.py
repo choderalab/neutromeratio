@@ -4,6 +4,8 @@ import numpy as np
 import torch
 from .constants import bond_length_dict
 import logging
+from scipy.stats import norm
+from torch.distributions.normal import Normal
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +84,6 @@ def harmonic_position_restraint(x, tautomer_transformation:dict, atom_list:list,
         bias
     """
 
-    k = 2.5
     if restrain_acceptor:
         heavy_atom_idx = tautomer_transformation['acceptor_idx']
     elif restrain_donor:
@@ -97,7 +98,10 @@ def harmonic_position_restraint(x, tautomer_transformation:dict, atom_list:list,
     distance = torch.norm(x[0][tautomer_transformation['hydrogen_idx']] - x[0][heavy_atom_idx]) * nm_to_angstroms
     logging.debug('Distance: {}'.format(distance))
     
-    e = k * (distance.double() - mean_bond_length)**2
-    
+    #e = (distance.double() - mean_bond_length)**2
+
+    n =  Normal(loc=torch.tensor([mean_bond_length]).double(), scale=torch.tensor([0.1]).double())
+    e = - n.log_prob(distance.double()).exp()
+   
     logging.debug('Harmonic bias introduced: {:0.4f}'.format(e.item()))
     return e
