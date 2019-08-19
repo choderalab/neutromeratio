@@ -135,3 +135,29 @@ def use_precalculated_md_and_performe_mc(top:str,
             hydrogen_mover.initial_coordinates.append(coordinates)
             hydrogen_mover.work_values.append(work)
             
+
+
+
+def read_precalculated_md(top:str, trajs:list):
+    """
+    Iterates over a trajectory and performs MC moves.
+    The hydrogen_movers specify a list of MC_mover objects that should be used on the same coordinate set. 
+    Parameters
+    ----------
+    top : str
+            file path to topology file
+    trajs: list[str]
+            list of file paths to traj files
+    hydrogen_movers: list[MC_mover]
+            all MC_movers specified in this list are subsequently applied to the same coordinate set
+    mc_every_nth_frame: int
+            performs MC every nth frame
+
+    """
+    topology = md.load(top).topology
+    traj = md.load(trajs, top=topology)
+    traj_in_nm = []
+    for x in traj:
+        coordinates = x.xyz[0] * unit.nanometer
+        traj_in_nm.append(coordinates)
+    return traj_in_nm

@@ -86,7 +86,7 @@ def test_neutromeratio_energy_calculations():
     
     x = energy_function.calculate_energy(x0)
     x = x.value_in_unit(unit.kilocalorie_per_mole)
-    assert(np.round(x, 2) == np.round(-216736.6857480091, 2))
+    assert(x == -216736.6857480091)
 
 
 def test_neutromeratio_energy_calculations_with_dummy_atom():
@@ -136,4 +136,7 @@ def test_neutromeratio_energy_calculations_with_dummy_atom():
 
     x = energy_function.calculate_energy(x0)
     x = x.value_in_unit(unit.kilocalorie_per_mole)
-    assert(np.round(x, 2) == np.round(-216698.91137612148, 2) )
+    assert(x == -216698.91137612148)
+
+
+    
