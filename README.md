@@ -21,9 +21,9 @@ The current implementation of the protocoll does not actually accept any of thes
 
 The propagation along the coupling parameter for the nonequilibrium protocol has three stages that contribute to the final work value: 
 
-- Decoupling of the hydrogen
-- Moving the hydrogen to a new position
-- Coupling the hydrogen
+1. Decoupling of the hydrogen
+2. Moving the hydrogen to a new position
+3. Coupling the hydrogen
 
 
 An instantaneous MC protocol would perform all three described steps in a single propagation step while the nonequilibrium protocol uses small incremental perturbations for (1) and (3).
@@ -39,6 +39,19 @@ There are two ways to scale these ‘indirect’ contributions of a given atom i
 We decided on linearly scaling the total energy. That means at any given lambda there are two <a href="https://www.codecogs.com/eqnedit.php?latex=E_{t}" target="_blank"><img src="https://latex.codecogs.com/svg.latex?E_{t}" title="E_{t}" /></a> values: <a href="https://www.codecogs.com/eqnedit.php?latex=E_{t,&space;\lambda=0}" target="_blank"><img src="https://latex.codecogs.com/svg.latex?E_{t,&space;\lambda=0}" title="E_{t, \lambda=0}" /></a> is calculated with the unmodified atomic environment vector and contains the sum over all atoms. <a href="https://www.codecogs.com/eqnedit.php?latex=E_{t,&space;\lambda=1}" target="_blank"><img src="https://latex.codecogs.com/svg.latex?E_{t,&space;\lambda=1}" title="E_{t, \lambda=1}" /></a> is calculated with the modified atomic environment vector for which the atom that will be modified is removed. To scale the energies depending on lambda the following equation is used for the final energy:
 
 <a href="https://www.codecogs.com/eqnedit.php?latex=E_{t}&space;=&space;(\lambda&space;*&space;E_{t,&space;\lambda=0})&space;&plus;&space;((1&space;-&space;\lambda)&space;*&space;E_{t,&space;\lambda=1})" target="_blank"><img src="https://latex.codecogs.com/svg.latex?E_{t}&space;=&space;(\lambda&space;*&space;E_{t,&space;\lambda=0})&space;&plus;&space;((1&space;-&space;\lambda)&space;*&space;E_{t,&space;\lambda=1})" title="E_{t} = (\lambda * E_{t, \lambda=0}) + ((1 - \lambda) * E_{t, \lambda=1})" /></a>
+
+The work values for step (1) and step (3) of the protocol (decoupling and coupling) is the sum over the dE along the protocol. For step (2) the work calculations will be discussed in more detail.
+
+The acceptance ratio for proposing to move from configuration x (initial coordinates) in thermodynamic state A (tautomeric state 1) to configuration x’ (proposed coordinates) in thermodynamic state B (tautomeric state 2) is calculated as follows.
+
+<a href="https://www.codecogs.com/eqnedit.php?latex=R_{A\rightarrow&space;B}(x\rightarrow&space;{x}')&space;=&space;\frac{p_{B}{x}'}{p_{A}{x}}&space;\frac{g_{B\rightarrow&space;A}{({x}'\rightarrow&space;x})}{g_{A\rightarrow&space;B}{(x\rightarrow&space;{x}'})}" target="_blank"><img src="https://latex.codecogs.com/svg.latex?R_{A\rightarrow&space;B}(x\rightarrow&space;{x}')&space;=&space;\frac{p_{B}{x}'}{p_{A}{x}}&space;\frac{g_{B\rightarrow&space;A}{({x}'\rightarrow&space;x})}{g_{A\rightarrow&space;B}{(x\rightarrow&space;{x}'})}" title="R_{A\rightarrow B}(x\rightarrow {x}') = \frac{p_{B}{x}'}{p_{A}{x}} \frac{g_{B\rightarrow A}{({x}'\rightarrow x})}{g_{A\rightarrow B}{(x\rightarrow {x}'})}" /></a>
+
+The first ratio describes the probability of <a href="https://www.codecogs.com/eqnedit.php?latex={x}'" target="_blank"><img src="https://latex.codecogs.com/svg.latex?{x}'" title="{x}'" /></a> in thermodynamic state B divided by the probability of <a href="https://www.codecogs.com/eqnedit.php?latex={x}" target="_blank"><img src="https://latex.codecogs.com/svg.latex?{x}" title="{x}" /></a> in thermodynamic state A. This ratio is simply the difference in energy of the system in the initial and proposed position. The second ratio describes the probability density functions for the proposal process that generates configurations in tautomer state B given a configuration in tautomer state A and vice versa. The proposal density function <a href="https://www.codecogs.com/eqnedit.php?latex=g(B\rightarrow&space;A)" target="_blank"><img src="https://latex.codecogs.com/svg.latex?g(B\rightarrow&space;A)" title="g(B\rightarrow A)" /></a> and <a href="https://www.codecogs.com/eqnedit.php?latex=g(A\rightarrow&space;B)" target="_blank"><img src="https://latex.codecogs.com/svg.latex?g(A\rightarrow&space;B)" title="g(A\rightarrow B)" /></a> depends on the equilibrium bond length between the heavy atom and hydrogen. Since the hydrogen can move between acceptor and donor atoms with different elements and the equilibrium bond length can change the proposal density is not symmetric and the calculation can not be omitted.
+
+We introduce a flat bottom potential around the heavy atom donor and hydrogen bond to avoid ‘losing’ the hydrogen during the (de)coupling. The restraint contributes to the work only in the alchemical part of the protocol when the hydrogen losses interactions with the bonded heavy atom but not at the endpoints. Eqn(3) is evaluated with the energy contribution of the restraint.
+
+
+
 
 ### Copyright
 
