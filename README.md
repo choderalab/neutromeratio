@@ -59,22 +59,25 @@ There are two types of restrains (flat bottom restraint and harmonic restraint) 
 We generated equilibrium samples (using openMM and gaff2) for the two tautomeric forms of mol298 and used openMM, ANI-1ccx and psi4 (wB97X/6-31g*) to generate energy histograms and plot the energy as a function of the timestep.
 
 
-
-
 #### MC
+
 Results for the MC/NCMC protocol are shown for a single tautomer transformation:
 ![molDWRow_590_tautomers](https://user-images.githubusercontent.com/31651017/63469748-3e765d00-c46b-11e9-8c3d-63185eac93d8.png)
 
+
 Results of the MC protocol that switches tautomer states in a single step from an equilibrium sample.
 ![mc_work_distribution](https://user-images.githubusercontent.com/31651017/63470778-c8bfc080-c46d-11e9-9135-1d1b7c972796.png)
+
 Bar estimate of the work: 2.53 +- 0.73 kcal/mol.
 
 #### NCMC
 
 The bond length of the hydrogen acceptor/donor of the tautomer-hydrogen as well as the applied restraind of the hydrogen position is shown as a function of the protocol length.
+
 ![molDWRow_298_from_t1_to_t2_NCMC_distance_run_nr_0](https://user-images.githubusercontent.com/31651017/63471363-36b8b780-c46f-11e9-8a6c-68613e56a73e.png)
 
 The forward/reverse work distribution of 60 protocol trials is:
+
 ![work_hist_molDWRow_590_NCMC](https://user-images.githubusercontent.com/31651017/63469829-7382af80-c46b-11e9-9bef-b57a4dc6b51c.png)
 
 Bar estimate of the work: -0.33 kcal/mol with stddev: 0.11 kcal/mol. Seperate QM calculations of the same molecule using orca, aug-cc-pVTZ/B3LYP resulted in a reference energy difference of -3.36 kcal/mol.
