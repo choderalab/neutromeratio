@@ -54,6 +54,12 @@ There are two types of restrains (flat bottom restraint and harmonic restraint) 
 
 ### Preliminary results
 
+#### MC
+Results of the MC protocol that switches tautomer states in a single step from an equilibrium sample.
+![mc_work_distribution](https://user-images.githubusercontent.com/31651017/63470778-c8bfc080-c46d-11e9-9135-1d1b7c972796.png)
+Bar estimate of the work: 2.53 +- 0.73 kcal/mol.
+
+#### NCMC
 Results of the NCMC protocol are shown for a single tautomer transformation:
 
 ![molDWRow_590_tautomers](https://user-images.githubusercontent.com/31651017/63469748-3e765d00-c46b-11e9-8c3d-63185eac93d8.png)
@@ -61,6 +67,7 @@ Results of the NCMC protocol are shown for a single tautomer transformation:
 The forward/reverse work distribution of 60 protocol trials is:
 
 ![work_hist_molDWRow_590_NCMC](https://user-images.githubusercontent.com/31651017/63469829-7382af80-c46b-11e9-9bef-b57a4dc6b51c.png)
+Bar estimate of the work: -0.33 kcal/mol with stddev: 0.11 kcal/mol. Seperate QM calculations of the same molecule using orca, aug-cc-pVTZ/B3LYP resulted in a reference energy difference of -3.36 kcal/mol.
 
 The cummulative standard deviation over the NCMC protocol for 60 runs:
 
