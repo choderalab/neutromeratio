@@ -13,7 +13,7 @@ A reliable method for the determination of tautomer ratios would ideally include
 
 This package contains code to run non-equilibrium candidate monte carlo simulations [3] (NCMC) using the ANI-1 potetnial to calculate work distributions for forward and reverse transformation between a set of tautomers and utilizes bennet’s acceptance ratio (BAR) to estimate the free energy difference between the work distributions. 
 
-## Theoretical background
+#### Theoretical background
 
 
 
