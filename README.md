@@ -52,6 +52,36 @@ There are two types of restrains (flat bottom restraint and harmonic restraint) 
 
 <a href="https://www.codecogs.com/eqnedit.php?latex=\text{restraint}&space;=&space;(1-\lambda)&space;*&space;\text{bottom\_restraint}&space;&plus;&space;\lambda&space;*&space;\text{harmonic\_restraint}" target="_blank"><img src="https://latex.codecogs.com/gif.latex?\text{restraint}&space;=&space;(1-\lambda)&space;*&space;\text{bottom\_restraint}&space;&plus;&space;\lambda&space;*&space;\text{harmonic\_restraint}" title="\text{restraint} = (1-\lambda) * \text{bottom\_restraint} + \lambda * \text{harmonic\_restraint}" /></a>
 
+### Preliminary results
+
+Results of the NCMC protocol are shown for a single tautomer transformation:
+
+![molDWRow_590_tautomers](https://user-images.githubusercontent.com/31651017/63469748-3e765d00-c46b-11e9-8c3d-63185eac93d8.png)
+
+The forward/reverse work distribution of 60 protocol trials is:
+
+![work_hist_molDWRow_590_NCMC](https://user-images.githubusercontent.com/31651017/63469829-7382af80-c46b-11e9-9bef-b57a4dc6b51c.png)
+
+The cummulative standard deviation over the NCMC protocol for 60 runs:
+
+![cwork_stddev_molDWRow_590_NCMC](https://user-images.githubusercontent.com/31651017/63469900-91e8ab00-c46b-11e9-8a8c-7601e1a7c69b.png)
+
+The work values and standard deviation for each protocol step for the transformation of tautomer 1 to tautomer 2:
+![work_summary_molDWRow_590_from_t1_to_t2_NCMC](https://user-images.githubusercontent.com/31651017/63470118-0facb680-c46c-11e9-93be-b902fae4a9ad.png) ![work_stddev_molDWRow_590_from_t1_to_t2_NCMC](https://user-images.githubusercontent.com/31651017/63470160-2521e080-c46c-11e9-9235-2080c2c57313.png)
+
+The work values and standard deviation for each protocol step for the transformation of tautomer 2 to tautomer 1:
+![work_summary_molDWRow_590_from_t2_to_t1_NCMC](https://user-images.githubusercontent.com/31651017/63470285-89dd3b00-c46c-11e9-8d5a-0e075c2e7a53.png)![work_stddev_molDWRow_590_from_t2_to_t1_NCMC](https://user-images.githubusercontent.com/31651017/63470301-92357600-c46c-11e9-818f-240470e9cf8c.png)
+
+
+
+### Some movies:
+A trajectory when no restraints are used:
+https://drive.google.com/file/d/1_yFzTneNdiWb2LD5AMgjOYOboKaPgZ9N/view?usp=sharing
+
+A trajectory from the current protocol, when restraints are used:
+https://drive.google.com/file/d/1BieyQ7odaljaOQGVHGV7LAP7VrLMeqoQ/view?usp=sharing
+
+
 
 
 ### Copyright
