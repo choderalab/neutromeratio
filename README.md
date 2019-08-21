@@ -58,6 +58,9 @@ There are two types of restrains (flat bottom restraint and harmonic restraint) 
 
 We generated equilibrium samples (using openMM and gaff2) for the two tautomeric forms of mol298 and used openMM, ANI-1ccx and psi4 (wB97X/6-31g*) to generate energy histograms and plot the energy as a function of the timestep.
 
+![hist_energy_comparision_t1](https://user-images.githubusercontent.com/31651017/63472076-54871c00-c471-11e9-81dc-e348c8faef8d.png)![hist_energy_comparision_t2](https://user-images.githubusercontent.com/31651017/63472089-610b7480-c471-11e9-8a45-afc3efbd2b1f.png)![plot_energy_comparision_t1](https://user-images.githubusercontent.com/31651017/63472110-68cb1900-c471-11e9-9995-27357fafc0d8.png)![plot_energy_comparision_t2](https://user-images.githubusercontent.com/31651017/63472121-708abd80-c471-11e9-92d8-9a4307581bd3.png)
+
+
 
 #### MC
 
@@ -101,6 +104,9 @@ A trajectory from the current protocol, when restraints are used:
 https://drive.google.com/file/d/1BieyQ7odaljaOQGVHGV7LAP7VrLMeqoQ/view?usp=sharing
 
 
+## What do you need to start
+
+The jupyter notebook notebooks/NCMC.ipynb starts the NCMC protocol (1000 steps for the perturbation) for a set of tautomer SMILES. So all you need for starting the protocl are a set of SMILES strings that can be interconverted by moving a single hydrogen.
 
 
 ### Copyright
