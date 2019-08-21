@@ -11,7 +11,7 @@ Accurate calculations of tautomer ratios are hard. Quantum aspects of the proton
 
 A reliable method for the determination of tautomer ratios would ideally include conformational sampling in explicit water and the calculation of the potential energy with QM level accuracy. These two goals seem reasonable and within reach with the development of neural net potentials like ANI-1 that enable energy calculation with DFT level accuracy and force field like time costs [2]. This enables the exploration of the conformational degrees of freedom while ensuring high level QM energy calculations.
 
-This package contains code to run non-equilibrium candidate monte carlo simulations [3] (NCMC) using the ANI-1 potetnial to calculate work distributions for forward and reverse transformation between a set of tautomers and utilizes bennet’s acceptance ratio (BAR) to estimate the free energy difference between the work distributions. 
+This package contains code to run non-equilibrium candidate monte carlo simulations [3] (NCMC) using the ANI-1 potential to calculate work distributions for forward and reverse transformation between a set of tautomers and utilizes bennet’s acceptance ratio (BAR) to estimate the free energy difference between the work distributions. 
 
 ### Theoretical background
 
@@ -51,7 +51,6 @@ The first ratio describes the probability of <a href="https://www.codecogs.com/e
 There are two types of restrains (flat bottom restraint and harmonic restraint) added to the heavy atom - hydrogen bond during the nonequilibrium protocoll in order to keep the hydrogen near its bonded partner while not fully coupled to the environment. These restraints are not contributing to the energy of the endpoints and only to the 'alchemical' part of the protocoll. At the endpoints only the bottom restraint is active. The two restraint are combined in the following way.
 
 <a href="https://www.codecogs.com/eqnedit.php?latex=\text{restraint}&space;=&space;(1-\lambda)&space;*&space;\text{bottom\_restraint}&space;&plus;&space;\lambda&space;*&space;\text{harmonic\_restraint}" target="_blank"><img src="https://latex.codecogs.com/gif.latex?\text{restraint}&space;=&space;(1-\lambda)&space;*&space;\text{bottom\_restraint}&space;&plus;&space;\lambda&space;*&space;\text{harmonic\_restraint}" title="\text{restraint} = (1-\lambda) * \text{bottom\_restraint} + \lambda * \text{harmonic\_restraint}" /></a>
-
 
 
 
