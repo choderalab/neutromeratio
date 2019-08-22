@@ -85,7 +85,7 @@ The forward/reverse work distribution of NCMC protocol is:
 
 The BAR estimate of the work is -0.33 +- 0.11 kcal/mol. Seperate QM calculations of the same molecule using orca, B3LYP/aug-cc-pVTZ resulted in a reference energy difference of -3.36 kcal/mol.
 
-The cummulative standard deviation for the NCMC protocol is shown below.
+The cumulative standard deviation for the NCMC protocol is shown below.
 ![cwork_stddev_molDWRow_590_NCMC](https://user-images.githubusercontent.com/31651017/63469900-91e8ab00-c46b-11e9-8a8c-7601e1a7c69b.png)
 
 The work values and standard deviation for each protocol step for the transformation of tautomer 1 to tautomer 2:
