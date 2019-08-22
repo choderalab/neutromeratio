@@ -110,7 +110,7 @@ The jupyter notebook notebooks/NCMC-tautomers.ipynb can be used to start the NCM
 
 ## Implementation details
 
-The calculation of the energies in the current torchANI implementation (https://github.com/aiqm/torchani) is in float32. This lead initially to precission issiues with increased NCMC protocl length. We are using float64 for summing up the energies for the neural net potentials avoiding this issue.
+The calculation of the energies in the current torchANI implementation (https://github.com/aiqm/torchani) is in float32. This led initially to numerical underflow and other precision loss bugs with increased NCMC protocol length, since the work of a protocol is a sum of many small increments. To mitigate this issue, we sum the energies in float64.
 
 ```python
 class DoubleAniModel(torchani.nn.ANIModel):
