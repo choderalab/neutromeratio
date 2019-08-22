@@ -17,7 +17,7 @@ This package contains code to run monte carlo (MC) and non-equilibrium candidate
 
 NCMC constructs a non equilibrium protocol that achieves high acceptance rates with short correlation times. Instead of instantaneous proposing a new tautomer state from an equilibrium sample it uses a coupling parameter to construct a non equilibrium process with incremental changes to slowly transform tautomer 1 to tautomer 2. After each incremental perturbation the system is allowed to relax -- in such a way highly efficient proposals can be constructed.
 
-The current implementation of the protocoll does not actually accept any of these proposals. The work is recorded and used to calculate the free energy difference between the two states.
+The current implementation of the protocol does not actually accept any of these proposals. The work is recorded and used to calculate the free energy difference between the two states.
 
 The propagation along the coupling parameter for the nonequilibrium protocol has three stages that contribute to the final work value: 
 
@@ -28,7 +28,7 @@ The propagation along the coupling parameter for the nonequilibrium protocol has
 
 An instantaneous MC protocol would perform all three described steps in a single propagation step while the nonequilibrium protocol uses small incremental perturbations for (1) and (3).
 
-The (de)coupling is performed by linearly scaling the energy contribution of the hydrogen that changes its binding partner to the total energy of the system. This is possible because the total energy of a molecule (Et) is computed as a sum over the output of neural net potential for each individual atom:
+The (de)coupling is performed by linearly scaling the energy contribution of the hydrogen that changes its binding partner to the total energy of the system. This is possible because the total energy of a molecule (Et) is computed as the sum over the output of neural net potential for each individual atom:
 
 <a href="https://www.codecogs.com/eqnedit.php?latex=E_{t}&space;=&space;\sum^{\text{all&space;atoms}}_{i}&space;E_{i}" target="_blank"><img src="https://latex.codecogs.com/svg.latex?E_{t}&space;=&space;\sum^{\text{all&space;atoms}}_{i}&space;E_{i}" title="E_{t} = \sum^{\text{all atoms}}_{i} E_{i}" /></a>
 
