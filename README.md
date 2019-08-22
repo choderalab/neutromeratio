@@ -11,7 +11,7 @@ Accurate calculations of tautomer ratios are hard. Quantum aspects of the proton
 
 A reliable method for the determination of tautomer ratios would ideally include conformational sampling in explicit water and the calculation of the potential energy with QM level accuracy. These two goals seem reasonable and within reach with the development of neural net potentials like ANI-1 that enable energy calculation with DFT level accuracy and force field like time costs [2]. This allows the exploration of the conformational degrees of freedom while ensuring high level QM energy calculations.
 
-This package contains code to run monte carlo and non-equilibrium candidate monte carlo simulations [3] (NCMC) using the ANI-1ccx potential to calculate work distributions for forward and reverse transformation between a set of tautomers and utilizes bennet’s acceptance ratio (BAR) to estimate the free energy difference between tautomer states. 
+This package contains code to run monte carlo (MC) and non-equilibrium candidate monte carlo simulations [3] (NCMC) using the ANI-1ccx potential to calculate work distributions for forward and reverse transformation between a set of tautomers and utilizes bennet’s acceptance ratio (BAR) to estimate the free energy difference between tautomer states. 
 
 ### Theoretical background
 
@@ -106,7 +106,7 @@ https://drive.google.com/file/d/1BieyQ7odaljaOQGVHGV7LAP7VrLMeqoQ/view?usp=shari
 
 ## What do you need to start
 
-The jupyter notebook notebooks/NCMC.ipynb starts the NCMC protocol (1000 steps for the perturbation, 150 repetitions of the protocol) for a set of tautomer SMILES. So all you need for starting the protocl are a set of SMILES strings that can be interconverted by moving a single hydrogen.
+The jupyter notebook notebooks/NCMC.ipynb starts the NCMC protocol (1000 steps for the perturbation, 150 repetitions of the protocol) for a set of tautomer SMILES. So all you need for starting the protocl are a set of SMILES strings that can be interconverted by moving a single hydrogen. As long as the two SMILES describe two tautomeric states of the same small molecule the hydrogen that needs to move, the heavy atom donor that looses the hydrogen and the heavy atom acceptor that receives the hydorgen are automatically detected and the protocol needs no further input.
 
 
 ## Implementation details
