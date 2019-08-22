@@ -75,7 +75,7 @@ Bar estimate of the work: 2.53 +- 0.73 kcal/mol.
 
 #### NCMC
 
-The bond length of the hydrogen acceptor/donor of the tautomer-hydrogen as well as the applied restraind of the hydrogen position is shown as a function of the protocol length.
+The bond length of the hydrogen acceptor (in green) and the hydrogen donor (in blue) to the tautomer-hydrogen as well as the applied restraind (in read) is shown as a function of the protocol length.
 
 ![molDWRow_298_from_t1_to_t2_NCMC_distance_run_nr_0](https://user-images.githubusercontent.com/31651017/63471363-36b8b780-c46f-11e9-8a6c-68613e56a73e.png)
 
