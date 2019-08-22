@@ -97,16 +97,16 @@ The work values and standard deviation for each protocol step for the transforma
 
 
 ### Some movies:
-A trajectory when no restraints are used:
+A trajectory without restraints around the hydrogen - heavy atom bond:
 https://drive.google.com/file/d/1_yFzTneNdiWb2LD5AMgjOYOboKaPgZ9N/view?usp=sharing
 
-A trajectory from the current protocol, when restraints are used:
+A trajectory from the current protocol, with restraints:
 https://drive.google.com/file/d/1BieyQ7odaljaOQGVHGV7LAP7VrLMeqoQ/view?usp=sharing
 
 
 ## What do you need to start
 
-The jupyter notebook notebooks/NCMC.ipynb starts the NCMC protocol (1000 steps for the perturbation) for a set of tautomer SMILES. So all you need for starting the protocl are a set of SMILES strings that can be interconverted by moving a single hydrogen.
+The jupyter notebook notebooks/NCMC.ipynb starts the NCMC protocol (1000 steps for the perturbation, 150 repetitions of the protocol) for a set of tautomer SMILES. So all you need for starting the protocl are a set of SMILES strings that can be interconverted by moving a single hydrogen.
 
 
 ### Copyright
