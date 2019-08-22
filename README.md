@@ -61,9 +61,9 @@ We generated equilibrium samples (using openMM and gaff2) for the two tautomeric
 
 
 
-#### MC
+#### Instantaneous MC
 
-Results for the MC/NCMC protocol are shown for a single tautomer transformation:
+Results of the MC protocol that switches tautomer states in a single step from an equilibrium sample are shown for mol298 in both directions. It samples the hydrogen positions from a gaussian shell around the hydrogen acceptor heavy atom. The gaussian shell is defined by the equilibrium bond length between the hydrogen and the hydrogen acceptor heavy atom element and the standard deviation (currently set to 0.1 Angstrom for all hydrogen - heavy element pairs). 
 ![molDWRow_590_tautomers](https://user-images.githubusercontent.com/31651017/63469748-3e765d00-c46b-11e9-8c3d-63185eac93d8.png)
 
 
@@ -73,6 +73,8 @@ Results of the MC protocol that switches tautomer states in a single step from a
 Bar estimate of the work: 2.53 +- 0.73 kcal/mol.
 
 #### NCMC
+
+For the NCMC protocol result plots will only be shown for mol298. A typical protocol involves 5000 steps of Langevin dynamics (0.5 fs stepsize) in the beginning from which conformations are randomly drawn to start a single NCMC protocol run. A NCMC protocol run involves 1000 +1 perturbation steps. 500 steps to decouple the hydrogen, 1 step to move the hydrogen to its new position (the MC move is the same as in the instantaneous protocol) and 500 to couple the hydrogen to its environment. For each (de)couple increment 20 Langevin dynamics steps are performed. A single protocol takes on 2 CPUs around 30 minutes. 
 
 The distance between the hydrogen acceptor (in green) and the hydrogen donor (in blue) and the tautomer-hydrogen as well as the applied restraints (in read) are shown as a function of the protocol length.
 
