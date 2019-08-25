@@ -172,7 +172,7 @@ class Instantaneous_MC_Mover(MC_Mover):
 
 
     # NOTE: carful! changed where I store work values - now they are returned!
-    def performe_md_mc_protocoll(self,
+    def performe_md_mc_protocol(self,
                                 x0:unit.quantity.Quantity,
                                 nr_of_mc_trials:int = 500,
                                 nr_of_md_steps:int = 100,
@@ -225,9 +225,9 @@ class Instantaneous_MC_Mover(MC_Mover):
 
 class NonequilibriumMC(MC_Mover):
 
-    def performe_md_mc_protocoll(self,
+    def performe_md_mc_protocol(self,
                                 x0:unit.quantity.Quantity,
-                                nr_of_mc_trials:int = 500,
+                                perturbations_per_trial:int = 500,
                                 nr_of_md_steps:int = 20
                                 ) -> dict:
         """
