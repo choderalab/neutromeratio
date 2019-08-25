@@ -109,11 +109,11 @@ for run_nr in range(nr_of_runs):
     work_in_runs[run_nr] = work
 
     # save trajectory
-    ani_traj = md.Trajectory(traj, topology)
-    ani_traj.save(f"../data/md_mc_sampling/{name}/{name}_from_t{from_mol_tautomer_idx}_to_t{to_mol_tautomer_idx}_NCMC_work_run_nr_{run_nr}.dcd")
+    #ani_traj = md.Trajectory(traj, topology)
+    #ani_traj.save(f"../data/md_mc_sampling/{name}/{name}_from_t{from_mol_tautomer_idx}_to_t{to_mol_tautomer_idx}_NCMC_work_run_nr_{run_nr}.dcd")
 
     # save work values (overwriting after each new run)
-    f = open(f"../data/md_mc_sampling/{name}/{name}_from_t{from_mol_tautomer_idx}_to_t{to_mol_tautomer_idx}_NCMC_work_run_nr_{run_nr}.csv", 'w+')
+    f = open(f"../data/md_mc_sampling/{name}/{name}_from_t{from_mol_tautomer_idx}_to_t{to_mol_tautomer_idx}_NCMC_work_run_nr_{run_nr}_perturbations_per_trial_{perturbations_per_trial}.csv", 'w+')
     for i, j in enumerate(work):
         f.write('{}, {}\n'.format(i, j))
     f.close()
@@ -122,7 +122,7 @@ for run_nr in range(nr_of_runs):
     plt.xlabel('lambda')
     plt.ylabel('Work * kT')
     plt.title('Work vs lambda value ({} steps)'.format(len(work)))
-    plt.savefig(f"../data/md_mc_sampling/{name}/{name}_from_t{from_mol_tautomer_idx}_to_t{to_mol_tautomer_idx}_NCMC_work_run_nr_{run_nr}.png")
+    plt.savefig(f"../data/md_mc_sampling/{name}/{name}_from_t{from_mol_tautomer_idx}_to_t{to_mol_tautomer_idx}_NCMC_work_run_nr_{run_nr}_perturbations_per_trial_{perturbations_per_trial}.png")
     
     print('Total work of the protocoll: {}.'.format(sum(work)))
     distance_list_h_donor = []
@@ -140,4 +140,4 @@ for run_nr in range(nr_of_runs):
     ax1.set_ylabel('distance [A]')
     ax2.set_ylabel('energy [kJ/mol]')
     plt.legend()
-    plt.savefig(f"../data/md_mc_sampling/{name}/{name}_from_t{from_mol_tautomer_idx}_to_t{to_mol_tautomer_idx}_NCMC_distance_run_nr_{run_nr}.png")
+    plt.savefig(f"../data/md_mc_sampling/{name}/{name}_from_t{from_mol_tautomer_idx}_to_t{to_mol_tautomer_idx}_NCMC_distance_run_nr_{run_nr}_perturbations_per_trial_{perturbations_per_trial}.png")
