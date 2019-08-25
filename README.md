@@ -7,7 +7,7 @@ neutromeratio
 Using neural net potentials to calculate energies and nonequilibrium monte carlo to sample tautomeric states.
 
 ### Introduction
-Accurate calculations of tautomer ratios are hard. Quantum aspects of the proton transfer reaction present a particular theoretical challenge. Most of the published work on tautomer ratio calculations have phenomenological character and closer inspection reveal unjustified assumptions and/or cancelation of errors [1].  
+Accurate calculations of tautomer ratios are hard. Quantum aspects of the proton transfer reaction and entropy changes introduced by the change in double bond positions present a particular theoretical challenge. Most of the published work on tautomer ratio calculations have phenomenological character and closer inspection reveal unjustified assumptions and/or cancelation of errors [1].  
 
 A reliable method for the determination of tautomer ratios would ideally include conformational sampling in explicit water and the calculation of the potential energy with QM level accuracy. These two goals seem reasonable and within reach with the development of neural net potentials like ANI-1 that enable energy calculation with DFT level accuracy and force field like time costs [2]. This allows the exploration of the conformational degrees of freedom while ensuring high level QM energy calculations.
 
@@ -17,7 +17,7 @@ This package contains code to run monte carlo (MC) and non-equilibrium candidate
 
 NCMC constructs a non equilibrium protocol that achieves high acceptance rates with short correlation times. Instead of instantaneous proposing a new tautomer state from an equilibrium sample it uses a coupling parameter to construct a non equilibrium process with incremental changes to slowly transform tautomer 1 to tautomer 2. After each incremental perturbation the system is allowed to relax -- in such a way highly efficient proposals can be constructed.
 
-The current implementation of the protocoll does not actually accept any of these proposals. The work is recorded and used to calculate the free energy difference between the two states.
+The current implementation of the protocol does not actually accept any of these proposals. The work is recorded and used to calculate the free energy difference between the two states.
 
 The propagation along the coupling parameter for the nonequilibrium protocol has three stages that contribute to the final work value: 
 
@@ -28,7 +28,7 @@ The propagation along the coupling parameter for the nonequilibrium protocol has
 
 An instantaneous MC protocol would perform all three described steps in a single propagation step while the nonequilibrium protocol uses small incremental perturbations for (1) and (3).
 
-The (de)coupling is performed by linearly scaling the energy contribution of the hydrogen that changes its binding partner to the total energy of the system. This is possible because the total energy of a molecule (Et) is computed as a sum over the output of neural net potential for each individual atom:
+The (de)coupling is performed by linearly scaling the energy contribution of the hydrogen that changes its binding partner to the total energy of the system. This is possible because the total energy of a molecule (Et) is computed as the sum over the output of neural net potential for each individual atom:
 
 <a href="https://www.codecogs.com/eqnedit.php?latex=E_{t}&space;=&space;\sum^{\text{all&space;atoms}}_{i}&space;E_{i}" target="_blank"><img src="https://latex.codecogs.com/svg.latex?E_{t}&space;=&space;\sum^{\text{all&space;atoms}}_{i}&space;E_{i}" title="E_{t} = \sum^{\text{all atoms}}_{i} E_{i}" /></a>
 
@@ -38,20 +38,19 @@ There are two ways to scale these ‘indirect’ contributions of a given atom i
 
 We decided on linearly scaling the total energy. That means at any given lambda there are two <a href="https://www.codecogs.com/eqnedit.php?latex=E_{t}" target="_blank"><img src="https://latex.codecogs.com/svg.latex?E_{t}" title="E_{t}" /></a> values: <a href="https://www.codecogs.com/eqnedit.php?latex=E_{t,&space;\lambda=0}" target="_blank"><img src="https://latex.codecogs.com/svg.latex?E_{t,&space;\lambda=0}" title="E_{t, \lambda=0}" /></a> is calculated with the unmodified atomic environment vector and contains the sum over all atoms. <a href="https://www.codecogs.com/eqnedit.php?latex=E_{t,&space;\lambda=1}" target="_blank"><img src="https://latex.codecogs.com/svg.latex?E_{t,&space;\lambda=1}" title="E_{t, \lambda=1}" /></a> is calculated with the modified atomic environment vector for which the atom that will be modified is removed. To scale the energies depending on lambda the following equation is used for the final energy:
 
-<a href="https://www.codecogs.com/eqnedit.php?latex=E_{t}&space;=&space;(\lambda&space;*&space;E_{t,&space;\lambda=0})&space;&plus;&space;((1&space;-&space;\lambda)&space;*&space;E_{t,&space;\lambda=1})" target="_blank"><img src="https://latex.codecogs.com/svg.latex?E_{t}&space;=&space;(\lambda&space;*&space;E_{t,&space;\lambda=0})&space;&plus;&space;((1&space;-&space;\lambda)&space;*&space;E_{t,&space;\lambda=1})" title="E_{t} = (\lambda * E_{t, \lambda=0}) + ((1 - \lambda) * E_{t, \lambda=1})" /></a>
+<a href="https://www.codecogs.com/eqnedit.php?latex=E_{t}&space;=&space;(\lambda&space;*&space;E_{t,&space;\lambda=0})&space;&plus;&space;((1&space;-&space;\lambda)&space;*&space;E_{t,&space;\lambda=1})" target="_blank"><img src="https://latex.codecogs.com/svg.latex?E_{t}&space;=&space;(\lambda&space;*&space;E_{t,&space;\lambda=0})&space;&plus;&space;((1&space;-&space;\lambda)&space;*&space;E_{t,&space;\lambda=1})" title="E_{t} = (\lambda * E_{t, \lambda=0}) + ((1 - \lambda) * E_{t, \lambda=1})" /></a>	
 
 The work values for step (1) and step (3) of the protocol (decoupling and coupling) is the sum over the dE along the protocol. For step (2) the work calculations will be discussed in more detail.
 
 The acceptance ratio for proposing to move from configuration x (initial coordinates) in thermodynamic state A (tautomeric state 1) to configuration x’ (proposed coordinates) in thermodynamic state B (tautomeric state 2) is calculated as follows.
 
-<a href="https://www.codecogs.com/eqnedit.php?latex=R_{A\rightarrow&space;B}(x\rightarrow&space;{x}')&space;=&space;\frac{p_{B}{x}'}{p_{A}{x}}&space;\frac{g_{B\rightarrow&space;A}{({x}'\rightarrow&space;x})}{g_{A\rightarrow&space;B}{(x\rightarrow&space;{x}'})}" target="_blank"><img src="https://latex.codecogs.com/svg.latex?R_{A\rightarrow&space;B}(x\rightarrow&space;{x}')&space;=&space;\frac{p_{B}{x}'}{p_{A}{x}}&space;\frac{g_{B\rightarrow&space;A}{({x}'\rightarrow&space;x})}{g_{A\rightarrow&space;B}{(x\rightarrow&space;{x}'})}" title="R_{A\rightarrow B}(x\rightarrow {x}') = \frac{p_{B}{x}'}{p_{A}{x}} \frac{g_{B\rightarrow A}{({x}'\rightarrow x})}{g_{A\rightarrow B}{(x\rightarrow {x}'})}" /></a>
+<a href="https://www.codecogs.com/eqnedit.php?latex=R_{A\rightarrow&space;B}(x\rightarrow&space;{x}')&space;=&space;\frac{p_{B}({x}')}{p_{A}({x})}&space;\frac{g_{B\rightarrow&space;A}{({x}'\rightarrow&space;x})}{g_{A\rightarrow&space;B}{(x\rightarrow&space;{x}'})}" target="_blank"><img src="https://latex.codecogs.com/gif.latex?R_{A\rightarrow&space;B}(x\rightarrow&space;{x}')&space;=&space;\frac{p_{B}({x}')}{p_{A}({x})}&space;\frac{g_{B\rightarrow&space;A}{({x}'\rightarrow&space;x})}{g_{A\rightarrow&space;B}{(x\rightarrow&space;{x}'})}" title="R_{A\rightarrow B}(x\rightarrow {x}') = \frac{p_{B}({x}')}{p_{A}({x})} \frac{g_{B\rightarrow A}{({x}'\rightarrow x})}{g_{A\rightarrow B}{(x\rightarrow {x}'})}" /></a>
 
 The first ratio describes the probability of <a href="https://www.codecogs.com/eqnedit.php?latex={x}'" target="_blank"><img src="https://latex.codecogs.com/svg.latex?{x}'" title="{x}'" /></a> in thermodynamic state B divided by the probability of <a href="https://www.codecogs.com/eqnedit.php?latex={x}" target="_blank"><img src="https://latex.codecogs.com/svg.latex?{x}" title="{x}" /></a> in thermodynamic state A. This ratio is simply the difference in energy of the system in the initial and proposed position. The second ratio describes the probability density functions for the proposal process that generates configurations in tautomer state B given a configuration in tautomer state A and vice versa. The proposal density function <a href="https://www.codecogs.com/eqnedit.php?latex=g(B\rightarrow&space;A)" target="_blank"><img src="https://latex.codecogs.com/svg.latex?g(B\rightarrow&space;A)" title="g(B\rightarrow A)" /></a> and <a href="https://www.codecogs.com/eqnedit.php?latex=g(A\rightarrow&space;B)" target="_blank"><img src="https://latex.codecogs.com/svg.latex?g(A\rightarrow&space;B)" title="g(A\rightarrow B)" /></a> depends on the equilibrium bond length between the heavy atom and hydrogen. Since the hydrogen can move between acceptor and donor atoms with different elements and the equilibrium bond length can change the proposal density is not symmetric and the calculation can not be omitted.
 
-There are two types of restrains (flat bottom restraint and harmonic restraint) added to the heavy atom - hydrogen bond during the nonequilibrium protocoll in order to keep the hydrogen near its bonded partner while not fully coupled to the environment. These restraints are not contributing to the energy of the endpoints and only to the 'alchemical' part of the protocoll. At the endpoints only the bottom restraint is active. The two restraint are combined in the following way.
+There are two types of restrains (flat bottom restraint and harmonic restraint) added to the heavy atom - hydrogen bond during the nonequilibrium protocol in order to keep the hydrogen near its bonded partner while not fully coupled to the environment. These restraints are not contributing to the energy of the endpoints and only to the 'alchemical' part of the protocol. At the endpoints only the flat bottom restraint is active. The two restraint are combined in the following way.
 
-<a href="https://www.codecogs.com/eqnedit.php?latex=\text{restraint}&space;=&space;(1-\lambda)&space;*&space;\text{bottom\_restraint}&space;&plus;&space;\lambda&space;*&space;\text{harmonic\_restraint}" target="_blank"><img src="https://latex.codecogs.com/gif.latex?\text{restraint}&space;=&space;(1-\lambda)&space;*&space;\text{bottom\_restraint}&space;&plus;&space;\lambda&space;*&space;\text{harmonic\_restraint}" title="\text{restraint} = (1-\lambda) * \text{bottom\_restraint} + \lambda * \text{harmonic\_restraint}" /></a>
-
+<a href="https://www.codecogs.com/eqnedit.php?latex=\text{restraint}&space;=&space;(1-\lambda)&space;*&space;\text{flat\_bottom\_restraint}&space;&plus;&space;\lambda&space;*&space;\text{harmonic\_restraint}" target="_blank"><img src="https://latex.codecogs.com/gif.latex?\text{restraint}&space;=&space;(1-\lambda)&space;*&space;\text{flat\_bottom\_restraint}&space;&plus;&space;\lambda&space;*&space;\text{harmonic\_restraint}" title="\text{restraint} = (1-\lambda) * \text{flat\_bottom\_restraint} + \lambda * \text{harmonic\_restraint}" /></a>
 ### Preliminary results
 
 #### Running Langevin dynamics using ANI-1ccx
@@ -62,9 +61,9 @@ We generated equilibrium samples (using openMM and gaff2) for the two tautomeric
 
 
 
-#### MC
+#### Instantaneous MC
 
-Results for the MC/NCMC protocol are shown for a single tautomer transformation:
+Results of the MC protocol that switches tautomer states in a single step from an equilibrium sample are shown for mol298 in both directions. It samples the hydrogen positions from a gaussian shell around the hydrogen acceptor heavy atom. The gaussian shell is defined by the equilibrium bond length between the hydrogen and the hydrogen acceptor heavy atom element and the standard deviation (currently set to 0.1 Angstrom for all hydrogen - heavy element pairs). 
 ![molDWRow_590_tautomers](https://user-images.githubusercontent.com/31651017/63469748-3e765d00-c46b-11e9-8c3d-63185eac93d8.png)
 
 
@@ -74,6 +73,8 @@ Results of the MC protocol that switches tautomer states in a single step from a
 Bar estimate of the work: 2.53 +- 0.73 kcal/mol.
 
 #### NCMC
+
+For the NCMC protocol result plots will only be shown for mol298. A typical protocol involves 5000 steps of Langevin dynamics (0.5 fs stepsize) in the beginning from which conformations are randomly drawn to start a single NCMC protocol run. A NCMC protocol run involves 1000 +1 perturbation steps. 500 steps to decouple the hydrogen, 1 step to move the hydrogen to its new position (the MC move is the same as in the instantaneous protocol) and 500 to couple the hydrogen to its environment. For each (de)couple increment 20 Langevin dynamics steps are performed. A single protocol takes on 2 CPUs around 30 minutes. 
 
 The distance between the hydrogen acceptor (in green) and the hydrogen donor (in blue) and the tautomer-hydrogen as well as the applied restraints (in read) are shown as a function of the protocol length.
 
@@ -85,7 +86,7 @@ The forward/reverse work distribution of NCMC protocol is:
 
 The BAR estimate of the work is -0.33 +- 0.11 kcal/mol. Seperate QM calculations of the same molecule using orca, B3LYP/aug-cc-pVTZ resulted in a reference energy difference of -3.36 kcal/mol.
 
-The cummulative standard deviation for the NCMC protocol is shown below.
+The cumulative standard deviation for the NCMC protocol is shown below.
 ![cwork_stddev_molDWRow_590_NCMC](https://user-images.githubusercontent.com/31651017/63469900-91e8ab00-c46b-11e9-8a8c-7601e1a7c69b.png)
 
 The work values and standard deviation for each protocol step for the transformation of tautomer 1 to tautomer 2:
@@ -106,12 +107,12 @@ https://drive.google.com/file/d/1BieyQ7odaljaOQGVHGV7LAP7VrLMeqoQ/view?usp=shari
 
 ## What do you need to start
 
-The jupyter notebook notebooks/NCMC.ipynb starts the NCMC protocol (1000 steps for the perturbation, 150 repetitions of the protocol) for a set of tautomer SMILES. So all you need for starting the protocl are a set of SMILES strings that can be interconverted by moving a single hydrogen. As long as the two SMILES describe two tautomeric states of the same small molecule the hydrogen that needs to move, the heavy atom donor that looses the hydrogen and the heavy atom acceptor that receives the hydorgen are automatically detected and the protocol needs no further input.
+The jupyter notebook notebooks/NCMC-tautomers.ipynb can be used to start the NCMC protocol (1000 steps for the perturbation, 150 repetitions of the protocol) for a set of tautomer SMILES. So all you need for starting the protocl are a set of SMILES strings that can be interconverted by moving a single hydrogen. As long as the two SMILES describe two tautomeric states of the same small molecule the hydrogen that needs to move, the heavy atom donor that looses the hydrogen and the heavy atom acceptor that receives the hydorgen are automatically detected and the protocol needs no further input.
 
 
 ## Implementation details
 
-The calculation of the energies in the current torchANI implementation (https://github.com/aiqm/torchani) is in float32. This lead initially to precission issiues with increased NCMC protocl length. We are using float64 for summing up the energies for the neural net potentials avoiding this issue.
+The calculation of the energies in the current torchANI implementation (https://github.com/aiqm/torchani) is in float32. This led initially to numerical underflow and other precision loss bugs with increased NCMC protocol length, since the work of a protocol is a sum of many small increments. To mitigate this issue, we sum the energies in float64.
 
 ```python
 class DoubleAniModel(torchani.nn.ANIModel):
