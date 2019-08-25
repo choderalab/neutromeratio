@@ -241,7 +241,7 @@ class NonequilibriumMC(MC_Mover):
         self.energy_function.restrain_donor = True
         self.energy_function.restrain_acceptor = False
 
-        for lambda_value in tqdm(np.linspace(1, 0, nr_of_mc_trials/2)):
+        for lambda_value in tqdm(np.linspace(1, 0, perturbations_per_trial/2)):
             
             trajectory = self.langevin_dynamics.run_dynamics(x0, nr_of_md_steps)
             final_coordinate_set = trajectory[-1]
@@ -263,7 +263,7 @@ class NonequilibriumMC(MC_Mover):
         # turn on the bond restraint
         self.energy_function.restrain_donor = False
         self.energy_function.restrain_acceptor = True
-        for lambda_value in tqdm(np.linspace(0, 1, nr_of_mc_trials/2)):
+        for lambda_value in tqdm(np.linspace(0, 1, perturbations_per_trial/2)):
             
             trajectory = self.langevin_dynamics.run_dynamics(x0, nr_of_md_steps)
             final_coordinate_set = trajectory[-1]
