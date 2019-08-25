@@ -11,12 +11,12 @@ import matplotlib.pyplot as plt
 import random, sys
 
 # name of the system
-name = sys.argv[1]
-run_nr = sys.argv[2]
+name = str(sys.argv[1])
+run_nr = int(sys.argv[2])
 # if direction_of_tautomer_transformation == 1:
 #   t1 -> t2
-direction_of_tautomer_transformation = sys.argv[3]
-perturbations_per_trial = sys.argv[4]
+direction_of_tautomer_transformation = int(sys.argv[3])
+perturbations_per_trial = int(sys.argv[4])
 
 
 exp_results = pickle.load(open('../data/exp_results.pickle', 'rb'))
@@ -101,13 +101,12 @@ print(f"Hydrogen {hydrogen_mover.hydrogen_idx} is moved from atom-idx {hydrogen_
 work, traj = hydrogen_mover.performe_md_mc_protocol(x0 = x0, perturbations_per_trial = perturbations_per_trial)    
 work = work['work']
 
-work_in_runs[run_nr] = work
 
 # save trajectory
 #ani_traj = md.Trajectory(traj, topology)
 #ani_traj.save(f"../data/md_mc_sampling/{name}/{name}_from_t{from_mol_tautomer_idx}_to_t{to_mol_tautomer_idx}_NCMC_work_run_nr_{run_nr}.dcd")
 
-# save work values (overwriting after each new run)
+# save work values 
 f = open(f"../data/md_mc_sampling/{name}/{name}_from_t{from_mol_tautomer_idx}_to_t{to_mol_tautomer_idx}_NCMC_work_run_nr_{run_nr}_perturbations_per_trial_{perturbations_per_trial}.csv", 'w+')
 for i, j in enumerate(work):
     f.write('{}, {}\n'.format(i, j))
