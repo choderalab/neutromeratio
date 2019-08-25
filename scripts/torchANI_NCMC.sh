@@ -7,7 +7,7 @@
 #$ -o /data/shared/projects/SGE_LOG/
 
 molecule_name=$1 
-nr_of_run = $2
+nr_of_run=$2
 direction_of_tautomer_transformation=$3
 perturbations_per_trial=$4
 
