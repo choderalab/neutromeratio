@@ -30,7 +30,14 @@ class ANI1_force_and_energy(object):
     device:
     """
 
-    def __init__(self, device:torch.device, model:torchani.models.ANI1ccx, atom_list:list, platform:str, tautomer_transformation:dict={}):
+    def __init__(self, 
+                device:torch.device, 
+                model:torchani.models.ANI1ccx, 
+                atom_list:list, 
+                platform:str, 
+                tautomer_transformation:dict={},
+                pbc:bool = False,
+                ):
         
         self.device = device
         self.model = model
@@ -131,7 +138,6 @@ class AlchemicalANI(torchani.models.ANI1ccx):
         """Scale the contributions of alchemical atoms to the energy."""
         super().__init__()
         self.alchemical_atom = alchemical_atom
-        self.test = True
 
     def forward(self, species_coordinates, lam=1.0):
         raise (NotImplementedError)
@@ -177,7 +183,7 @@ class DoubleAniModel(torchani.nn.ANIModel):
         
 
 class LinearAlchemicalANI(AlchemicalANI):
-    def __init__(self, alchemical_atom):
+    def __init__(self, alchemical_atom:int, ani_input:dict):
         """Scale the indirect contributions of alchemical atoms to the energy sum by
         linearly interpolating, for other atom i, between the energy E_i^0 it would compute
         in the _complete absence_ of the alchemical atoms, and the energy E_i^1 it would compute
@@ -187,6 +193,13 @@ class LinearAlchemicalANI(AlchemicalANI):
 
         super().__init__(alchemical_atom)      
         self.neural_networks = self._load_model_ensemble(self.species, self.ensemble_prefix, self.ensemble_size)
+        if 'box_length' in ani_input:
+            self.pbc = True
+            box_length = ani_input['box_length'].value_in_unit(unit.angstrom)
+            self.pbc_vector = torch.tensor(([box_length, 0.0, 0.0], [0.0, box_length, 0.0], [0.0, 0.0, box_length]))
+        else:
+            self.pbc = False
+                        
 
     def forward(self, species_coordinates):
         # for now only allow one alchemical atom
@@ -194,7 +207,12 @@ class LinearAlchemicalANI(AlchemicalANI):
         # LAMBDA = 1: fully interacting
         # species, AEVs of fully interacting system
         species, coordinates, lam = species_coordinates
-        species, aevs = self.aev_computer(species_coordinates[:-1])
+        aevs = species_coordinates[:-1]
+        if self.pbc:
+            aevs = (aevs[0], aevs[1], self.pbc_vector, torch.tensor([True, True, True]))
+        species, aevs = self.aev_computer(aevs)
+            
+
         # neural net output given these AEVs
         nn_1 = self.neural_networks((species, aevs))[1]
         E_1 = self.energy_shifter((species, nn_1))[1]

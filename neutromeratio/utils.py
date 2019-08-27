@@ -12,6 +12,8 @@ import nglview
 import logging
 from rdkit.Chem.Draw import IPythonConsole
 from IPython.core.display import display
+from pdbfixer import PDBFixer
+from simtk.openmm import Vec3
 
 
 logger = logging.getLogger(__name__)
@@ -117,6 +119,29 @@ def write_pdb(mol:Chem.Mol, filepath:str) -> str:
     Chem.MolToPDBFile(mol, filepath)
     return Chem.MolToPDBBlock(mol)
 
+def add_solvent(pdb_filepath:str, ani_input:dict, pdb_output_filepath:str):
+    
+    pdb = PDBFixer(filename=pdb_filepath)
+    box_length = 3.0
+    pdb.addSolvent(Vec3(box_length, box_length, box_length) * unit.nanometer)
+    
+    from simtk.openmm.app import PDBFile
+    PDBFile.writeFile(pdb.topology, pdb.positions, open(pdb_output_filepath, 'w'))
+
+
+    atom_list = []
+    coord_list = []
+    for atom, coor in zip(pdb.topology.atoms(), pdb.positions):
+        if atom.residue.name != 'HOH':
+            continue
+        atom_list.append(atom.element.symbol)
+        coor = coor.value_in_unit(unit.angstrom)
+        coord_list.append([coor[0], coor[1], coor[2]])
+
+    ani_input['solvent_atoms'] = ''.join(atom_list)
+    ani_input['solvent_coords'] = np.array(coord_list) * unit.angstrom
+    ani_input['pbc_vector'] = box_length * unit.nanometer
+
 def generate_rdkit_mol(smiles:str) -> Chem.Mol:
     """
     Generates a rdkit mol object with 3D coordinates from smiles
@@ -195,5 +220,5 @@ def from_mol_to_ani_input(mol: Chem.Mol) -> dict:
         atom_list.append(a.GetSymbol())
         pos = mol.GetConformer().GetAtomPosition(a.GetIdx())
         coord_list.append([pos.x, pos.y, pos.z])
-    return { 'atom_list' : ''.join(atom_list), 'coord_list' : np.array(coord_list) * unit.angstrom}
+    return { 'ligand_atoms' : ''.join(atom_list), 'ligand_coords' : np.array(coord_list) * unit.angstrom}
 
