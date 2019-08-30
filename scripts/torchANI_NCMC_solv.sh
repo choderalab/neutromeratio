@@ -3,8 +3,9 @@
 #$ -m e
 #$ -j y
 #$ -p -700
-#$ -pe smp 3
+#$ -pe smp 1
 #$ -o /data/shared/projects/SGE_LOG/
+#$ -l gpu=1
 ￼
 molecule_name=$1 
 nr_of_run=$2
@@ -21,4 +22,4 @@ echo ${perturbations_per_trial}
 . /data/shared/software/python_env/anaconda3/etc/profile.d/conda.sh
 conda activate torchANI-dev
 
-python NCMC.py ${molecule_name} ${nr_of_run} ${direction_of_tautomer_transformation} ${perturbations_per_trial} 'vac'
+python NCMC.py ${molecule_name} ${nr_of_run} ${direction_of_tautomer_transformation} ${perturbations_per_trial} 'solv'
