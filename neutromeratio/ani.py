@@ -173,6 +173,7 @@ class DoubleAniModel(torchani.nn.ANIModel):
 
         output = torch.full_like(species_, self.padding_fill,
                                 dtype=torch.float32)
+        
         for i in present_species:
             mask = (species_ == i)
             input_ = aev.index_select(0, mask.nonzero().squeeze())
@@ -183,7 +184,7 @@ class DoubleAniModel(torchani.nn.ANIModel):
         
 
 class LinearAlchemicalANI(AlchemicalANI):
-    def __init__(self, alchemical_atom:int, ani_input:dict):
+    def __init__(self, alchemical_atom:int, ani_input:dict, device:torch.device):
         """Scale the indirect contributions of alchemical atoms to the energy sum by
         linearly interpolating, for other atom i, between the energy E_i^0 it would compute
         in the _complete absence_ of the alchemical atoms, and the energy E_i^1 it would compute
@@ -193,10 +194,10 @@ class LinearAlchemicalANI(AlchemicalANI):
 
         super().__init__(alchemical_atom)      
         self.neural_networks = self._load_model_ensemble(self.species, self.ensemble_prefix, self.ensemble_size)
+        self.ani_input = ani_input
+        self.device = device
         if 'box_length' in ani_input:
             self.pbc = True
-            box_length = ani_input['box_length'].value_in_unit(unit.angstrom)
-            self.pbc_vector = torch.tensor(([box_length, 0.0, 0.0], [0.0, box_length, 0.0], [0.0, 0.0, box_length]))
         else:
             self.pbc = False
                         
@@ -209,7 +210,11 @@ class LinearAlchemicalANI(AlchemicalANI):
         species, coordinates, lam = species_coordinates
         aevs = species_coordinates[:-1]
         if self.pbc:
-            aevs = (aevs[0], aevs[1], self.pbc_vector, torch.tensor([True, True, True]))
+            box_length = self.ani_input['box_length'].value_in_unit(unit.angstrom)
+            cell = torch.tensor(np.array([[box_length, 0.0, 0.0],[0.0,box_length,0.0],[0.0,0.0,box_length]]),
+                                device=self.device)
+            aevs = aevs[0], aevs[1], cell, torch.tensor([True, True, True], dtype=torch.bool,device=self.device)
+
         species, aevs = self.aev_computer(aevs)
             
 
