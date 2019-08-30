@@ -119,22 +119,24 @@ def write_pdb(mol:Chem.Mol, filepath:str) -> str:
     Chem.MolToPDBFile(mol, filepath)
     return Chem.MolToPDBBlock(mol)
 
-def add_solvent(pdb_filepath:str, ani_input:dict, pdb_output_filepath:str, box_length:float=2.5):
+def add_solvent(pdb_filepath:str, ani_input:dict, pdb_output_filepath:str, box_length:unit.quantity.Quantity=(2.5 * unit.nanometer)):
     
+    assert(type(box_length) == unit.Quantity)
+
     pdb = PDBFixer(filename=pdb_filepath)
     # Step 0: put the ligand in the center
-    pdb.positions = np.array(pdb.positions.value_in_unit(unit.nanometer)) + box_length/2
+    #pdb.positions = np.array(pdb.positions.value_in_unit(unit.nanometer)) + box_length/2
     # add water
     pdb.addSolvent(boxVectors=(Vec3(box_length, 0.0, 0.0), Vec3(0.0, box_length, 0.0), Vec3(0.0, 0.0, box_length)))
     # Step 1: convert coordinates from standard cartesian coordinate to unit
     # cell coordinates
-    inv_cell = 1/box_length
-    coordinates_cell = np.array(pdb.positions.value_in_unit(unit.nanometer)) * inv_cell
+    #inv_cell = 1/box_length
+    #coordinates_cell = np.array(pdb.positions.value_in_unit(unit.nanometer)) * inv_cell
     # Step 2: wrap cell coordinates into [0, 1)
-    coordinates_cell -= np.floor(coordinates_cell)
+    #coordinates_cell -= np.floor(coordinates_cell)
     # Step 3: convert back to coordinates
-    coordinates_cell = (coordinates_cell * box_length) * unit.nanometer
-    pdb.positions = coordinates_cell
+    #coordinates_cell = (coordinates_cell * box_length) * unit.nanometer
+    #pdb.positions = coordinates_cell
     from simtk.openmm.app import PDBFile
     PDBFile.writeFile(pdb.topology, pdb.positions, open(pdb_output_filepath, 'w'))
     
