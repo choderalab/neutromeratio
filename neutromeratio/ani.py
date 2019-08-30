@@ -184,7 +184,7 @@ class DoubleAniModel(torchani.nn.ANIModel):
         
 
 class LinearAlchemicalANI(AlchemicalANI):
-    def __init__(self, alchemical_atom:int, ani_input:dict, device:torch.device):
+    def __init__(self, alchemical_atom:int, ani_input:dict, device:torch.device, pbc:bool=False):
         """Scale the indirect contributions of alchemical atoms to the energy sum by
         linearly interpolating, for other atom i, between the energy E_i^0 it would compute
         in the _complete absence_ of the alchemical atoms, and the energy E_i^1 it would compute
@@ -196,10 +196,7 @@ class LinearAlchemicalANI(AlchemicalANI):
         self.neural_networks = self._load_model_ensemble(self.species, self.ensemble_prefix, self.ensemble_size)
         self.ani_input = ani_input
         self.device = device
-        if 'box_length' in ani_input:
-            self.pbc = True
-        else:
-            self.pbc = False
+        self.pbc = pbc
                         
 
     def forward(self, species_coordinates):
