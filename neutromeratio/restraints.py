@@ -99,7 +99,7 @@ def harmonic_position_restraint(x, tautomer_transformation:dict, atom_list:list,
     mean_bond_length = (bond_length_dict['{}H'.format(heavy_atom_element)]).value_in_unit(unit.angstrom)
     logging.debug('Mean bond length: {}'.format(mean_bond_length))
 
-    distance = torch.norm(x[0][tautomer_transformation['hydrogen_idx']] - x[0][heavy_atom_idx], device=device) * nm_to_angstroms
+    distance = torch.norm(x[0][tautomer_transformation['hydrogen_idx']] - x[0][heavy_atom_idx]) * nm_to_angstroms
     logging.debug('Distance: {}'.format(distance))
     k = k.value_in_unit((unit.kilo * unit.joule) / ((unit.angstrom **2) * unit.mole))
     e = (k/2) *(distance.double() - mean_bond_length)**2
