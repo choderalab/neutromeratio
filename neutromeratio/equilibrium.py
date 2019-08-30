@@ -65,12 +65,16 @@ class LangevinDynamics(object):
 
         # traj is accumulated as a list of arrays with attached units
         traj = [x]
+
         # dimensionless scalars
         a = np.exp(- collision_rate * stepsize)
         b = np.sqrt(1 - np.exp(-2 * collision_rate * stepsize))
 
         # compute force on initial configuration
-        F = self.force.calculate_force(x)
+        F, _ = self.force.calculate_force(x)
+        # energy is saved as a list
+        energy = [_]
+
         trange = range(n_steps)
         if progress_bar:
             trange = tqdm(trange)
@@ -83,7 +87,8 @@ class LangevinDynamics(object):
             v = (a * v) + (b * sigma_v[:,None] * np.random.randn(*x.shape))
             # r
             x += (stepsize * 0.5) * v
-            F = self.force.calculate_force(x)
+            F, E = self.force.calculate_force(x)
+            energy.append(E)
             # v
             v += (stepsize * 0.5) * F / masses[:,None]
 
@@ -96,7 +101,7 @@ class LangevinDynamics(object):
                 print("Numerical instability encountered!")
                 return traj
             traj.append(x)
-        return traj
+        return traj, energy
 
 
         

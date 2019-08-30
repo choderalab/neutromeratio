@@ -98,7 +98,7 @@ class ANI1_force_and_energy(object):
         else:
             raise RuntimeError('Platform needs to be specified. Either CPU or CUDA.')
 
-        return F * (unit.kilojoule_per_mole / unit.nanometer)
+        return F * (unit.kilojoule_per_mole / unit.nanometer), energy_in_kJ_mol.item() * unit.kilojoule_per_mole
 
     
     def calculate_energy(self, x:simtk.unit.quantity.Quantity) -> simtk.unit.quantity.Quantity:
