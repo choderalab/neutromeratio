@@ -152,7 +152,7 @@ def add_solvent(pdb_filepath:str, ani_input:dict, pdb_output_filepath:str, box_l
 
     ani_input['solvent_atoms'] = ''.join(atom_list)
     ani_input['solvent_coords'] = np.array(coord_list) * unit.angstrom
-    ani_input['box_length'] = box_length * unit.nanometer
+    ani_input['box_length'] = box_length.value_in_unit(unit.angstrom)
 
 def generate_rdkit_mol(smiles:str) -> Chem.Mol:
     """
