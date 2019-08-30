@@ -208,7 +208,6 @@ class LinearAlchemicalANI(AlchemicalANI):
         aevs = species_coordinates[:-1]
         if self.pbc:
             box_length = self.ani_input['box_length'].value_in_unit(unit.angstrom)
-            print(box_length)
             cell = torch.tensor(np.array([[box_length, 0.0, 0.0],[0.0,box_length,0.0],[0.0,0.0,box_length]]),
                                 device=self.device, dtype=torch.float)
             aevs = aevs[0], aevs[1], cell, torch.tensor([True, True, True], dtype=torch.bool,device=self.device)
