@@ -79,8 +79,8 @@ class ANI1_force_and_energy(object):
         energy_in_kJ_mol = energy_in_hartree * hartree_to_kJ_mol
 
         if self.restrain_acceptor or self.restrain_donor:
-            bias_flat_bottom = flat_bottom_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor = self.restrain_acceptor, restrain_donor = self.restrain_donor)
-            bias_harmonic = harmonic_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor = self.restrain_acceptor, restrain_donor = self.restrain_donor)
+            bias_flat_bottom = flat_bottom_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor = self.restrain_acceptor, restrain_donor=self.restrain_donor, device=self.device)
+            bias_harmonic = harmonic_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor = self.restrain_acceptor, restrain_donor=self.restrain_donor, device=self.device)
             bias = (bias_flat_bottom * self.lambda_value) + ((1 - self.lambda_value) * bias_harmonic)
 
             self.bias_flat_bottom.append(bias_flat_bottom)
@@ -210,7 +210,7 @@ class LinearAlchemicalANI(AlchemicalANI):
             box_length = self.ani_input['box_length'].value_in_unit(unit.angstrom)
             cell = torch.tensor(np.array([[box_length, 0.0, 0.0],[0.0,box_length,0.0],[0.0,0.0,box_length]]),
                                 device=self.device, dtype=torch.float)
-            aevs = aevs[0], aevs[1], cell, torch.tensor([True, True, True], dtype=torch.bool,device=self.device)
+            aevs = aevs[0], aevs[1], cell, torch.tensor([True, True, True], dtype=torch.bool, device=self.device)
 
         species, aevs = self.aev_computer(aevs)
             
