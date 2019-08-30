@@ -75,7 +75,6 @@ class LangevinDynamics(object):
         if progress_bar:
             trange = tqdm(trange)
         for _ in trange:
-            print(_)
             # v
             v += (stepsize * 0.5) * F / masses[:,None]
             # r
