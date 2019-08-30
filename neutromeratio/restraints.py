@@ -50,7 +50,7 @@ def flat_bottom_position_restraint(x, tautomer_transformation:dict, atom_list:li
     lower_bound = mean_bond_length.value_in_unit(unit.angstrom) - 0.2
 
 
-    distance = torch.norm(x[0][tautomer_transformation['hydrogen_idx']] - x[0][heavy_atom_idx], device=device) * nm_to_angstroms
+    distance = torch.norm(x[0][tautomer_transformation['hydrogen_idx']] - x[0][heavy_atom_idx]) * nm_to_angstroms
     if distance <= lower_bound:
         e = k * (lower_bound - distance.double())**2
     elif distance >= upper_bound:
@@ -58,10 +58,10 @@ def flat_bottom_position_restraint(x, tautomer_transformation:dict, atom_list:li
     else:
         e = torch.tensor([0.0], dtype=torch.double, device=device)
     logging.debug('Flat bottom bias introduced: {:0.4f}'.format(e.item()))
-    return e
+    return e.to(device=device)
 
 
-def harmonic_position_restraint(x, tautomer_transformation:dict, atom_list:list, restrain_acceptor:bool, restrain_donor:bool):
+def harmonic_position_restraint(x, tautomer_transformation:dict, atom_list:list, restrain_acceptor:bool, restrain_donor:bool, device:torch.device):
     
     """
     Applies a gaussian positional restraint.
@@ -104,4 +104,4 @@ def harmonic_position_restraint(x, tautomer_transformation:dict, atom_list:list,
     k = k.value_in_unit((unit.kilo * unit.joule) / ((unit.angstrom **2) * unit.mole))
     e = (k/2) *(distance.double() - mean_bond_length)**2
     logging.debug('Harmonic bias introduced: {:0.4f}'.format(e.item()))
-    return e
+    return e.to(device=device)
