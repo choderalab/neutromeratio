@@ -127,7 +127,8 @@ def add_solvent(pdb_filepath:str, ani_input:dict, pdb_output_filepath:str, box_l
     # Step 0: put the ligand in the center
     #pdb.positions = np.array(pdb.positions.value_in_unit(unit.nanometer)) + box_length/2
     # add water
-    pdb.addSolvent(boxVectors=(Vec3(box_length, 0.0, 0.0), Vec3(0.0, box_length, 0.0), Vec3(0.0, 0.0, box_length)))
+    l = box_length.value_in_unit(unit.nanometer)
+    pdb.addSolvent(boxVectors=(Vec3(l, 0.0, 0.0), Vec3(0.0, l, 0.0), Vec3(0.0, 0.0, l)))
     # Step 1: convert coordinates from standard cartesian coordinate to unit
     # cell coordinates
     #inv_cell = 1/box_length
