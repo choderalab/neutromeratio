@@ -38,20 +38,6 @@ from_mol = mols[f"t{from_mol_tautomer_idx}"]
 to_mol = mols[f"t{to_mol_tautomer_idx}"]
 ani_input = neutromeratio.from_mol_to_ani_input(from_mol)
 
-if env == 'solv':
-    neutromeratio.write_pdb(mols[f"t{from_mol_tautomer_idx}"], filepath=f"../data/structures/{name}/{name}_tautomer_{from_mol_tautomer_idx}_env_{env}.pdb")
-    neutromeratio.add_solvent(pdb_filepath=f"../data/structures/{name}/{name}_tautomer_{from_mol_tautomer_idx}.pdb",
-                            ani_input=ani_input,
-                            pdb_output_filepath=f"../data/structures/{name}/{name}_tautomer_{from_mol_tautomer_idx}_env_{env}.pdb",
-                            box_length = 2.5 * unit.nanometer)
-
-    topology = md.load(f"../data/structures/{name}/{name}_tautomer_{from_mol_tautomer_idx}_env_{env}.pdb").topology
-elif env == 'vac':
-    neutromeratio.write_pdb(mols[f"t{from_mol_tautomer_idx}"], filepath=f"../data/structures/{name}/{name}_tautomer_{from_mol_tautomer_idx}_env_{env}.pdb")
-    topology = md.load(f"../data/structures/{name}/{name}_tautomer_{from_mol_tautomer_idx}_env_{env}.pdb").topology
-else:
-    raise RuntimeError('Only vac and solv environments implemented.')
-
 if platform == 'cpu':
     device = torch.device(platform)
     model = neutromeratio.ani.LinearAlchemicalANI(alchemical_atom=-1, ani_input=ani_input, device=device)
@@ -65,22 +51,37 @@ else:
     raise RuntimeError('Only cpu and cuda environments implemented.')
 
 # perform initial sampling
+if env == 'solv':
+    neutromeratio.write_pdb(mols[f"t{from_mol_tautomer_idx}"], filepath=f"../data/structures/{name}/{name}_tautomer_{from_mol_tautomer_idx}_env_{env}.pdb")
+    neutromeratio.add_solvent(pdb_filepath=f"../data/structures/{name}/{name}_tautomer_{from_mol_tautomer_idx}.pdb",
+                            ani_input=ani_input,
+                            pdb_output_filepath=f"../data/structures/{name}/{name}_tautomer_{from_mol_tautomer_idx}_env_{env}.pdb",
+                            box_length = 2.5 * unit.nanometer)
 
-energy_function = neutromeratio.ANI1_force_and_energy(device = device,
-                                          model = model,
-                                          atom_list = ani_input['atom_list'],
-                                          platform = platform,
+    topology = md.load(f"../data/structures/{name}/{name}_tautomer_{from_mol_tautomer_idx}_env_{env}.pdb").topology
+    atom_list = ani_input['ligand_atoms'] + ani_input['solvent_atoms']
+    x0 = np.array(list(ani_input['ligand_coords'].value_in_unit(unit.angstrom)) + list(ani_input['solvent_coords'].value_in_unit(unit.angstrom))) * unit.angstrom
+elif env == 'vac':
+    neutromeratio.write_pdb(mols[f"t{from_mol_tautomer_idx}"], filepath=f"../data/structures/{name}/{name}_tautomer_{from_mol_tautomer_idx}_env_{env}.pdb")
+    topology = md.load(f"../data/structures/{name}/{name}_tautomer_{from_mol_tautomer_idx}_env_{env}.pdb").topology
+    atom_list = ani_input['ligand_atoms']
+    x0 = np.array(list(ani_input['ligand_coords'].value_in_unit(unit.angstrom))) * unit.angstrom
+else:
+    raise RuntimeError('Only vac and solv environments implemented.')
+
+energy_function = neutromeratio.ANI1_force_and_energy(device=device,
+                                          model=model,
+                                          atom_list=atom_list,
+                                          platform=platform,
                                           tautomer_transformation = {})
 
-langevin = neutromeratio.LangevinDynamics(atom_list = ani_input['atom_list'],
-                            temperature = 300*unit.kelvin,
-                            force = energy_function)
+langevin = neutromeratio.LangevinDynamics(atom_list=atom_list,
+                            temperature=300*unit.kelvin,
+                            force=energy_function)
 
 
 n_steps = 500
-x0 = np.array(ani_input['coord_list']) * unit.angstrom
 equilibrium_samples, _ = langevin.run_dynamics(x0, n_steps)
-
 
 # extract hydrogen donor idx and hydrogen idx for from_mol
 tautomer_transformation = neutromeratio.get_tautomer_transformation(from_mol, to_mol)
@@ -89,20 +90,20 @@ model = model.to(device)
 
 # number of time steps
 work_in_runs = {}
-energy_function = neutromeratio.ANI1_force_and_energy(device = device,
-                                            model = model,
-                                            atom_list = ani_input['atom_list'],
-                                            platform = platform,
-                                            tautomer_transformation = tautomer_transformation)
+energy_function = neutromeratio.ANI1_force_and_energy(device=device,
+                                            model=model,
+                                            atom_list=atom_list,
+                                            platform=platform,
+                                            tautomer_transformation=tautomer_transformation)
 
-langevin = neutromeratio.LangevinDynamics(atom_list = ani_input['atom_list'],
-                            temperature = 300*unit.kelvin,
-                            force = energy_function)
+langevin = neutromeratio.LangevinDynamics(atom_list=atom_list,
+                            temperature=300*unit.kelvin,
+                            force=energy_function)
 
-hydrogen_mover = neutromeratio.NonequilibriumMC(donor_idx = tautomer_transformation['donor_idx'], 
-                                        hydrogen_idx = tautomer_transformation['hydrogen_idx'], 
-                                        acceptor_idx = tautomer_transformation['acceptor_idx'], 
-                                        atom_list = ani_input['atom_list'], 
+hydrogen_mover = neutromeratio.NonequilibriumMC(donor_idx=tautomer_transformation['donor_idx'], 
+                                        hydrogen_idx=tautomer_transformation['hydrogen_idx'], 
+                                        acceptor_idx=tautomer_transformation['acceptor_idx'], 
+                                        atom_list=atom_list, 
                                         energy_function = energy_function,
                                         langevin_dynamics= langevin)
 
@@ -113,7 +114,6 @@ print(f"Hydrogen {hydrogen_mover.hydrogen_idx} is moved from atom-idx {hydrogen_
 # run MD and MC protocoll
 work, traj = hydrogen_mover.performe_md_mc_protocol(x0=x0, perturbations_per_trial=perturbations_per_trial)    
 work = work['work']
-
 
 # save trajectory
 ani_traj = md.Trajectory(traj, topology)
