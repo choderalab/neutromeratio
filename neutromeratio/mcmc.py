@@ -228,7 +228,7 @@ class NonequilibriumMC(MC_Mover):
     def performe_md_mc_protocol(self,
                                 x0:unit.quantity.Quantity,
                                 perturbations_per_trial:int = 500,
-                                nr_of_md_steps:int = 20
+                                nr_of_md_steps:int = 20,
                                 ) -> dict:
         """
         """    
@@ -243,7 +243,7 @@ class NonequilibriumMC(MC_Mover):
 
         for lambda_value in tqdm(np.linspace(1, 0, perturbations_per_trial/2)):
             
-            trajectory = self.langevin_dynamics.run_dynamics(x0, nr_of_md_steps)
+            trajectory, _ = self.langevin_dynamics.run_dynamics(x0, nr_of_md_steps)
             final_coordinate_set = trajectory[-1]
             work_values.append(self.pertubate_lambda(final_coordinate_set, lambda_value))
             # update new coordinates for langevin dynamics
@@ -265,7 +265,7 @@ class NonequilibriumMC(MC_Mover):
         self.energy_function.restrain_acceptor = True
         for lambda_value in tqdm(np.linspace(0, 1, perturbations_per_trial/2)):
             
-            trajectory = self.langevin_dynamics.run_dynamics(x0, nr_of_md_steps)
+            trajectory, _ = self.langevin_dynamics.run_dynamics(x0, nr_of_md_steps)
             final_coordinate_set = trajectory[-1]
             work_values.append(self.pertubate_lambda(final_coordinate_set, lambda_value))
             # update new coordinates for langevin dynamics
