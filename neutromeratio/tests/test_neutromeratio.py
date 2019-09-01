@@ -33,7 +33,7 @@ def test_tautomer_transformation():
     to_mol = mols[f"t{to_mol_tautomer_idx}"]
     ani_input = neutromeratio.from_mol_to_ani_input(from_mol)
     tautomer_transformation = neutromeratio.get_tautomer_transformation(from_mol, to_mol)
-    atom_list = ani_input['atom_list']
+    atom_list = ani_input['ligand_atoms']
     
     assert(atom_list == 'CCCCCOOHHHHHHHH')
     assert(tautomer_transformation['hydrogen_idx'] == 11)
@@ -66,7 +66,7 @@ def test_neutromeratio_energy_calculations():
     
     # generate tautomer transformation
     tautomer_transformation = neutromeratio.get_tautomer_transformation(from_mol, to_mol)
-    atom_list = ani_input['atom_list']
+    atom_list = ani_input['ligand_atoms']
     hydrogen_idx = tautomer_transformation['hydrogen_idx']
 
     # overwrite the coordinates that rdkit generated with the first frame in the traj
@@ -74,7 +74,7 @@ def test_neutromeratio_energy_calculations():
 
     platform = 'cpu'
     device = torch.device(platform)
-    model = neutromeratio.ani.LinearAlchemicalANI(alchemical_atom=hydrogen_idx)
+    model = neutromeratio.ani.LinearAlchemicalANI(alchemical_atom=hydrogen_idx, ani_input=ani_input, device=device)
     model = model.to(device)
     torch.set_num_threads(1)
 
@@ -114,7 +114,7 @@ def test_neutromeratio_energy_calculations_with_dummy_atom():
     
     # generate tautomer transformation
     tautomer_transformation = neutromeratio.get_tautomer_transformation(from_mol, to_mol)
-    atom_list = ani_input['atom_list']
+    atom_list = ani_input['ligand_atoms']
     hydrogen_idx = tautomer_transformation['hydrogen_idx']
 
     # overwrite the coordinates that rdkit generated with the first frame in the traj
@@ -122,7 +122,7 @@ def test_neutromeratio_energy_calculations_with_dummy_atom():
 
     platform = 'cpu'
     device = torch.device(platform)
-    model = neutromeratio.ani.LinearAlchemicalANI(alchemical_atom=hydrogen_idx)
+    model = neutromeratio.ani.LinearAlchemicalANI(alchemical_atom=hydrogen_idx, ani_input=ani_input, device=device)
     model = model.to(device)
     torch.set_num_threads(1)
 

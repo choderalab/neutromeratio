@@ -13,7 +13,6 @@ from io import StringIO
 from lxml import etree
 import simtk.openmm.app as app
 from .restraints import flat_bottom_position_restraint, harmonic_position_restraint
-from .mcmc import reduced_pot
 import neutromeratio
 
 gaff_default = os.path.join("../data/gaff2.xml")
@@ -36,7 +35,6 @@ class ANI1_force_and_energy(object):
                 atom_list:list, 
                 platform:str, 
                 tautomer_transformation:dict={},
-                pbc:bool = False,
                 ):
         
         self.device = device
@@ -195,6 +193,7 @@ class LinearAlchemicalANI(AlchemicalANI):
         super().__init__(alchemical_atom)      
         self.neural_networks = self._load_model_ensemble(self.species, self.ensemble_prefix, self.ensemble_size)
         self.ani_input = ani_input
+        self.box_length = self.ani_input['box_length'].value_in_unit(unit.angstrom)
         self.device = device
         self.pbc = pbc
                         
@@ -207,8 +206,7 @@ class LinearAlchemicalANI(AlchemicalANI):
         species, coordinates, lam = species_coordinates
         aevs = species_coordinates[:-1]
         if self.pbc:
-            box_length = self.ani_input['box_length'].value_in_unit(unit.angstrom)
-            cell = torch.tensor(np.array([[box_length, 0.0, 0.0],[0.0,box_length,0.0],[0.0,0.0,box_length]]),
+            cell = torch.tensor(np.array([[self.box_length, 0.0, 0.0],[0.0,self.box_length,0.0],[0.0,0.0,self.box_length]]),
                                 device=self.device, dtype=torch.float)
             aevs = aevs[0], aevs[1], cell, torch.tensor([True, True, True], dtype=torch.bool, device=self.device)
 

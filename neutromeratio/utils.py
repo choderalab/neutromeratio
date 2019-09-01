@@ -14,6 +14,8 @@ from rdkit.Chem.Draw import IPythonConsole
 from IPython.core.display import display
 from pdbfixer import PDBFixer
 from simtk.openmm import Vec3
+import random
+from .ani import ANI1_force_and_energy
 
 
 logger = logging.getLogger(__name__)
@@ -78,10 +80,6 @@ def get_tautomer_transformation(m1:Chem.Mol, m2:Chem.Mol) -> dict:
 
     AllChem.Compute2DCoords(m1)
     display_mol(m1)
-    # testing: - donor can never be a hydrogen
-    #            - donor idx can not be hydrogen idx
-    # thinking about testing
-
     return { 'donor_idx': donor, 'hydrogen_idx' : hydrogen_idx_that_moves, 'acceptor_idx' : acceptor}
 
 
@@ -105,7 +103,6 @@ def generate_xyz_string(atom_list:str, coordinates:unit.quantity.Quantity) -> st
 def write_pdb(mol:Chem.Mol, filepath:str) -> str:
     """
     Writes pdb file in path directory. If directory does not exist it is created.
-    The file is saved in {path}/{name}_{tautomer_id}.pdb.
     Parameters
     ----------
     mol: the mol that should be saved.
@@ -233,4 +230,28 @@ def from_mol_to_ani_input(mol: Chem.Mol) -> dict:
         pos = mol.GetConformer().GetAtomPosition(a.GetIdx())
         coord_list.append([pos.x, pos.y, pos.z])
     return { 'ligand_atoms' : ''.join(atom_list), 'ligand_coords' : np.array(coord_list) * unit.angstrom}
+
+
+class MonteCarloBarostat(object):
+
+    def __init__(self, pbc_box_length:unit.Quantity, energy:ANI1_force_and_energy):
+
+        assert(type(pbc_box_length) == unit.Quantity)       
+        self.current_volumn = pbc_box_length ** 3
+        self.num_attempted = 0
+        self.num_accepted = 0
+        self.volume_scale = 0.01 * self.current_volumn
+        self.energy_function = energy
+
+    def update_volumn(self, x:unit.Quantity):
+
+        print(self.energy_function.model.pbc)
+        energy = self.energy_function.calculate_energy(x)
+        current_volumn = self.current_volumn
+        delta_volumn = current_volumn * 2 * (random.uniform(0, 1) - 0.5)
+        new_volumn = current_volumn + delta_volumn
+        length_scale = (new_volumn/current_volumn) ** (1.0/3.0)
+
+
+
 
