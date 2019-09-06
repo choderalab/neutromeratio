@@ -164,19 +164,17 @@ class MonteCarloBarostat(object):
 
 def read_precalculated_md(top:str, trajs:list):
     """
-    Iterates over a trajectory and performs MC moves.
-    The hydrogen_movers specify a list of MC_mover objects that should be used on the same coordinate set. 
+
     Parameters
     ----------
     top : str
             file path to topology file
     trajs: list[str]
             list of file paths to traj files
-    hydrogen_movers: list[MC_mover]
-            all MC_movers specified in this list are subsequently applied to the same coordinate set
-    mc_every_nth_frame: int
-            performs MC every nth frame
 
+    Returns
+    -------
+    traj_in_mm : list of (n_atoms,3) numpy arrays with nanometer units attached?
     """
     topology = md.load(top).topology
     traj = md.load(trajs, top=topology)
