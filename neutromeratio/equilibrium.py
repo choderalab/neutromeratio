@@ -147,6 +147,7 @@ class MonteCarloBarostat(object):
         self.energy_function = energy
 
     def update_volumn(self, x:unit.Quantity):
+        raise(NotImplementedError('under construction!'))
 
         assert(type(x) == unit.Quantity)
         print(self.energy_function.model.pbc)
@@ -156,6 +157,7 @@ class MonteCarloBarostat(object):
         delta_volumn = current_volumn * 2 * (random.uniform(0, 1) - 0.5)
         new_volumn = current_volumn + delta_volumn
         length_scale = (new_volumn/current_volumn) ** (1.0/3.0)
+        # TODO: length_scale not used
 
 
 def read_precalculated_md(top:str, trajs:list):
