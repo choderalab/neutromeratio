@@ -135,6 +135,27 @@ def use_precalculated_md_and_performe_mc(top:str,
             hydrogen_mover.work_values.append(work)
             
 
+class MonteCarloBarostat(object):
+
+    def __init__(self, pbc_box_length:unit.Quantity, energy:ANI1_force_and_energy):
+
+        assert(type(pbc_box_length) == unit.Quantity)
+        self.current_volumn = pbc_box_length ** 3
+        self.num_attempted = 0
+        self.num_accepted = 0
+        self.volume_scale = 0.01 * self.current_volumn
+        self.energy_function = energy
+
+    def update_volumn(self, x:unit.Quantity):
+
+        assert(type(x) == unit.Quantity)
+        print(self.energy_function.model.pbc)
+        energy = self.energy_function.calculate_energy(x)
+        current_volumn = self.current_volumn
+        import random
+        delta_volumn = current_volumn * 2 * (random.uniform(0, 1) - 0.5)
+        new_volumn = current_volumn + delta_volumn
+        length_scale = (new_volumn/current_volumn) ** (1.0/3.0)
 
 
 def read_precalculated_md(top:str, trajs:list):
