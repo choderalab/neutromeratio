@@ -178,6 +178,7 @@ def read_precalculated_md(top:str, trajs:list):
     """
     topology = md.load(top).topology
     traj = md.load(trajs, top=topology)
+    # TODO: update this a bit
     traj_in_nm = []
     for x in traj:
         coordinates = x.xyz[0] * unit.nanometer
