@@ -150,11 +150,13 @@ class MonteCarloBarostat(object):
         raise(NotImplementedError('under construction!'))
 
         assert(type(x) == unit.Quantity)
+        # TODO: x is not used
         print(self.energy_function.model.pbc)
         energy = self.energy_function.calculate_energy(x)
         current_volumn = self.current_volumn
         import random
         delta_volumn = current_volumn * 2 * (random.uniform(0, 1) - 0.5)
+        # TODO: use numpy.random throughout -- slightly different conventions
         new_volumn = current_volumn + delta_volumn
         length_scale = (new_volumn/current_volumn) ** (1.0/3.0)
         # TODO: length_scale not used
