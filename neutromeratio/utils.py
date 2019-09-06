@@ -85,23 +85,6 @@ def get_tautomer_transformation(m1:Chem.Mol, m2:Chem.Mol) -> dict:
     return { 'donor_idx': donor, 'hydrogen_idx' : hydrogen_idx_that_moves, 'acceptor_idx' : acceptor}
 
 
-def generate_xyz_string(atom_str:str, coordinates:unit.quantity.Quantity)->str:
-    """
-    Returns xyz file as string.
-    Parameters
-    ----------
-    atoms: list of atoms (in a single string) 
-    coordinates: numpy array with coordinates
-    """
-    s = '{}\n'.format(len(atom_str))
-    s += '{}\n'.format('writing mols')
-
-    coordinates_in_angstroms = coordinates.value_in_unit(unit.angstrom)
-    for atom, coordinate in zip(atom_str, coordinates_in_angstroms):
-        s += '  {:2}   {: 11.9f}  {: 11.9f}  {: 11.9f}\n'.format(atom, coordinate[0], coordinate[1], coordinate[2])
-    
-    return s
-
 def write_pdb(mol:Chem.Mol, filepath:str)->str:
     """
     Writes pdb file in path directory. If directory does not exist it is created.
