@@ -37,9 +37,19 @@ def flat_bottom_position_restraint(x, tautomer_transformation:dict, atom_list:li
 
     k = 5
     if restrain_acceptor:
-        heavy_atom_idx = tautomer_transformation['acceptor_idx']
+        if 'acceptor_hydrogen_idx' not in tautomer_transformation:
+            heavy_atom_idx = tautomer_transformation['acceptor_idx']
+            hydrogen_idx = tautomer_transformation['hydrogen_idx']
+        else:
+            heavy_atom_idx = tautomer_transformation['acceptor_idx']
+            hydrogen_idx = tautomer_transformation['acceptor_hydrogen_idx']
     elif restrain_donor:
-        heavy_atom_idx = tautomer_transformation['donor_idx']
+        if 'donor_hydrogen_idx' not in tautomer_transformation:
+            hydrogen_idx = tautomer_transformation['hydrogen_idx']
+            heavy_atom_idx = tautomer_transformation['donor_idx']
+        else:
+            hydrogen_idx = tautomer_transformation['donor_hydrogen_idx']
+            heavy_atom_idx = tautomer_transformation['donor_idx']
     else:
         raise RuntimeError('Something went wrong.')
     
@@ -50,13 +60,13 @@ def flat_bottom_position_restraint(x, tautomer_transformation:dict, atom_list:li
     lower_bound = mean_bond_length.value_in_unit(unit.angstrom) - 0.2
 
 
-    distance = torch.norm(x[0][tautomer_transformation['hydrogen_idx']] - x[0][heavy_atom_idx]) * nm_to_angstroms
+    distance = torch.norm(x[0][hydrogen_idx] - x[0][heavy_atom_idx]) * nm_to_angstroms
     if distance <= lower_bound:
         e = k * (lower_bound - distance.double())**2
     elif distance >= upper_bound:
         e = k * (distance.double() - upper_bound)**2
     else:
-        e = torch.tensor([0.0], dtype=torch.double, device=device)
+        e = torch.tensor(0.0, dtype=torch.double, device=device)
     logging.debug('Flat bottom bias introduced: {:0.4f}'.format(e.item()))
     return e.to(device=device)
 
@@ -86,9 +96,19 @@ def harmonic_position_restraint(x, tautomer_transformation:dict, atom_list:list,
     """
 
     if restrain_acceptor:
-        heavy_atom_idx = tautomer_transformation['acceptor_idx']
+        if 'acceptor_hydrogen_idx' not in tautomer_transformation:
+            heavy_atom_idx = tautomer_transformation['acceptor_idx']
+            hydrogen_idx = tautomer_transformation['hydrogen_idx']
+        else:
+            heavy_atom_idx = tautomer_transformation['acceptor_idx']
+            hydrogen_idx = tautomer_transformation['acceptor_hydrogen_idx']
     elif restrain_donor:
-        heavy_atom_idx = tautomer_transformation['donor_idx']
+        if 'donor_hydrogen_idx' not in tautomer_transformation:
+            heavy_atom_idx = tautomer_transformation['donor_idx']
+            hydrogen_idx = tautomer_transformation['hydrogen_idx']
+        else:
+            heavy_atom_idx = tautomer_transformation['donor_idx']
+            hydrogen_idx = tautomer_transformation['donor_hydrogen_idx']
     else:
         raise RuntimeError('Something went wrong.')
     
@@ -99,7 +119,7 @@ def harmonic_position_restraint(x, tautomer_transformation:dict, atom_list:list,
     mean_bond_length = (bond_length_dict['{}H'.format(heavy_atom_element)]).value_in_unit(unit.angstrom)
     logging.debug('Mean bond length: {}'.format(mean_bond_length))
 
-    distance = torch.norm(x[0][tautomer_transformation['hydrogen_idx']] - x[0][heavy_atom_idx]) * nm_to_angstroms
+    distance = torch.norm(x[0][hydrogen_idx] - x[0][heavy_atom_idx]) * nm_to_angstroms
     logging.debug('Distance: {}'.format(distance))
     k = k.value_in_unit((unit.kilo * unit.joule) / ((unit.angstrom **2) * unit.mole))
     e = (k/2) *(distance.double() - mean_bond_length)**2

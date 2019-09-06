@@ -10,6 +10,7 @@ import pickle
 import torch
 from simtk import unit
 import numpy as np
+import mdtraj as md
 
 def test_neutromeratio_imported():
     """Sample test, will always pass so long as import statement worked"""
@@ -74,7 +75,7 @@ def test_neutromeratio_energy_calculations():
 
     platform = 'cpu'
     device = torch.device(platform)
-    model = neutromeratio.ani.LinearAlchemicalANI(alchemical_atom=hydrogen_idx, ani_input=ani_input, device=device)
+    model = neutromeratio.ani.LinearAlchemicalANI(alchemical_atoms=[hydrogen_idx], ani_input=ani_input, device=device)
     model = model.to(device)
     torch.set_num_threads(1)
 
@@ -122,7 +123,7 @@ def test_neutromeratio_energy_calculations_with_dummy_atom():
 
     platform = 'cpu'
     device = torch.device(platform)
-    model = neutromeratio.ani.LinearAlchemicalANI(alchemical_atom=hydrogen_idx, ani_input=ani_input, device=device)
+    model = neutromeratio.ani.LinearAlchemicalANI(alchemical_atoms=[hydrogen_idx], ani_input=ani_input, device=device)
     model = model.to(device)
     torch.set_num_threads(1)
 
@@ -139,4 +140,34 @@ def test_neutromeratio_energy_calculations_with_dummy_atom():
     assert(x == -216698.91137612148)
 
 
+def test_hybrid_topology():
+
+    with open('data/exp_results.pickle', 'rb') as f:
+        exp_results = pickle.load(f)
+
+    # specify the system you want to simulate
+    name = 'molDWRow_590'
+
+    from_mol_tautomer_idx = 1
+    to_mol_tautomer_idx = 2
+
+
+    t1_smiles = exp_results[name]['t1-smiles']
+    t2_smiles = exp_results[name]['t2-smiles']
+
+    # generate both rdkit mol
+    mols = { 't1' : neutromeratio.generate_rdkit_mol(t1_smiles), 't2' : neutromeratio.generate_rdkit_mol(t2_smiles) }
+    from_mol = mols[f"t{from_mol_tautomer_idx}"]
+    to_mol = mols[f"t{to_mol_tautomer_idx}"]
+    ani_input = neutromeratio.from_mol_to_ani_input(from_mol)
+
+    tautomer_transformation = neutromeratio.get_tautomer_transformation(from_mol, to_mol)
+    neutromeratio.generate_hybrid_structure(ani_input, tautomer_transformation, neutromeratio.ani.ANI1_force_and_energy)
+    assert(ani_input['hybrid_atoms'] == 'OCCCNCCCCCCHHHHHHHH')
+    ani_traj = md.Trajectory(ani_input['hybrid_coords'].value_in_unit(unit.nanometer), ani_input['hybrid_topolog'])
+    e = ani_input['min_e']
     
+    assert(type(e) == unit.Quantity)
+    assert(type(tautomer_transformation['donor_hydrogen_idx']) == int)
+    e = e.value_in_unit(unit.kilocalorie_per_mole)
+    assert(e < -216698.91137612148 + 5)

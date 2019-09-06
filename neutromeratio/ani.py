@@ -76,15 +76,35 @@ class ANI1_force_and_energy(object):
         # convert energy from hartrees to kJ/mol
         energy_in_kJ_mol = energy_in_hartree * hartree_to_kJ_mol
 
+        if self.restrain_acceptor and self.restrain_donor:
+            
+            # set everything to zero
+            bias_flat_bottom = 0.0
+            bias_harmonic = 0.0
+            bias = 0.0
+            # restrain donor heavy atom and hydrogen
+            bias_flat_bottom = flat_bottom_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor=False, restrain_donor=True, device=self.device)
+            bias_harmonic = harmonic_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor=False, restrain_donor=True, device=self.device)
+            a = (bias_flat_bottom * self.lambda_value) + ((1 - self.lambda_value) * bias_harmonic)
+            bias += a
+            # restrain acceptor heavy atom and hydrogen
+            bias_flat_bottom = flat_bottom_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor=True, restrain_donor=False, device=self.device)
+            bias_harmonic = harmonic_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor=True, restrain_donor=False, device=self.device)
+            a = (bias_flat_bottom * (1 - self.lambda_value)) + (self.lambda_value * bias_harmonic)
+            bias += a
+            energy_in_kJ_mol = energy_in_kJ_mol + bias
+
         if self.restrain_acceptor or self.restrain_donor:
-            bias_flat_bottom = flat_bottom_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor = self.restrain_acceptor, restrain_donor=self.restrain_donor, device=self.device)
-            bias_harmonic = harmonic_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor = self.restrain_acceptor, restrain_donor=self.restrain_donor, device=self.device)
+            bias_flat_bottom = flat_bottom_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor=self.restrain_acceptor, restrain_donor=self.restrain_donor, device=self.device)
+            bias_harmonic = harmonic_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor=self.restrain_acceptor, restrain_donor=self.restrain_donor, device=self.device)
             bias = (bias_flat_bottom * self.lambda_value) + ((1 - self.lambda_value) * bias_harmonic)
 
             self.bias_flat_bottom.append(bias_flat_bottom)
             self.bias_harmonic.append(bias_harmonic)            
             self.bias_applied.append(bias)
             energy_in_kJ_mol = energy_in_kJ_mol + bias
+        else:
+            pass
 
         # derivative of E (in kJ/mol) w.r.t. coordinates (in nm)
         derivative = torch.autograd.grad((energy_in_kJ_mol).sum(), coordinates)[0]
@@ -122,41 +142,61 @@ class ANI1_force_and_energy(object):
         # convert energy from hartrees to kJ/mol
         energy_in_kJ_mol = energy_in_hartree * hartree_to_kJ_mol
 
-        if self.restrain_acceptor or self.restrain_donor:
+        if self.restrain_acceptor and self.restrain_donor:
+            # set everything to zero
+            bias_flat_bottom = 0.0
+            bias_harmonic = 0.0
+            bias = 0.0
+
+            # restrain donor heavy atom and hydrogen
+            bias_flat_bottom += flat_bottom_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor=False, restrain_donor=True, device=self.device)
+            bias_harmonic += harmonic_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor=False, restrain_donor=True, device=self.device)
+            bias += (bias_flat_bottom * self.lambda_value) + ((1 - self.lambda_value) * bias_harmonic)
+
+            # restrain acceptor heavy atom and hydrogen
+            bias_flat_bottom += flat_bottom_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor=True, restrain_donor=False, device=self.device)
+            bias_harmonic += harmonic_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor=True, restrain_donor=False, device=self.device)
+            bias += (bias_flat_bottom * (1 - self.lambda_value)) + (self.lambda_value * bias_harmonic)
+
+            energy_in_kJ_mol = energy_in_kJ_mol + bias
+
+        elif self.restrain_acceptor or self.restrain_donor:
             bias_flat_bottom = flat_bottom_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor = self.restrain_acceptor, restrain_donor = self.restrain_donor, device=self.device)
             bias_harmonic = harmonic_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor = self.restrain_acceptor, restrain_donor = self.restrain_donor, device=self.device)           
             bias = (bias_flat_bottom * self.lambda_value) + ((1 - self.lambda_value) * bias_harmonic)
             energy_in_kJ_mol = energy_in_kJ_mol + bias
+        else:
+            pass
 
         return energy_in_kJ_mol.item() * unit.kilojoule_per_mole
 
 class AlchemicalANI(torchani.models.ANI1ccx):
     
-    def __init__(self, alchemical_atom=0):
+    def __init__(self, alchemical_atoms=[]):
         """Scale the contributions of alchemical atoms to the energy."""
         super().__init__()
-        self.alchemical_atom = alchemical_atom
+        self.alchemical_atoms = alchemical_atoms
 
     def forward(self, species_coordinates, lam=1.0):
         raise (NotImplementedError)
 
 
 class DirectAlchemicalANI(AlchemicalANI):
-    def __init__(self, alchemical_atom=0):
+    def __init__(self, alchemical_atoms=[]):
         """Scale the direct contributions of alchemical atoms to the energy sum,
         ignoring indirect contributions
         """
-        super().__init__(alchemical_atom)
+        super().__init__(alchemical_atoms)
 
 
 class AEVScalingAlchemicalANI(AlchemicalANI):
-    def __init__(self, alchemical_atom=0):
+    def __init__(self, alchemical_atoms=[]):
         """Scale indirect contributions of alchemical atoms to the energy sum by
         interpolating neighbors' Atomic Environment Vectors.
 
         (Also scale direct contributions, as in DirectAlchemicalANI)
         """
-        super().__init__(alchemical_atom)
+        super().__init__(alchemical_atoms)
 
 
 
@@ -182,7 +222,7 @@ class DoubleAniModel(torchani.nn.ANIModel):
         
 
 class LinearAlchemicalANI(AlchemicalANI):
-    def __init__(self, alchemical_atom:int, ani_input:dict, device:torch.device, pbc:bool=False):
+    def __init__(self, alchemical_atoms:list, ani_input:dict, device:torch.device, pbc:bool=False):
         """Scale the indirect contributions of alchemical atoms to the energy sum by
         linearly interpolating, for other atom i, between the energy E_i^0 it would compute
         in the _complete absence_ of the alchemical atoms, and the energy E_i^1 it would compute
@@ -190,13 +230,16 @@ class LinearAlchemicalANI(AlchemicalANI):
         (Also scale direct contributions, as in DirectAlchemicalANI)
         """
 
-        super().__init__(alchemical_atom)      
+        assert(len(alchemical_atoms) <= 1)
+        super().__init__(alchemical_atoms)      
         self.neural_networks = self._load_model_ensemble(self.species, self.ensemble_prefix, self.ensemble_size)
         self.ani_input = ani_input
-        self.box_length = self.ani_input['box_length'].value_in_unit(unit.angstrom)
         self.device = device
         self.pbc = pbc
-                        
+        if pbc:
+            self.box_length = self.ani_input['box_length'].value_in_unit(unit.angstrom)
+        else:
+            self.box_length = 0.0 * unit.angstrom
 
     def forward(self, species_coordinates):
         # for now only allow one alchemical atom
@@ -222,8 +265,8 @@ class LinearAlchemicalANI(AlchemicalANI):
         else:
             # LAMBDA = 0: fully removed
             # species, AEVs of all other atoms, in absence of alchemical atoms
-            mod_species = torch.cat((species[:, :self.alchemical_atom],  species[:, self.alchemical_atom+1:]), dim=1)
-            mod_coordinates = torch.cat((coordinates[:, :self.alchemical_atom],  coordinates[:, self.alchemical_atom+1:]), dim=1) 
+            mod_species = torch.cat((species[:, :self.alchemical_atoms[0]],  species[:, self.alchemical_atoms[0]+1:]), dim=1)
+            mod_coordinates = torch.cat((coordinates[:, :self.alchemical_atoms[0]],  coordinates[:, self.alchemical_atoms[0]+1:]), dim=1) 
             mod_aevs = self.aev_computer((mod_species, mod_coordinates))[1]
             # neural net output given these modified AEVs
             nn_0 = self.neural_networks((mod_species, mod_aevs))[1]
@@ -263,183 +306,92 @@ class LinearAlchemicalANI(AlchemicalANI):
         return DoubleAniModel(models)
 
 
+class LinearAlchemicalSingleTopologyANI(AlchemicalANI):
+    def __init__(self, alchemical_atoms:list, ani_input:dict, device:torch.device, pbc:bool=False):
+        """Scale the indirect contributions of alchemical atoms to the energy sum by
+        linearly interpolating, for other atom i, between the energy E_i^0 it would compute
+        in the _complete absence_ of the alchemical atoms, and the energy E_i^1 it would compute
+        in the _presence_ of the alchemical atoms.
+        (Also scale direct contributions, as in DirectAlchemicalANI)
+        """
 
+        assert(len(alchemical_atoms) == 2)
 
+        super().__init__(alchemical_atoms)      
+        self.neural_networks = self._load_model_ensemble(self.species, self.ensemble_prefix, self.ensemble_size)
+        self.ani_input = ani_input
+        self.device = device
+        self.pbc = pbc
+        if pbc:
+            self.box_length = self.ani_input['box_length'].value_in_unit(unit.angstrom)
+        else:
+            self.box_length = 0.0 * unit.angstrom
 
+    def forward(self, species_coordinates):
+        # for now only allow one alchemical atom
 
+        # LAMBDA = 1: fully interacting
+        # species, AEVs of fully interacting system
+        species, coordinates, lam = species_coordinates
+        aevs = species_coordinates[:-1]
+        if self.pbc:
+            cell = torch.tensor(np.array([[self.box_length, 0.0, 0.0],[0.0,self.box_length,0.0],[0.0,0.0,self.box_length]]),
+                                device=self.device, dtype=torch.float)
+            aevs = aevs[0], aevs[1], cell, torch.tensor([True, True, True], dtype=torch.bool, device=self.device)
 
+        # LAMBDA = 0: fully removed
+        # species, AEVs of all other atoms, in absence of alchemical atoms
+        dummy_atom_1 = self.alchemical_atoms[0]
+        dummy_atom_2 = self.alchemical_atoms[1]
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# TODO: implement a base class Energy 
-# TODO: openMM smirnoff/gaff energy subclass
-# TODO: psi4 energy
-
-# class Energy(object):
-
-#     def __init__(self, smiles:str):
-
-#         self.smiles = smiles
-#         # prepare openeye mol
-#         m = omtff.openeye.smiles_to_oemol(smiles)
-#         m = omtff.openeye.generate_conformers(m, max_confs=1)
-#         m.SetTitle("m1")
-#         # write pdb
-#         ofs.open(f"tmp.pdb")
-#         ofs.SetFormat(oechem.OEFormat_PDB)
-#         oechem.OEWriteMolecule(ofs, m)
-
-#         # generate force field
-#         ffxml = omtff.forcefield_generators.generateForceFieldFromMolecules(
-#         [m], 
-#         normalize=False, 
-#         gaff_version='gaff2'
-#         )
-
-
-#         # create bond and hydrogen definitions
-#         bxml = self._create_bond_definitions(StringIO(ffxml), f"t{t_id:02d}")
-#         bxml = StringIO(etree.tostring(bxml).decode("utf-8"))
-
-#         app.Topology.loadBondDefinitions(bxml)
-
-#         hxml = self._create_hydrogen_definitions(etree.fromstring(ffxml))
-#         hxml = StringIO(etree.tostring(hxml).decode("utf-8"))
+        # neural net output given these AEVs
+        mod_species_1 = torch.cat((species[:, :dummy_atom_1],  species[:, dummy_atom_1+1:]), dim=1)
+        mod_coordinates_1 = torch.cat((coordinates[:, :dummy_atom_1],  coordinates[:, dummy_atom_1+1:]), dim=1) 
+        mod_aevs_1 = self.aev_computer((mod_species_1, mod_coordinates_1))[1]
+        # neural net output given these modified AEVs
+        nn_0 = self.neural_networks((mod_species_1, mod_aevs_1))[1]
+        E_0 = self.energy_shifter((mod_species_1, nn_0))[1]
         
-#         app.Modeller.loadHydrogenDefinitions(hxml)
-#         pdb = app.PDBFile("tmp.pdb")
-#         modeller = app.Modeller(pdb.topology, pdb.positions)
-#         modeller.addHydrogens()
+        # neural net output given these AEVs
+        mod_species_2 = torch.cat((species[:, :dummy_atom_2],  species[:, dummy_atom_2+1:]), dim=1)
+        mod_coordinates_2 = torch.cat((coordinates[:, :dummy_atom_2],  coordinates[:, dummy_atom_2+1:]), dim=1) 
+        mod_aevs_2 = self.aev_computer((mod_species_2, mod_coordinates_2))[1]
+        # neural net output given these modified AEVs
+        nn_1 = self.neural_networks((mod_species_2, mod_aevs_2))[1]
+        E_1 = self.energy_shifter((mod_species_2, nn_1))[1]
 
-#         integrator = mm.LangevinIntegrator(
-#                         300*unit.kelvin,       # Temperature of heat bath
-#                         1.0/unit.picoseconds,  # Friction coefficient
-#                         2.0*unit.femtoseconds, # Time step
-#         )
-
-#         system = forcefield.createSystem(modeller.topology, nonbondedMethod=app.NoCutoff, constraints=app.HBonds)
-#         sim = app.Simulation(modeller.topology, system, integrator)
-#         sim.context.setPositions(modeller.positions)
+        E = (lam * E_1) + ((1 - lam) * E_0)
+        return species, E
 
 
+    def _load_model_ensemble(self, species, prefix, count):
+        """Returns an instance of :class:`torchani.Ensemble` loaded from
+        NeuroChem's network directories beginning with the given prefix.
+        Arguments:
+            species (:class:`collections.abc.Sequence`): Sequence of strings for
+                chemical symbols of each supported atom type in correct order.
+            prefix (str): Prefix of paths of directory that networks configurations
+                are stored.
+            count (int): Number of models in the ensemble.
+        """
+        models = []
+        for i in range(count):
+            network_dir = os.path.join('{}{}'.format(prefix, i), 'networks')
+            models.append(self._load_model(species, network_dir))
+        return torchani.nn.Ensemble(models)
+
+    def _load_model(self, species, dir_):
+        """Returns an instance of :class:`torchani.ANIModel` loaded from
+        NeuroChem's network directory.
+        Arguments:
+            species (:class:`collections.abc.Sequence`): Sequence of strings for
+                chemical symbols of each supported atom type in correct order.
+            dir_ (str): String for directory storing network configurations.
+        """
+        models = []
+        for i in species:
+            filename = os.path.join(dir_, 'ANN-{}.nnf'.format(i))
+            models.append(torchani.neurochem.load_atomic_network(filename))
+        return DoubleAniModel(models)
 
 
-#     def _create_hydrogen_definitions(
-#         self,
-#         xmltree
-#     ):
-#         """
-#         Generates hydrogen definitions for a small molecule residue template.
-
-#         """
-#         hydrogen_definitions_tree = etree.fromstring("<Residues/>")
-#         for residue in xmltree.xpath("Residues/Residue"):
-#             hydrogen_file_residue = etree.fromstring("<Residue/>")
-#             hydrogen_file_residue.set("name", residue.get("name"))
-#             # enumerate hydrogens in this list
-#             hydrogens = list()
-#             # Loop through atoms to find all hydrogens
-#             for bond in residue.xpath("Bond"):
-#                 atomname1 = bond.get("atomName1")
-#                 atomname2 = bond.get("atomName2")
-#                 if 'H' in atomname1:
-#                     # H is the first, parent is the second atom
-#                     hydrogens.append(tuple([atomname1, atomname2]))
-#                 elif 'H' in atomname2:
-#                     # H is the second, parent is the first atom
-#                     hydrogens.append(tuple([atomname2, atomname1]))
-
-#             # Loop through all hydrogens, and create definitions
-#             for name, parent in hydrogens:
-#                 h_xml = etree.fromstring("<H/>")
-#                 h_xml.set("name", name)
-#                 h_xml.set("parent", parent)
-#                 hydrogen_file_residue.append(h_xml)
-#             hydrogen_definitions_tree.append(hydrogen_file_residue)
-#         # Write output
-#         return hydrogen_definitions_tree
-
-
-
-#     def _create_bond_definitions(
-#         self,
-#         inputfile: str,
-#         residue_name : str = None
-#         ):
-#         """
-#         Generates bond definitions for a small molecule template to subsequently load 
-#         the bond definitions in the topology object. BE CAREFULL: The residue name 
-#         of the pdb file must match the residue name in the bxml file.
-
-#         Parameters
-#         ----------
-#         inputfile - a forcefield XML file defined using Gaff atom types
-#         """
-
-#         xmltree = etree.parse(
-#             inputfile, etree.XMLParser(remove_blank_text=True, remove_comments=True)
-#         )
-#         # Output tree
-#         bond_definitions_tree = etree.fromstring("<Residues/>")
-#         bonds = set()
-
-#         for residue in xmltree.xpath("Residues/Residue"):
-#             # Loop through all bonds
-#             bond_file_residue = etree.fromstring("<Residue/>")
-#             bond_file_residue.set("name", f"{residue_name}")
-#             for bond in residue.xpath("Bond"):
-#                 atomname1 = bond.get("atomName1")
-#                 atomname2 = bond.get("atomName2")
-#                 if atomname1.startswith('H') or atomname2.startswith('H'):
-#                     continue
-#                 bonds.add(tuple([atomname1, atomname2]))
-            
-#             for a1, a2 in bonds:
-#                 b_xml = etree.fromstring("<Bond/>")
-#                 b_xml.set("from", a1)
-#                 b_xml.set("to", a2)
-#                 bond_file_residue.append(b_xml)
-#             bond_definitions_tree.append(bond_file_residue)
-
-#         return bond_definitions_tree

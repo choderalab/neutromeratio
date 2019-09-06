@@ -20,8 +20,8 @@ class MC_Mover(object):
                 hydrogen_idx:int, 
                 acceptor_idx:int, 
                 atom_list:str, 
-                energy_function,
-                langevin_dynamics:LangevinDynamics):
+                energy_function = None,
+                langevin_dynamics = None):
 
         self.donor_idx = donor_idx
         self.hydrogen_idx = hydrogen_idx
@@ -43,7 +43,7 @@ class MC_Mover(object):
         self.acceptor_hydrogen_stddev_bond_length = 0.10 * unit.angstrom
         self.donor_hydrogen_stddev_bond_length = 0.10 * unit.angstrom
 
-    def _move_hydrogen_to_acceptor_idx(self, coordinates:unit.quantity.Quantity) -> unit.quantity.Quantity:
+    def _move_hydrogen_to_acceptor_idx(self, coordinates:unit.quantity.Quantity, override=True) -> unit.quantity.Quantity:
         """Moves a single hydrogen (specified in self.hydrogen_idx) from a donor
         atom (self.donor_idx) to a new position around the acceptor atom (self.acceptor_idx).
         Parameters
@@ -62,8 +62,6 @@ class MC_Mover(object):
             Bond length is defined by the hydrogen - acceptor element equilibrium bond length,
             defined in self.bond_length_dict. Standard deviation of bond length is defined
             in self.std_bond_length.
-            A bias to the bond length can be introduced through self.mod_bond_length.
-            The effective bond length is mean_bond_length *= self.mod_bond_length.
             """
             # sample a random direction
             unit_vector = np.random.randn(ndim)
@@ -78,9 +76,15 @@ class MC_Mover(object):
 
         # generate new hydrogen atom position and replace old coordinates
         new_hydrogen_coordinate = acceptor_coordinate + sample_spherical()
-        coordinates[self.hydrogen_idx] = new_hydrogen_coordinate
-
-        return coordinates
+        if override:
+            coordinates[self.hydrogen_idx] = new_hydrogen_coordinate
+        else:
+            logger.debug('MC mover in appending mode')
+            coordinates = coordinates.value_in_unit(unit.angstrom) 
+            new_hydrogen_coordinate = new_hydrogen_coordinate.value_in_unit(unit.angstrom)
+            new_hydrogen_coordinate = np.array([new_hydrogen_coordinate])
+            coordinates = (np.append(coordinates, new_hydrogen_coordinate, axis=0)) * unit.angstrom
+        return coordinates 
     
     def _log_probability_of_radial_proposal(self, r:float, r_mean:float, r_stddev:float) -> float:
         """Logpdf of N(r : mu=r_mean, sigma=r_stddev)"""
@@ -171,7 +175,6 @@ class Instantaneous_MC_Mover(MC_Mover):
 
 
 
-    # NOTE: carful! changed where I store work values - now they are returned!
     def performe_md_mc_protocol(self,
                                 x0:unit.quantity.Quantity,
                                 nr_of_mc_trials:int = 500,
