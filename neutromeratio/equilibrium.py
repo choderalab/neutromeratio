@@ -2,14 +2,9 @@ import numpy as np
 from .constants import speed_unit, distance_unit, kB
 from simtk import unit
 from tqdm import tqdm
-from .utils import generate_xyz_string
 from .ani import ANI1_force_and_energy
 import mdtraj as md
-import torchani
-import torch
-import logging
 
-logger = logging.getLogger(__name__)
 
 class LangevinDynamics(object):
 
