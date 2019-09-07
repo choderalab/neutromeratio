@@ -195,7 +195,7 @@ def display_mol(mol:Chem.Mol):
     display(mol)
 
 
-def generate_nglview_object(top_file:str, traj_files:list) -> nglview.NGLWidget:
+def generate_nglview_object(traj:md.Trajectory, tautomer_transformation:dict) -> nglview.NGLWidget:
     """
     Generates nglview object from topology and trajectory files.
     Parameters
@@ -208,10 +208,17 @@ def generate_nglview_object(top_file:str, traj_files:list) -> nglview.NGLWidget:
     view: nglview object
     """
 
-    topology = md.load(top_file).topology
-    ani_traj = md.load(traj_files, top=topology)
+    view = nglview.show_mdtraj(traj)
+    if 'donor_hydrogen_idx' in tautomer_transformation:
 
-    return nglview.show_mdtraj(ani_traj)
+        # Clear all representations to try new ones
+        print('Hydrogen in GREEN  is real at lambda: 0.')
+        print('Hydrogen in YELLOW is real at lambda: 1.')
+        view.add_representation('point', selection=[tautomer_transformation['donor_hydrogen_idx']], color='green', pointSize=3.5)
+        view.add_representation('point', selection=[tautomer_transformation['acceptor_hydrogen_idx']], color='yellow', pointSize=3.5)
+    
+    return view 
+
 
 def from_mol_to_ani_input(mol: Chem.Mol) -> dict:
     """
