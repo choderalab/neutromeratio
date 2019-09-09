@@ -50,12 +50,14 @@ class ANI1_force_and_energy(object):
 
     def minimize(self, ani_input):
         
-        calculator = self.model.ase(dtype=torch.float64)
+        #calculator = self.model.ase(dtype=torch.float32)
+        calculator = torchani.models.ANI1ccx().ase(dtype=torch.float64)
         mol = ani_input['ase_hybrid_mol']
         mol.set_calculator(calculator)
         print("Begin minimizing...")
         opt = BFGS(mol)
         opt.run(fmax=0.001)
+
 
 
     def calculate_force(self, x:simtk.unit.quantity.Quantity) -> simtk.unit.quantity.Quantity:
