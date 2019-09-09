@@ -31,18 +31,6 @@ from_mol = mols['t1']
 to_mol = mols['t2']
 ani_input = neutromeratio.from_mol_to_ani_input(from_mol)
 
-if platform == 'cpu':
-    device = torch.device(platform)
-    model = neutromeratio.ani.LinearAlchemicalANI(alchemical_atoms=[], ani_input=ani_input, device=device)
-    model = model.to(device)
-    torch.set_num_threads(2)
-elif platform == 'cuda':
-    device = torch.device(platform)
-    model = neutromeratio.ani.LinearAlchemicalANI(alchemical_atoms=[], ani_input=ani_input, device=device)
-    model = model.to(device)
-else:
-    raise RuntimeError('Only cpu and cuda environments implemented.')
-
 tautomer_transformation = neutromeratio.get_tautomer_transformation(from_mol, to_mol)
 neutromeratio.generate_hybrid_structure(ani_input, tautomer_transformation, neutromeratio.ani.ANI1_force_and_energy)
 
@@ -59,7 +47,6 @@ model = model.to(device)
 torch.set_num_threads(2)
 
 # perform initial sampling
-ani_trajs = []
 energy_function = neutromeratio.ANI1_force_and_energy(device = device,
                                           model = model,
                                           atom_list = ani_input['hybrid_atoms'],
@@ -73,12 +60,11 @@ langevin = neutromeratio.LangevinDynamics(atom_list = ani_input['hybrid_atoms'],
                             force = energy_function)
 
 x0 = np.array(ani_input['hybrid_coords']) * unit.angstrom
-energie_list = []
 
 energy_function.lambda_value = lambda_value
 energy_function.minimize(ani_input)
 
-equilibrium_samples, energies = langevin.run_dynamics(x0, n_steps, stepsize=1.0 * unit.femtosecond)
+equilibrium_samples, energies = langevin.run_dynamics(x0, n_steps, stepsize=1.0 * unit.femtosecond, progress_bar=True)
 energies = [neutromeratio.reduced_pot(x) for x in energies]
 
 # save equilibrium energy values 
