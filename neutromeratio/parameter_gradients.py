@@ -169,4 +169,17 @@ if __name__ == '__main__':
     free_energy_calculator = FreeEnergyCalculator(
         ani_model, ani_trajs, potential_energy_trajs, lambdas,
     )
-    print(free_energy_calculator.compute_free_energy_difference())
+
+    deltaF = free_energy_calculator.compute_free_energy_difference()
+    print(deltaF)
+
+    # let's say I had a loss function that wanted the free energy difference
+    # estimate to be equal to 6:
+    L = (deltaF - 6) ** 2
+
+    # can I backpropagate derivatives painlessly to the ANI neural net parameters?
+    L.backward()  # no errors or warnings
+
+    params = list(ani_model.model.parameters())
+    for p in params:
+        print(p.grad)  # all None
