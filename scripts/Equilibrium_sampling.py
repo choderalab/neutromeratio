@@ -17,6 +17,8 @@ name = str(sys.argv[1])
 lambda_value = float(sys.argv[2])
 # platform
 platform = str(sys.argv[3])
+# number of steps
+n_steps = int(sys.argv[4])
 
 exp_results = pickle.load(open('../data/exp_results.pickle', 'rb'))
 
@@ -58,7 +60,6 @@ torch.set_num_threads(2)
 
 # perform initial sampling
 ani_trajs = []
-n_steps = 5000
 energy_function = neutromeratio.ANI1_force_and_energy(device = device,
                                           model = model,
                                           atom_list = ani_input['hybrid_atoms'],
@@ -80,13 +81,12 @@ energy_function.minimize(ani_input)
 equilibrium_samples, energies = langevin.run_dynamics(x0, n_steps, stepsize=1.0 * unit.femtosecond)
 energies = [neutromeratio.reduced_pot(x) for x in energies]
 
-
 # save equilibrium energy values 
-f = open(f"../data/equilibrium_sampling/{name}/{name}_lambda_f{lambda_value}_energy.csv", 'w+')
+f = open(f"../data/equilibrium_sampling/{name}/{name}_lambda_{lambda_value:0.4f}_energy.csv", 'w+')
 for e in energies:
     f.write('{}\n'.format(e))
 f.close()
 
 equilibrium_samples = [x / unit.nanometer for x in equilibrium_samples]
 ani_traj = md.Trajectory(equilibrium_samples, ani_input['hybrid_topolog'])
-ani_traj.save(f"../data/equilibrium_sampling/{name}/{name}_lambda_f{lambda_value}.dcd")
+ani_traj.save(f"../data/equilibrium_sampling/{name}/{name}_lambda_{lambda_value:0.4f}.dcd")
