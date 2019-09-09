@@ -155,7 +155,6 @@ def test_hybrid_topology():
     from_mol_tautomer_idx = 1
     to_mol_tautomer_idx = 2
 
-
     t1_smiles = exp_results[name]['t1-smiles']
     t2_smiles = exp_results[name]['t2-smiles']
 
