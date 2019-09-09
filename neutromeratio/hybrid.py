@@ -9,6 +9,7 @@ import torch
 import numpy as np
 from simtk import unit
 from .equilibrium import LangevinDynamics
+from ase import Atom, Atoms
 
 
 logger = logging.getLogger(__name__)
@@ -68,6 +69,15 @@ def generate_hybrid_structure(ani_input:dict, tautomer_transformation:dict, ANI1
     tautomer_transformation['donor_hydrogen_idx'] = tautomer_transformation['hydrogen_idx']
     tautomer_transformation['acceptor_hydrogen_idx'] = len(ani_input['hybrid_atoms']) -1
     
+
     ani_input['hybrid_coords'] = min_coordinates
     ani_input['min_e'] = min_e
     ani_input['hybrid_topolog'] = hybrid_top
+
+    atom_list = []
+    for e, c in zip(ani_input['hybrid_atoms'], ani_input['hybrid_coords']):
+        c_list = (c[0].value_in_unit(unit.angstrom), c[1].value_in_unit(unit.angstrom), c[2].value_in_unit(unit.angstrom)) 
+        atom_list.append(Atom(e, c_list))
+    mol = Atoms(atom_list)
+    ani_input['ase_hybrid_mol'] = mol
+

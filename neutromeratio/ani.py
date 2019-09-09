@@ -7,13 +7,9 @@ from simtk import unit
 import simtk
 from rdkit import Chem
 import logging
-from openeye import oechem
-import openmoltools as omtff
-from io import StringIO
-from lxml import etree
-import simtk.openmm.app as app
 from .restraints import flat_bottom_position_restraint, harmonic_position_restraint
 import neutromeratio
+from ase.optimize import BFGS
 
 gaff_default = os.path.join("../data/gaff2.xml")
 logger = logging.getLogger(__name__)
@@ -51,6 +47,17 @@ class ANI1_force_and_energy(object):
         self.restrain_donor = False
 
         # TODO: check availablity of platform
+
+    def minimize(self, ani_input):
+        
+        calculator = self.model.ase(dtype=torch.float64)
+        mol = ani_input['ase_hybrid_mol']
+        mol.set_calculator(calculator)
+        print("Begin minimizing...")
+        opt = BFGS(mol)
+        opt.run(fmax=0.001)
+
+
 
     def calculate_force(self, x:simtk.unit.quantity.Quantity) -> simtk.unit.quantity.Quantity:
         """
