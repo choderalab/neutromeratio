@@ -58,7 +58,6 @@ class ANI1_force_and_energy(object):
         opt.run(fmax=0.001)
 
 
-
     def calculate_force(self, x:simtk.unit.quantity.Quantity) -> simtk.unit.quantity.Quantity:
         """
         Given a coordinate set the forces with respect to the coordinates are calculated.
