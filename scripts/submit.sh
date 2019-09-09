@@ -17,6 +17,6 @@ echo ${lambda_value}
 echo ${n_steps}
 
 . /data/shared/software/python_env/anaconda3/etc/profile.d/conda.sh
-conda activate torchANI-dev
+conda activate ani36
 
 python Equilibrium_sampling.py ${molecule_name} ${lambda_value} 'cpu' ${n_steps}
