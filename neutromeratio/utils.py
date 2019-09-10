@@ -239,9 +239,10 @@ def from_mol_to_ani_input(mol: Chem.Mol) -> dict:
         pos = mol.GetConformer().GetAtomPosition(a.GetIdx())
         coord_list.append([pos.x, pos.y, pos.z])
 
-    _ = write_pdb(mol, 'tmp.pdb')
-    topology = md.load('tmp.pdb').topology
-    os.remove('tmp.pdb')
+    n = random.random()
+    _ = write_pdb(mol, f"tmp{n:0.9f}.pdb")
+    topology = md.load(f"tmp{n:0.9f}.pdb").topology
+    os.remove(f"tmp{n:0.9f}.pdb")
     
     return { 'ligand_atoms' : ''.join(atom_list), 
             'ligand_coords' : np.array(coord_list) * unit.angstrom, 
