@@ -75,4 +75,4 @@ f.close()
 
 equilibrium_samples = [x / unit.nanometer for x in equilibrium_samples]
 ani_traj = md.Trajectory(equilibrium_samples, ani_input['hybrid_topolog'])
-ani_traj.save(f"../data/equilibrium_sampling/{name}/{name}_lambda_{lambda_value:0.4f}.dcd")
+ani_traj.save(f"../data/equilibrium_sampling/{name}/{name}_lambda_{lambda_value:0.4f}.dcd", force_overwrite=True)
