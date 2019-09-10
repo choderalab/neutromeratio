@@ -15,11 +15,14 @@ import random, sys
 temperature = 300 * unit.kelvin
 kT = kB * temperature
 
+# read in exp results, smiles and names
 exp_results = pickle.load(open('../data/exp_results.pickle', 'rb'))
 
 # name of the system
 name = str(sys.argv[1])
 
+# don't change - direction is fixed for all runs
+#################
 from_mol_tautomer_idx = 1
 to_mol_tautomer_idx = 2
 
@@ -32,35 +35,40 @@ from_mol = mols[f"t{from_mol_tautomer_idx}"]
 to_mol = mols[f"t{to_mol_tautomer_idx}"]
 ani_input = neutromeratio.from_mol_to_ani_input(from_mol)
 
+# get tautomer transformation
 tautomer_transformation = neutromeratio.get_tautomer_transformation(from_mol, to_mol)
 neutromeratio.generate_hybrid_structure(ani_input, tautomer_transformation, neutromeratio.ani.ANI1_force_and_energy)
 # define the alchemical atoms
 alchemical_atoms=[tautomer_transformation['acceptor_hydrogen_idx'], tautomer_transformation['donor_hydrogen_idx']]
 
-i = 0.0
+# 21 steps inclusive endpoints
+# getting all the energies, snapshots and lambda values in lists
+lambda_value = 0.0
 energies = []
 ani_trajs = []
 lambdas = []
 for _ in range(21):
-    f_traj = f"/home/mwieder/Work/Projects/neutromeratio/data/equilibrium_sampling/{name}/{name}_lambda_{i:0.4f}.dcd"
-    t = md.load_dcd(f_traj, top=ani_input['hybrid_topology'])
-    ani_trajs.append(t)
+    f_traj = f"/home/mwieder/Work/Projects/neutromeratio/data/equilibrium_sampling/{name}/{name}_lambda_{lambda_value:0.4f}.dcd"
+    traj = md.load_dcd(f_traj, top=ani_input['hybrid_topology'])
+    ani_trajs.append(traj)
     
-    f = open(f"/home/mwieder/Work/Projects/neutromeratio/data/equilibrium_sampling/{name}/{name}_lambda_{i:0.4f}_energy.csv", 'r')  
+    energy_file = open(f"/home/mwieder/Work/Projects/neutromeratio/data/equilibrium_sampling/{name}/{name}_lambda_{lambda_value:0.4f}_energy.csv", 'r')  
     tmp_e = []
-    for e in f:
+    for e in energy_file:
         tmp_e.append(float(e))
-    f.close()
+    energy_file.close()
+    
     energies.append(tmp_e)
-    lambdas.append(i)
-    i +=0.05
+    lambdas.append(lambda_value)
+    lambda_value +=0.05
 
+# plotting the energies of all equilibrium runs
 for e in energies: 
     plt.plot(e, alpha=0.5)
 plt.show()
 plt.savefig(f"/home/mwieder/Work/Projects/neutromeratio/data/equilibrium_sampling/{name}/{name}_energy.png")
 
-
+# generating energies for all lambda and all snapshots 
 platform = 'cpu'
 device = torch.device(platform)
 model = neutromeratio.ani.LinearAlchemicalSingleTopologyANI(device=device, alchemical_atoms=alchemical_atoms, ani_input=ani_input)
