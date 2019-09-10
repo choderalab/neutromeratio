@@ -3,7 +3,7 @@ import random
 import numpy as np
 from simtk import unit
 import copy
-from .utils import reduced_pot, generate_xyz_string
+from .utils import reduced_pot
 import math
 import logging
 from tqdm import tqdm
@@ -115,31 +115,7 @@ class MC_Mover(object):
 
 
 class Instantaneous_MC_Mover(MC_Mover):
-
-
-    def write_xyz_files(self, initial_coordinates:unit.quantity.Quantity, proposed_coordinates:unit.quantity.Quantity, ts:int, filename:str):
-        """
-        Writes xyz files in current directory.
-        The files are saved in {name}_ts{ts}_initial.xyz and {name}_ts{ts}_proposed.xyz.
-        Parameters
-        ----------
-        atoms: list of atoms (in a single string) 
-        coordinates: numpy array with coordinates
-        name: name of the file
-        """
-
-        f_initial = open(f"{filename}_ts{ts}_initial.xyz", 'w')
-        xyz_string = generate_xyz_string(self.atom_list, initial_coordinates)
-        for line in xyz_string:
-            f_initial.write(line)
-        f_initial.close()
-
-        f_proposed = open(f"{filename}_ts{ts}_proposed.xyz", 'w')
-        xyz_string = generate_xyz_string(self.atom_list, proposed_coordinates)
-        for line in xyz_string:
-            f_proposed.write(line)
-        f_proposed.close()
-    
+  
     def perform_mc_move(self, coordinates:unit.quantity.Quantity) -> list:
         """
         Moves a hydrogen (self.hydrogen_idx) from a starting position connected to a heavy atom
