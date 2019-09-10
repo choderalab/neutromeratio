@@ -70,7 +70,7 @@ def generate_hybrid_structure(ani_input:dict, tautomer_transformation:dict, ANI1
     
     ani_input['hybrid_coords'] = min_coordinates
     ani_input['min_e'] = min_e
-    ani_input['hybrid_topolog'] = hybrid_top
+    ani_input['hybrid_topology'] = hybrid_top
 
     atom_list = []
     for e, c in zip(ani_input['hybrid_atoms'], ani_input['hybrid_coords']):
