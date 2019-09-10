@@ -10,12 +10,11 @@ import numpy as np
 from .constants import kT
 import nglview
 import logging
-from rdkit.Chem.Draw import IPythonConsole
-from IPython.core.display import display
 from pdbfixer import PDBFixer
 from simtk.openmm import Vec3
 import random
 from .ani import ANI1_force_and_energy
+from .chemoinf import generate_conformations_from_mol
 import shutil
 
 logger = logging.getLogger(__name__)
@@ -98,20 +97,6 @@ def reduced_pot(E:float) -> float:
     """
     return E / kT
 
-def display_mol(mol:Chem.Mol):
-    """
-    Gets mol as input and displays its 2D Structure using IPythonConsole.
-    """
-
-    def mol_with_atom_index(mol):
-        atoms = mol.GetNumAtoms()
-        for idx in range( atoms ):
-            mol.GetAtomWithIdx( idx ).SetProp( 'molAtomMapNumber', str( mol.GetAtomWithIdx( idx ).GetIdx() ) )
-        return mol
-
-    mol = mol_with_atom_index(mol)
-    AllChem.Compute2DCoords(mol)
-    display(mol)
 
 
 def generate_nglview_object(traj:md.Trajectory, tautomer_transformation:dict) -> nglview.NGLWidget:
@@ -164,8 +149,7 @@ def from_mol_to_ani_input(mol: Chem.Mol) -> dict:
     topology = md.load(f"tmp{n:0.9f}.pdb").topology
     os.remove(f"tmp{n:0.9f}.pdb")
     
-    logging.info('Initially generating {} conformations ...'.format(nr_of_conformations))
-    mol, rmsd = _generate_conformations_from_mol(input_smi=smiles, nr_of_conformations=nr_of_conformations, molecule_name=name)
+    mol = generate_conformations_from_mol(mol)
 
 
     return { 'ligand_atoms' : ''.join(atom_list), 
