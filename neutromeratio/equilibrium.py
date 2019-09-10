@@ -13,7 +13,6 @@ class LangevinDynamics(object):
         self.temperature = temperature
         self.atom_list = atom_list
 
-
     def run_dynamics(self, 
                     x0:np.ndarray,
                     n_steps:int = 100,

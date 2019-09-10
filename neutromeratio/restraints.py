@@ -37,19 +37,17 @@ def flat_bottom_position_restraint(x, tautomer_transformation:dict, atom_list:li
 
     k = 5
     if restrain_acceptor:
-        if 'acceptor_hydrogen_idx' not in tautomer_transformation:
-            heavy_atom_idx = tautomer_transformation['acceptor_idx']
-            hydrogen_idx = tautomer_transformation['hydrogen_idx']
-        else:
-            heavy_atom_idx = tautomer_transformation['acceptor_idx']
+        heavy_atom_idx = tautomer_transformation['acceptor_idx']
+        if 'acceptor_hydrogen_idx' in tautomer_transformation:
             hydrogen_idx = tautomer_transformation['acceptor_hydrogen_idx']
-    elif restrain_donor:
-        if 'donor_hydrogen_idx' not in tautomer_transformation:
-            hydrogen_idx = tautomer_transformation['hydrogen_idx']
-            heavy_atom_idx = tautomer_transformation['donor_idx']
         else:
+            hydrogen_idx = tautomer_transformation['hydrogen_idx']
+    elif restrain_donor:
+        heavy_atom_idx = tautomer_transformation['donor_idx']
+        if 'donor_hydrogen_idx' in tautomer_transformation:
             hydrogen_idx = tautomer_transformation['donor_hydrogen_idx']
-            heavy_atom_idx = tautomer_transformation['donor_idx']
+        else:
+            hydrogen_idx = tautomer_transformation['hydrogen_idx']
     else:
         raise RuntimeError('Something went wrong.')
     
@@ -58,7 +56,6 @@ def flat_bottom_position_restraint(x, tautomer_transformation:dict, atom_list:li
 
     upper_bound = mean_bond_length.value_in_unit(unit.angstrom) + 0.2
     lower_bound = mean_bond_length.value_in_unit(unit.angstrom) - 0.2
-
 
     distance = torch.norm(x[0][hydrogen_idx] - x[0][heavy_atom_idx]) * nm_to_angstroms
     if distance <= lower_bound:
@@ -96,19 +93,17 @@ def harmonic_position_restraint(x, tautomer_transformation:dict, atom_list:list,
     """
 
     if restrain_acceptor:
-        if 'acceptor_hydrogen_idx' not in tautomer_transformation:
-            heavy_atom_idx = tautomer_transformation['acceptor_idx']
-            hydrogen_idx = tautomer_transformation['hydrogen_idx']
-        else:
-            heavy_atom_idx = tautomer_transformation['acceptor_idx']
+        heavy_atom_idx = tautomer_transformation['acceptor_idx']
+        if 'acceptor_hydrogen_idx' in tautomer_transformation:
             hydrogen_idx = tautomer_transformation['acceptor_hydrogen_idx']
-    elif restrain_donor:
-        if 'donor_hydrogen_idx' not in tautomer_transformation:
-            heavy_atom_idx = tautomer_transformation['donor_idx']
-            hydrogen_idx = tautomer_transformation['hydrogen_idx']
         else:
-            heavy_atom_idx = tautomer_transformation['donor_idx']
+            hydrogen_idx = tautomer_transformation['hydrogen_idx']
+    elif restrain_donor:
+        heavy_atom_idx = tautomer_transformation['donor_idx']
+        if 'donor_hydrogen_idx' in tautomer_transformation:
             hydrogen_idx = tautomer_transformation['donor_hydrogen_idx']
+        else:
+            hydrogen_idx = tautomer_transformation['hydrogen_idx']
     else:
         raise RuntimeError('Something went wrong.')
     
