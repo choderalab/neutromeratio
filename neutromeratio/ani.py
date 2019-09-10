@@ -38,7 +38,7 @@ class ANI1_force_and_energy(object):
         self.species = model.species_to_tensor(atom_list).to(device).unsqueeze(0)
         self.atom_list = atom_list
         self.platform = platform
-        self.lambda_value = 1.0
+        self.lambda_value = 1.0 # NOTE: lambda must be between 0.0 and 1.0
         self.bias_harmonic = []
         self.bias_flat_bottom = []
         self.bias_applied = []
