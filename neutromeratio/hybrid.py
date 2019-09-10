@@ -6,6 +6,7 @@ import logging
 import mdtraj as md
 import torch
 from simtk import unit
+from ase import Atom, Atoms
 
 logger = logging.getLogger(__name__)
 
