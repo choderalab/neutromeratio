@@ -2,14 +2,9 @@ import numpy as np
 from .constants import speed_unit, distance_unit, kB
 from simtk import unit
 from tqdm import tqdm
-from .utils import generate_xyz_string
 from .ani import ANI1_force_and_energy
 import mdtraj as md
-import torchani
-import torch
-import logging
 
-logger = logging.getLogger(__name__)
 
 class LangevinDynamics(object):
 
@@ -139,26 +134,50 @@ def use_precalculated_md_and_performe_mc(top:str,
             hydrogen_mover.work_values.append(work)
             
 
+class MonteCarloBarostat(object):
+
+    def __init__(self, pbc_box_length:unit.Quantity, energy:ANI1_force_and_energy):
+
+        assert(type(pbc_box_length) == unit.Quantity)
+        self.current_volumn = pbc_box_length ** 3
+        self.num_attempted = 0
+        self.num_accepted = 0
+        self.volume_scale = 0.01 * self.current_volumn
+        self.energy_function = energy
+
+    def update_volumn(self, x:unit.Quantity):
+        raise(NotImplementedError('under construction!'))
+
+        assert(type(x) == unit.Quantity)
+        # TODO: x is not used
+        print(self.energy_function.model.pbc)
+        energy = self.energy_function.calculate_energy(x)
+        current_volumn = self.current_volumn
+        import random
+        delta_volumn = current_volumn * 2 * (random.uniform(0, 1) - 0.5)
+        # TODO: use numpy.random throughout -- slightly different conventions
+        new_volumn = current_volumn + delta_volumn
+        length_scale = (new_volumn/current_volumn) ** (1.0/3.0)
+        # TODO: length_scale not used
 
 
 def read_precalculated_md(top:str, trajs:list):
     """
-    Iterates over a trajectory and performs MC moves.
-    The hydrogen_movers specify a list of MC_mover objects that should be used on the same coordinate set. 
+
     Parameters
     ----------
     top : str
             file path to topology file
     trajs: list[str]
             list of file paths to traj files
-    hydrogen_movers: list[MC_mover]
-            all MC_movers specified in this list are subsequently applied to the same coordinate set
-    mc_every_nth_frame: int
-            performs MC every nth frame
 
+    Returns
+    -------
+    traj_in_mm : list of (n_atoms,3) numpy arrays with nanometer units attached?
     """
     topology = md.load(top).topology
     traj = md.load(trajs, top=topology)
+    # TODO: update this a bit
     traj_in_nm = []
     for x in traj:
         coordinates = x.xyz[0] * unit.nanometer

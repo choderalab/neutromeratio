@@ -1,16 +1,12 @@
 import copy
 from .mcmc import MC_Mover
 from .ani import ANI1_force_and_energy, LinearAlchemicalANI, LinearAlchemicalSingleTopologyANI
+# TODO: LinearAlchemicalSingleTopologyANI unused...
 import logging
-from .utils import generate_xyz_string
 import mdtraj as md
-import torchani
 import torch
-import numpy as np
 from simtk import unit
-from .equilibrium import LangevinDynamics
 from ase import Atom, Atoms
-
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +40,7 @@ def generate_hybrid_structure(ani_input:dict, tautomer_transformation:dict, ANI1
                                           atom_list = ani_input['hybrid_atoms'],
                                           platform = platform,
                                           tautomer_transformation = None)
-
+    # TODO: check type consistency: here tautomer_transformation=None, but default is {}
 
     hydrogen_mover = MC_Mover(tautomer_transformation['donor_idx'], 
                             tautomer_transformation['hydrogen_idx'], 
@@ -67,7 +63,6 @@ def generate_hybrid_structure(ani_input:dict, tautomer_transformation:dict, ANI1
     
     tautomer_transformation['donor_hydrogen_idx'] = tautomer_transformation['hydrogen_idx']
     tautomer_transformation['acceptor_hydrogen_idx'] = len(ani_input['hybrid_atoms']) -1
-    
     ani_input['hybrid_coords'] = min_coordinates
     ani_input['min_e'] = min_e
     ani_input['hybrid_topology'] = hybrid_top

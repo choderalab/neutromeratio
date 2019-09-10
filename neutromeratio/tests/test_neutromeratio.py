@@ -167,7 +167,7 @@ def test_hybrid_topology():
     tautomer_transformation = neutromeratio.get_tautomer_transformation(from_mol, to_mol)
     neutromeratio.generate_hybrid_structure(ani_input, tautomer_transformation, neutromeratio.ani.ANI1_force_and_energy)
     assert(ani_input['hybrid_atoms'] == 'OCCCNCCCCCCHHHHHHHH')
-    ani_traj = md.Trajectory(ani_input['hybrid_coords'].value_in_unit(unit.nanometer), ani_input['hybrid_topolog'])
+    ani_traj = md.Trajectory(ani_input['hybrid_coords'].value_in_unit(unit.nanometer), ani_input['hybrid_topology'])
     e = ani_input['min_e']
     
     assert(type(e) == unit.Quantity)
