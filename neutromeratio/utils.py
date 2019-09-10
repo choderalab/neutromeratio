@@ -240,6 +240,7 @@ def from_mol_to_ani_input(mol: Chem.Mol) -> dict:
         coord_list.append([pos.x, pos.y, pos.z])
 
     n = random.random()
+    # TODO: use tmpfile for this https://stackabuse.com/the-python-tempfile-module/
     _ = write_pdb(mol, f"tmp{n:0.9f}.pdb")
     topology = md.load(f"tmp{n:0.9f}.pdb").topology
     os.remove(f"tmp{n:0.9f}.pdb")

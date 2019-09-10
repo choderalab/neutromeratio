@@ -87,22 +87,18 @@ class ANI1_force_and_energy(object):
         if self.restrain_acceptor and self.restrain_donor:
             # set everything to zero
             bias_flat_bottom = 0.0
-            bias_harmonic = 0.0
             bias = 0.0
             # restrain donor heavy atom and hydrogen
             # for donor heavy atom and hydrogen restraint the flat_bottom restraint weakens while lambda increases
             bias_flat_bottom = flat_bottom_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor=False, restrain_donor=True, device=self.device)
-            bias_harmonic = harmonic_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor=False, restrain_donor=True, device=self.device)
-            bias += (bias_flat_bottom * self.lambda_value) + ((1 - self.lambda_value) * bias_harmonic)
+            bias += (bias_flat_bottom * self.lambda_value)
             # restrain acceptor heavy atom and hydrogen
             # for donor heavy atom and hydrogen restraint the flat_bottom restraint strengthens while lambda increases
             bias_flat_bottom = flat_bottom_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor=True, restrain_donor=False, device=self.device)
-            bias_harmonic = harmonic_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor=True, restrain_donor=False, device=self.device)
-            bias += (bias_flat_bottom * (1 - self.lambda_value)) + (self.lambda_value * bias_harmonic)
+            bias += (bias_flat_bottom * (1 - self.lambda_value))
             energy_in_kJ_mol += bias
 
             self.bias_flat_bottom.append(bias_flat_bottom)
-            self.bias_harmonic.append(bias_harmonic)            
             self.bias_applied.append(bias)
 
         if self.restrain_acceptor or self.restrain_donor:
