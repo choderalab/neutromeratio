@@ -232,10 +232,3 @@ def from_mol_to_ani_input(mol: Chem.Mol) -> dict:
             'ligand_coords' : np.array(coord_list) * unit.angstrom, 
             'ligand_topology' : topology,
             }
-
-
-
-
-
-
-

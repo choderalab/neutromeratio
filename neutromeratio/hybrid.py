@@ -1,7 +1,6 @@
 import copy
 from .mcmc import MC_Mover
-from .ani import ANI1_force_and_energy, LinearAlchemicalANI, LinearAlchemicalSingleTopologyANI
-# TODO: LinearAlchemicalSingleTopologyANI unused...
+from .ani import ANI1_force_and_energy, LinearAlchemicalANI 
 import logging
 import mdtraj as md
 import torch
