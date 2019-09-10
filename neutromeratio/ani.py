@@ -5,15 +5,8 @@ import numpy as np
 from .constants import nm_to_angstroms, hartree_to_kJ_mol
 from simtk import unit
 import simtk
-from rdkit import Chem
-import logging
 from .restraints import flat_bottom_position_restraint, harmonic_position_restraint
-import neutromeratio
 from ase.optimize import BFGS
-
-gaff_default = os.path.join("../data/gaff2.xml")
-logger = logging.getLogger(__name__)
-
 
 
 class ANI1_force_and_energy(object):
@@ -399,5 +392,3 @@ class LinearAlchemicalSingleTopologyANI(AlchemicalANI):
             filename = os.path.join(dir_, 'ANN-{}.nnf'.format(i))
             models.append(torchani.neurochem.load_atomic_network(filename))
         return DoubleAniModel(models)
-
-
