@@ -72,7 +72,6 @@ class ANI1_force_and_energy(object):
         coordinates = torch.tensor([x.value_in_unit(unit.nanometer)],
                                 requires_grad=True, device=self.device, dtype=torch.float32)
 
-
         _, energy_in_hartree = self.model((self.species, coordinates * nm_to_angstroms, self.lambda_value))
         # convert energy from hartrees to kJ/mol
         energy_in_kJ_mol = energy_in_hartree * hartree_to_kJ_mol
@@ -90,8 +89,6 @@ class ANI1_force_and_energy(object):
             bias_flat_bottom = flat_bottom_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor=True, restrain_donor=False, device=self.device)
             bias += (bias_flat_bottom * (1 - self.lambda_value))
             energy_in_kJ_mol += bias
-
-            self.bias_flat_bottom.append(bias_flat_bottom)
             self.bias_applied.append(bias)
 
         if self.restrain_acceptor or self.restrain_donor:

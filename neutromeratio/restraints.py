@@ -37,7 +37,8 @@ def flat_bottom_position_restraint(x, tautomer_transformation:dict, atom_list:li
 
     sigma = 0.1 * unit.angstrom
     T = 300 * unit.kelvin
-    k = (kB * T) / (sigma**2) 
+    k = (kB * T) / (sigma**2)
+
     if restrain_acceptor:
         heavy_atom_idx = tautomer_transformation['acceptor_idx']
         if 'acceptor_hydrogen_idx' in tautomer_transformation:
@@ -59,11 +60,12 @@ def flat_bottom_position_restraint(x, tautomer_transformation:dict, atom_list:li
     upper_bound = mean_bond_length.value_in_unit(unit.angstrom) + 0.2
     lower_bound = mean_bond_length.value_in_unit(unit.angstrom) - 0.2
 
+    k = k.value_in_unit((unit.kilo * unit.joule) / ((unit.angstrom **2) * unit.mole))
     distance = torch.norm(x[0][hydrogen_idx] - x[0][heavy_atom_idx]) * nm_to_angstroms
     if distance <= lower_bound:
-        e = k * (lower_bound - distance.double())**2
+        e = (k/2) * (lower_bound - distance.double())**2
     elif distance >= upper_bound:
-        e = (k/2) * (distance.double() - upper_bound)**2 #NOTE: is it really k/2 - double check
+        e = (k/2) * (distance.double() - upper_bound)**2 
     else:
         e = torch.tensor(0.0, dtype=torch.double, device=device)
     logging.debug('Flat bottom bias introduced: {:0.4f}'.format(e.item()))

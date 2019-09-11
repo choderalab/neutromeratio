@@ -94,7 +94,7 @@ class LangevinDynamics(object):
             # check positions and forces are finite
             if (not np.isfinite(x).all()) or (not np.isfinite(norm_F)):
                 print("Numerical instability encountered!")
-                return traj
+                return traj, energy
             traj.append(x)
         return traj, energy
 
