@@ -44,15 +44,13 @@ class ANI1_force_and_energy(object):
 
     def minimize(self, ani_input):
         
-        #calculator = self.model.ase(dtype=torch.float32)
-        calculator = torchani.models.ANI1ccx().ase(dtype=torch.float64)
+        calculator = self.model.ase(dtype=torch.float64)
         mol = ani_input['ase_hybrid_mol']
         mol.set_calculator(calculator)
         print("Begin minimizing...")
         opt = BFGS(mol)
         opt.run(fmax=0.001)
-
-
+        ani_input['hybrid_coords'] = np.array(mol.get_positions()) * unit.angstrom
 
     def calculate_force(self, x:simtk.unit.quantity.Quantity) -> simtk.unit.quantity.Quantity:
         """
@@ -221,6 +219,7 @@ class DoubleAniModel(torchani.nn.ANIModel):
         
 
 class LinearAlchemicalANI(AlchemicalANI):
+
     def __init__(self, alchemical_atoms:list, ani_input:dict, device:torch.device, pbc:bool=False):
         """Scale the indirect contributions of alchemical atoms to the energy sum by
         linearly interpolating, for other atom i, between the energy E_i^0 it would compute
@@ -228,8 +227,6 @@ class LinearAlchemicalANI(AlchemicalANI):
         in the _presence_ of the alchemical atoms.
         (Also scale direct contributions, as in DirectAlchemicalANI)
         """
-
-        assert(len(alchemical_atoms) <= 1)
         super().__init__(alchemical_atoms)      
         self.neural_networks = self._load_model_ensemble(self.species, self.ensemble_prefix, self.ensemble_size)
         self.ani_input = ani_input
@@ -253,16 +250,18 @@ class LinearAlchemicalANI(AlchemicalANI):
             aevs = aevs[0], aevs[1], cell, torch.tensor([True, True, True], dtype=torch.bool, device=self.device)
 
         species, aevs = self.aev_computer(aevs)
-            
+
 
         # neural net output given these AEVs
         nn_1 = self.neural_networks((species, aevs))[1]
         E_1 = self.energy_shifter((species, nn_1))[1]
         
+        # NOTE: this is inconsistent with the lambda definition in the staged simulation
+        # LAMBDA == 1: fully interacting
         if float(lam) == 1.0:
             E = E_1
         else:
-            # LAMBDA = 0: fully removed
+            # LAMBDA == 0: fully removed
             # species, AEVs of all other atoms, in absence of alchemical atoms
             mod_species = torch.cat((species[:, :self.alchemical_atoms[0]],  species[:, self.alchemical_atoms[0]+1:]), dim=1)
             mod_coordinates = torch.cat((coordinates[:, :self.alchemical_atoms[0]],  coordinates[:, self.alchemical_atoms[0]+1:]), dim=1) 
@@ -273,22 +272,6 @@ class LinearAlchemicalANI(AlchemicalANI):
             E = (lam * E_1) + ((1 - lam) * E_0)
         return species, E
 
-
-    def _load_model_ensemble(self, species, prefix, count):
-        """Returns an instance of :class:`torchani.Ensemble` loaded from
-        NeuroChem's network directories beginning with the given prefix.
-        Arguments:
-            species (:class:`collections.abc.Sequence`): Sequence of strings for
-                chemical symbols of each supported atom type in correct order.
-            prefix (str): Prefix of paths of directory that networks configurations
-                are stored.
-            count (int): Number of models in the ensemble.
-        """
-        models = []
-        for i in range(count):
-            network_dir = os.path.join('{}{}'.format(prefix, i), 'networks')
-            models.append(self._load_model(species, network_dir))
-        return torchani.nn.Ensemble(models)
 
     def _load_model(self, species, dir_):
         """Returns an instance of :class:`torchani.ANIModel` loaded from
@@ -305,7 +288,7 @@ class LinearAlchemicalANI(AlchemicalANI):
         return DoubleAniModel(models)
 
 
-class LinearAlchemicalSingleTopologyANI(AlchemicalANI):
+class LinearAlchemicalSingleTopologyANI(LinearAlchemicalANI):
     def __init__(self, alchemical_atoms:list, ani_input:dict, device:torch.device, pbc:bool=False):
         """Scale the indirect contributions of alchemical atoms to the energy sum by
         linearly interpolating, for other atom i, between the energy E_i^0 it would compute
@@ -316,20 +299,12 @@ class LinearAlchemicalSingleTopologyANI(AlchemicalANI):
 
         assert(len(alchemical_atoms) == 2)
 
-        super().__init__(alchemical_atoms)      
-        self.neural_networks = self._load_model_ensemble(self.species, self.ensemble_prefix, self.ensemble_size)
-        self.ani_input = ani_input
-        self.device = device
-        self.pbc = pbc
-        if pbc:
-            self.box_length = self.ani_input['box_length'].value_in_unit(unit.angstrom)
-        else:
-            self.box_length = 0.0 * unit.angstrom
+        super().__init__(alchemical_atoms, ani_input, device)      
+
 
     def forward(self, species_coordinates):
         # for now only allow one alchemical atom
 
-        # LAMBDA = 1: fully interacting
         # species, AEVs of fully interacting system
         species, coordinates, lam = species_coordinates
         aevs = species_coordinates[:-1]
@@ -338,8 +313,6 @@ class LinearAlchemicalSingleTopologyANI(AlchemicalANI):
                                 device=self.device, dtype=torch.float)
             aevs = aevs[0], aevs[1], cell, torch.tensor([True, True, True], dtype=torch.bool, device=self.device)
 
-        # LAMBDA = 0: fully removed
-        # species, AEVs of all other atoms, in absence of alchemical atoms
         dummy_atom_1 = self.alchemical_atoms[0]
         dummy_atom_2 = self.alchemical_atoms[1]
 
@@ -361,34 +334,3 @@ class LinearAlchemicalSingleTopologyANI(AlchemicalANI):
 
         E = (lam * E_1) + ((1 - lam) * E_0)
         return species, E
-
-
-    def _load_model_ensemble(self, species, prefix, count):
-        """Returns an instance of :class:`torchani.Ensemble` loaded from
-        NeuroChem's network directories beginning with the given prefix.
-        Arguments:
-            species (:class:`collections.abc.Sequence`): Sequence of strings for
-                chemical symbols of each supported atom type in correct order.
-            prefix (str): Prefix of paths of directory that networks configurations
-                are stored.
-            count (int): Number of models in the ensemble.
-        """
-        models = []
-        for i in range(count):
-            network_dir = os.path.join('{}{}'.format(prefix, i), 'networks')
-            models.append(self._load_model(species, network_dir))
-        return torchani.nn.Ensemble(models)
-
-    def _load_model(self, species, dir_):
-        """Returns an instance of :class:`torchani.ANIModel` loaded from
-        NeuroChem's network directory.
-        Arguments:
-            species (:class:`collections.abc.Sequence`): Sequence of strings for
-                chemical symbols of each supported atom type in correct order.
-            dir_ (str): String for directory storing network configurations.
-        """
-        models = []
-        for i in species:
-            filename = os.path.join(dir_, 'ANN-{}.nnf'.format(i))
-            models.append(torchani.neurochem.load_atomic_network(filename))
-        return DoubleAniModel(models)

@@ -52,7 +52,7 @@ def generate_hybrid_structure(ani_input:dict, tautomer_transformation:dict, ANI1
 
     # from the multiple conformations in ani_input['ligand_coords'] we are taking a single
     # coordinate set (the first one) and add the hydrogen 
-    for _ in range(1000):
+    for _ in range(10):
         hybrid_coord = hydrogen_mover._move_hydrogen_to_acceptor_idx(ani_input['ligand_coords'][0], override=False)
         e = energy_function.calculate_energy(hybrid_coord)
         if e < min_e:
@@ -78,4 +78,8 @@ def generate_hybrid_structure(ani_input:dict, tautomer_transformation:dict, ANI1
         atom_list.append(Atom(e, c_list))
     mol = Atoms(atom_list)
     ani_input['ase_hybrid_mol'] = mol
+
+
+
+
 
