@@ -36,7 +36,7 @@ def test_tautomer_transformation():
     mols = { 't1' : neutromeratio.generate_rdkit_mol(t1_smiles), 't2' : neutromeratio.generate_rdkit_mol(t2_smiles) }
     from_mol = mols[f"t{from_mol_tautomer_idx}"]
     to_mol = mols[f"t{to_mol_tautomer_idx}"]
-    ani_input = neutromeratio.from_mol_to_ani_input(from_mol)
+    ani_input = neutromeratio.from_mol_to_ani_input(from_mol, nr_of_conf=2)
     tautomer_transformation = neutromeratio.get_tautomer_transformation(from_mol, to_mol)
     atom_list = ani_input['ligand_atoms']
     
@@ -67,7 +67,7 @@ def test_neutromeratio_energy_calculations():
     mols = { 't1' : neutromeratio.generate_rdkit_mol(t1_smiles), 't2' : neutromeratio.generate_rdkit_mol(t2_smiles) }
     from_mol = mols[f"t{from_mol_tautomer_idx}"]
     to_mol = mols[f"t{to_mol_tautomer_idx}"]
-    ani_input = neutromeratio.from_mol_to_ani_input(from_mol)
+    ani_input = neutromeratio.from_mol_to_ani_input(from_mol, nr_of_conf=2)
     
     # generate tautomer transformation
     tautomer_transformation = neutromeratio.get_tautomer_transformation(from_mol, to_mol)
@@ -115,7 +115,7 @@ def test_neutromeratio_energy_calculations_with_dummy_atom():
     mols = { 't1' : neutromeratio.generate_rdkit_mol(t1_smiles), 't2' : neutromeratio.generate_rdkit_mol(t2_smiles) }
     from_mol = mols[f"t{from_mol_tautomer_idx}"]
     to_mol = mols[f"t{to_mol_tautomer_idx}"]
-    ani_input = neutromeratio.from_mol_to_ani_input(from_mol)
+    ani_input = neutromeratio.from_mol_to_ani_input(from_mol, nr_of_conf=5)
     
     # generate tautomer transformation
     tautomer_transformation = neutromeratio.get_tautomer_transformation(from_mol, to_mol)
@@ -162,7 +162,7 @@ def test_hybrid_topology():
     mols = { 't1' : neutromeratio.generate_rdkit_mol(t1_smiles), 't2' : neutromeratio.generate_rdkit_mol(t2_smiles) }
     from_mol = mols[f"t{from_mol_tautomer_idx}"]
     to_mol = mols[f"t{to_mol_tautomer_idx}"]
-    ani_input = neutromeratio.from_mol_to_ani_input(from_mol)
+    ani_input = neutromeratio.from_mol_to_ani_input(from_mol, nr_of_conf=2)
 
     tautomer_transformation = neutromeratio.get_tautomer_transformation(from_mol, to_mol)
     neutromeratio.generate_hybrid_structure(ani_input, tautomer_transformation, neutromeratio.ani.ANI1_force_and_energy)

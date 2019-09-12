@@ -38,6 +38,7 @@ class ANI1_force_and_energy(object):
         self.tautomer_transformation = tautomer_transformation
         self.restrain_acceptor = False
         self.restrain_donor = False
+        self.use_pure_ani1ccx = False
 
         # TODO: check availablity of platform
 
@@ -72,7 +73,10 @@ class ANI1_force_and_energy(object):
         coordinates = torch.tensor([x.value_in_unit(unit.nanometer)],
                                 requires_grad=True, device=self.device, dtype=torch.float32)
 
-        _, energy_in_hartree = self.model((self.species, coordinates * nm_to_angstroms, self.lambda_value))
+        if self.use_pure_ani1ccx:
+            _, energy_in_hartree = self.model((self.species, coordinates * nm_to_angstroms))
+        else:
+            _, energy_in_hartree = self.model((self.species, coordinates * nm_to_angstroms, self.lambda_value))
         # convert energy from hartrees to kJ/mol
         energy_in_kJ_mol = energy_in_hartree * hartree_to_kJ_mol
 
@@ -135,7 +139,10 @@ class ANI1_force_and_energy(object):
         coordinates = torch.tensor([x.value_in_unit(unit.nanometer)],
                                 requires_grad=True, device=self.device, dtype=torch.float32)
 
-        _, energy_in_hartree = self.model((self.species, coordinates * nm_to_angstroms, self.lambda_value))
+        if self.use_pure_ani1ccx:
+            _, energy_in_hartree = self.model((self.species, coordinates * nm_to_angstroms))
+        else:
+            _, energy_in_hartree = self.model((self.species, coordinates * nm_to_angstroms, self.lambda_value))
         # convert energy from hartrees to kJ/mol
         energy_in_kJ_mol = energy_in_hartree * hartree_to_kJ_mol
 
