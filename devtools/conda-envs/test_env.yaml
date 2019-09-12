@@ -1,10 +1,12 @@
-name: ani36
+name: test
 channels:
-  - conda-forge
-  - omnia/label/dev
-  - omnia
-  - defaults
 dependencies:
+    # Base depends
+  - python
+  - pip
+    # Testing
+  - pytest
+  - pytest-cov
   - ase
   - matplotlib
   - mdtraj
@@ -18,10 +20,11 @@ dependencies:
   - pytest
   - rdkit
   - scipy
+  - pytest-cov
   - pip:
     - lark-parser
     - six
     - torch
     - torchani==0.9
     - torchvision
-    - pytest
+    - codecov
