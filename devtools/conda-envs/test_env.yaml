@@ -22,6 +22,8 @@ dependencies:
   - pdbfixer
   - pip
   - pymbar
+  - tqdm
+  - simtk
   - pytest
   - rdkit
   - scipy
