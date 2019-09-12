@@ -24,4 +24,4 @@ dependencies:
     - torch
     - torchani==0.9
     - torchvision
-
+    - pytest
