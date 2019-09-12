@@ -23,7 +23,7 @@ dependencies:
   - pip
   - pymbar
   - tqdm
-  - simtk
+  #- simtk
   - pytest
   - rdkit
   - scipy
