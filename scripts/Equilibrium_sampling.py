@@ -29,7 +29,7 @@ t2_smiles = exp_results[name]['t2-smiles']
 mols = { 't1' : neutromeratio.generate_rdkit_mol(t1_smiles), 't2' : neutromeratio.generate_rdkit_mol(t2_smiles) }
 from_mol = mols['t1']
 to_mol = mols['t2']
-ani_input = neutromeratio.from_mol_to_ani_input(from_mol)
+ani_input = neutromeratio.from_mol_to_ani_input(from_mol, nr_of_conf=1)
 
 tautomer_transformation = neutromeratio.get_tautomer_transformation(from_mol, to_mol)
 neutromeratio.generate_hybrid_structure(ani_input, tautomer_transformation, neutromeratio.ani.ANI1_force_and_energy)

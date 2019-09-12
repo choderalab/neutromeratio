@@ -124,24 +124,35 @@ def generate_nglview_object(traj:md.Trajectory, tautomer_transformation:dict) ->
     return view 
 
 
-def from_mol_to_ani_input(mol: Chem.Mol) -> dict:
+def from_mol_to_ani_input(mol: Chem.Mol, nr_of_conf: int) -> dict:
     """
     Generates atom_list and coord_list entries from rdkit mol.
     Parameters
     ----------
     mol : rdkit.Chem.Mol
+    nr_of_conf : int
 
     Returns
     -------
     { 'ligand_atoms' : atoms, 'ligand_coords' : coord_list} 
     """
     
+    # generate atom list
     atom_list = []
-    coord_list = []
     for a in mol.GetAtoms():
         atom_list.append(a.GetSymbol())
-        pos = mol.GetConformer().GetAtomPosition(a.GetIdx())
-        coord_list.append([pos.x, pos.y, pos.z])
+
+    # generate coord list
+    coord_list = []
+    mol = generate_conformations_from_mol(mol, nr_of_conf)
+
+    for conf_idx in range(mol.GetNumConformers()):
+        tmp_coord_list = []
+        for a in mol.GetAtoms():
+            pos = mol.GetConformer(conf_idx).GetAtomPosition(a.GetIdx())
+            tmp_coord_list.append([pos.x, pos.y, pos.z])
+        tmp_coord_list = np.array(tmp_coord_list) * unit.angstrom
+        coord_list.append(tmp_coord_list)
 
     n = random.random()
     # TODO: use tmpfile for this https://stackabuse.com/the-python-tempfile-module/
@@ -149,10 +160,9 @@ def from_mol_to_ani_input(mol: Chem.Mol) -> dict:
     topology = md.load(f"tmp{n:0.9f}.pdb").topology
     os.remove(f"tmp{n:0.9f}.pdb")
     
-    mol = generate_conformations_from_mol(mol)
 
 
     return { 'ligand_atoms' : ''.join(atom_list), 
-            'ligand_coords' : np.array(coord_list) * unit.angstrom, 
+            'ligand_coords' : coord_list, 
             'ligand_topology' : topology,
             }

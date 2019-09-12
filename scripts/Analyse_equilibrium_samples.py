@@ -84,7 +84,7 @@ plt.show()
 plt.savefig(f"/home/mwieder/Work/Projects/neutromeratio/data/equilibrium_sampling/{name}/{name}_energy.png")
 
 # calculate free energy in kT
-fec = FreeEnergyCalculator(ani_model=model, ani_trajs=ani_trajs, potential_energy_trajs=energies, lambdas=lambdas)
+fec = FreeEnergyCalculator(ani_model=energy_function, ani_trajs=ani_trajs, potential_energy_trajs=energies, lambdas=lambdas)
 free_energy_in_kT = fec.compute_free_energy_difference()
 f = open('/home/mwieder/Work/Projects/neutromeratio/data/equilibrium_sampling/energies.csv', 'a+')
 f.write(f"{name}, {free_energy_in_kT}\n")

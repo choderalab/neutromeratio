@@ -16,7 +16,6 @@ def generate_hybrid_structure(ani_input:dict, tautomer_transformation:dict, ANI1
     Keys are added to the ani_input dict and tautomer_transformation dict:
     ani_input['hybrid_atoms'] = ani_input['ligand_atoms'] + 'H'
     ani_input['hybrid_coords'] = hybrid_coord
-    ani_input['min_e'] = min_e
     ani_input['hybrid_topolog'] = hybrid_top
     tautomer_transformation['donor_hydrogen_idx'] = tautomer_transformation['hydrogen_idx']
     tautomer_transformation['acceptor_hydrogen_idx'] = len(ani_input['hybrid_atoms']) -1
@@ -41,20 +40,20 @@ def generate_hybrid_structure(ani_input:dict, tautomer_transformation:dict, ANI1
                                           tautomer_transformation = None)
     # TODO: check type consistency: here tautomer_transformation=None, but default is {}
 
+    # generate MC mover to get new hydrogen position
     hydrogen_mover = MC_Mover(tautomer_transformation['donor_idx'], 
                             tautomer_transformation['hydrogen_idx'], 
                             tautomer_transformation['acceptor_idx'],
                             ani_input['ligand_atoms'])
 
-    hybrid_top = copy.deepcopy(ani_input['ligand_topology'])
-    dummy_atom = hybrid_top.add_atom('H', md.element.hydrogen, hybrid_top.residue(-1))
-    hybrid_top.add_bond(hybrid_top.atom(tautomer_transformation['acceptor_idx']), dummy_atom)
 
     min_e = 100 * unit.kilocalorie_per_mole
     min_coordinates = None
 
+    # from the multiple conformations in ani_input['ligand_coords'] we are taking a single
+    # coordinate set (the first one) and add the hydrogen 
     for _ in range(1000):
-        hybrid_coord = hydrogen_mover._move_hydrogen_to_acceptor_idx(ani_input['ligand_coords'], override=False)
+        hybrid_coord = hydrogen_mover._move_hydrogen_to_acceptor_idx(ani_input['ligand_coords'][0], override=False)
         e = energy_function.calculate_energy(hybrid_coord)
         if e < min_e:
             min_e = e
@@ -63,9 +62,15 @@ def generate_hybrid_structure(ani_input:dict, tautomer_transformation:dict, ANI1
     tautomer_transformation['donor_hydrogen_idx'] = tautomer_transformation['hydrogen_idx']
     tautomer_transformation['acceptor_hydrogen_idx'] = len(ani_input['hybrid_atoms']) -1
     ani_input['hybrid_coords'] = min_coordinates
-    ani_input['min_e'] = min_e
+
+    # add to mdtraj ligand topology a new hydrogen
+    hybrid_top = copy.deepcopy(ani_input['ligand_topology'])
+    dummy_atom = hybrid_top.add_atom('H', md.element.hydrogen, hybrid_top.residue(-1))
+    hybrid_top.add_bond(hybrid_top.atom(tautomer_transformation['acceptor_idx']), dummy_atom)
+    # save new top in ani_input
     ani_input['hybrid_topology'] = hybrid_top
 
+    # generate an ASE topology for the hybrid mol to minimze later 
     atom_list = []
     for e, c in zip(ani_input['hybrid_atoms'], ani_input['hybrid_coords']):
         c_list = (c[0].value_in_unit(unit.angstrom), c[1].value_in_unit(unit.angstrom), c[2].value_in_unit(unit.angstrom)) 

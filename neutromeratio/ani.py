@@ -91,7 +91,7 @@ class ANI1_force_and_energy(object):
             energy_in_kJ_mol += bias
             self.bias_applied.append(bias)
 
-        if self.restrain_acceptor or self.restrain_donor:
+        elif self.restrain_acceptor or self.restrain_donor:
             bias_flat_bottom = flat_bottom_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor=self.restrain_acceptor, restrain_donor=self.restrain_donor, device=self.device)
             bias_harmonic = harmonic_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor=self.restrain_acceptor, restrain_donor=self.restrain_donor, device=self.device)
             bias = (bias_flat_bottom * self.lambda_value) + ((1 - self.lambda_value) * bias_harmonic)
@@ -190,7 +190,6 @@ class AEVScalingAlchemicalANI(AlchemicalANI):
         (Also scale direct contributions, as in DirectAlchemicalANI)
         """
         super().__init__(alchemical_atoms)
-
 
 
 class DoubleAniModel(torchani.nn.ANIModel):
