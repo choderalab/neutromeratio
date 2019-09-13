@@ -12,12 +12,20 @@ from simtk import unit
 import numpy as np
 import mdtraj as md
 
+
+
 def test_equ():
     assert(1.0 == 1.0)
 
 def test_neutromeratio_imported():
     """Sample test, will always pass so long as import statement worked"""
     assert "neutromeratio" in sys.modules
+
+def test_constants_init():
+
+    neutromeratio.initialize_variables(300, 'cpu')
+    print(neutromeratio.constants.platform)
+    print(neutromeratio.constants.temperature)
 
 def test_tautomer_transformation():
 
@@ -77,13 +85,10 @@ def test_neutromeratio_energy_calculations():
     # overwrite the coordinates that rdkit generated with the first frame in the traj
     x0 = traj[0]
 
-    platform = 'cpu'
-    device = torch.device(platform)
-    model = neutromeratio.ani.LinearAlchemicalANI(alchemical_atoms=[hydrogen_idx], ani_input=ani_input, device=device)
-    model = model.to(device)
+    model = neutromeratio.ani.LinearAlchemicalANI(alchemical_atoms=[hydrogen_idx], ani_input=ani_input)
     torch.set_num_threads(1)
 
-    energy_function = neutromeratio.ANI1_force_and_energy(device = device,
+    energy_function = neutromeratio.ANI1_force_and_energy(
                                                 model = model,
                                                 atom_list = atom_list,
                                                 platform = platform,

@@ -11,8 +11,10 @@ logging.basicConfig(format=FORMAT,
     level=logging.INFO)
 
 # Add imports here
-from .chemoinf import generate_conformations_from_mol, get_tautomer_transformation, display_mol
-from .utils import from_mol_to_ani_input, reduced_pot, add_solvent, write_pdb, generate_nglview_object, generate_rdkit_mol
+from .conformations import generate_conformations_from_mol
+from .constants import initialize_variables
+from .tautomers import get_tautomer_transformation
+from .utils import display_mol, from_mol_to_ani_input, reduced_pot, add_solvent, write_pdb, generate_nglview_object, generate_rdkit_mol
 from .mcmc import Instantaneous_MC_Mover, NonequilibriumMC
 from .equilibrium import LangevinDynamics, use_precalculated_md_and_performe_mc
 from .ani import ANI1_force_and_energy

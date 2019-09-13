@@ -2,10 +2,10 @@ import os
 import torchani
 import torch
 import numpy as np
-from .constants import nm_to_angstroms, hartree_to_kJ_mol
+from .constants import nm_to_angstroms, hartree_to_kJ_mol, device
 from simtk import unit
 import simtk
-from .restraints import flat_bottom_position_restraint, harmonic_position_restraint
+from .restraints import Restraint
 from ase.optimize import BFGS
 
 
@@ -19,7 +19,6 @@ class ANI1_force_and_energy(object):
     """
 
     def __init__(self, 
-                device:torch.device, 
                 model:torchani.models.ANI1ccx, 
                 atom_list:list, 
                 platform:str, 
@@ -220,7 +219,7 @@ class DoubleAniModel(torchani.nn.ANIModel):
 
 class LinearAlchemicalANI(AlchemicalANI):
 
-    def __init__(self, alchemical_atoms:list, ani_input:dict, device:torch.device, pbc:bool=False):
+    def __init__(self, alchemical_atoms:list, ani_input:dict, pbc:bool=False):
         """Scale the indirect contributions of alchemical atoms to the energy sum by
         linearly interpolating, for other atom i, between the energy E_i^0 it would compute
         in the _complete absence_ of the alchemical atoms, and the energy E_i^1 it would compute

@@ -58,7 +58,7 @@ def generate_hybrid_structure(ani_input:dict, tautomer_transformation:dict, ANI1
         if e < min_e:
             min_e = e
             min_coordinates = hybrid_coord 
-    
+    hybrid_coords
     ani_input['min_e'] = min_e
     tautomer_transformation['donor_hydrogen_idx'] = tautomer_transformation['hydrogen_idx']
     tautomer_transformation['acceptor_hydrogen_idx'] = len(ani_input['hybrid_atoms']) -1

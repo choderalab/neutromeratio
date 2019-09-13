@@ -2,8 +2,6 @@
 from simtk import unit
 from rdkit import Chem
 from rdkit.Chem import AllChem
-from rdkit.Chem import rdFMCS
-import copy
 import os
 import mdtraj as md
 import numpy as np
@@ -14,10 +12,31 @@ from pdbfixer import PDBFixer
 from simtk.openmm import Vec3
 import random
 from .ani import ANI1_force_and_energy
-from .chemoinf import generate_conformations_from_mol
 import shutil
+from .conformations import generate_conformations_from_mol
+from rdkit.Chem.Draw import IPythonConsole
+from IPython.core.display import display
 
 logger = logging.getLogger(__name__)
+
+
+
+def display_mol(mol:Chem.Mol):
+    """
+    Gets mol as input and displays its 2D Structure using IPythonConsole.
+    """
+
+    def mol_with_atom_index(mol):
+        atoms = mol.GetNumAtoms()
+        for idx in range( atoms ):
+            mol.GetAtomWithIdx( idx ).SetProp( 'molAtomMapNumber', str( mol.GetAtomWithIdx( idx ).GetIdx() ) )
+        return mol
+
+    mol = mol_with_atom_index(mol)
+    AllChem.Compute2DCoords(mol)
+    display(mol)
+
+
 
     
 def write_pdb(mol:Chem.Mol, filepath:str)->str:
