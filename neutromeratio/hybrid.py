@@ -1,15 +1,17 @@
 import copy
 from .mcmc import MC_Mover
-from .ani import ANI1_force_and_energy, LinearAlchemicalANI 
+from .ani import ANI1_force_and_energy 
 import logging
 import mdtraj as md
 import torch
 from simtk import unit
 from ase import Atom, Atoms
+import torchani
+from .constants import device
 
 logger = logging.getLogger(__name__)
 
-def generate_hybrid_structure(ani_input:dict, tautomer_transformation:dict, ANI1_force_and_energy:ANI1_force_and_energy):
+def generate_hybrid_structure(ani_input:dict, tautomer_transformation:dict):
     """
     Generates a hybrid structure between two tautomers. The heavy atom frame is kept but a
     hydrogen is added to the tautomer acceptor heavy atom. 
@@ -25,21 +27,17 @@ def generate_hybrid_structure(ani_input:dict, tautomer_transformation:dict, ANI1
     tautomer_transformation : traj
     ANI1_force_and_energy : ANI1_force_and_energy
     """
-    platform = 'cpu'
-    device = torch.device(platform)
-    model = LinearAlchemicalANI(alchemical_atoms=[], ani_input={}, device=device, pbc=False)
+    model = torchani.models.ANI1ccx()
     model = model.to(device)
-    torch.set_num_threads(2)
 
     ani_input['hybrid_atoms'] = ani_input['ligand_atoms'] + 'H'
 
-    energy_function = ANI1_force_and_energy(device = device,
+    energy_function = ANI1_force_and_energy(
                                           model = model,
-                                          atom_list = ani_input['hybrid_atoms'],
-                                          platform = platform,
-                                          tautomer_transformation = None)
-    # TODO: check type consistency: here tautomer_transformation=None, but default is {}
-
+                                          atoms = ani_input['hybrid_atoms'],
+                                         )
+    
+    energy_function.use_pure_ani1ccx = True
     # generate MC mover to get new hydrogen position
     hydrogen_mover = MC_Mover(tautomer_transformation['donor_idx'], 
                             tautomer_transformation['hydrogen_idx'], 
@@ -54,11 +52,10 @@ def generate_hybrid_structure(ani_input:dict, tautomer_transformation:dict, ANI1
     # coordinate set (the first one) and add the hydrogen 
     for _ in range(10):
         hybrid_coord = hydrogen_mover._move_hydrogen_to_acceptor_idx(ani_input['ligand_coords'][0], override=False)
-        e = energy_function.calculate_energy(hybrid_coord)
+        e = energy_function.calculate_energy(hybrid_coord, lambda_value=1.0)
         if e < min_e:
             min_e = e
             min_coordinates = hybrid_coord 
-    hybrid_coords
     ani_input['min_e'] = min_e
     tautomer_transformation['donor_hydrogen_idx'] = tautomer_transformation['hydrogen_idx']
     tautomer_transformation['acceptor_hydrogen_idx'] = len(ani_input['hybrid_atoms']) -1

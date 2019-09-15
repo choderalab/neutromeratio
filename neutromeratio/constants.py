@@ -4,34 +4,40 @@ import sys
 import torch
 
 # this is a pointer to the module object instance itself.
-this = sys.modules[__name__]
+# this = sys.modules[__name__]
+# print(this)
+# # we can explicitly make assignments on it 
+# this.temperature = None
+# this.platform = None
+# this.kT = None
+# this.device = None
 
-# we can explicitly make assignments on it 
-this.temperature = None
-this.platform = None
-this.kT = None
+# def initialize_variables(temperature, platform):
+#     if (this.temperature is None):
+#         # also in local function scope. no scope specifier like global is needed
+#         if type(temperature) == unit.Quantity:
+#             this.temperature = temperature
+#             this.kT = kB * temperature
+#         else:
+#             this.temperature = temperature * unit.kelvin
+#             this.kT = kB * temperature
+#     else:
+#         msg = "Temperature is already initialized to {0}."
+#         raise RuntimeError(msg.format(this.temperature))
 
-def initialize_variables(temperature, platform):
-    if (this.temperature is None):
-        # also in local function scope. no scope specifier like global is needed
-        if type(temperature) == unit.Quantity:
-            this.temperature = temperature
-            this.kT = kB * temperature
-        else:
-            this.temperature = temperature * unit.kelvin
-            this.kT = kB * temperature
-    else:
-        msg = "Temperature is already initialized to {0}."
-        raise RuntimeError(msg.format(this.temperature))
+#     if (this.platform is None):
+#         # also in local function scope. no scope specifier like global is needed
+#         this.platform = platform
+#         this.device = torch.device(platform)
+#     else:
+#         msg = "Platform is already initialized to {0}."
+#         raise RuntimeError(msg.format(this.platform))
 
-    if (this.platform is None):
-        # also in local function scope. no scope specifier like global is needed
-        this.platform = platform
-        this.device = torch.device(platform)
-    else:
-        msg = "Platform is already initialized to {0}."
-        raise RuntimeError(msg.format(this.platform))
-
+temperature = 300 * unit.kelvin
+platform = 'cpu'
+kT = kB * temperature
+device = torch.device(platform)
+torch.set_num_threads(2)
 
 # openmm units
 mass_unit = unit.dalton

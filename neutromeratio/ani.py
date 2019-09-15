@@ -2,7 +2,7 @@ import os
 import torchani
 import torch
 import numpy as np
-from .constants import nm_to_angstroms, hartree_to_kJ_mol, device
+from .constants import nm_to_angstroms, hartree_to_kJ_mol, device, platform
 from simtk import unit
 import simtk
 from .restraints import Restraint
@@ -20,26 +20,24 @@ class ANI1_force_and_energy(object):
 
     def __init__(self, 
                 model:torchani.models.ANI1ccx, 
-                atom_list:list, 
-                platform:str, 
-                tautomer_transformation:dict={},
+                atoms:str, 
                 ):
         
         self.device = device
         self.model = model
-        self.species = model.species_to_tensor(atom_list).to(device).unsqueeze(0)
-        self.atom_list = atom_list
+        self.atoms = atoms
+        self.species = self.model.species_to_tensor(atoms).to(device).unsqueeze(0)
         self.platform = platform
-        self.lambda_value = 1.0 # NOTE: lambda must be between 0.0 and 1.0
-        self.bias_harmonic = []
-        self.bias_flat_bottom = []
-        self.bias_applied = []
-        self.tautomer_transformation = tautomer_transformation
-        self.restrain_acceptor = False
-        self.restrain_donor = False
         self.use_pure_ani1ccx = False
-
+        
+        self.flat_bottom_restraint = False
+        self.harmonic_restraint = False
+        self.list_of_restraints = []
+        self.bias = []
         # TODO: check availablity of platform
+
+    def add_restraint(self, restraint:Restraint):
+        self.list_of_restraints.append(restraint)
 
     def minimize(self, ani_input):
         
@@ -51,7 +49,7 @@ class ANI1_force_and_energy(object):
         opt.run(fmax=0.001)
         ani_input['hybrid_coords'] = np.array(mol.get_positions()) * unit.angstrom
 
-    def calculate_force(self, x:simtk.unit.quantity.Quantity) -> simtk.unit.quantity.Quantity:
+    def calculate_force(self, x:simtk.unit.quantity.Quantity, lambda_value:float) -> simtk.unit.quantity.Quantity:
         """
         Given a coordinate set the forces with respect to the coordinates are calculated.
         
@@ -59,51 +57,18 @@ class ANI1_force_and_energy(object):
         ----------
         x : array of floats, unit'd (distance unit)
             initial configuration
-
+        lambda_value : float
+            between 0.0 and 1.0 - at zero contributions of alchemical atoms are zero
         Returns
         -------
         F : float, unit'd
             
         """
-
         assert(type(x) == unit.Quantity)
         coordinates = torch.tensor([x.value_in_unit(unit.nanometer)],
                                 requires_grad=True, device=self.device, dtype=torch.float32)
 
-        if self.use_pure_ani1ccx:
-            _, energy_in_hartree = self.model((self.species, coordinates * nm_to_angstroms))
-        else:
-            _, energy_in_hartree = self.model((self.species, coordinates * nm_to_angstroms, self.lambda_value))
-        # convert energy from hartrees to kJ/mol
-        energy_in_kJ_mol = energy_in_hartree * hartree_to_kJ_mol
-
-        if self.restrain_acceptor and self.restrain_donor:
-            # set everything to zero
-            bias_flat_bottom = 0.0
-            bias = 0.0
-            # restrain donor heavy atom and hydrogen
-            # for donor heavy atom and hydrogen restraint the flat_bottom restraint weakens while lambda increases
-            bias_flat_bottom = flat_bottom_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor=False, restrain_donor=True, device=self.device)
-            bias += (bias_flat_bottom * self.lambda_value)
-            # restrain acceptor heavy atom and hydrogen
-            # for donor heavy atom and hydrogen restraint the flat_bottom restraint strengthens while lambda increases
-            bias_flat_bottom = flat_bottom_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor=True, restrain_donor=False, device=self.device)
-            bias += (bias_flat_bottom * (1 - self.lambda_value))
-            energy_in_kJ_mol += bias
-            self.bias_applied.append(bias)
-
-        elif self.restrain_acceptor or self.restrain_donor:
-            bias_flat_bottom = flat_bottom_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor=self.restrain_acceptor, restrain_donor=self.restrain_donor, device=self.device)
-            bias_harmonic = harmonic_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor=self.restrain_acceptor, restrain_donor=self.restrain_donor, device=self.device)
-            bias = (bias_flat_bottom * self.lambda_value) + ((1 - self.lambda_value) * bias_harmonic)
-
-            self.bias_flat_bottom.append(bias_flat_bottom)
-            self.bias_harmonic.append(bias_harmonic)            
-            self.bias_applied.append(bias)
-            energy_in_kJ_mol += bias
-        else:
-            pass
-
+        energy_in_kJ_mol = self.calculate_energy(x, lambda_value)
         # derivative of E (in kJ/mol) w.r.t. coordinates (in nm)
         derivative = torch.autograd.grad((energy_in_kJ_mol).sum(), coordinates)[0]
 
@@ -117,7 +82,7 @@ class ANI1_force_and_energy(object):
         return F * (unit.kilojoule_per_mole / unit.nanometer), energy_in_kJ_mol.item() * unit.kilojoule_per_mole
 
     
-    def calculate_energy(self, x:simtk.unit.quantity.Quantity) -> simtk.unit.quantity.Quantity:
+    def calculate_energy(self, x:simtk.unit.quantity.Quantity, lambda_value:float) -> simtk.unit.quantity.Quantity:
         """
         Given a coordinate set (x) the energy is calculated in kJ/mol.
 
@@ -125,6 +90,8 @@ class ANI1_force_and_energy(object):
         ----------
         x : array of floats, unit'd (distance unit)
             initial configuration
+        lambda_value : float
+            between 0.0 and 1.0 - at zero contributions of alchemical atoms are zero
 
         Returns
         -------
@@ -139,32 +106,41 @@ class ANI1_force_and_energy(object):
         if self.use_pure_ani1ccx:
             _, energy_in_hartree = self.model((self.species, coordinates * nm_to_angstroms))
         else:
-            _, energy_in_hartree = self.model((self.species, coordinates * nm_to_angstroms, self.lambda_value))
+            _, energy_in_hartree = self.model((self.species, coordinates * nm_to_angstroms, lambda_value))
+        
         # convert energy from hartrees to kJ/mol
         energy_in_kJ_mol = energy_in_hartree * hartree_to_kJ_mol
 
-        if self.restrain_acceptor and self.restrain_donor:
-            # set everything to zero
-            bias_flat_bottom = 0.0
-            bias = 0.0
-            # restrain donor heavy atom and hydrogen
-            # for donor heavy atom and hydrogen restraint the flat_bottom restraint weakens while lambda increases
-            bias_flat_bottom = flat_bottom_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor=False, restrain_donor=True, device=self.device)
-            bias += (bias_flat_bottom * self.lambda_value)
-            # restrain acceptor heavy atom and hydrogen
-            # for donor heavy atom and hydrogen restraint the flat_bottom restraint strengthens while lambda increases
-            bias_flat_bottom = flat_bottom_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor=True, restrain_donor=False, device=self.device)
-            bias += (bias_flat_bottom * (1 - self.lambda_value))
-            energy_in_kJ_mol += bias
+        bias_flat_bottom = 0.0
+        bias_harmonic = 0.0
+        bias = 0.0
 
-        elif self.restrain_acceptor or self.restrain_donor:
-            bias_flat_bottom = flat_bottom_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor = self.restrain_acceptor, restrain_donor = self.restrain_donor, device=self.device)
-            bias_harmonic = harmonic_position_restraint(coordinates, self.tautomer_transformation, self.atom_list, restrain_acceptor = self.restrain_acceptor, restrain_donor = self.restrain_donor, device=self.device)           
-            bias = (bias_flat_bottom * self.lambda_value) + ((1 - self.lambda_value) * bias_harmonic)
-            energy_in_kJ_mol += bias
-        else:
-            pass
+        if self.flat_bottom_restraint:
+            for restraint in self.list_of_restraints:
+                e = restraint.flat_bottom_position_restraint(coordinates * nm_to_angstroms)
+                if restraint.active_at_lambda == 1:
+                    e *= lambda_value
+                elif restraint.active_at_lambda == 0:
+                    e *= (1 - lambda_value)
+                else:
+                    pass 
+                bias_flat_bottom += e
+                bias += e
 
+        if self.harmonic_restraint:
+            for restraint in self.list_of_restraints:
+                e = restraint.harmonic_position_restraint(coordinates * nm_to_angstroms)
+                if restraint.active_at_lambda == 1:
+                    e *= lambda_value
+                elif restraint.active_at_lambda == 0:
+                    e *= (1 - lambda_value)
+                else:
+                    pass 
+                bias_harmonic += e
+                bias += e
+        
+        self.bias.append(bias)
+        energy_in_kJ_mol += bias
         return energy_in_kJ_mol.item() * unit.kilojoule_per_mole
 
 class AlchemicalANI(torchani.models.ANI1ccx):
@@ -196,26 +172,37 @@ class AEVScalingAlchemicalANI(AlchemicalANI):
         super().__init__(alchemical_atoms)
 
 
-class DoubleAniModel(torchani.nn.ANIModel):
+class Ensemble(torch.nn.ModuleList):
+    """Compute the average output of an ensemble of modules."""
 
-    def forward(self, species_aev):
-        # change dtype
-        species, aev = species_aev
-        species_ = species.flatten()
-        present_species = torchani.utils.present_species(species)
-        aev = aev.flatten(0, 1)
+    def forward(self, species_input):
+        # type: (Tuple[torch.Tensor, torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor]
+        outputs = [x(species_input)[1].double() for x in self]
+        species, _ = species_input
+        energy = sum(outputs) / len(outputs)
+        print('local forward?')
+        print(type(energy))
+        print(energy)
+        return species, energy 
+      
 
-        output = torch.full_like(species_, self.padding_fill,
-                                dtype=torch.float32)
-        
-        for i in present_species:
-            mask = (species_ == i)
-            input_ = aev.index_select(0, mask.nonzero().squeeze())
-            output.masked_scatter_(mask, self[i](input_).squeeze())
-        
-        output = output.view_as(species)
-        return species, self.reducer(output.double(), dim=1)
-        
+def load_model_ensemble(species, prefix, count):
+    """Returns an instance of :class:`torchani.Ensemble` loaded from
+    NeuroChem's network directories beginning with the given prefix.
+    Arguments:
+        species (:class:`collections.abc.Sequence`): Sequence of strings for
+            chemical symbols of each supported atom type in correct order.
+        prefix (str): Prefix of paths of directory that networks configurations
+            are stored.
+        count (int): Number of models in the ensemble.
+    """
+    models = []
+    print('local ensemble')
+    for i in range(count):
+        network_dir = os.path.join('{}{}'.format(prefix, i), 'networks')
+        models.append(torchani.neurochem.load_model(species, network_dir))
+    return Ensemble(models)
+
 
 class LinearAlchemicalANI(AlchemicalANI):
 
@@ -227,7 +214,7 @@ class LinearAlchemicalANI(AlchemicalANI):
         (Also scale direct contributions, as in DirectAlchemicalANI)
         """
         super().__init__(alchemical_atoms)      
-        self.neural_networks = self._load_model_ensemble(self.species, self.ensemble_prefix, self.ensemble_size)
+        self.neural_networks = load_model_ensemble(self.species, self.ensemble_prefix, self.ensemble_size)
         self.ani_input = ani_input
         self.device = device
         self.pbc = pbc
@@ -270,21 +257,6 @@ class LinearAlchemicalANI(AlchemicalANI):
             E_0 = self.energy_shifter((species, nn_0))[1]
             E = (lam * E_1) + ((1 - lam) * E_0)
         return species, E
-
-
-    def _load_model(self, species, dir_):
-        """Returns an instance of :class:`torchani.ANIModel` loaded from
-        NeuroChem's network directory.
-        Arguments:
-            species (:class:`collections.abc.Sequence`): Sequence of strings for
-                chemical symbols of each supported atom type in correct order.
-            dir_ (str): String for directory storing network configurations.
-        """
-        models = []
-        for i in species:
-            filename = os.path.join(dir_, 'ANN-{}.nnf'.format(i))
-            models.append(torchani.neurochem.load_atomic_network(filename))
-        return DoubleAniModel(models)
 
 
 class LinearAlchemicalSingleTopologyANI(LinearAlchemicalANI):

@@ -1,13 +1,11 @@
 from simtk import unit
-from .constants import nm_to_angstroms
+from .constants import nm_to_angstroms, bond_length_dict, temperature, device
 import numpy as np
 import torch
-from .constants import bond_length_dict
 import logging
 from scipy.stats import norm
 from torch.distributions.normal import Normal
 from openmmtools.constants import kB
-from .constants import temperature
 import torch
 
 logger = logging.getLogger(__name__)
@@ -15,26 +13,43 @@ logger = logging.getLogger(__name__)
 
 class Restraint(object):
 
-    def __init__(self, sigma:unit.Quantity, atom_i_idx:int, atom_j_idx:int, atom_list:list):
+    def __init__(self, sigma:unit.Quantity, atom_i_idx:int, atom_j_idx:int, atoms:str, active_at_lambda:int):
+        """
+        Applies a restraint. 
 
+        Parameters
+        ----------
+        sigma : in angstrom
+        atom_i_idx : int
+            Atom i to restraint
+        atom_j_idx : int
+            Atom j to restraint
+        atoms: str
+            Str of atoms to retrieve element information
+        active_at_lambda : int
+            Integer to indicccate at which state the restraint is fully active. Either 0 (for 
+            lambda 0), or 1 (for lambda 1) or -1 (always active)
+        Returns
+        -------
+        e : float
+            bias
+        """
 
-        
         assert(type(sigma) == unit.Quantity)
         k = (kB * temperature) / (sigma**2)
         self.k = k.value_in_unit((unit.kilo * unit.joule) / ((unit.angstrom **2) * unit.mole))
-        self.device = torch.device(platform)
-        self.atom_i_element = atom_list[atom_i_idx]
-        self.atom_j_element = atom_list[atom_j_idx]
+        self.device = device
+        self.atom_i_element = atoms[atom_i_idx]
+        self.atom_j_element = atoms[atom_j_idx]
         self.atom_i_idx = atom_i_idx
         self.atom_j_idx = atom_j_idx
-        self.mean_bond_length = bond_length_dict[set([self.atom_i_element, self.atom_j_element])]
-
-        self.upper_bound = self.mean_bond_length.value_in_unit(unit.angstrom) + 0.2
-        self.lower_bound = self.mean_bond_length.value_in_unit(unit.angstrom) - 0.2
+        self.mean_bond_length = (bond_length_dict[frozenset([self.atom_i_element, self.atom_j_element])]).value_in_unit(unit.angstrom)
+        self.active_at_lambda = active_at_lambda
+        self.upper_bound = self.mean_bond_length + 0.2
+        self.lower_bound = self.mean_bond_length - 0.2
 
 
     def flat_bottom_position_restraint(self, x):
-        
         distance = torch.norm(x[0][self.atom_i_idx] - x[0][self.atom_j_idx]) * nm_to_angstroms
         if distance <= self.lower_bound:
             e = (self.k/2) * (self.lower_bound - distance.double())**2
@@ -47,7 +62,6 @@ class Restraint(object):
     
     
     def harmonic_position_restraint(self, x):
-
         distance = torch.norm(x[0][self.atom_i_idx] - x[0][self.atom_j_idx]) * nm_to_angstroms
         e = (self.k/2) *(distance.double() - self.mean_bond_length)**2
         logging.debug('Harmonic bias introduced: {:0.4f}'.format(e.item()))
