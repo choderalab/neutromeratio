@@ -154,7 +154,7 @@ def test_neutromeratio_energy_calculations_with_LinearAlchemicalANI_model():
     np.testing.assert_almost_equal(x, -216736.6857518717, decimal=5)
     x = energy_function.calculate_energy(x0, lambda_value=0.0)
     x = x.value_in_unit(unit.kilocalorie_per_mole)
-    assert(x == -216698.911373172)
+    np.testing.assert_almost_equal(x, -216698.911373172, decimal=5)
 
 
 def test_hybrid_topology():
