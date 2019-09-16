@@ -68,7 +68,8 @@ class ANI1_force_and_energy(object):
         coordinates = torch.tensor([x.value_in_unit(unit.nanometer)],
                                 requires_grad=True, device=self.device, dtype=torch.float32)
 
-        energy_in_kJ_mol = self.calculate_energy(x, lambda_value)
+        energy_in_kJ_mol = self._calculate_energy(coordinates, lambda_value)
+
         # derivative of E (in kJ/mol) w.r.t. coordinates (in nm)
         derivative = torch.autograd.grad((energy_in_kJ_mol).sum(), coordinates)[0]
 
@@ -82,6 +83,51 @@ class ANI1_force_and_energy(object):
         return F * (unit.kilojoule_per_mole / unit.nanometer), energy_in_kJ_mol.item() * unit.kilojoule_per_mole
 
     
+    def _calculate_energy(self, coordinates, lambda_value:float)->torch.tensor:
+        if self.use_pure_ani1ccx:
+            _, energy_in_hartree = self.model((self.species, coordinates * nm_to_angstroms))
+        else:
+            _, energy_in_hartree = self.model((self.species, coordinates * nm_to_angstroms, lambda_value))
+        
+        # convert energy from hartrees to kJ/mol
+        energy_in_kJ_mol = energy_in_hartree * hartree_to_kJ_mol
+
+        bias_flat_bottom = 0.0
+        bias_harmonic = 0.0
+        bias = 0.0
+
+        if self.flat_bottom_restraint:
+            for restraint in self.list_of_restraints:
+                e = restraint.flat_bottom_position_restraint(coordinates * nm_to_angstroms)
+                if restraint.active_at_lambda == 1:
+                    e *= lambda_value
+                elif restraint.active_at_lambda == 0:
+                    e *= (1 - lambda_value)
+                else:
+                    # always on - active_at_lambda == -1
+                    pass 
+                bias_flat_bottom += e
+                bias += e
+
+        if self.harmonic_restraint:
+            for restraint in self.list_of_restraints:
+                e = restraint.harmonic_position_restraint(coordinates * nm_to_angstroms)
+                if restraint.active_at_lambda == 1:
+                    e *= lambda_value
+                elif restraint.active_at_lambda == 0:
+                    e *= (1 - lambda_value)
+                else:
+                    # always on - active_at_lambda == -1
+                    pass 
+                bias_harmonic += e
+                bias += e
+        
+        self.bias.append(bias)
+        energy_in_kJ_mol += bias
+        return energy_in_kJ_mol
+        
+
+
     def calculate_energy(self, x:simtk.unit.quantity.Quantity, lambda_value:float) -> simtk.unit.quantity.Quantity:
         """
         Given a coordinate set (x) the energy is calculated in kJ/mol.
@@ -103,44 +149,7 @@ class ANI1_force_and_energy(object):
         coordinates = torch.tensor([x.value_in_unit(unit.nanometer)],
                                 requires_grad=True, device=self.device, dtype=torch.float32)
 
-        if self.use_pure_ani1ccx:
-            _, energy_in_hartree = self.model((self.species, coordinates * nm_to_angstroms))
-        else:
-            _, energy_in_hartree = self.model((self.species, coordinates * nm_to_angstroms, lambda_value))
-        
-        # convert energy from hartrees to kJ/mol
-        energy_in_kJ_mol = energy_in_hartree * hartree_to_kJ_mol
-
-        bias_flat_bottom = 0.0
-        bias_harmonic = 0.0
-        bias = 0.0
-
-        if self.flat_bottom_restraint:
-            for restraint in self.list_of_restraints:
-                e = restraint.flat_bottom_position_restraint(coordinates * nm_to_angstroms)
-                if restraint.active_at_lambda == 1:
-                    e *= lambda_value
-                elif restraint.active_at_lambda == 0:
-                    e *= (1 - lambda_value)
-                else:
-                    pass 
-                bias_flat_bottom += e
-                bias += e
-
-        if self.harmonic_restraint:
-            for restraint in self.list_of_restraints:
-                e = restraint.harmonic_position_restraint(coordinates * nm_to_angstroms)
-                if restraint.active_at_lambda == 1:
-                    e *= lambda_value
-                elif restraint.active_at_lambda == 0:
-                    e *= (1 - lambda_value)
-                else:
-                    pass 
-                bias_harmonic += e
-                bias += e
-        
-        self.bias.append(bias)
-        energy_in_kJ_mol += bias
+        energy_in_kJ_mol = self._calculate_energy(coordinates, lambda_value)
         return energy_in_kJ_mol.item() * unit.kilojoule_per_mole
 
 class AlchemicalANI(torchani.models.ANI1ccx):
@@ -180,9 +189,6 @@ class Ensemble(torch.nn.ModuleList):
         outputs = [x(species_input)[1].double() for x in self]
         species, _ = species_input
         energy = sum(outputs) / len(outputs)
-        print('local forward?')
-        print(type(energy))
-        print(energy)
         return species, energy 
       
 
@@ -197,7 +203,6 @@ def load_model_ensemble(species, prefix, count):
         count (int): Number of models in the ensemble.
     """
     models = []
-    print('local ensemble')
     for i in range(count):
         network_dir = os.path.join('{}{}'.format(prefix, i), 'networks')
         models.append(torchani.neurochem.load_model(species, network_dir))
@@ -260,7 +265,7 @@ class LinearAlchemicalANI(AlchemicalANI):
 
 
 class LinearAlchemicalSingleTopologyANI(LinearAlchemicalANI):
-    def __init__(self, alchemical_atoms:list, ani_input:dict, device:torch.device, pbc:bool=False):
+    def __init__(self, alchemical_atoms:list, ani_input:dict, pbc:bool=False):
         """Scale the indirect contributions of alchemical atoms to the energy sum by
         linearly interpolating, for other atom i, between the energy E_i^0 it would compute
         in the _complete absence_ of the alchemical atoms, and the energy E_i^1 it would compute
@@ -270,7 +275,7 @@ class LinearAlchemicalSingleTopologyANI(LinearAlchemicalANI):
 
         assert(len(alchemical_atoms) == 2)
 
-        super().__init__(alchemical_atoms, ani_input, device)      
+        super().__init__(alchemical_atoms, ani_input, pbc)      
 
 
     def forward(self, species_coordinates):
@@ -284,24 +289,24 @@ class LinearAlchemicalSingleTopologyANI(LinearAlchemicalANI):
                                 device=self.device, dtype=torch.float)
             aevs = aevs[0], aevs[1], cell, torch.tensor([True, True, True], dtype=torch.bool, device=self.device)
 
-        dummy_atom_1 = self.alchemical_atoms[0]
-        dummy_atom_2 = self.alchemical_atoms[1]
+        dummy_atom_0 = self.alchemical_atoms[0]
+        dummy_atom_1 = self.alchemical_atoms[1]
 
+        # neural net output given these AEVs
+        mod_species_0 = torch.cat((species[:, :dummy_atom_0],  species[:, dummy_atom_0+1:]), dim=1)
+        mod_coordinates_0 = torch.cat((coordinates[:, :dummy_atom_0],  coordinates[:, dummy_atom_0+1:]), dim=1) 
+        mod_aevs_0 = self.aev_computer((mod_species_0, mod_coordinates_0))[1]
+        # neural net output given these modified AEVs
+        nn_0 = self.neural_networks((mod_species_0, mod_aevs_0))[1]
+        E_0 = self.energy_shifter((mod_species_0, nn_0))[1]
+        
         # neural net output given these AEVs
         mod_species_1 = torch.cat((species[:, :dummy_atom_1],  species[:, dummy_atom_1+1:]), dim=1)
         mod_coordinates_1 = torch.cat((coordinates[:, :dummy_atom_1],  coordinates[:, dummy_atom_1+1:]), dim=1) 
         mod_aevs_1 = self.aev_computer((mod_species_1, mod_coordinates_1))[1]
         # neural net output given these modified AEVs
-        nn_0 = self.neural_networks((mod_species_1, mod_aevs_1))[1]
-        E_0 = self.energy_shifter((mod_species_1, nn_0))[1]
-        
-        # neural net output given these AEVs
-        mod_species_2 = torch.cat((species[:, :dummy_atom_2],  species[:, dummy_atom_2+1:]), dim=1)
-        mod_coordinates_2 = torch.cat((coordinates[:, :dummy_atom_2],  coordinates[:, dummy_atom_2+1:]), dim=1) 
-        mod_aevs_2 = self.aev_computer((mod_species_2, mod_coordinates_2))[1]
-        # neural net output given these modified AEVs
-        nn_1 = self.neural_networks((mod_species_2, mod_aevs_2))[1]
-        E_1 = self.energy_shifter((mod_species_2, nn_1))[1]
+        nn_1 = self.neural_networks((mod_species_1, mod_aevs_1))[1]
+        E_1 = self.energy_shifter((mod_species_1, nn_1))[1]
 
         E = (lam * E_1) + ((1 - lam) * E_0)
         return species, E

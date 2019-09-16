@@ -8,13 +8,14 @@ import mdtraj as md
 
 class LangevinDynamics(object):
 
-    def __init__(self, atom_list:str, temperature:int, force:ANI1_force_and_energy):
+    def __init__(self, atoms:str, temperature:int, force:ANI1_force_and_energy):
         self.force = force
         self.temperature = temperature
-        self.atom_list = atom_list
+        self.atoms = atoms
 
     def run_dynamics(self, 
                     x0:np.ndarray,
+                    lambda_value:float,
                     n_steps:int = 100,
                     stepsize:unit.quantity.Quantity = 1.0*unit.femtosecond,
                     collision_rate:unit.quantity.Quantity = 10/unit.picoseconds,
@@ -51,7 +52,7 @@ class LangevinDynamics(object):
 
         # generate mass arrays
         mass_dict_in_daltons = {'H': 1.0, 'C': 12.0, 'N': 14.0, 'O': 16.0}
-        masses = np.array([mass_dict_in_daltons[a] for a in self.atom_list]) * unit.daltons
+        masses = np.array([mass_dict_in_daltons[a] for a in self.atoms]) * unit.daltons
         sigma_v = np.array([unit.sqrt(kB * self.temperature / m) / speed_unit for m in masses]) * speed_unit
         v0 = np.random.randn(len(sigma_v),3) * sigma_v[:,None]
         # convert initial state numpy arrays with correct attached units
@@ -66,7 +67,7 @@ class LangevinDynamics(object):
         b = np.sqrt(1 - np.exp(-2 * collision_rate * stepsize))
 
         # compute force on initial configuration
-        F, E = self.force.calculate_force(x)
+        F, E = self.force.calculate_force(x, lambda_value)
         # energy is saved as a list
         energy = [E]
 
@@ -82,7 +83,7 @@ class LangevinDynamics(object):
             v = (a * v) + (b * sigma_v[:,None] * np.random.randn(*x.shape))
             # r
             x += (stepsize * 0.5) * v
-            F, E = self.force.calculate_force(x)
+            F, E = self.force.calculate_force(x, lambda_value)
             energy.append(E)
             # v
             v += (stepsize * 0.5) * F / masses[:,None]

@@ -11,34 +11,14 @@ import logging
 from pdbfixer import PDBFixer
 from simtk.openmm import Vec3
 import random
-from .ani import ANI1_force_and_energy
-import shutil
-from .conformations import generate_conformations_from_mol
 from rdkit.Chem.Draw import IPythonConsole
 from IPython.core.display import display
+from collections import namedtuple
 
 logger = logging.getLogger(__name__)
 
 
-
-def display_mol(mol:Chem.Mol):
-    """
-    Gets mol as input and displays its 2D Structure using IPythonConsole.
-    """
-
-    def mol_with_atom_index(mol):
-        atoms = mol.GetNumAtoms()
-        for idx in range( atoms ):
-            mol.GetAtomWithIdx( idx ).SetProp( 'molAtomMapNumber', str( mol.GetAtomWithIdx( idx ).GetIdx() ) )
-        return mol
-
-    mol = mol_with_atom_index(mol)
-    AllChem.Compute2DCoords(mol)
-    display(mol)
-
-
-
-    
+  
 def write_pdb(mol:Chem.Mol, filepath:str)->str:
     """
     Writes pdb file in path directory. If directory does not exist it is created.
@@ -115,73 +95,3 @@ def reduced_pot(E:float) -> float:
         u(x) = U(x) / kBT
     """
     return E / kT
-
-
-
-def generate_nglview_object(traj:md.Trajectory, tautomer_transformation:dict) -> nglview.NGLWidget:
-    """
-    Generates nglview object from topology and trajectory files.
-    Parameters
-    ----------
-    top_file : file path to mdtraj readable topology file
-    traj_file : file path to mdtraj readable trajectory file
-
-    Returns
-    -------
-    view: nglview object
-    """
-
-    view = nglview.show_mdtraj(traj)
-    if 'donor_hydrogen_idx' in tautomer_transformation:
-
-        # Clear all representations to try new ones
-        print('Hydrogen in GREEN  is real at lambda: 0.')
-        print('Hydrogen in YELLOW is real at lambda: 1.')
-        view.add_representation('point', selection=[tautomer_transformation['donor_hydrogen_idx']], color='green', pointSize=3.5)
-        view.add_representation('point', selection=[tautomer_transformation['acceptor_hydrogen_idx']], color='yellow', pointSize=3.5)
-    
-    return view 
-
-
-def from_mol_to_ani_input(mol: Chem.Mol, nr_of_conf: int) -> dict:
-    """
-    Generates atom_list and coord_list entries from rdkit mol.
-    Parameters
-    ----------
-    mol : rdkit.Chem.Mol
-    nr_of_conf : int
-
-    Returns
-    -------
-    { 'ligand_atoms' : atoms, 'ligand_coords' : coord_list} 
-    """
-    
-    # generate atom list
-    atom_list = []
-    for a in mol.GetAtoms():
-        atom_list.append(a.GetSymbol())
-
-    # generate coord list
-    coord_list = []
-    mol = generate_conformations_from_mol(mol, nr_of_conf)
-
-    for conf_idx in range(mol.GetNumConformers()):
-        tmp_coord_list = []
-        for a in mol.GetAtoms():
-            pos = mol.GetConformer(conf_idx).GetAtomPosition(a.GetIdx())
-            tmp_coord_list.append([pos.x, pos.y, pos.z])
-        tmp_coord_list = np.array(tmp_coord_list) * unit.angstrom
-        coord_list.append(tmp_coord_list)
-
-    n = random.random()
-    # TODO: use tmpfile for this https://stackabuse.com/the-python-tempfile-module/
-    _ = write_pdb(mol, f"tmp{n:0.9f}.pdb")
-    topology = md.load(f"tmp{n:0.9f}.pdb").topology
-    os.remove(f"tmp{n:0.9f}.pdb")
-    
-
-
-    return { 'ligand_atoms' : ''.join(atom_list), 
-            'ligand_coords' : coord_list, 
-            'ligand_topology' : topology,
-            }

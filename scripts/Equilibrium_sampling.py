@@ -9,16 +9,14 @@ import torch
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import random, sys
-
+from neutromeratio.constants import platform, device
 
 # name of the system
 name = str(sys.argv[1])
 # lambda state
 lambda_value = float(sys.argv[2])
-# platform
-platform = str(sys.argv[3])
 # number of steps
-n_steps = int(sys.argv[4])
+n_steps = int(sys.argv[3])
 
 exp_results = pickle.load(open('../data/exp_results.pickle', 'rb'))
 
@@ -32,7 +30,7 @@ to_mol = mols['t2']
 ani_input = neutromeratio.from_mol_to_ani_input(from_mol, nr_of_conf=1)
 
 tautomer_transformation = neutromeratio.get_tautomer_transformation(from_mol, to_mol)
-neutromeratio.generate_hybrid_structure(ani_input, tautomer_transformation, neutromeratio.ani.ANI1_force_and_energy)
+neutromeratio.generate_hybrid_structure(ani_input, tautomer_transformation)
 
 # define the alchemical atoms
 alchemical_atoms=[tautomer_transformation['acceptor_hydrogen_idx'], tautomer_transformation['donor_hydrogen_idx']]
@@ -40,18 +38,15 @@ alchemical_atoms=[tautomer_transformation['acceptor_hydrogen_idx'], tautomer_tra
 np.random.seed(0)
 
 # extract hydrogen donor idx and hydrogen idx for from_mol
-platform = 'cpu'
-device = torch.device(platform)
-model = neutromeratio.ani.LinearAlchemicalSingleTopologyANI(device=device, alchemical_atoms=alchemical_atoms, ani_input=ani_input)
+model = neutromeratio.ani.LinearAlchemicalSingleTopologyANI(alchemical_atoms=alchemical_atoms, ani_input=ani_input)
 model = model.to(device)
 torch.set_num_threads(2)
 
 # perform initial sampling
-energy_function = neutromeratio.ANI1_force_and_energy(device = device,
+energy_function = neutromeratio.ANI1_force_and_energy(
                                           model = model,
                                           atom_list = ani_input['hybrid_atoms'],
-                                          platform = platform,
-                                          tautomer_transformation = tautomer_transformation)
+                                          )
 energy_function.restrain_acceptor = True
 energy_function.restrain_donor = True
 

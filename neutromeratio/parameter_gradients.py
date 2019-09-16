@@ -49,9 +49,8 @@ class FreeEnergyCalculator():
         u_kn = np.zeros((K, N))
         for k in range(K):
             lamb = lambdas[k]
-            self.ani_model.lambda_value = lamb
             for n in range(N):
-                u_kn[k, n] = self.ani_model.calculate_energy(snapshots[n]) / kT
+                u_kn[k, n] = self.ani_model.calculate_energy(snapshots[n], lamb) / kT
         self.mbar = MBAR(u_kn, N_k)
 
     def compute_perturbed_free_energies(self, u_ln):
@@ -74,16 +73,15 @@ class FreeEnergyCalculator():
         return - torch.logsumexp(B, dim=1)
 
     def form_u_ln(self):
-        self.ani_model.lambda_value = 0
+        
         # TODO: vectorize!
         u_0 = torch.tensor(
-            [self.ani_model.calculate_energy(s) / kT for s in self.snapshots],
+            [self.ani_model.calculate_energy(s, lambda_value = 0) / kT for s in self.snapshots],
             dtype=torch.double, requires_grad=True,
         )
-        self.ani_model.lambda_value = 1
         # TODO: vectorize!
         u_1 = torch.tensor(
-            [self.ani_model.calculate_energy(s) / kT for s in self.snapshots],
+            [self.ani_model.calculate_energy(s, lambda_value = 1) / kT for s in self.snapshots],
             dtype=torch.double, requires_grad=True,
         )
         u_ln = torch.stack([u_0, u_1])

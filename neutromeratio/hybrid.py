@@ -8,6 +8,7 @@ from simtk import unit
 from ase import Atom, Atoms
 import torchani
 from .constants import device
+from .restraints import Restraint
 
 logger = logging.getLogger(__name__)
 
@@ -25,16 +26,16 @@ def generate_hybrid_structure(ani_input:dict, tautomer_transformation:dict):
     ----------
     ani_input : dict
     tautomer_transformation : traj
-    ANI1_force_and_energy : ANI1_force_and_energy
     """
+
     model = torchani.models.ANI1ccx()
     model = model.to(device)
 
     ani_input['hybrid_atoms'] = ani_input['ligand_atoms'] + 'H'
-
+    atoms = ani_input['hybrid_atoms']
     energy_function = ANI1_force_and_energy(
                                           model = model,
-                                          atoms = ani_input['hybrid_atoms'],
+                                          atoms = atoms
                                          )
     
     energy_function.use_pure_ani1ccx = True
@@ -56,10 +57,17 @@ def generate_hybrid_structure(ani_input:dict, tautomer_transformation:dict):
         if e < min_e:
             min_e = e
             min_coordinates = hybrid_coord 
+    
     ani_input['min_e'] = min_e
     tautomer_transformation['donor_hydrogen_idx'] = tautomer_transformation['hydrogen_idx']
     tautomer_transformation['acceptor_hydrogen_idx'] = len(ani_input['hybrid_atoms']) -1
     ani_input['hybrid_coords'] = min_coordinates
+
+    # generate hybrid restraints
+    # donor restraints are active at lambda = 1 because then donor hydrogen is turend off and vica versa
+    r1 = Restraint(0.1 * unit.angstrom, tautomer_transformation['donor_hydrogen_idx'], tautomer_transformation['donor_idx'], atoms=atoms, active_at_lambda=1)
+    r2 = Restraint(0.1 * unit.angstrom, tautomer_transformation['acceptor_hydrogen_idx'], tautomer_transformation['acceptor_idx'], atoms=atoms, active_at_lambda=0)
+    ani_input['hybrid_restraints'] = [r1, r2]
 
     # add to mdtraj ligand topology a new hydrogen
     hybrid_top = copy.deepcopy(ani_input['ligand_topology'])

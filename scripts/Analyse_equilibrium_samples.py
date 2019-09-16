@@ -31,27 +31,28 @@ t2_smiles = exp_results[name]['t2-smiles']
 mols = { 't1' : neutromeratio.generate_rdkit_mol(t1_smiles), 't2' : neutromeratio.generate_rdkit_mol(t2_smiles) }
 from_mol = mols[f"t{from_mol_tautomer_idx}"]
 to_mol = mols[f"t{to_mol_tautomer_idx}"]
-ani_input = neutromeratio.from_mol_to_ani_input(from_mol)
+ani_input = neutromeratio.from_mol_to_ani_input(from_mol, nr_of_conf=1)
 
 # get tautomer transformation
 tautomer_transformation = neutromeratio.get_tautomer_transformation(from_mol, to_mol)
-neutromeratio.generate_hybrid_structure(ani_input, tautomer_transformation, neutromeratio.ani.ANI1_force_and_energy)
+neutromeratio.generate_hybrid_structure(ani_input, tautomer_transformation)
 # define the alchemical atoms
 alchemical_atoms=[tautomer_transformation['acceptor_hydrogen_idx'], tautomer_transformation['donor_hydrogen_idx']]
 
 # generate the energy function
 platform = 'cpu'
 device = torch.device(platform)
-model = neutromeratio.ani.LinearAlchemicalSingleTopologyANI(device=device, alchemical_atoms=alchemical_atoms, ani_input=ani_input)
+
+
+model = neutromeratio.ani.LinearAlchemicalSingleTopologyANI(alchemical_atoms=alchemical_atoms, ani_input=ani_input)
 model = model.to(device)
 torch.set_num_threads(2)
 
 # perform initial sampling
-energy_function = neutromeratio.ANI1_force_and_energy(device = device,
+energy_function = neutromeratio.ANI1_force_and_energy(
                                           model = model,
-                                          atom_list = ani_input['hybrid_atoms'],
-                                          platform = platform,
-                                          tautomer_transformation = tautomer_transformation)
+                                          atoms = ani_input['hybrid_atoms']
+                                          )
 
 energy_function.restrain_acceptor = True
 energy_function.restrain_donor = True

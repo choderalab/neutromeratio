@@ -1,16 +1,21 @@
-import logging, copy
+import logging, copy, os, random
+import mdtraj as md
 from rdkit import Chem
 from rdkit.Chem import AllChem
 from rdkit.Chem import rdFMCS
-from rdkit.Chem.Draw import IPythonConsole
-from IPython.core.display import display
-from .utils import display_mol
+from .vis import display_mol
+from .restraints import Restraint
+from simtk import unit
+from collections import namedtuple
+from .conformations import generate_conformations_from_mol
+from .hybrid import generate_hybrid_structure
+from .utils import write_pdb
+from .utils import add_solvent
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
-
-
-def get_tautomer_transformation(m1:Chem.Mol, m2:Chem.Mol) -> dict:
+def get_tautomer_transformation(m1:Chem.Mol, m2:Chem.Mol)->namedtuple:
     """
     Returns the atom index of the hydrogen donor atom and hydrogen atom that moves.
     This index is consistent with the indexing of m1.
@@ -37,7 +42,10 @@ def get_tautomer_transformation(m1:Chem.Mol, m2:Chem.Mol) -> dict:
 
     #get idx of hydrogen that moves to new position
     hydrogen_idx_that_moves = -1
+    atoms = '' # atom element string
     for a in m1.GetAtoms():
+        atoms += str(a.GetSymbol())
+
         if a.GetIdx() not in substructure_idx_m1:
             logger.info('Index of atom that moves: {}.'.format(a.GetIdx()))
             hydrogen_idx_that_moves = a.GetIdx()
@@ -70,4 +78,54 @@ def get_tautomer_transformation(m1:Chem.Mol, m2:Chem.Mol) -> dict:
 
     AllChem.Compute2DCoords(m1)
     display_mol(m1)
-    return { 'donor_idx': donor, 'hydrogen_idx' : hydrogen_idx_that_moves, 'acceptor_idx' : acceptor}
+    r1 = Restraint( sigma=0.1 * unit.angstrom, atom_i_idx=donor, atom_j_idx=hydrogen_idx_that_moves, atoms=atoms, active_at_lambda=0)
+    r2 = Restraint( sigma=0.1 * unit.angstrom, atom_i_idx=acceptor, atom_j_idx=hydrogen_idx_that_moves, atoms=atoms, active_at_lambda=1)
+   
+    return { 'donor_idx': donor, 'hydrogen_idx' : hydrogen_idx_that_moves, 'acceptor_idx' : acceptor, 'restraints' : [r1,r2]}
+
+
+def from_mol_to_ani_input(mol:Chem.Mol, nr_of_conf:int, in_solvent:bool=False)->dict:
+    """
+    Generates atom_list and coord_list entries from rdkit mol.
+    Parameters
+    ----------
+    mol : rdkit.Chem.Mol
+    nr_of_conf : int
+
+    Returns
+    -------
+    { 'ligand_atoms' : atoms, 'ligand_coords' : coord_list} 
+    """
+    
+    # generate atom list
+    atom_list = []
+    for a in mol.GetAtoms():
+        atom_list.append(a.GetSymbol())
+
+    # generate coord list
+    coord_list = []
+    mol = generate_conformations_from_mol(mol, nr_of_conf)
+
+    for conf_idx in range(mol.GetNumConformers()):
+        tmp_coord_list = []
+        for a in mol.GetAtoms():
+            pos = mol.GetConformer(conf_idx).GetAtomPosition(a.GetIdx())
+            tmp_coord_list.append([pos.x, pos.y, pos.z])
+        tmp_coord_list = np.array(tmp_coord_list) * unit.angstrom
+        coord_list.append(tmp_coord_list)
+
+    n = random.random()
+    # TODO: use tmpfile for this https://stackabuse.com/the-python-tempfile-module/
+    _ = write_pdb(mol, f"tmp{n:0.9f}.pdb")
+    topology = md.load(f"tmp{n:0.9f}.pdb").topology
+    os.remove(f"tmp{n:0.9f}.pdb")
+    
+    ani_input =  {'ligand_atoms' : ''.join(atom_list), 
+            'ligand_coords' : coord_list, 
+            'ligand_topology' : topology }
+
+   
+    if in_solvent:
+        add_solvent(None, None, None, None)
+    
+    return ani_input
