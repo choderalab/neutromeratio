@@ -1,8 +1,8 @@
 neutromeratio
 ==============================
 [//]: # (Badges)
-[![Travis Build Status](https://travis-ci.org/REPLACE_WITH_OWNER_ACCOUNT/neutromeratio.png)](https://travis-ci.org/REPLACE_WITH_OWNER_ACCOUNT/neutromeratio)
-[![codecov](https://codecov.io/gh/REPLACE_WITH_OWNER_ACCOUNT/neutromeratio/branch/master/graph/badge.svg)](https://codecov.io/gh/REPLACE_WITH_OWNER_ACCOUNT/neutromeratio/branch/master)
+[![Travis Build Status](https://travis-ci.org/choderalab/neutromeratio.png)](https://travis-ci.org/REPLACE_WITH_OWNER_ACCOUNT/neutromeratio)
+[![codecov](https://codecov.io/gh/choderalab/neutromeratio/branch/master/graph/badge.svg)](https://codecov.io/gh/choderalab/neutromeratio/branch/master)
 
 Using neural net potentials to calculate energies and nonequilibrium monte carlo to sample tautomeric states.
 
