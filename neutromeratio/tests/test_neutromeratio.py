@@ -104,7 +104,7 @@ def test_neutromeratio_energy_calculations_with_torchANI_model():
     energy_function.use_pure_ani1ccx = True
     x = energy_function.calculate_energy(x0, lambda_value=0.0)
     x = x.value_in_unit(unit.kilocalorie_per_mole)
-    assert(x == -216736.6903680688)
+    np.testing.assert_almost_equal(x, -216736.6903680688, decimal=5)
 
 
 def test_neutromeratio_energy_calculations_with_LinearAlchemicalANI_model():
@@ -151,7 +151,7 @@ def test_neutromeratio_energy_calculations_with_LinearAlchemicalANI_model():
     energy_function.use_pure_ani1ccx = False
     x = energy_function.calculate_energy(x0, lambda_value=1.0)
     x = x.value_in_unit(unit.kilocalorie_per_mole)
-    assert(x == -216736.6857518717)
+    np.testing.assert_almost_equal(x, -216736.6857518717, decimal=5)
     x = energy_function.calculate_energy(x0, lambda_value=0.0)
     x = x.value_in_unit(unit.kilocalorie_per_mole)
     assert(x == -216698.911373172)
@@ -265,10 +265,10 @@ def test_restraint_with_alchemicalANI():
     energy_function.use_pure_ani1ccx = False
     x = energy_function.calculate_energy(x0, lambda_value=1.0)
     x = x.value_in_unit(unit.kilocalorie_per_mole)
-    assert(x == -216736.6857518717)
+    np.testing.assert_almost_equal(x, -216736.6857518717, decimal=5)
     x = energy_function.calculate_energy(x0, lambda_value=0.0)
     x = x.value_in_unit(unit.kilocalorie_per_mole)
-    assert(x == -216698.911373172)
+    np.testing.assert_almost_equal(x, -216698.911373172, decimal=5)
 
     # add the restraints - active at different lambda steps
     restrain1 = neutromeratio.Restraint(sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=0)
@@ -286,7 +286,7 @@ def test_restraint_with_alchemicalANI():
 
     x = energy_function.calculate_energy(x0, lambda_value=0.0)
     x = x.value_in_unit(unit.kilocalorie_per_mole)
-    assert(x == -216698.911373172)
+    np.testing.assert_almost_equal(x, -216698.911373172, decimal=5)
 
     # test flat_bottom_restraint for lambda = 0.0
     energy_function.flat_bottom_restraint  = True
@@ -295,7 +295,7 @@ def test_restraint_with_alchemicalANI():
 
     x = energy_function.calculate_energy(x0, lambda_value=0.0)
     x = x.value_in_unit(unit.kilocalorie_per_mole)
-    assert(x == -171908.35573544825)
+    np.testing.assert_almost_equal(x, -171908.35573544825, decimal=5)
 
     # test harmonic_restraint for lambda = 0.0 
     energy_function.flat_bottom_restraint  = False
@@ -304,7 +304,7 @@ def test_restraint_with_alchemicalANI():
 
     x = energy_function.calculate_energy(x0, lambda_value=0.0)
     x = x.value_in_unit(unit.kilocalorie_per_mole)
-    assert(x == -171252.3360025691)
+    np.testing.assert_almost_equal(x, -171252.3360025691, decimal=5)
 
     # test harmonic_restraint for lambda = 1.0 
     energy_function.flat_bottom_restraint  = False
@@ -313,7 +313,7 @@ def test_restraint_with_alchemicalANI():
 
     x = energy_function.calculate_energy(x0, lambda_value=1.0)
     x = x.value_in_unit(unit.kilocalorie_per_mole)
-    assert(x == -171290.1103812688)
+    np.testing.assert_almost_equal(x, -171290.1103812688, decimal=5)
 
     # test harmonic_restraint and flat_bottom_restraint for lambda = 1.0 
     energy_function.flat_bottom_restraint  = True
@@ -322,7 +322,7 @@ def test_restraint_with_alchemicalANI():
 
     x = energy_function.calculate_energy(x0, lambda_value=1.0)
     x = x.value_in_unit(unit.kilocalorie_per_mole)
-    assert(x == -126499.55474354506)
+    np.testing.assert_almost_equal(x, -126499.55474354506, decimal=5)
 
 
 def test_restraint_with_alchemicalANISingleTopology():
