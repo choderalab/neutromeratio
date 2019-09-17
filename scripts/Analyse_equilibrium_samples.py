@@ -64,7 +64,7 @@ lambda_value = 0.0
 energies = []
 ani_trajs = []
 lambdas = []
-for _ in range(21):
+for _ in range(20):
     lambdas.append(lambda_value)
     f_traj = f"/home/mwieder/Work/Projects/neutromeratio/data/equilibrium_sampling/{name}/{name}_lambda_{lambda_value:0.4f}.dcd"
     traj = md.load_dcd(f_traj, top=ani_input['hybrid_topology'])
