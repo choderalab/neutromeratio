@@ -16,23 +16,32 @@ def generate_hybrid_structure(ani_input:dict, tautomer_transformation:dict):
     """
     Generates a hybrid structure between two tautomers. The heavy atom frame is kept but a
     hydrogen is added to the tautomer acceptor heavy atom. 
-    Keys are added to the ani_input dict and tautomer_transformation dict:
+    Keys are added to the ani_input dict and tautomer_transformation dict in place - 
+    NOTHING IS RETURNED!:
+    All entries regarding hybrid topology are added with 
+    keyword 'hybrid' at the beginning. Restraints are 
+    automatically added.
     ani_input['hybrid_atoms'] = ani_input['ligand_atoms'] + 'H'
     ani_input['hybrid_coords'] = hybrid_coord
     ani_input['hybrid_topolog'] = hybrid_top
+    ani_input['hybrid_restraints'] = [Restraint1, Restraint2]
+
     tautomer_transformation['donor_hydrogen_idx'] = tautomer_transformation['hydrogen_idx']
     tautomer_transformation['acceptor_hydrogen_idx'] = len(ani_input['hybrid_atoms']) -1
     Parameters
     ----------
     ani_input : dict
-    tautomer_transformation : traj
+    tautomer_transformation : dict
     """
 
+    # add hybrid atoms
+    ani_input['hybrid_atoms'] = ani_input['ligand_atoms'] + 'H'
+    atoms = ani_input['hybrid_atoms']
+
+    # generate 3D coordinates for hybrid atom
     model = torchani.models.ANI1ccx()
     model = model.to(device)
 
-    ani_input['hybrid_atoms'] = ani_input['ligand_atoms'] + 'H'
-    atoms = ani_input['hybrid_atoms']
     energy_function = ANI1_force_and_energy(
                                           model = model,
                                           atoms = atoms
@@ -51,7 +60,7 @@ def generate_hybrid_structure(ani_input:dict, tautomer_transformation:dict):
 
     # from the multiple conformations in ani_input['ligand_coords'] we are taking a single
     # coordinate set (the first one) and add the hydrogen 
-    for _ in range(10):
+    for _ in range(500):
         hybrid_coord = hydrogen_mover._move_hydrogen_to_acceptor_idx(ani_input['ligand_coords'][0], override=False)
         e = energy_function.calculate_energy(hybrid_coord, lambda_value=1.0)
         if e < min_e:
@@ -59,6 +68,9 @@ def generate_hybrid_structure(ani_input:dict, tautomer_transformation:dict):
             min_coordinates = hybrid_coord 
     
     ani_input['min_e'] = min_e
+
+    # add indixes for the hydrogens that are active at labda 0 (donor_hydrogen_idx)
+    # and at lambda 1 (acceptor_hydrogen_idx)
     tautomer_transformation['donor_hydrogen_idx'] = tautomer_transformation['hydrogen_idx']
     tautomer_transformation['acceptor_hydrogen_idx'] = len(ani_input['hybrid_atoms']) -1
     ani_input['hybrid_coords'] = min_coordinates

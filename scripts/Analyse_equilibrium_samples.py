@@ -53,12 +53,13 @@ energy_function = neutromeratio.ANI1_force_and_energy(
                                           model = model,
                                           atoms = ani_input['hybrid_atoms']
                                           )
-
-energy_function.restrain_acceptor = True
-energy_function.restrain_donor = True
+# add constraints to energy function!
+for e in ani_input['hybrid_restraints']:
+    energy_function.add_restraint(e)
 
 # 21 steps inclusive endpoints
 # getting all the energies, snapshots and lambda values in lists
+# NOTE: This will be changed in the future
 lambda_value = 0.0
 energies = []
 ani_trajs = []

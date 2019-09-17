@@ -15,7 +15,7 @@ class LangevinDynamics(object):
 
     def run_dynamics(self, 
                     x0:np.ndarray,
-                    lambda_value:float,
+                    lambda_value:float = 0.0,
                     n_steps:int = 100,
                     stepsize:unit.quantity.Quantity = 1.0*unit.femtosecond,
                     collision_rate:unit.quantity.Quantity = 10/unit.picoseconds,
@@ -30,6 +30,8 @@ class LangevinDynamics(object):
         force : callable, accepts a unit'd array and returns a unit'd array
             assumes input is in units of distance
             output is in units of energy / distance
+        lambda_value: float, between 0 and 1
+            position in the lambda protocol; from 0 to 1  
         n_steps : integer
             number of Langevin steps
         stepsize : float > 0, in units of time
@@ -49,6 +51,8 @@ class LangevinDynamics(object):
         assert(type(stepsize) == unit.Quantity)
         assert(type(collision_rate) == unit.Quantity)
         assert(type(self.temperature) == unit.Quantity)
+        assert(float(lambda_value) <= 1.0 and float(lambda_value) >= 0.0)
+
 
         # generate mass arrays
         mass_dict_in_daltons = {'H': 1.0, 'C': 12.0, 'N': 14.0, 'O': 16.0}

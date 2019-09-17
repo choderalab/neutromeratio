@@ -295,7 +295,7 @@ def test_restraint_with_alchemicalANI():
 
     x = energy_function.calculate_energy(x0, lambda_value=0.0)
     x = x.value_in_unit(unit.kilocalorie_per_mole)
-    np.testing.assert_almost_equal(x, -171908.35573544825, decimal=5)
+    np.testing.assert_almost_equal(x, -216527.22548065928, decimal=5)
 
     # test harmonic_restraint for lambda = 0.0 
     energy_function.flat_bottom_restraint  = False
@@ -304,7 +304,7 @@ def test_restraint_with_alchemicalANI():
 
     x = energy_function.calculate_energy(x0, lambda_value=0.0)
     x = x.value_in_unit(unit.kilocalorie_per_mole)
-    np.testing.assert_almost_equal(x, -171252.3360025691, decimal=5)
+    np.testing.assert_almost_equal(x, -216484.37304754654, decimal=5)
 
     # test harmonic_restraint for lambda = 1.0 
     energy_function.flat_bottom_restraint  = False
@@ -313,7 +313,7 @@ def test_restraint_with_alchemicalANI():
 
     x = energy_function.calculate_energy(x0, lambda_value=1.0)
     x = x.value_in_unit(unit.kilocalorie_per_mole)
-    np.testing.assert_almost_equal(x, -171290.1103812688, decimal=5)
+    np.testing.assert_almost_equal(x, -216522.14742624626, decimal=5)
 
     # test harmonic_restraint and flat_bottom_restraint for lambda = 1.0 
     energy_function.flat_bottom_restraint  = True
@@ -322,7 +322,7 @@ def test_restraint_with_alchemicalANI():
 
     x = energy_function.calculate_energy(x0, lambda_value=1.0)
     x = x.value_in_unit(unit.kilocalorie_per_mole)
-    np.testing.assert_almost_equal(x, -126499.55474354506, decimal=5)
+    np.testing.assert_almost_equal(x, -216350.46153373353, decimal=5)
 
 
 def test_restraint_with_alchemicalANISingleTopology():
@@ -413,7 +413,10 @@ def test_euqilibrium():
                                             atoms = ani_input['hybrid_atoms'],
                                             )
 
-    energy_function.add_restraint(ani_input['hybrid_restraints'])
+    for e in ani_input['hybrid_restraints']:
+        energy_function.add_restraint(e)
+
+
     langevin = neutromeratio.LangevinDynamics(atoms = ani_input['hybrid_atoms'],
                                 temperature = 300*unit.kelvin,
                                 force = energy_function)

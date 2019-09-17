@@ -1,3 +1,7 @@
+# This script runs staged free energy calculations 
+# given a system name, a lambda value and the number of equilibrium 
+# steps
+
 import neutromeratio
 from openmmtools.constants import kB
 from simtk import unit
@@ -45,21 +49,25 @@ torch.set_num_threads(2)
 # perform initial sampling
 energy_function = neutromeratio.ANI1_force_and_energy(
                                           model = model,
-                                          atom_list = ani_input['hybrid_atoms'],
+                                          atoms = ani_input['hybrid_atoms'],
                                           )
-energy_function.restrain_acceptor = True
-energy_function.restrain_donor = True
 
-langevin = neutromeratio.LangevinDynamics(atom_list = ani_input['hybrid_atoms'],
+
+langevin = neutromeratio.LangevinDynamics(atoms = ani_input['hybrid_atoms'],
                             temperature = 300*unit.kelvin,
                             force = energy_function)
 
 x0 = np.array(ani_input['hybrid_coords']) * unit.angstrom
 
-energy_function.lambda_value = lambda_value
+# add constraints to energy function!
+for e in ani_input['hybrid_restraints']:
+    energy_function.add_restraint(e)
+
+# minimize
 energy_function.minimize(ani_input)
 
-equilibrium_samples, energies = langevin.run_dynamics(x0, n_steps, stepsize=1.0 * unit.femtosecond, progress_bar=True)
+# run simulation
+equilibrium_samples, energies = langevin.run_dynamics(x0, lambda_value=lambda_value, n_steps=n_steps, stepsize=1.0 * unit.femtosecond, progress_bar=True)
 energies = [neutromeratio.reduced_pot(x) for x in energies]
 
 # save equilibrium energy values 

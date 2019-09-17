@@ -78,8 +78,9 @@ def get_tautomer_transformation(m1:Chem.Mol, m2:Chem.Mol)->namedtuple:
 
     AllChem.Compute2DCoords(m1)
     display_mol(m1)
-    r1 = Restraint( sigma=0.1 * unit.angstrom, atom_i_idx=donor, atom_j_idx=hydrogen_idx_that_moves, atoms=atoms, active_at_lambda=0)
-    r2 = Restraint( sigma=0.1 * unit.angstrom, atom_i_idx=acceptor, atom_j_idx=hydrogen_idx_that_moves, atoms=atoms, active_at_lambda=1)
+    
+    r1 = Restraint( sigma=0.1 * unit.angstrom, atom_i_idx=donor, atom_j_idx=hydrogen_idx_that_moves, atoms=atoms, active_at_lambda=1)
+    r2 = Restraint( sigma=0.1 * unit.angstrom, atom_i_idx=acceptor, atom_j_idx=hydrogen_idx_that_moves, atoms=atoms, active_at_lambda=0)
    
     return { 'donor_idx': donor, 'hydrogen_idx' : hydrogen_idx_that_moves, 'acceptor_idx' : acceptor, 'restraints' : [r1,r2]}
 

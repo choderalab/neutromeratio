@@ -37,6 +37,9 @@ class ANI1_force_and_energy(object):
         # TODO: check availablity of platform
 
     def add_restraint(self, restraint:Restraint):
+        # add a single restraint
+        assert(type(restraint) == Restraint)
+
         self.list_of_restraints.append(restraint)
 
     def minimize(self, ani_input):
@@ -65,6 +68,8 @@ class ANI1_force_and_energy(object):
             
         """
         assert(type(x) == unit.Quantity)
+        assert(float(lambda_value) <= 1.0 and float(lambda_value) >= 0.0)
+
         coordinates = torch.tensor([x.value_in_unit(unit.nanometer)],
                                 requires_grad=True, device=self.device, dtype=torch.float32)
 
@@ -83,7 +88,28 @@ class ANI1_force_and_energy(object):
         return F * (unit.kilojoule_per_mole / unit.nanometer), energy_in_kJ_mol.item() * unit.kilojoule_per_mole
 
     
-    def _calculate_energy(self, coordinates, lambda_value:float)->torch.tensor:
+    def _calculate_energy(self, coordinates:torch.tensor, lambda_value:float = 0.0)->torch.tensor:
+        """
+        Helpter function to return energies as tensor.
+        Given a coordinate set the energy is calculated.
+        
+        Parameters
+        ----------
+        coordinates : torch.tensor 
+            coordinates in nanometer without units attached
+        lambda_value : float
+            between 0.0 and 1.0
+        Returns
+        -------
+        energy_in_kJ_mol : torch.tensor
+            return the energy with restraints added
+        """
+
+        
+        assert(float(lambda_value) <= 1.0 and float(lambda_value) >= 0.0)
+
+        # coordinates in nm!
+        
         if self.use_pure_ani1ccx:
             _, energy_in_hartree = self.model((self.species, coordinates * nm_to_angstroms))
         else:

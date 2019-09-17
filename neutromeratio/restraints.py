@@ -15,7 +15,7 @@ class Restraint(object):
 
     def __init__(self, sigma:unit.Quantity, atom_i_idx:int, atom_j_idx:int, atoms:str, active_at_lambda:int):
         """
-        Applies a restraint. 
+        Defines a restraint. 
 
         Parameters
         ----------
@@ -50,7 +50,9 @@ class Restraint(object):
 
 
     def flat_bottom_position_restraint(self, x):
-        distance = torch.norm(x[0][self.atom_i_idx] - x[0][self.atom_j_idx]) * nm_to_angstroms
+
+        # x in angstrom
+        distance = torch.norm(x[0][self.atom_i_idx] - x[0][self.atom_j_idx])
         if distance <= self.lower_bound:
             e = (self.k/2) * (self.lower_bound - distance.double())**2
         elif distance >= self.upper_bound:
@@ -62,7 +64,9 @@ class Restraint(object):
     
     
     def harmonic_position_restraint(self, x):
-        distance = torch.norm(x[0][self.atom_i_idx] - x[0][self.atom_j_idx]) * nm_to_angstroms
+
+        # x in angstrom
+        distance = torch.norm(x[0][self.atom_i_idx] - x[0][self.atom_j_idx]) 
         e = (self.k/2) *(distance.double() - self.mean_bond_length)**2
         logging.debug('Harmonic bias introduced: {:0.4f}'.format(e.item()))
         return e.to(device=self.device)
