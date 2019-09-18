@@ -1,5 +1,5 @@
 import numpy as np
-from .constants import speed_unit, distance_unit, kB
+from .constants import speed_unit, distance_unit, kB, mass_dict_in_daltons
 from simtk import unit
 from tqdm import tqdm
 from .ani import ANI1_force_and_energy
@@ -8,10 +8,10 @@ import mdtraj as md
 
 class LangevinDynamics(object):
 
-    def __init__(self, atom_list:str, temperature:int, force:ANI1_force_and_energy):
-        self.force = force
+    def __init__(self, atoms:str, temperature:unit.quantity.Quantity, energy_and_force:ANI1_force_and_energy.calculate_force):
+        self.energy_and_force = energy_and_force
         self.temperature = temperature
-        self.atom_list = atom_list
+        self.atoms = atoms
 
     def run_dynamics(self, 
                     x0:np.ndarray,
@@ -49,9 +49,9 @@ class LangevinDynamics(object):
         assert(type(collision_rate) == unit.Quantity)
         assert(type(self.temperature) == unit.Quantity)
 
+
         # generate mass arrays
-        mass_dict_in_daltons = {'H': 1.0, 'C': 12.0, 'N': 14.0, 'O': 16.0}
-        masses = np.array([mass_dict_in_daltons[a] for a in self.atom_list]) * unit.daltons
+        masses = np.array([mass_dict_in_daltons[a] for a in self.atoms]) * unit.daltons
         sigma_v = np.array([unit.sqrt(kB * self.temperature / m) / speed_unit for m in masses]) * speed_unit
         v0 = np.random.randn(len(sigma_v),3) * sigma_v[:,None]
         # convert initial state numpy arrays with correct attached units
@@ -66,7 +66,7 @@ class LangevinDynamics(object):
         b = np.sqrt(1 - np.exp(-2 * collision_rate * stepsize))
 
         # compute force on initial configuration
-        F, E = self.force.calculate_force(x)
+        F, E = self.energy_and_force(x0)
         # energy is saved as a list
         energy = [E]
 
@@ -82,7 +82,7 @@ class LangevinDynamics(object):
             v = (a * v) + (b * sigma_v[:,None] * np.random.randn(*x.shape))
             # r
             x += (stepsize * 0.5) * v
-            F, E = self.force.calculate_force(x)
+            F, E = self.energy_and_force(x)
             energy.append(E)
             # v
             v += (stepsize * 0.5) * F / masses[:,None]
@@ -94,7 +94,7 @@ class LangevinDynamics(object):
             # check positions and forces are finite
             if (not np.isfinite(x).all()) or (not np.isfinite(norm_F)):
                 print("Numerical instability encountered!")
-                return traj
+                return traj, energy
             traj.append(x)
         return traj, energy
 

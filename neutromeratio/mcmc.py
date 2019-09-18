@@ -7,6 +7,7 @@ from .utils import reduced_pot
 import math
 import logging
 from tqdm import tqdm
+from .equilibrium import LangevinDynamics
 from .constants import bond_length_dict
 
 logger = logging.getLogger(__name__)
@@ -36,8 +37,8 @@ class MC_Mover(object):
         self.acceptor_element = self.atom_list[self.acceptor_idx]
         self.donor_element = self.atom_list[self.donor_idx]
         # the equilibrium bond length taken from self.bond_length_dict
-        self.acceptor_hydrogen_equilibrium_bond_length = self.bond_length_dict['{}H'.format(self.acceptor_element)]
-        self.donor_hydrogen_equilibrium_bond_length = self.bond_length_dict['{}H'.format(self.donor_element)]
+        self.acceptor_hydrogen_equilibrium_bond_length = self.bond_length_dict[frozenset([self.acceptor_element, 'H'])]
+        self.donor_hydrogen_equilibrium_bond_length = self.bond_length_dict[frozenset([self.acceptor_element, 'H'])]
         # the stddev for the bond length
         self.acceptor_hydrogen_stddev_bond_length = 0.10 * unit.angstrom
         self.donor_hydrogen_stddev_bond_length = 0.10 * unit.angstrom
@@ -114,7 +115,7 @@ class MC_Mover(object):
 
 
 class Instantaneous_MC_Mover(MC_Mover):
-    
+  
     def perform_mc_move(self, coordinates:unit.quantity.Quantity) -> list:
         """
         Moves a hydrogen (self.hydrogen_idx) from a starting position connected to a heavy atom

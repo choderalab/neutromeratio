@@ -1,0 +1,7 @@
+{
+    "python.pythonPath": "/home/mwieder/anaconda3/envs/ani36/bin/python",
+    "python.testing.pytestArgs": [],
+    "python.testing.unittestEnabled": false,
+    "python.testing.nosetestsEnabled": false,
+    "python.testing.pytestEnabled": true
+}

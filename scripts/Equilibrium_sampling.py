@@ -1,3 +1,7 @@
+# This script runs staged free energy calculations 
+# given a system name, a lambda value and the number of equilibrium 
+# steps
+
 import neutromeratio
 from openmmtools.constants import kB
 from simtk import unit
@@ -9,16 +13,14 @@ import torch
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import random, sys
-
+from neutromeratio.constants import platform, device
 
 # name of the system
 name = str(sys.argv[1])
 # lambda state
 lambda_value = float(sys.argv[2])
-# platform
-platform = str(sys.argv[3])
 # number of steps
-n_steps = int(sys.argv[4])
+n_steps = int(sys.argv[3])
 
 exp_results = pickle.load(open('../data/exp_results.pickle', 'rb'))
 
@@ -29,10 +31,10 @@ t2_smiles = exp_results[name]['t2-smiles']
 mols = { 't1' : neutromeratio.generate_rdkit_mol(t1_smiles), 't2' : neutromeratio.generate_rdkit_mol(t2_smiles) }
 from_mol = mols['t1']
 to_mol = mols['t2']
-ani_input = neutromeratio.from_mol_to_ani_input(from_mol)
+ani_input = neutromeratio.from_mol_to_ani_input(from_mol, nr_of_conf=1)
 
 tautomer_transformation = neutromeratio.get_tautomer_transformation(from_mol, to_mol)
-neutromeratio.generate_hybrid_structure(ani_input, tautomer_transformation, neutromeratio.ani.ANI1_force_and_energy)
+neutromeratio.generate_hybrid_structure(ani_input, tautomer_transformation)
 
 # define the alchemical atoms
 alchemical_atoms=[tautomer_transformation['acceptor_hydrogen_idx'], tautomer_transformation['donor_hydrogen_idx']]
@@ -40,31 +42,32 @@ alchemical_atoms=[tautomer_transformation['acceptor_hydrogen_idx'], tautomer_tra
 np.random.seed(0)
 
 # extract hydrogen donor idx and hydrogen idx for from_mol
-platform = 'cpu'
-device = torch.device(platform)
-model = neutromeratio.ani.LinearAlchemicalSingleTopologyANI(device=device, alchemical_atoms=alchemical_atoms, ani_input=ani_input)
+model = neutromeratio.ani.LinearAlchemicalSingleTopologyANI(alchemical_atoms=alchemical_atoms, ani_input=ani_input)
 model = model.to(device)
 torch.set_num_threads(2)
 
 # perform initial sampling
-energy_function = neutromeratio.ANI1_force_and_energy(device = device,
+energy_function = neutromeratio.ANI1_force_and_energy(
                                           model = model,
-                                          atom_list = ani_input['hybrid_atoms'],
-                                          platform = platform,
-                                          tautomer_transformation = tautomer_transformation)
-energy_function.restrain_acceptor = True
-energy_function.restrain_donor = True
+                                          atoms = ani_input['hybrid_atoms'],
+                                          )
 
-langevin = neutromeratio.LangevinDynamics(atom_list = ani_input['hybrid_atoms'],
+
+langevin = neutromeratio.LangevinDynamics(atoms = ani_input['hybrid_atoms'],
                             temperature = 300*unit.kelvin,
                             force = energy_function)
 
 x0 = np.array(ani_input['hybrid_coords']) * unit.angstrom
 
-energy_function.lambda_value = lambda_value
+# add constraints to energy function!
+for e in ani_input['hybrid_restraints']:
+    energy_function.add_restraint(e)
+
+# minimize
 energy_function.minimize(ani_input)
 
-equilibrium_samples, energies = langevin.run_dynamics(x0, n_steps, stepsize=1.0 * unit.femtosecond, progress_bar=True)
+# run simulation
+equilibrium_samples, energies = langevin.run_dynamics(x0, lambda_value=lambda_value, n_steps=n_steps, stepsize=1.0 * unit.femtosecond, progress_bar=True)
 energies = [neutromeratio.reduced_pot(x) for x in energies]
 
 # save equilibrium energy values 
@@ -74,5 +77,5 @@ for e in energies:
 f.close()
 
 equilibrium_samples = [x / unit.nanometer for x in equilibrium_samples]
-ani_traj = md.Trajectory(equilibrium_samples, ani_input['hybrid_topolog'])
-ani_traj.save(f"../data/equilibrium_sampling/{name}/{name}_lambda_{lambda_value:0.4f}.dcd")
+ani_traj = md.Trajectory(equilibrium_samples, ani_input['hybrid_topology'])
+ani_traj.save(f"../data/equilibrium_sampling/{name}/{name}_lambda_{lambda_value:0.4f}.dcd", force_overwrite=True)

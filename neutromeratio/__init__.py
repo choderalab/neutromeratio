@@ -11,10 +11,13 @@ logging.basicConfig(format=FORMAT,
     level=logging.INFO)
 
 # Add imports here
-from .utils import from_mol_to_ani_input,  reduced_pot, get_tautomer_transformation, add_solvent, write_pdb, generate_nglview_object, generate_rdkit_mol, display_mol
+from .tautomers import get_tautomer_transformation, from_mol_to_ani_input
+from .utils import reduced_pot, add_solvent, write_pdb, generate_rdkit_mol
+from .vis import display_mol, generate_nglview_object
 from .mcmc import Instantaneous_MC_Mover, NonequilibriumMC
 from .equilibrium import LangevinDynamics, use_precalculated_md_and_performe_mc
-from .ani import ANI1_force_and_energy
+from .ani import ANI1_force_and_energy, LinearAlchemicalANI, LinearAlchemicalSingleTopologyANI
+from .restraints import Restraint
 from .hybrid import generate_hybrid_structure
 # TODO: generating waterbox
 
