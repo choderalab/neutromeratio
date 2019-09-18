@@ -378,8 +378,6 @@ def test_restraint_with_alchemicalANISingleTopology():
 def test_euqilibrium():
     # name of the system
     name = 'molDWRow_298'
-    # lambda state
-    lambda_value = 1.0
     # number of steps
     n_steps = 50
 
@@ -416,18 +414,27 @@ def test_euqilibrium():
     for e in ani_input['hybrid_restraints']:
         energy_function.add_restraint(e)
 
-
-    langevin = neutromeratio.LangevinDynamics(atoms = ani_input['hybrid_atoms'],
-                                temperature = 300*unit.kelvin,
-                                force = energy_function)
-
     x0 = np.array(ani_input['hybrid_coords']) * unit.angstrom
+
+
 
     energy_function.minimize(ani_input)
 
     lambda_value = 1.0
-    equilibrium_samples, energies = langevin.run_dynamics(x0, lambda_value=lambda_value, n_steps=n_steps, stepsize=1.0 * unit.femtosecond, progress_bar=True)
+    energy_and_force = lambda x : energy_function.calculate_force(x, lambda_value)
+
+    langevin = neutromeratio.LangevinDynamics(atoms = ani_input['hybrid_atoms'],
+                                temperature = 300*unit.kelvin,
+                                energy_and_force = energy_and_force)
+
+    equilibrium_samples, energies = langevin.run_dynamics(x0, n_steps=n_steps, stepsize=1.0 * unit.femtosecond, progress_bar=True)
 
     lambda_value = 0.0
-    equilibrium_samples, energies = langevin.run_dynamics(x0, lambda_value=lambda_value, n_steps=n_steps, stepsize=1.0 * unit.femtosecond, progress_bar=True)
+    energy_and_force = lambda x : energy_function.calculate_force(x, lambda_value)
+
+    langevin = neutromeratio.LangevinDynamics(atoms = ani_input['hybrid_atoms'],
+                                temperature = 300*unit.kelvin,
+                                energy_and_force = energy_and_force)
+
+    equilibrium_samples, energies = langevin.run_dynamics(x0, n_steps=n_steps, stepsize=1.0 * unit.femtosecond, progress_bar=True)
 

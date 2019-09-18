@@ -8,14 +8,13 @@ import mdtraj as md
 
 class LangevinDynamics(object):
 
-    def __init__(self, atoms:str, temperature:unit.quantity.Quantity, force:ANI1_force_and_energy):
-        self.force = force
+    def __init__(self, atoms:str, temperature:unit.quantity.Quantity, energy_and_force:ANI1_force_and_energy.calculate_force):
+        self.energy_and_force = energy_and_force
         self.temperature = temperature
         self.atoms = atoms
 
     def run_dynamics(self, 
                     x0:np.ndarray,
-                    lambda_value:float = 0.0,
                     n_steps:int = 100,
                     stepsize:unit.quantity.Quantity = 1.0*unit.femtosecond,
                     collision_rate:unit.quantity.Quantity = 10/unit.picoseconds,
@@ -30,8 +29,6 @@ class LangevinDynamics(object):
         force : callable, accepts a unit'd array and returns a unit'd array
             assumes input is in units of distance
             output is in units of energy / distance
-        lambda_value: float, between 0 and 1
-            position in the lambda protocol; from 0 to 1  
         n_steps : integer
             number of Langevin steps
         stepsize : float > 0, in units of time
@@ -51,7 +48,6 @@ class LangevinDynamics(object):
         assert(type(stepsize) == unit.Quantity)
         assert(type(collision_rate) == unit.Quantity)
         assert(type(self.temperature) == unit.Quantity)
-        assert(float(lambda_value) <= 1.0 and float(lambda_value) >= 0.0)
 
 
         # generate mass arrays
@@ -70,7 +66,7 @@ class LangevinDynamics(object):
         b = np.sqrt(1 - np.exp(-2 * collision_rate * stepsize))
 
         # compute force on initial configuration
-        F, E = self.force.calculate_force(x, lambda_value)
+        F, E = self.energy_and_force(x0)
         # energy is saved as a list
         energy = [E]
 
@@ -86,7 +82,7 @@ class LangevinDynamics(object):
             v = (a * v) + (b * sigma_v[:,None] * np.random.randn(*x.shape))
             # r
             x += (stepsize * 0.5) * v
-            F, E = self.force.calculate_force(x, lambda_value)
+            F, E = self.energy_and_force(x)
             energy.append(E)
             # v
             v += (stepsize * 0.5) * F / masses[:,None]
