@@ -33,7 +33,6 @@ class ANI1_force_and_energy(object):
         self.flat_bottom_restraint = False
         self.harmonic_restraint = False
         self.list_of_restraints = []
-        self.bias = []
         # TODO: check availablity of platform
 
     def add_restraint(self, restraint:Restraint):
@@ -148,7 +147,6 @@ class ANI1_force_and_energy(object):
                 bias_harmonic += e
                 bias += e
         
-        self.bias.append(bias)
         energy_in_kJ_mol += bias
         return energy_in_kJ_mol
         

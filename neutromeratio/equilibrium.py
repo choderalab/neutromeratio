@@ -1,5 +1,5 @@
 import numpy as np
-from .constants import speed_unit, distance_unit, kB
+from .constants import speed_unit, distance_unit, kB, mass_dict_in_daltons
 from simtk import unit
 from tqdm import tqdm
 from .ani import ANI1_force_and_energy
@@ -8,7 +8,7 @@ import mdtraj as md
 
 class LangevinDynamics(object):
 
-    def __init__(self, atoms:str, temperature:int, force:ANI1_force_and_energy):
+    def __init__(self, atoms:str, temperature:unit.quantity.Quantity, force:ANI1_force_and_energy):
         self.force = force
         self.temperature = temperature
         self.atoms = atoms
@@ -55,7 +55,6 @@ class LangevinDynamics(object):
 
 
         # generate mass arrays
-        mass_dict_in_daltons = {'H': 1.0, 'C': 12.0, 'N': 14.0, 'O': 16.0}
         masses = np.array([mass_dict_in_daltons[a] for a in self.atoms]) * unit.daltons
         sigma_v = np.array([unit.sqrt(kB * self.temperature / m) / speed_unit for m in masses]) * speed_unit
         v0 = np.random.randn(len(sigma_v),3) * sigma_v[:,None]
