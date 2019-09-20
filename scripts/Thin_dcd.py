@@ -41,10 +41,9 @@ neutromeratio.generate_hybrid_structure(ani_input, tautomer_transformation)
 # getting all the energies, snapshots and lambda values in lists
 # NOTE: This will be changed in the future
 lambda_value = 0.0
-ani_trajs = []
 for _ in range(20):
-    lambdas.append(lambda_value)
     f_traj = f"/home/mwieder/Work/Projects/neutromeratio/data/equilibrium_sampling/{name}/{name}_lambda_{lambda_value:0.4f}.dcd"
     traj = md.load_dcd(f_traj[::10], top=ani_input['hybrid_topology'])
-    ani_traj.save(f"../data/equilibrium_sampling/{name}/{name}_lambda_{lambda_value:0.4f}_thinned.dcd", force_overwrite=True)
+    traj.save(f"../data/equilibrium_sampling/{name}/{name}_lambda_{lambda_value:0.4f}_thinned.dcd", force_overwrite=True)
+    lambda_value +=0.05
 
