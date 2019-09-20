@@ -43,7 +43,8 @@ neutromeratio.generate_hybrid_structure(ani_input, tautomer_transformation)
 lambda_value = 0.0
 for _ in range(20):
     f_traj = f"/home/mwieder/Work/Projects/neutromeratio/data/equilibrium_sampling/{name}/{name}_lambda_{lambda_value:0.4f}.dcd"
-    traj = md.load_dcd(f_traj[::10], top=ani_input['hybrid_topology'])
-    traj.save(f"../data/equilibrium_sampling/{name}/{name}_lambda_{lambda_value:0.4f}_thinned.dcd", force_overwrite=True)
+    traj = md.load_dcd(f_traj, top=ani_input['hybrid_topology'])
+    traj[::10].save(f"../data/equilibrium_sampling/{name}/{name}_lambda_{lambda_value:0.4f}_thinned.dcd", force_overwrite=True)
     lambda_value +=0.05
+
 
