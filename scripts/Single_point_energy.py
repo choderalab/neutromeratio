@@ -44,6 +44,6 @@ for tautomer in [from_mol, to_mol]:
     x0 = np.array(ani_input['ligand_coords'][0]) * unit.angstrom
     e.append(energy_function.calculate_energy(x0))
 e_diff = (e[1] - e[0])
-f = open('/home/mwieder/Work/Projects/neutromeratio/data/equilibrium_sampling/energies.csv', 'a+')
+f = open('/home/mwieder/Work/Projects/neutromeratio/data/diff_single_point_minimized_energies.csv', 'a+')
 f.write(f"{name}, {e_diff}\n")
 f.close()
