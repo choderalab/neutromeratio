@@ -15,7 +15,7 @@ from neutromeratio.constants import platform, device
 name = str(sys.argv[1])
 
 # extract smiles
-exp_results = pickle.load(open('data/exp_results.pickle', 'rb'))
+exp_results = pickle.load(open('../data/exp_results.pickle', 'rb'))
 t1_smiles = exp_results[name]['t1-smiles']
 t2_smiles = exp_results[name]['t2-smiles']
 
