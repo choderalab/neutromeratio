@@ -67,10 +67,10 @@ def plot_correlation_analysis(
     ax.plot((-10.0, 10.0), (0.0, 0.0), "r--", zorder=-1, linewidth=0.5, alpha=0.5)
     ax.plot((0.0, 0.0), (-10.0, 10.0), "r--", zorder=-1, linewidth=0.5, alpha=0.5)
 
-    ax.set_ylabel("Predicted ddG [kcal/mol]", fontsize=9)
+    ax.set_ylabel("Predicted dG [kcal/mol]", fontsize=9)
     ax.set_xlabel("Experimental ddG [kcal/mol]", fontsize=9)
-    ax.set_xlim([-20, 20])
-    ax.set_ylim([-20, 20])
+    ax.set_xlim([-22, 22])
+    ax.set_ylim([-22, 22])
     #plt.xticks(np.arange(-10, 10, 2.0), fontsize=8)
     handles, labels = plt.gca().get_legend_handles_labels()
     by_label = OrderedDict(zip(labels, handles))
