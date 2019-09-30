@@ -45,10 +45,20 @@ class ANI1_force_and_energy(object):
     def minimize(self, ani_input, hybrid=False):
         
         # use ASE to minimize the molecule
-        # depenging on the key hybrid it either minimizes 
-        # the hybrid coordinates or the ligand coordinates
+        # depending on the bool hybrid it either minimizes 
+        # the hybrid coordinates (a single conformation) 
+        # or the ligand coordinates (could be multiple conformations)
 
-        if not hybrid:
+        if hybrid:
+            calculator = self.model.ase(dtype=torch.float64)
+            mol = ani_input['ase_hybrid_mol']
+            mol.set_calculator(calculator)
+            print("Begin minimizing...")
+            opt = BFGS(mol)
+            opt.run(fmax=0.001)
+            ani_input['hybrid_coords'] = np.array(mol.get_positions()) * unit.angstrom
+
+        else:
             for i in range(len(ani_input['ase_mol'])):
                 calculator = self.model.ase(dtype=torch.float64)
                 mol = ani_input['ase_mol'][i]
@@ -57,15 +67,6 @@ class ANI1_force_and_energy(object):
                 opt = BFGS(mol)
                 opt.run(fmax=0.001)
                 ani_input['ligand_coords'][i] = np.array(mol.get_positions()) * unit.angstrom
-
-        else:
-            calculator = self.model.ase(dtype=torch.float64)
-            mol = ani_input['ase_hybrid_mol']
-            mol.set_calculator(calculator)
-            print("Begin minimizing...")
-            opt = BFGS(mol)
-            opt.run(fmax=0.001)
-            ani_input['hybrid_coords'] = np.array(mol.get_positions()) * unit.angstrom
 
     def calculate_force(self, x:simtk.unit.quantity.Quantity, lambda_value:float = 0.0) -> simtk.unit.quantity.Quantity:
         """
