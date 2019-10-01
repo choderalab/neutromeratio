@@ -42,7 +42,7 @@ class ANI1_force_and_energy(object):
 
         self.list_of_restraints.append(restraint)
 
-    def minimize(self, ani_input, hybrid=False):
+    def minimize(self, mol, hybrid=False):
         
         # use ASE to minimize the molecule
         # depending on the bool hybrid it either minimizes 
@@ -252,7 +252,7 @@ def load_model_ensemble(species, prefix, count):
 
 class LinearAlchemicalANI(AlchemicalANI):
 
-    def __init__(self, alchemical_atoms:list, ani_input:dict, pbc:bool=False):
+    def __init__(self, alchemical_atoms:list, box_length:unit.Quantity=0.0 * unit.angstrom):
         """Scale the indirect contributions of alchemical atoms to the energy sum by
         linearly interpolating, for other atom i, between the energy E_i^0 it would compute
         in the _complete absence_ of the alchemical atoms, and the energy E_i^1 it would compute
@@ -261,22 +261,22 @@ class LinearAlchemicalANI(AlchemicalANI):
         """
         super().__init__(alchemical_atoms)      
         self.neural_networks = load_model_ensemble(self.species, self.ensemble_prefix, self.ensemble_size)
-        self.ani_input = ani_input
         self.device = device
-        self.pbc = pbc
-        if pbc:
-            self.box_length = self.ani_input['box_length'].value_in_unit(unit.angstrom)
-        else:
-            self.box_length = 0.0 * unit.angstrom
+        assert(type(box_length) == unit.Quantity)
+        self.box_length = box_length.value_in_unit(unit.angstrom)
+            
 
     def forward(self, species_coordinates):
-        # for now only allow one alchemical atom
+
+        assert(len(self.alchemical_atoms) == 1)
+        alchemical_atom = self.alchemical_atoms[0]
 
         # LAMBDA = 1: fully interacting
         # species, AEVs of fully interacting system
         species, coordinates, lam = species_coordinates
+        print(lam)
         aevs = species_coordinates[:-1]
-        if self.pbc:
+        if self.box_length != 0.0:
             cell = torch.tensor(np.array([[self.box_length, 0.0, 0.0],[0.0,self.box_length,0.0],[0.0,0.0,self.box_length]]),
                                 device=self.device, dtype=torch.float)
             aevs = aevs[0], aevs[1], cell, torch.tensor([True, True, True], dtype=torch.bool, device=self.device)
@@ -288,15 +288,16 @@ class LinearAlchemicalANI(AlchemicalANI):
         nn_1 = self.neural_networks((species, aevs))[1]
         E_1 = self.energy_shifter((species, nn_1))[1]
         
-        # NOTE: this is inconsistent with the lambda definition in the staged simulation
         # LAMBDA == 1: fully interacting
         if float(lam) == 1.0:
             E = E_1
         else:
             # LAMBDA == 0: fully removed
             # species, AEVs of all other atoms, in absence of alchemical atoms
-            mod_species = torch.cat((species[:, :self.alchemical_atoms[0]],  species[:, self.alchemical_atoms[0]+1:]), dim=1)
-            mod_coordinates = torch.cat((coordinates[:, :self.alchemical_atoms[0]],  coordinates[:, self.alchemical_atoms[0]+1:]), dim=1) 
+            print(species)
+            mod_species = torch.cat((species[:, :alchemical_atom],  species[:, alchemical_atom+1:]), dim=1)
+            print(mod_species)
+            mod_coordinates = torch.cat((coordinates[:, :alchemical_atom],  coordinates[:, alchemical_atom+1:]), dim=1) 
             mod_aevs = self.aev_computer((mod_species, mod_coordinates))[1]
             # neural net output given these modified AEVs
             nn_0 = self.neural_networks((mod_species, mod_aevs))[1]
@@ -305,8 +306,9 @@ class LinearAlchemicalANI(AlchemicalANI):
         return species, E
 
 
-class LinearAlchemicalSingleTopologyANI(LinearAlchemicalANI):
-    def __init__(self, alchemical_atoms:list, ani_input:dict, pbc:bool=False):
+class LinearAlchemicalDualTopologyANI(LinearAlchemicalANI):
+   
+    def __init__(self, alchemical_atoms:list, box_length:unit.Quantity=0.0 * unit.angstrom):
         """Scale the indirect contributions of alchemical atoms to the energy sum by
         linearly interpolating, for other atom i, between the energy E_i^0 it would compute
         in the _complete absence_ of the alchemical atoms, and the energy E_i^1 it would compute
@@ -316,7 +318,7 @@ class LinearAlchemicalSingleTopologyANI(LinearAlchemicalANI):
 
         assert(len(alchemical_atoms) == 2)
 
-        super().__init__(alchemical_atoms, ani_input, pbc)      
+        super().__init__(alchemical_atoms, box_length)      
 
 
     def forward(self, species_coordinates):
@@ -325,11 +327,14 @@ class LinearAlchemicalSingleTopologyANI(LinearAlchemicalANI):
         # species, AEVs of fully interacting system
         species, coordinates, lam = species_coordinates
         aevs = species_coordinates[:-1]
-        if self.pbc:
+        if self.box_length != 0.0:
             cell = torch.tensor(np.array([[self.box_length, 0.0, 0.0],[0.0,self.box_length,0.0],[0.0,0.0,self.box_length]]),
                                 device=self.device, dtype=torch.float)
             aevs = aevs[0], aevs[1], cell, torch.tensor([True, True, True], dtype=torch.bool, device=self.device)
 
+        # NOTE: I am not happy about this - the order at which 
+        # the dummy atoms are set in alchemical_atoms determines 
+        # what is real and what is dummy at lambda 1 - that seems awefully error prone
         dummy_atom_0 = self.alchemical_atoms[0]
         dummy_atom_1 = self.alchemical_atoms[1]
 

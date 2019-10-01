@@ -2,7 +2,7 @@ import ase
 from ase.vibrations import Vibrations
 from ase.thermochemistry import IdealGasThermo
 from simtk import unit
-from constants import temperature
+from constants import temperature, conversion_factor_eV_to_kJ_mol
 
 def get_thermo_correction(ase_mol:ase.Atoms) -> simtk.unit.quantity.Quantity :
     """
@@ -26,5 +26,5 @@ def get_thermo_correction(ase_mol:ase.Atoms) -> simtk.unit.quantity.Quantity :
     
     G = thermo.get_gibbs_energy(temperature=temperature.value_in_unit(unit.kelvin), pressure=101325.)
 
-    return (G * 96.485) * unit.kilojoule_per_mole # eV * conversion_factor(eV to kJ/mol)
+    return (G * conversion_factor_eV_to_kJ_mol) * unit.kilojoule_per_mole # eV * conversion_factor(eV to kJ/mol)
 

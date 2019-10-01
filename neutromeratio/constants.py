@@ -60,3 +60,4 @@ bond_length_dict = {frozenset(['C', 'H']) : 1.09 * unit.angstrom,
                     frozenset(['N', 'H']) : 1.01 * unit.angstrom
                     }
 
+conversion_factor_eV_to_kJ_mol = 96.485

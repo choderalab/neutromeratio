@@ -1,0 +1,36 @@
+MODEL        0
+ATOM      1  C1  UNL A   1       2.108   0.319  -0.449  1.00  0.00          C   
+ATOM      2  C2  UNL A   1       0.680   0.496  -0.892  1.00  0.00          C   
+ATOM      3  C3  UNL A   1      -0.316   0.923   0.147  1.00  0.00          C   
+ATOM      4  C4  UNL A   1      -0.771  -0.232   0.992  1.00  0.00          C   
+ATOM      5  C5  UNL A   1      -1.828  -1.137   0.417  1.00  0.00          C   
+ATOM      6  O1  UNL A   1      -0.261  -0.453   2.091  1.00  0.00          O   
+ATOM      7  O2  UNL A   1       0.328   0.257  -2.047  1.00  0.00          O   
+ATOM      8  H1  UNL A   1       2.735   0.090  -1.315  1.00  0.00          H   
+ATOM      9  H2  UNL A   1       2.470   1.244   0.007  1.00  0.00          H   
+ATOM     10  H3  UNL A   1       2.174  -0.505   0.265  1.00  0.00          H   
+ATOM     11  H4  UNL A   1      -1.182   1.384  -0.340  1.00  0.00          H   
+ATOM     12  H5  UNL A   1       0.127   1.694   0.786  1.00  0.00          H   
+ATOM     13  H6  UNL A   1      -2.708  -0.548   0.147  1.00  0.00          H   
+ATOM     14  H7  UNL A   1      -1.434  -1.653  -0.462  1.00  0.00          H   
+ATOM     15  H8  UNL A   1      -2.122  -1.880   1.164  1.00  0.00          H   
+ATOM     16  H   UNL A   1       0.340   0.364   2.178  1.00  0.00          H   
+TER      17      UNL A   1
+ENDMDL
+CONECT    1    2    8    9   10
+CONECT    2    1    3    7
+CONECT    3    2    4   11   12
+CONECT    4    3    5    6
+CONECT    5    4   13   14   15
+CONECT    6    4   16
+CONECT    7    2
+CONECT    8    1
+CONECT    9    1
+CONECT   10    1
+CONECT   11    3
+CONECT   12    3
+CONECT   13    5
+CONECT   14    5
+CONECT   15    5
+CONECT   16    6
+END

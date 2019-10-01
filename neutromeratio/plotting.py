@@ -39,9 +39,6 @@ def plot_correlation_analysis(
     """
 
 
-    # df = pd.DataFrame(list(zip(names, ani1ccx_results_list, exp_results_list, ['aniccx-vacuum']*len(exp_results_list, ))), columns =['names', 'predicted_values', 'experimental_values', 'method']) 
-
-
     plt.clf()
     fig = plt.figure(figsize=[8,8], dpi=300)
     ax = plt.gca()

@@ -28,11 +28,9 @@ def test_neutromeratio_imported():
 #    assert(type(neutromeratio.constants.temperature) == unit.Quantity)
 
 
+def test_tautomer_class():
 
-
-
-def test_tautomer_transformation():
-
+    from neutromeratio.tautomers import Tautomer
     print(os.getcwd())
     with open('data/exp_results.pickle', 'rb') as f:
         exp_results = pickle.load(f)
@@ -48,18 +46,86 @@ def test_tautomer_transformation():
     mols = { 't1' : neutromeratio.generate_rdkit_mol(t1_smiles), 't2' : neutromeratio.generate_rdkit_mol(t2_smiles) }
     from_mol = mols[f"t{from_mol_tautomer_idx}"]
     to_mol = mols[f"t{to_mol_tautomer_idx}"]
-    tautomer_transformation = neutromeratio.get_tautomer_transformation(from_mol, to_mol)
-    ani_input = neutromeratio.from_mol_to_ani_input(from_mol, nr_of_conf=2)
-    print(tautomer_transformation)
-    atoms = ani_input['ligand_atoms']
+    t = Tautomer(name=name, intial_state_mol=from_mol, final_state_mol=to_mol)
+    t.perform_tautomer_transformation_forward()
     
-    assert(atoms == 'CCCCCOOHHHHHHHH')
-    assert(tautomer_transformation['hydrogen_idx'] == 11)
-    assert(tautomer_transformation['acceptor_idx'] == 5)
-    assert(tautomer_transformation['donor_idx'] == 2)
+
+
+def test_tautomer_transformation():
+    from neutromeratio.tautomers import Tautomer
+
+    print(os.getcwd())
+    with open('data/exp_results.pickle', 'rb') as f:
+        exp_results = pickle.load(f)
+
+    name = 'molDWRow_298'
+    t1_smiles = exp_results[name]['t1-smiles']
+    t2_smiles = exp_results[name]['t2-smiles']
+   
+    t = Tautomer(name=name, intial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles))
+    t.perform_tautomer_transformation_forward()
+
+    
+    # test if t1 centric mapping of hydrogen, heavy atom acceptor and donor works
+    assert(t.intial_state_ligand_atoms == 'CCCCCOOHHHHHHHH')
+    assert(t.hydrogen_idx == 11)
+    assert(t.heavy_atom_hydrogen_acceptor_idx  == 5)
+    assert(t.heavy_atom_hydrogen_donor_idx == 2)
+
+    # test if dual topology hybrid works
+    assert(t.hybrid_atoms == 'CCCCCOOHHHHHHHHH')
+    assert(t.hybrid_hydrogen_idx_at_donor_heavy_atom == 11)
+    assert(t.hybrid_hydrogen_idx_at_acceptor_heavy_atom == 15)
+
+    t.perform_tautomer_transformation_reverse()
+
+    # test if t1 centric mapping of hydrogen, heavy atom acceptor and donor works
+    assert(t.intial_state_ligand_atoms == 'CCCCCOOHHHHHHHH')
+    assert(t.hydrogen_idx == 14)
+    assert(t.heavy_atom_hydrogen_acceptor_idx  == 2)
+    assert(t.heavy_atom_hydrogen_donor_idx == 5)
+
+    # test if dual topology hybrid works
+    assert(t.hybrid_atoms == 'CCCCCOOHHHHHHHHH')
+    assert(t.hybrid_hydrogen_idx_at_donor_heavy_atom == 14)
+    assert(t.hybrid_hydrogen_idx_at_acceptor_heavy_atom == 15)
+
+
+    name = 'molDWRow_37'
+    t1_smiles = exp_results[name]['t1-smiles']
+    t2_smiles = exp_results[name]['t2-smiles']
+   
+    t = Tautomer(name=name, intial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles))
+    t.perform_tautomer_transformation_forward()
+    
+    # test if t1 centric mapping of hydrogen, heavy atom acceptor and donor works
+    assert(t.intial_state_ligand_atoms == 'CCCCCCCOOHHHHHHHHHH')
+    assert(t.hydrogen_idx == 18)
+    assert(t.heavy_atom_hydrogen_acceptor_idx  == 8)
+    assert(t.heavy_atom_hydrogen_donor_idx == 7)
+
+    # test if dual topology hybrid works
+    assert(t.hybrid_atoms == 'CCCCCCCOOHHHHHHHHHHH')
+    assert(t.hybrid_hydrogen_idx_at_donor_heavy_atom == 18)
+    assert(t.hybrid_hydrogen_idx_at_acceptor_heavy_atom == 19)
+
+    t.perform_tautomer_transformation_reverse()
+    
+    # test if t2 centric mapping of hydrogen, heavy atom acceptor and donor works
+    assert(t.intial_state_ligand_atoms == 'CCCCCCCOOHHHHHHHHHH')
+    assert(t.hydrogen_idx == 12)
+    assert(t.heavy_atom_hydrogen_acceptor_idx  == 8)
+    assert(t.heavy_atom_hydrogen_donor_idx == 2)
+
+    # test if dual topology hybrid works CCOCCCCCOHHHHHHHHHHH
+    assert(t.hybrid_atoms == 'CCOCCCCCOHHHHHHHHHHH')
+    assert(t.hybrid_hydrogen_idx_at_donor_heavy_atom == 12)
+    assert(t.hybrid_hydrogen_idx_at_acceptor_heavy_atom == 19)
 
 
 def test_neutromeratio_energy_calculations_with_torchANI_model():
+    
+    from neutromeratio.tautomers import Tautomer
 
     # read in pregenerated traj
     traj = neutromeratio.equilibrium.read_precalculated_md('neutromeratio/data/structure.pdb', 'neutromeratio/data/structure.dcd')
@@ -73,28 +139,14 @@ def test_neutromeratio_energy_calculations_with_torchANI_model():
     t1_smiles = exp_results[name]['t1-smiles']
     t2_smiles = exp_results[name]['t2-smiles']
 
-    from_mol_tautomer_idx = 1
-    to_mol_tautomer_idx = 2
-
-    # generate both rdkit mol
-    mols = { 't1' : neutromeratio.generate_rdkit_mol(t1_smiles), 't2' : neutromeratio.generate_rdkit_mol(t2_smiles) }
-    from_mol = mols[f"t{from_mol_tautomer_idx}"]
-    to_mol = mols[f"t{to_mol_tautomer_idx}"]
-    
-    # generate tautomer transformation
-    tautomer_transformation = neutromeratio.get_tautomer_transformation(from_mol, to_mol)
-
-    # generate ani input
-    ani_input = neutromeratio.from_mol_to_ani_input(from_mol, nr_of_conf=2)
-    atoms = ani_input['ligand_atoms']
+    t = Tautomer(name=name, intial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles))
+    t.perform_tautomer_transformation_forward()
+    atoms = t.intial_state_ligand_atoms
 
     # overwrite the coordinates that rdkit generated with the first frame in the traj
     x0 = traj[0]
-
     model = torchani.models.ANI1ccx()
-    
     torch.set_num_threads(1)
-
     energy_function = neutromeratio.ANI1_force_and_energy(
                                                 model = model,
                                                 atoms = atoms)
@@ -102,12 +154,37 @@ def test_neutromeratio_energy_calculations_with_torchANI_model():
     energy_function.flat_bottom_restraint  = False
     energy_function.harmonic_restraint  = False
     energy_function.use_pure_ani1ccx = True
-    x = energy_function.calculate_energy(x0, lambda_value=0.0)
+    x = energy_function.calculate_energy(x0,)
+    x = x.value_in_unit(unit.kilocalorie_per_mole)
+    np.testing.assert_almost_equal(x, -216736.6903680688, decimal=5)
+
+
+    # testint reverse - it should get the same energy
+    # because we set the same coordinates and no bonded info 
+    # is given
+
+    t.perform_tautomer_transformation_reverse()
+    # generate ani input
+    atoms = t.final_state_ligand_atoms
+
+    # overwrite the coordinates that rdkit generated with the first frame in the traj
+    x0 = traj[0]
+    model = torchani.models.ANI1ccx()
+    torch.set_num_threads(1)
+    energy_function = neutromeratio.ANI1_force_and_energy(
+                                                model = model,
+                                                atoms = atoms)
+
+    energy_function.flat_bottom_restraint  = False
+    energy_function.harmonic_restraint  = False
+    energy_function.use_pure_ani1ccx = True
+    x = energy_function.calculate_energy(x0,)
     x = x.value_in_unit(unit.kilocalorie_per_mole)
     np.testing.assert_almost_equal(x, -216736.6903680688, decimal=5)
 
 
 def test_neutromeratio_energy_calculations_with_LinearAlchemicalANI_model():
+    from neutromeratio.tautomers import Tautomer
 
     # read in pregenerated traj
     traj = neutromeratio.equilibrium.read_precalculated_md('neutromeratio/data/structure.pdb', 'neutromeratio/data/structure.dcd')
@@ -121,25 +198,16 @@ def test_neutromeratio_energy_calculations_with_LinearAlchemicalANI_model():
     t1_smiles = exp_results[name]['t1-smiles']
     t2_smiles = exp_results[name]['t2-smiles']
 
-    from_mol_tautomer_idx = 1
-    to_mol_tautomer_idx = 2
-
-    # generate both rdkit mol
-    mols = { 't1' : neutromeratio.generate_rdkit_mol(t1_smiles), 't2' : neutromeratio.generate_rdkit_mol(t2_smiles) }
-    from_mol = mols[f"t{from_mol_tautomer_idx}"]
-    to_mol = mols[f"t{to_mol_tautomer_idx}"]
-    tautomer_transformation = neutromeratio.get_tautomer_transformation(from_mol, to_mol)
-    
+    t = Tautomer(name=name, intial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles))
+    t.perform_tautomer_transformation_forward()
+  
     # generate tautomer transformation
-    hydrogen_idx = tautomer_transformation['hydrogen_idx']
-    ani_input = neutromeratio.from_mol_to_ani_input(from_mol, nr_of_conf=2)
-    atoms = ani_input['ligand_atoms']
+    hydrogen_idx = t.hydrogen_idx
+    atoms = t.intial_state_ligand_atoms
 
     # overwrite the coordinates that rdkit generated with the first frame in the traj
     x0 = traj[0]
-
-    model = neutromeratio.ani.LinearAlchemicalANI(alchemical_atoms=[hydrogen_idx], ani_input=ani_input)
-    
+    model = neutromeratio.ani.LinearAlchemicalANI(alchemical_atoms=[hydrogen_idx])
     torch.set_num_threads(1)
 
     energy_function = neutromeratio.ANI1_force_and_energy(
@@ -157,42 +225,48 @@ def test_neutromeratio_energy_calculations_with_LinearAlchemicalANI_model():
     np.testing.assert_almost_equal(x, -216698.911373172, decimal=5)
 
 
-def test_hybrid_topology():
-
+def test_neutromeratio_energy_calculations_with_DualTopologyAlchemicalANI_model():
+    from neutromeratio.tautomers import Tautomer
+   
+    # read in exp_results.pickle
     with open('data/exp_results.pickle', 'rb') as f:
         exp_results = pickle.load(f)
 
-    # specify the system you want to simulate
-    name = 'molDWRow_590'
-
-    from_mol_tautomer_idx = 1
-    to_mol_tautomer_idx = 2
-
+    # generate smiles
+    name = 'molDWRow_298'
     t1_smiles = exp_results[name]['t1-smiles']
     t2_smiles = exp_results[name]['t2-smiles']
 
-    # generate both rdkit mol
-    mols = { 't1' : neutromeratio.generate_rdkit_mol(t1_smiles), 't2' : neutromeratio.generate_rdkit_mol(t2_smiles) }
-    from_mol = mols[f"t{from_mol_tautomer_idx}"]
-    to_mol = mols[f"t{to_mol_tautomer_idx}"]
+    t = Tautomer(name=name, intial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles))
+    t.perform_tautomer_transformation_forward()
+  
+    # generate tautomer transformation
+    dummy_atoms = [t.hybrid_hydrogen_idx_at_acceptor_heavy_atom, t.hybrid_hydrogen_idx_at_donor_heavy_atom]
+    atoms = t.hybrid_atoms
+    # overwrite the coordinates that rdkit generated with the first frame in the traj
+    model = neutromeratio.ani.LinearAlchemicalDualTopologyANI(alchemical_atoms=dummy_atoms)
+    torch.set_num_threads(1)
 
+    energy_function = neutromeratio.ANI1_force_and_energy(
+                                                model = model,
+                                                atoms = atoms)
+    
+    traj = neutromeratio.equilibrium.read_precalculated_md('neutromeratio/data/mol298_t1.pdb', 'neutromeratio/data/mol298_t1.dcd')
 
-    tautomer_transformation = neutromeratio.get_tautomer_transformation(from_mol, to_mol)
-    ani_input = neutromeratio.from_mol_to_ani_input(from_mol, nr_of_conf=2)
-    neutromeratio.generate_hybrid_structure(ani_input, tautomer_transformation)
-    assert(ani_input['hybrid_atoms'] == 'OCCCNCCCCCCHHHHHHHH')
-    
-    ani_traj = md.Trajectory(ani_input['hybrid_coords'].value_in_unit(unit.nanometer), ani_input['hybrid_topology'])
-    e = ani_input['min_e']
-    
-    assert(type(e) == unit.Quantity)
-    assert(type(tautomer_transformation['donor_hydrogen_idx']) == int)
-    e = e.value_in_unit(unit.kilocalorie_per_mole)
-    assert(e < -216698.91137612148 + 5)
+    x0 = traj[0]
+    energy_function.flat_bottom_restraint  = False
+    energy_function.harmonic_restraint  = False
+    energy_function.use_pure_ani1ccx = False
+    x = energy_function.calculate_energy(x0, lambda_value=1.0)
+    x = x.value_in_unit(unit.kilocalorie_per_mole)
+    np.testing.assert_almost_equal(x, -216707.18481400612, decimal=5)
+    x = energy_function.calculate_energy(x0, lambda_value=0.0)
+    x = x.value_in_unit(unit.kilocalorie_per_mole)
+    np.testing.assert_almost_equal(x, -216763.81517969485, decimal=5)
 
 
 def test_restraint():
-
+    from neutromeratio.tautomers import Tautomer
     with open('data/exp_results.pickle', 'rb') as f:
         exp_results = pickle.load(f)
 
@@ -200,20 +274,13 @@ def test_restraint():
     t1_smiles = exp_results[name]['t1-smiles']
     t2_smiles = exp_results[name]['t2-smiles']
 
-    from_mol_tautomer_idx = 1
-    to_mol_tautomer_idx = 2
+    t = Tautomer(name=name, intial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles))
+    t.perform_tautomer_transformation_forward()
 
-    # generate both rdkit mol
-    mols = { 't1' : neutromeratio.generate_rdkit_mol(t1_smiles), 't2' : neutromeratio.generate_rdkit_mol(t2_smiles) }
-    from_mol = mols[f"t{from_mol_tautomer_idx}"]
-    to_mol = mols[f"t{to_mol_tautomer_idx}"]
-    tautomer_transformation = neutromeratio.get_tautomer_transformation(from_mol, to_mol)
-    ani_input = neutromeratio.from_mol_to_ani_input(from_mol, nr_of_conf=2)
-    atoms = ani_input['ligand_atoms']
-    print(atoms)
-    print(ani_input['ligand_coords'])
+    atoms = t.intial_state_ligand_atoms
     a = neutromeratio.Restraint(sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=-1)
-    coordinates = torch.tensor([ani_input['ligand_coords'][0].value_in_unit(unit.nanometer)],
+    
+    coordinates = torch.tensor([t.intial_state_ligand_coords[0].value_in_unit(unit.nanometer)],
                         requires_grad=True, device=device, dtype=torch.float32)
 
     print('Restraing: {}.'.format(a.harmonic_position_restraint(coordinates)))
@@ -221,6 +288,7 @@ def test_restraint():
 
 
 def test_restraint_with_alchemicalANI():
+    from neutromeratio.tautomers import Tautomer
 
     # read in pregenerated traj
     traj = neutromeratio.equilibrium.read_precalculated_md('neutromeratio/data/structure.pdb', 'neutromeratio/data/structure.dcd')
@@ -234,27 +302,16 @@ def test_restraint_with_alchemicalANI():
     t1_smiles = exp_results[name]['t1-smiles']
     t2_smiles = exp_results[name]['t2-smiles']
 
-    from_mol_tautomer_idx = 1
-    to_mol_tautomer_idx = 2
+    t = Tautomer(name=name, intial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles))
+    t.perform_tautomer_transformation_forward()
 
-    # generate both rdkit mol
-    mols = { 't1' : neutromeratio.generate_rdkit_mol(t1_smiles), 't2' : neutromeratio.generate_rdkit_mol(t2_smiles) }
-    from_mol = mols[f"t{from_mol_tautomer_idx}"]
-    to_mol = mols[f"t{to_mol_tautomer_idx}"]
-    
-    # generate tautomer transformation
-    tautomer_transformation = neutromeratio.get_tautomer_transformation(from_mol, to_mol)
-
-    # generate ani input 
-    ani_input = neutromeratio.from_mol_to_ani_input(from_mol, nr_of_conf=2)
-
-    atoms = ani_input['ligand_atoms']
-    hydrogen_idx = tautomer_transformation['hydrogen_idx']
+    atoms = t.intial_state_ligand_atoms
+    hydrogen_idx = t.hydrogen_idx
 
     # overwrite the coordinates that rdkit generated with the first frame in the traj
     x0 = traj[0]
 
-    model = neutromeratio.ani.LinearAlchemicalANI(alchemical_atoms=[hydrogen_idx], ani_input=ani_input)
+    model = neutromeratio.ani.LinearAlchemicalANI(alchemical_atoms=[hydrogen_idx])
     
     energy_function = neutromeratio.ANI1_force_and_energy(
                                                 model = model,
@@ -325,7 +382,7 @@ def test_restraint_with_alchemicalANI():
     np.testing.assert_almost_equal(x, -216350.46153373353, decimal=5)
 
 
-def test_restraint_with_alchemicalANISingleTopology():
+def test_restraint_with_alchemicalANIDualTopology():
   
     # read in exp_results.pickle
     with open('data/exp_results.pickle', 'rb') as f:
@@ -336,33 +393,18 @@ def test_restraint_with_alchemicalANISingleTopology():
     t1_smiles = exp_results[name]['t1-smiles']
     t2_smiles = exp_results[name]['t2-smiles']
 
-    # define the direction of the tautomer reaction
-    from_mol_tautomer_idx = 1
-    to_mol_tautomer_idx = 2
-
-    # generate both rdkit mol
-    mols = { 't1' : neutromeratio.generate_rdkit_mol(t1_smiles), 't2' : neutromeratio.generate_rdkit_mol(t2_smiles) }
-    from_mol = mols[f"t{from_mol_tautomer_idx}"]
-    to_mol = mols[f"t{to_mol_tautomer_idx}"]
+    t = neutromeratio.Tautomer(name=name, intial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles))
+    t.perform_tautomer_transformation_forward()
     
-    # generate tautomer transformation
-    tautomer_transformation = neutromeratio.get_tautomer_transformation(from_mol, to_mol)
-
-    # generate ani input 
-    ani_input = neutromeratio.from_mol_to_ani_input(from_mol, nr_of_conf=2)
-
-    # generate hybrid input
-    neutromeratio.generate_hybrid_structure(ani_input, tautomer_transformation)
-    atoms = ani_input['hybrid_atoms']
-
-    # rdkit coordinates
-    x0 = ani_input['hybrid_coords']
+    traj = neutromeratio.equilibrium.read_precalculated_md('neutromeratio/data/mol298_t1.pdb', 'neutromeratio/data/mol298_t1.dcd')
+    x0 = traj[0]
 
     # the first of the alchemical_atoms will be dummy at lambda 0, the second at lambda 1
     # protocoll goes from 0 to 1
-    dummy_atoms=[tautomer_transformation['acceptor_hydrogen_idx'], tautomer_transformation['donor_hydrogen_idx']]
+    dummy_atoms = [t.hybrid_hydrogen_idx_at_acceptor_heavy_atom, t.hybrid_hydrogen_idx_at_donor_heavy_atom]
+    atoms = t.hybrid_atoms
 
-    model = neutromeratio.ani.LinearAlchemicalSingleTopologyANI(alchemical_atoms=dummy_atoms, ani_input=ani_input)
+    model = neutromeratio.ani.LinearAlchemicalDualTopologyANI(alchemical_atoms=dummy_atoms)
     
     energy_function = neutromeratio.ANI1_force_and_energy(
                                                 model = model,
@@ -373,6 +415,7 @@ def test_restraint_with_alchemicalANISingleTopology():
     energy_function.use_pure_ani1ccx = False
     x = energy_function.calculate_energy(x0, lambda_value=0.0)
     x = x.value_in_unit(unit.kilocalorie_per_mole)
+    np.testing.assert_almost_equal(x, -216763.81517969485, decimal=5)
 
 def test_min_and_single_point_energy():
     
@@ -384,10 +427,7 @@ def test_min_and_single_point_energy():
     t1_smiles = exp_results[name]['t1-smiles']
     t2_smiles = exp_results[name]['t2-smiles']
 
-    # generate both rdkit mol
-    mols = { 't1' : neutromeratio.generate_rdkit_mol(t1_smiles), 't2' : neutromeratio.generate_rdkit_mol(t2_smiles) }
-    from_mol = mols['t1']
-    to_mol = mols['t2']
+    t = neutromeratio.Tautomer(name=name, intial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles))
 
     # set model
     model = torchani.models.ANI1ccx()
@@ -395,22 +435,56 @@ def test_min_and_single_point_energy():
     torch.set_num_threads(2)
 
     # calculate energy using both structures and pure ANI1ccx
-    for tautomer in [from_mol, to_mol]: 
-        ani_input = neutromeratio.from_mol_to_ani_input(tautomer, nr_of_conf=1)
+    for ligand_atoms in [t.intial_state_ligand_atoms, t.final_state_ligand_atoms]: 
         energy_function = neutromeratio.ANI1_force_and_energy(
                                                 model = model,
-                                                atoms = ani_input['ligand_atoms'],
+                                                atoms = ligand_atoms,
                                                 use_pure_ani1ccx = True
                                             )
         # minimize
-        energy_function.minimize(ani_input, hybrid=False)
+        energy_function.minimize(hybrid=False)
 
         for x in ani_input['ligand_coords']:
             x0 = np.array(x) * unit.angstrom
             print(energy_function.calculate_energy(x0))
 
 
+# def test_thermochemistry():
+#     from neutromeratio.thermochemistry import get_thermo_correction
 
+#     # name of the system
+#     name = 'molDWRow_298'
+
+#     # extract smiles
+#     exp_results = pickle.load(open('data/exp_results.pickle', 'rb'))
+#     t1_smiles = exp_results[name]['t1-smiles']
+#     t2_smiles = exp_results[name]['t2-smiles']
+
+#     # generate both rdkit mol
+#     mols = { 't1' : neutromeratio.generate_rdkit_mol(t1_smiles), 't2' : neutromeratio.generate_rdkit_mol(t2_smiles) }
+#     from_mol = mols['t1']
+#     to_mol = mols['t2']
+
+#     # set model
+#     model = torchani.models.ANI1ccx()
+#     model = model.to(device)
+#     torch.set_num_threads(2)
+
+#     # calculate energy using both structures and pure ANI1ccx
+#     for tautomer in [from_mol, to_mol]: 
+#         ani_input = neutromeratio.from_mol_to_ani_input(tautomer, nr_of_conf=1)
+#         energy_function = neutromeratio.ANI1_force_and_energy(
+#                                                 model = model,
+#                                                 atoms = ani_input['ligand_atoms'],
+#                                                 use_pure_ani1ccx = True
+#                                             )
+#         # minimize
+#         energy_function.minimize(ani_input, hybrid=False)
+
+#         for x in ani_input['ligand_coords']:
+#             x0 = np.array(x) * unit.angstrom
+#             print(energy_function.calculate_energy(x0))
+#         get_thermo_correction()
 
 
 
