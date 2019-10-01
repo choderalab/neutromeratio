@@ -12,6 +12,7 @@ from .hybrid import generate_hybrid_structure
 from .utils import write_pdb
 from .utils import add_solvent
 import numpy as np
+from ase import Atom, Atoms
 
 logger = logging.getLogger(__name__)
 
@@ -123,9 +124,18 @@ def from_mol_to_ani_input(mol:Chem.Mol, nr_of_conf:int, in_solvent:bool=False)->
     
     ani_input =  {'ligand_atoms' : ''.join(atom_list), 
             'ligand_coords' : coord_list, 
-            'ligand_topology' : topology }
+            'ligand_topology' : topology,
+            'ase_mol' : [] }
 
-   
+    for coordinates in coord_list:
+        atom_list = []
+        for e, c in zip(ani_input['ligand_atoms'], coordinates):
+            c_list = (c[0].value_in_unit(unit.angstrom), c[1].value_in_unit(unit.angstrom), c[2].value_in_unit(unit.angstrom)) 
+            atom_list.append(Atom(e, c_list))
+        mol = Atoms(atom_list)
+    ani_input['ase_mol'].append(mol)
+
+
     if in_solvent:
         add_solvent(None, None, None, None)
     

@@ -11,9 +11,6 @@ import logging
 from pdbfixer import PDBFixer
 from simtk.openmm import Vec3
 import random
-from rdkit.Chem.Draw import IPythonConsole
-from IPython.core.display import display
-from collections import namedtuple
 
 logger = logging.getLogger(__name__)
 
@@ -95,3 +92,6 @@ def reduced_pot(E:float) -> float:
         u(x) = U(x) / kBT
     """
     return E / kT
+
+
+

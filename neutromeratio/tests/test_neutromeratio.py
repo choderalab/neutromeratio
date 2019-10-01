@@ -374,6 +374,45 @@ def test_restraint_with_alchemicalANISingleTopology():
     x = energy_function.calculate_energy(x0, lambda_value=0.0)
     x = x.value_in_unit(unit.kilocalorie_per_mole)
 
+def test_min_and_single_point_energy():
+    
+    # name of the system
+    name = 'molDWRow_298'
+
+    # extract smiles
+    exp_results = pickle.load(open('data/exp_results.pickle', 'rb'))
+    t1_smiles = exp_results[name]['t1-smiles']
+    t2_smiles = exp_results[name]['t2-smiles']
+
+    # generate both rdkit mol
+    mols = { 't1' : neutromeratio.generate_rdkit_mol(t1_smiles), 't2' : neutromeratio.generate_rdkit_mol(t2_smiles) }
+    from_mol = mols['t1']
+    to_mol = mols['t2']
+
+    # set model
+    model = torchani.models.ANI1ccx()
+    model = model.to(device)
+    torch.set_num_threads(2)
+
+    # calculate energy using both structures and pure ANI1ccx
+    for tautomer in [from_mol, to_mol]: 
+        ani_input = neutromeratio.from_mol_to_ani_input(tautomer, nr_of_conf=1)
+        energy_function = neutromeratio.ANI1_force_and_energy(
+                                                model = model,
+                                                atoms = ani_input['ligand_atoms'],
+                                                use_pure_ani1ccx = True
+                                            )
+        # minimize
+        energy_function.minimize(ani_input, hybrid=False)
+
+        for x in ani_input['ligand_coords']:
+            x0 = np.array(x) * unit.angstrom
+            print(energy_function.calculate_energy(x0))
+
+
+
+
+
 
 def test_euqilibrium():
     # name of the system
@@ -416,9 +455,7 @@ def test_euqilibrium():
 
     x0 = np.array(ani_input['hybrid_coords']) * unit.angstrom
 
-
-
-    energy_function.minimize(ani_input)
+    energy_function.minimize(ani_input, hybrid=True)
 
     lambda_value = 1.0
     energy_and_force = lambda x : energy_function.calculate_force(x, lambda_value)

@@ -20,7 +20,8 @@ class ANI1_force_and_energy(object):
 
     def __init__(self, 
                 model:torchani.models.ANI1ccx, 
-                atoms:str, 
+                atoms:str,
+                use_pure_ani1ccx:bool=False
                 ):
         
         self.device = device
@@ -28,7 +29,7 @@ class ANI1_force_and_energy(object):
         self.atoms = atoms
         self.species = self.model.species_to_tensor(atoms).to(device).unsqueeze(0)
         self.platform = platform
-        self.use_pure_ani1ccx = False
+        self.use_pure_ani1ccx = use_pure_ani1ccx
         
         self.flat_bottom_restraint = False
         self.harmonic_restraint = False
@@ -41,17 +42,33 @@ class ANI1_force_and_energy(object):
 
         self.list_of_restraints.append(restraint)
 
-    def minimize(self, ani_input):
+    def minimize(self, ani_input, hybrid=False):
         
-        calculator = self.model.ase(dtype=torch.float64)
-        mol = ani_input['ase_hybrid_mol']
-        mol.set_calculator(calculator)
-        print("Begin minimizing...")
-        opt = BFGS(mol)
-        opt.run(fmax=0.001)
-        ani_input['hybrid_coords'] = np.array(mol.get_positions()) * unit.angstrom
+        # use ASE to minimize the molecule
+        # depending on the bool hybrid it either minimizes 
+        # the hybrid coordinates (a single conformation) 
+        # or the ligand coordinates (could be multiple conformations)
 
-    def calculate_force(self, x:simtk.unit.quantity.Quantity, lambda_value:float) -> simtk.unit.quantity.Quantity:
+        if hybrid:
+            calculator = self.model.ase(dtype=torch.float64)
+            mol = ani_input['ase_hybrid_mol']
+            mol.set_calculator(calculator)
+            print("Begin minimizing...")
+            opt = BFGS(mol)
+            opt.run(fmax=0.001)
+            ani_input['hybrid_coords'] = np.array(mol.get_positions()) * unit.angstrom
+
+        else:
+            for i in range(len(ani_input['ase_mol'])):
+                calculator = self.model.ase(dtype=torch.float64)
+                mol = ani_input['ase_mol'][i]
+                mol.set_calculator(calculator)
+                print("Begin minimizing...")
+                opt = BFGS(mol)
+                opt.run(fmax=0.001)
+                ani_input['ligand_coords'][i] = np.array(mol.get_positions()) * unit.angstrom
+
+    def calculate_force(self, x:simtk.unit.quantity.Quantity, lambda_value:float = 0.0) -> simtk.unit.quantity.Quantity:
         """
         Given a coordinate set the forces with respect to the coordinates are calculated.
         
@@ -87,7 +104,7 @@ class ANI1_force_and_energy(object):
         return F * (unit.kilojoule_per_mole / unit.nanometer), energy_in_kJ_mol.item() * unit.kilojoule_per_mole
 
     
-    def _calculate_energy(self, coordinates:torch.tensor, lambda_value:float = 0.0)->torch.tensor:
+    def _calculate_energy(self, coordinates:torch.tensor, lambda_value:float)->torch.tensor:
         """
         Helpter function to return energies as tensor.
         Given a coordinate set the energy is calculated.
@@ -152,7 +169,7 @@ class ANI1_force_and_energy(object):
         
 
 
-    def calculate_energy(self, x:simtk.unit.quantity.Quantity, lambda_value:float) -> simtk.unit.quantity.Quantity:
+    def calculate_energy(self, x:simtk.unit.quantity.Quantity, lambda_value:float = 0.0) -> simtk.unit.quantity.Quantity:
         """
         Given a coordinate set (x) the energy is calculated in kJ/mol.
 
