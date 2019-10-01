@@ -57,6 +57,36 @@ class Tautomer(object):
         self.ncmc_restraints:list = []
 
 
+    def perform_tautomer_transformation_forward(self):
+        """
+        Returns the atom index of the hydrogen donor atom and hydrogen atom that moves.
+        """
+
+        m1 = copy.deepcopy(self.intial_state_mol)
+        m2 = copy.deepcopy(self.final_state_mol)
+        self._perform_tautomer_transformation(m1, m2)
+        self._generate_hybrid_structure(self.intial_state_ligand_atoms, None, self.intial_state_ligand_coords[0], self.intial_state_ligand_topology)
+
+    def perform_tautomer_transformation_reverse(self):
+        """
+        Returns the atom index of the hydrogen donor atom and hydrogen atom that moves.
+        This index is consistent with the indexing of m1.
+        Parameters
+        ----------
+        m1: rdkit mol object
+        m2: rdkit mol object
+        
+        Returns
+        -------
+        { 'donor_idx': donor, 'hydrogen_idx' : hydrogen_idx_that_moves, 'acceptor_idx' : acceptor}
+        """
+
+        m1 = copy.deepcopy(self.final_state_mol)
+        m2 = copy.deepcopy(self.intial_state_mol)
+        self._perform_tautomer_transformation(m1, m2)
+        self._generate_hybrid_structure(self.final_state_ligand_atoms, None, self.final_state_ligand_coords[0], self.final_state_ligand_topology)
+
+
     def _from_mol_to_ani_input(self, mol:Chem.Mol):
         """
         Generates atom_list and coord_list entries from rdkit mol.
@@ -136,36 +166,6 @@ class Tautomer(object):
         AllChem.AlignMolConformers(mol)
         AllChem.MMFFOptimizeMoleculeConfs(mol)
         return mol
-
-
-    def perform_tautomer_transformation_forward(self):
-        """
-        Returns the atom index of the hydrogen donor atom and hydrogen atom that moves.
-        """
-
-        m1 = copy.deepcopy(self.intial_state_mol)
-        m2 = copy.deepcopy(self.final_state_mol)
-        self._perform_tautomer_transformation(m1, m2)
-        self._generate_hybrid_structure(self.intial_state_ligand_atoms, None, self.intial_state_ligand_coords[0], self.intial_state_ligand_topology)
-
-    def perform_tautomer_transformation_reverse(self):
-        """
-        Returns the atom index of the hydrogen donor atom and hydrogen atom that moves.
-        This index is consistent with the indexing of m1.
-        Parameters
-        ----------
-        m1: rdkit mol object
-        m2: rdkit mol object
-        
-        Returns
-        -------
-        { 'donor_idx': donor, 'hydrogen_idx' : hydrogen_idx_that_moves, 'acceptor_idx' : acceptor}
-        """
-
-        m1 = copy.deepcopy(self.final_state_mol)
-        m2 = copy.deepcopy(self.intial_state_mol)
-        self._perform_tautomer_transformation(m1, m2)
-        self._generate_hybrid_structure(self.final_state_ligand_atoms, None, self.final_state_ligand_coords[0], self.final_state_ligand_topology)
 
 
     def _perform_tautomer_transformation(self, m1:Chem.Mol, m2:Chem.Mol):
