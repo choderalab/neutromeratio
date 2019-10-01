@@ -220,10 +220,8 @@ def test_neutromeratio_energy_calculations_with_LinearAlchemicalANI_model():
     energy_function.harmonic_restraint  = False
     energy_function.use_pure_ani1ccx = False
     x = energy_function.calculate_energy(x0, lambda_value=1.0)
-    x = x.value_in_unit(unit.kilocalorie_per_mole)
     assert(is_quantity_close(x, -216736.6857518717* unit.kilocalorie_per_mole, rtol=1e-9))
     x = energy_function.calculate_energy(x0, lambda_value=0.0)
-    x = x.value_in_unit(unit.kilocalorie_per_mole)
     assert(is_quantity_close(x, -216698.911373172* unit.kilocalorie_per_mole, rtol=1e-9))
 
 
@@ -261,10 +259,8 @@ def test_neutromeratio_energy_calculations_with_DualTopologyAlchemicalANI_model(
     energy_function.harmonic_restraint  = False
     energy_function.use_pure_ani1ccx = False
     x = energy_function.calculate_energy(x0, lambda_value=1.0)
-    x = x.value_in_unit(unit.kilocalorie_per_mole)
     assert(is_quantity_close(x, -216707.18481400612* unit.kilocalorie_per_mole, rtol=1e-9))
     x = energy_function.calculate_energy(x0, lambda_value=0.0)
-    x = x.value_in_unit(unit.kilocalorie_per_mole)
     assert(is_quantity_close(x, -216763.81517969485* unit.kilocalorie_per_mole, rtol=1e-9))
 
 
@@ -325,10 +321,8 @@ def test_restraint_with_alchemicalANI():
     energy_function.harmonic_restraint  = False
     energy_function.use_pure_ani1ccx = False
     x = energy_function.calculate_energy(x0, lambda_value=1.0)
-    x = x.value_in_unit(unit.kilocalorie_per_mole)
     assert(is_quantity_close(x, -216736.6857518717* unit.kilocalorie_per_mole, rtol=1e-9))
     x = energy_function.calculate_energy(x0, lambda_value=0.0)
-    x = x.value_in_unit(unit.kilocalorie_per_mole)
     assert(is_quantity_close(x, -216698.911373172* unit.kilocalorie_per_mole, rtol=1e-9))
 
     # add the restraints - active at different lambda steps
@@ -346,7 +340,6 @@ def test_restraint_with_alchemicalANI():
     energy_function.use_pure_ani1ccx = False
 
     x = energy_function.calculate_energy(x0, lambda_value=0.0)
-    x = x.value_in_unit(unit.kilocalorie_per_mole)
     assert(is_quantity_close(x, -216698.911373172* unit.kilocalorie_per_mole, rtol=1e-9))
 
     # test flat_bottom_restraint for lambda = 0.0
@@ -355,7 +348,6 @@ def test_restraint_with_alchemicalANI():
     energy_function.use_pure_ani1ccx = False
 
     x = energy_function.calculate_energy(x0, lambda_value=0.0)
-    x = x.value_in_unit(unit.kilocalorie_per_mole)
     assert(is_quantity_close(x, -216527.22548065928* unit.kilocalorie_per_mole, rtol=1e-9))
 
     # test harmonic_restraint for lambda = 0.0 
@@ -364,7 +356,6 @@ def test_restraint_with_alchemicalANI():
     energy_function.use_pure_ani1ccx = False
 
     x = energy_function.calculate_energy(x0, lambda_value=0.0)
-    x = x.value_in_unit(unit.kilocalorie_per_mole)
     assert(is_quantity_close(x, -216484.37304754654* unit.kilocalorie_per_mole, rtol=1e-9))
 
     # test harmonic_restraint for lambda = 1.0 
@@ -373,7 +364,6 @@ def test_restraint_with_alchemicalANI():
     energy_function.use_pure_ani1ccx = False
 
     x = energy_function.calculate_energy(x0, lambda_value=1.0)
-    x = x.value_in_unit(unit.kilocalorie_per_mole)
     assert(is_quantity_close(x, -216522.14742624626* unit.kilocalorie_per_mole, rtol=1e-9))
 
     # test harmonic_restraint and flat_bottom_restraint for lambda = 1.0 
@@ -382,7 +372,6 @@ def test_restraint_with_alchemicalANI():
     energy_function.use_pure_ani1ccx = False
 
     x = energy_function.calculate_energy(x0, lambda_value=1.0)
-    x = x.value_in_unit(unit.kilocalorie_per_mole)
     assert(is_quantity_close(x, -216350.46153373353* unit.kilocalorie_per_mole, rtol=1e-9))
 
 
@@ -419,7 +408,6 @@ def test_restraint_with_alchemicalANIDualTopology():
     energy_function.harmonic_restraint  = False
     energy_function.use_pure_ani1ccx = False
     x = energy_function.calculate_energy(x0, lambda_value=0.0)
-    x = x.value_in_unit(unit.kilocalorie_per_mole)
     assert(is_quantity_close(x, -216763.81517969485* unit.kilocalorie_per_mole, rtol=1e-9))
 
 def test_min_and_single_point_energy():
