@@ -7,7 +7,8 @@ from simtk import unit
 import simtk
 from .restraints import Restraint
 from ase.optimize import BFGS
-
+from ase import Atoms
+import copy
 
 class ANI1_force_and_energy(object):
     """
@@ -21,12 +22,14 @@ class ANI1_force_and_energy(object):
     def __init__(self, 
                 model:torchani.models.ANI1ccx, 
                 atoms:str,
+                mol:Atoms,
                 use_pure_ani1ccx:bool=False
                 ):
         
         self.device = device
         self.model = model
         self.atoms = atoms
+        self.ase_mol = mol
         self.species = self.model.species_to_tensor(atoms).to(device).unsqueeze(0)
         self.platform = platform
         self.use_pure_ani1ccx = use_pure_ani1ccx
@@ -42,31 +45,22 @@ class ANI1_force_and_energy(object):
 
         self.list_of_restraints.append(restraint)
 
-    def minimize(self, mol, hybrid=False):
+    def minimize(self, coords:simtk.unit.quantity.Quantity, fmax:float=0.001):
         
         # use ASE to minimize the molecule
-        # depending on the bool hybrid it either minimizes 
-        # the hybrid coordinates (a single conformation) 
-        # or the ligand coordinates (could be multiple conformations)
+        mol = copy.deepcopy(self.ase_mol)
+        calculator = self.model.ase(dtype=torch.float64)
 
-        if hybrid:
-            calculator = self.model.ase(dtype=torch.float64)
-            mol = ani_input['ase_hybrid_mol']
-            mol.set_calculator(calculator)
-            print("Begin minimizing...")
-            opt = BFGS(mol)
-            opt.run(fmax=0.001)
-            ani_input['hybrid_coords'] = np.array(mol.get_positions()) * unit.angstrom
+        for atom, c in zip(mol, coords):
+            atom.x = c[0].value_in_unit(unit.angstrom)
+            atom.y = c[1].value_in_unit(unit.angstrom)
+            atom.z = c[2].value_in_unit(unit.angstrom)
 
-        else:
-            for i in range(len(ani_input['ase_mol'])):
-                calculator = self.model.ase(dtype=torch.float64)
-                mol = ani_input['ase_mol'][i]
-                mol.set_calculator(calculator)
-                print("Begin minimizing...")
-                opt = BFGS(mol)
-                opt.run(fmax=0.001)
-                ani_input['ligand_coords'][i] = np.array(mol.get_positions()) * unit.angstrom
+        mol.set_calculator(calculator)
+        print("Begin minimizing...")
+        opt = BFGS(mol)
+        opt.run(fmax=fmax)
+        return np.array(mol.get_positions()) * unit.angstrom
 
     def calculate_force(self, x:simtk.unit.quantity.Quantity, lambda_value:float = 0.0) -> simtk.unit.quantity.Quantity:
         """

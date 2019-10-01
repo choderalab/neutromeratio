@@ -149,7 +149,8 @@ def test_neutromeratio_energy_calculations_with_torchANI_model():
     torch.set_num_threads(1)
     energy_function = neutromeratio.ANI1_force_and_energy(
                                                 model = model,
-                                                atoms = atoms)
+                                                atoms = atoms,
+                                                mol = t.intial_state_ase_mol)
 
     energy_function.flat_bottom_restraint  = False
     energy_function.harmonic_restraint  = False
@@ -173,7 +174,8 @@ def test_neutromeratio_energy_calculations_with_torchANI_model():
     torch.set_num_threads(1)
     energy_function = neutromeratio.ANI1_force_and_energy(
                                                 model = model,
-                                                atoms = atoms)
+                                                atoms = atoms,
+                                                mol = t.final_state_ase_mol)
 
     energy_function.flat_bottom_restraint  = False
     energy_function.harmonic_restraint  = False
@@ -212,7 +214,8 @@ def test_neutromeratio_energy_calculations_with_LinearAlchemicalANI_model():
 
     energy_function = neutromeratio.ANI1_force_and_energy(
                                                 model = model,
-                                                atoms = atoms)
+                                                atoms = atoms,
+                                                mol = t.intial_state_ase_mol)
 
     energy_function.flat_bottom_restraint  = False
     energy_function.harmonic_restraint  = False
@@ -249,7 +252,8 @@ def test_neutromeratio_energy_calculations_with_DualTopologyAlchemicalANI_model(
 
     energy_function = neutromeratio.ANI1_force_and_energy(
                                                 model = model,
-                                                atoms = atoms)
+                                                atoms = atoms,
+                                                mol = t.hybrid_ase_mol)
     
     traj = neutromeratio.equilibrium.read_precalculated_md('neutromeratio/data/mol298_t1.pdb', 'neutromeratio/data/mol298_t1.dcd')
 
@@ -315,7 +319,8 @@ def test_restraint_with_alchemicalANI():
     
     energy_function = neutromeratio.ANI1_force_and_energy(
                                                 model = model,
-                                                atoms = atoms)
+                                                atoms = atoms,
+                                                mol = t.intial_state_ase_mol)
 
     energy_function.flat_bottom_restraint  = False
     energy_function.harmonic_restraint  = False
@@ -408,7 +413,8 @@ def test_restraint_with_alchemicalANIDualTopology():
     
     energy_function = neutromeratio.ANI1_force_and_energy(
                                                 model = model,
-                                                atoms = atoms)
+                                                atoms = atoms,
+                                                mol = t.hybrid_ase_mol)
 
     energy_function.flat_bottom_restraint  = False
     energy_function.harmonic_restraint  = False
@@ -435,16 +441,18 @@ def test_min_and_single_point_energy():
     torch.set_num_threads(2)
 
     # calculate energy using both structures and pure ANI1ccx
-    for ligand_atoms in [t.intial_state_ligand_atoms, t.final_state_ligand_atoms]: 
+    for ase_mol, ligand_atoms, ligand_coords in zip([t.intial_state_ase_mol, t.final_state_ase_mol], [t.intial_state_ligand_atoms, t.final_state_ligand_atoms], [t.intial_state_ligand_coords, t.final_state_ligand_coords]): 
         energy_function = neutromeratio.ANI1_force_and_energy(
                                                 model = model,
                                                 atoms = ligand_atoms,
+                                                mol = ase_mol,
                                                 use_pure_ani1ccx = True
                                             )
-        # minimize
-        energy_function.minimize(hybrid=False)
 
-        for x in ani_input['ligand_coords']:
+        for coords in ligand_coords:
+            # minimize
+            x = energy_function.minimize(coords)
+
             x0 = np.array(x) * unit.angstrom
             print(energy_function.calculate_energy(x0))
 
@@ -499,51 +507,45 @@ def test_euqilibrium():
     t1_smiles = exp_results[name]['t1-smiles']
     t2_smiles = exp_results[name]['t2-smiles']
 
-    # generate both rdkit mol
-    mols = { 't1' : neutromeratio.generate_rdkit_mol(t1_smiles), 't2' : neutromeratio.generate_rdkit_mol(t2_smiles) }
-    from_mol = mols['t1']
-    to_mol = mols['t2']
-    ani_input = neutromeratio.from_mol_to_ani_input(from_mol, nr_of_conf=1)
-
-    tautomer_transformation = neutromeratio.get_tautomer_transformation(from_mol, to_mol)
-    neutromeratio.generate_hybrid_structure(ani_input, tautomer_transformation)
+    t = neutromeratio.Tautomer(name=name, intial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles))
+    t.perform_tautomer_transformation_forward()
 
     # define the alchemical atoms
-    alchemical_atoms=[tautomer_transformation['acceptor_hydrogen_idx'], tautomer_transformation['donor_hydrogen_idx']]
-
-    np.random.seed(0)
+    alchemical_atoms=[t.hybrid_hydrogen_idx_at_acceptor_heavy_atom, t.hybrid_hydrogen_idx_at_donor_heavy_atom]
 
     # extract hydrogen donor idx and hydrogen idx for from_mol
-    model = neutromeratio.ani.LinearAlchemicalSingleTopologyANI(alchemical_atoms=alchemical_atoms, ani_input=ani_input)
+    model = neutromeratio.ani.LinearAlchemicalDualTopologyANI(alchemical_atoms=alchemical_atoms)
     model = model.to(device)
     torch.set_num_threads(2)
 
     # perform initial sampling
     energy_function = neutromeratio.ANI1_force_and_energy(
                                             model = model,
-                                            atoms = ani_input['hybrid_atoms'],
+                                            atoms = t.hybrid_atoms,
+                                            mol = t.hybrid_ase_mol
                                             )
 
-    for e in ani_input['hybrid_restraints']:
+    for e in t.hybrid_restraints:
         energy_function.add_restraint(e)
 
-    x0 = np.array(ani_input['hybrid_coords']) * unit.angstrom
+    x0 = np.array(t.hybrid_coords) * unit.angstrom
 
-    energy_function.minimize(ani_input, hybrid=True)
+    x = energy_function.minimize(x0)
 
     lambda_value = 1.0
     energy_and_force = lambda x : energy_function.calculate_force(x, lambda_value)
 
-    langevin = neutromeratio.LangevinDynamics(atoms = ani_input['hybrid_atoms'],
+    langevin = neutromeratio.LangevinDynamics(atoms = t.hybrid_atoms,
                                 temperature = 300*unit.kelvin,
-                                energy_and_force = energy_and_force)
+                                energy_and_force = energy_and_force,
+                                )
 
     equilibrium_samples, energies = langevin.run_dynamics(x0, n_steps=n_steps, stepsize=1.0 * unit.femtosecond, progress_bar=True)
 
     lambda_value = 0.0
     energy_and_force = lambda x : energy_function.calculate_force(x, lambda_value)
 
-    langevin = neutromeratio.LangevinDynamics(atoms = ani_input['hybrid_atoms'],
+    langevin = neutromeratio.LangevinDynamics(atoms = t.hybrid_atoms,
                                 temperature = 300*unit.kelvin,
                                 energy_and_force = energy_and_force)
 

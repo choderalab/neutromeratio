@@ -32,13 +32,13 @@ class Tautomer(object):
         self.intial_state_ligand_atoms = intial_state_ani_input['ligand_atoms']
         self.intial_state_ligand_coords = intial_state_ani_input['ligand_coords']
         self.intial_state_ligand_topology:md.Topology = intial_state_ani_input['ligand_topology']
-        self.intial_state_ase_mols = intial_state_ani_input['ase_mols']
+        self.intial_state_ase_mol:Atoms = intial_state_ani_input['ase_mol']
 
         final_state_ani_input = self._from_mol_to_ani_input(self.final_state_mol)
         self.final_state_ligand_atoms = final_state_ani_input['ligand_atoms']
         self.final_state_ligand_coords = final_state_ani_input['ligand_coords']
         self.final_state_ligand_topology:md.Topology = final_state_ani_input['ligand_topology']
-        self.final_state_ase_mols = final_state_ani_input['ase_mols']
+        self.final_state_ase_mol:Atoms = final_state_ani_input['ase_mol']
 
         # attributes for the equilibrium protocol
         # these values are set by perform_tautomer_transformation_forward
@@ -91,17 +91,16 @@ class Tautomer(object):
         
         ani_input =  {'ligand_atoms' : ''.join(atom_list), 
                 'ligand_coords' : coord_list, 
-                'ligand_topology' : topology,
-                'ase_mols' : [] }
+                'ligand_topology' : topology
+                }
 
-        # generate ASE object for each conformation in coord_list
-        for coordinates in coord_list:
-            atom_list = []
-            for e, c in zip(ani_input['ligand_atoms'], coordinates):
-                c_list = (c[0].value_in_unit(unit.angstrom), c[1].value_in_unit(unit.angstrom), c[2].value_in_unit(unit.angstrom)) 
-                atom_list.append(Atom(e, c_list))
-            mol = Atoms(atom_list)
-            ani_input['ase_mols'].append(mol)
+        # generate ONE ASE object
+        ase_atom_list = []
+        for e, c in zip(ani_input['ligand_atoms'], coord_list[0]):
+            c_list = (c[0].value_in_unit(unit.angstrom), c[1].value_in_unit(unit.angstrom), c[2].value_in_unit(unit.angstrom)) 
+            ase_atom_list.append(Atom(e, c_list))
+        mol = Atoms(ase_atom_list)
+        ani_input['ase_mol'] = mol
         return ani_input
 
 
@@ -147,7 +146,7 @@ class Tautomer(object):
         m1 = copy.deepcopy(self.intial_state_mol)
         m2 = copy.deepcopy(self.final_state_mol)
         self._perform_tautomer_transformation(m1, m2)
-        self._generate_hybrid_structure(self.intial_state_ligand_atoms, self.intial_state_ligand_coords[0], self.intial_state_ligand_topology)
+        self._generate_hybrid_structure(self.intial_state_ligand_atoms, None, self.intial_state_ligand_coords[0], self.intial_state_ligand_topology)
 
     def perform_tautomer_transformation_reverse(self):
         """
@@ -166,7 +165,7 @@ class Tautomer(object):
         m1 = copy.deepcopy(self.final_state_mol)
         m2 = copy.deepcopy(self.intial_state_mol)
         self._perform_tautomer_transformation(m1, m2)
-        self._generate_hybrid_structure(self.final_state_ligand_atoms, self.final_state_ligand_coords[0], self.final_state_ligand_topology)
+        self._generate_hybrid_structure(self.final_state_ligand_atoms, None, self.final_state_ligand_coords[0], self.final_state_ligand_topology)
 
 
     def _perform_tautomer_transformation(self, m1:Chem.Mol, m2:Chem.Mol):
@@ -241,7 +240,7 @@ class Tautomer(object):
 
 
 
-    def _generate_hybrid_structure(self, ligand_atoms:str, ligand_coords, ligand_topology):
+    def _generate_hybrid_structure(self, ligand_atoms:str, ase_mol:Atoms, ligand_coords, ligand_topology:md.Topology):
         """
         Generates a hybrid structure between two tautomers. The heavy atom frame is kept but a
         hydrogen is added to the tautomer acceptor heavy atom. 
@@ -256,7 +255,8 @@ class Tautomer(object):
 
         energy_function = ANI1_force_and_energy(
                                             model = model,
-                                            atoms = hybrid_atoms
+                                            atoms = hybrid_atoms,
+                                            mol = None
                                             )
         
         self.hybrid_atoms = hybrid_atoms
