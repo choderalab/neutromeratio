@@ -59,10 +59,10 @@ class ANI1_force_and_energy(object):
         Returns the thermochemistry correction.
         Parameters
         ----------
-        mol : ase.Atoms
+        coords:simtk.unit.quantity.Quantity
         Returns
         -------
-        gibbs_energy_correction : 
+        gibbs_energy_correction : unit.kilojoule_per_mole
         """
 
         ase_mol = copy.deepcopy(self.ase_mol)
@@ -89,8 +89,16 @@ class ANI1_force_and_energy(object):
 
 
     def minimize(self, coords:simtk.unit.quantity.Quantity, fmax:float=0.001):
-        
-        # use ASE to minimize the molecule
+        """
+        Minimizes the molecule.
+        Parameters
+        ----------
+        coords:simtk.unit.quantity.Quantity
+        fmax: float
+        Returns
+        -------
+        coords:simtk.unit.quantity.Quantity
+        """
         mol = copy.deepcopy(self.ase_mol)
         calculator = self.model.ase(dtype=torch.float64)
 
