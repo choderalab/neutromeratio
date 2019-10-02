@@ -444,42 +444,37 @@ def test_min_and_single_point_energy():
             print(energy_function.calculate_energy(x0))
 
 
-# def test_thermochemistry():
-#     from neutromeratio.thermochemistry import get_thermo_correction
+def test_thermochemistry():
 
-#     # name of the system
-#     name = 'molDWRow_298'
+    # name of the system
+    name = 'molDWRow_298'
 
-#     # extract smiles
-#     exp_results = pickle.load(open('data/exp_results.pickle', 'rb'))
-#     t1_smiles = exp_results[name]['t1-smiles']
-#     t2_smiles = exp_results[name]['t2-smiles']
+    # extract smiles
+    exp_results = pickle.load(open('data/exp_results.pickle', 'rb'))
+    t1_smiles = exp_results[name]['t1-smiles']
+    t2_smiles = exp_results[name]['t2-smiles']
 
-#     # generate both rdkit mol
-#     mols = { 't1' : neutromeratio.generate_rdkit_mol(t1_smiles), 't2' : neutromeratio.generate_rdkit_mol(t2_smiles) }
-#     from_mol = mols['t1']
-#     to_mol = mols['t2']
+    # generate both rdkit mol
+    t = neutromeratio.Tautomer(name=name, intial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles))
+    t.perform_tautomer_transformation_forward()
 
-#     # set model
-#     model = torchani.models.ANI1ccx()
-#     model = model.to(device)
-#     torch.set_num_threads(2)
+    # set model
+    model = torchani.models.ANI1ccx()
+    model = model.to(device)
+    torch.set_num_threads(1)
 
-#     # calculate energy using both structures and pure ANI1ccx
-#     for tautomer in [from_mol, to_mol]: 
-#         ani_input = neutromeratio.from_mol_to_ani_input(tautomer, nr_of_conf=1)
-#         energy_function = neutromeratio.ANI1_force_and_energy(
-#                                                 model = model,
-#                                                 atoms = ani_input['ligand_atoms'],
-#                                                 use_pure_ani1ccx = True
-#                                             )
-#         # minimize
-#         energy_function.minimize(ani_input, hybrid=False)
-
-#         for x in ani_input['ligand_coords']:
-#             x0 = np.array(x) * unit.angstrom
-#             print(energy_function.calculate_energy(x0))
-#         get_thermo_correction()
+    # calculate energy using both structures and pure ANI1ccx
+    for ase_mol, ligand_atoms, ligand_coords in zip([t.intial_state_ase_mol, t.final_state_ase_mol], [t.intial_state_ligand_atoms, t.final_state_ligand_atoms], [t.intial_state_ligand_coords, t.final_state_ligand_coords]): 
+        energy_function = neutromeratio.ANI1_force_and_energy(
+                                                model = model,
+                                                atoms = ligand_atoms,
+                                                mol = ase_mol,
+                                                use_pure_ani1ccx = True
+                                            )
+        for coords in ligand_coords:
+            # minimize
+            x = energy_function.minimize(coords)
+            energy_function.get_thermo_correction(x)
 
 
 

@@ -17,6 +17,20 @@ import torch, torchani
 logger = logging.getLogger(__name__)
 
 class Tautomer(object):
+    """
+    A tautomer object that holds two tautomeric forms of a single molecule.
+    
+    Parameters
+    ----------
+    name: str
+        the name of the small molecule
+    intial_state_mol: rdkit.Chem.Mol
+        initial state mol
+    final_state_mol: rdkit.Chem.Mol
+        final state mol
+    nr_of_conformations : int
+        nr of conformations that are calculated
+    """
 
     def __init__(self, name:str, intial_state_mol:Chem.Mol, final_state_mol:Chem.Mol, nr_of_conformations:int=1):
 
@@ -59,7 +73,8 @@ class Tautomer(object):
 
     def perform_tautomer_transformation_forward(self):
         """
-        Returns the atom index of the hydrogen donor atom and hydrogen atom that moves.
+        Performs a tautomer transformation from the initial state to the final state 
+        and sets parameter and restraints using the indexing of the initial state mol.
         """
 
         m1 = copy.deepcopy(self.intial_state_mol)
@@ -69,16 +84,8 @@ class Tautomer(object):
 
     def perform_tautomer_transformation_reverse(self):
         """
-        Returns the atom index of the hydrogen donor atom and hydrogen atom that moves.
-        This index is consistent with the indexing of m1.
-        Parameters
-        ----------
-        m1: rdkit mol object
-        m2: rdkit mol object
-        
-        Returns
-        -------
-        { 'donor_idx': donor, 'hydrogen_idx' : hydrogen_idx_that_moves, 'acceptor_idx' : acceptor}
+        Performs a tautomer transformation from the initial state to the final state 
+        and sets parameter and restraints using the indexing of the initial state mol.
         """
 
         m1 = copy.deepcopy(self.final_state_mol)
@@ -89,7 +96,8 @@ class Tautomer(object):
 
     def _from_mol_to_ani_input(self, mol:Chem.Mol):
         """
-        Generates atom_list and coord_list entries from rdkit mol.
+        Helper function - does not need to be called directly.
+        Generates ANI input from a rdkit mol object
         """
         
         # generate atom list
@@ -136,11 +144,8 @@ class Tautomer(object):
 
     def _generate_conformations_from_mol(self, mol:Chem.Mol, nr_of_conformations:int):
         """
-        Generates a rdkit molecule from a SMILES string, generates conformations and generates a dictionary representation of it.
-        
-        Keyword arguments:
-        input_smi: SMILES string
-        nr_of_conformations: int
+        Helper function - does not need to be called directly.
+        Generates conformations from a rdkit mol object.        
         """  
 
         charge = 0
@@ -170,16 +175,8 @@ class Tautomer(object):
 
     def _perform_tautomer_transformation(self, m1:Chem.Mol, m2:Chem.Mol):
         """
-        Returns the atom index of the hydrogen donor atom and hydrogen atom that moves.
-        This index is consistent with the indexing of m1.
-        Parameters
-        ----------
-        m1: rdkit mol object
-        m2: rdkit mol object
-        
-        Returns
-        -------
-        { 'donor_idx': donor, 'hydrogen_idx' : hydrogen_idx_that_moves, 'acceptor_idx' : acceptor}
+        Helper function - does not need to be called directly.
+        performs the actual tautomer transformation from m1 to m2.
         """
 
         # find substructure and generate mol from substructure
@@ -242,6 +239,7 @@ class Tautomer(object):
 
     def _generate_hybrid_structure(self, ligand_atoms:str, ase_mol:Atoms, ligand_coords, ligand_topology:md.Topology):
         """
+        Helper function - does not need to be called directly.
         Generates a hybrid structure between two tautomers. The heavy atom frame is kept but a
         hydrogen is added to the tautomer acceptor heavy atom. 
         """

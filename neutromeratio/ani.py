@@ -2,13 +2,15 @@ import os
 import torchani
 import torch
 import numpy as np
-from .constants import nm_to_angstroms, hartree_to_kJ_mol, device, platform
+from .constants import nm_to_angstroms, hartree_to_kJ_mol, device, platform, conversion_factor_eV_to_kJ_mol, temperature
 from simtk import unit
 import simtk
 from .restraints import Restraint
 from ase.optimize import BFGS
 from ase import Atoms
 import copy
+from ase.vibrations import Vibrations
+from ase.thermochemistry import IdealGasThermo
 
 class ANI1_force_and_energy(object):
     """
@@ -16,7 +18,13 @@ class ANI1_force_and_energy(object):
     
     Parameters
     ----------
-    device:
+    model:
+    atoms: str
+        a string of atoms in the indexed order
+    mol: ase.Atoms
+        a ASE Atoms object with the atoms
+    use_pure_ani1ccx : bool
+        a boolian that controlls if a pure ani1ccx model is used
     """
 
     def __init__(self, 
@@ -44,6 +52,41 @@ class ANI1_force_and_energy(object):
         assert(type(restraint) == Restraint)
 
         self.list_of_restraints.append(restraint)
+
+
+    def get_thermo_correction(self, coords:simtk.unit.quantity.Quantity) -> unit.quantity.Quantity :
+        """
+        Returns the thermochemistry correction.
+        Parameters
+        ----------
+        mol : ase.Atoms
+        Returns
+        -------
+        gibbs_energy_correction : 
+        """
+
+        ase_mol = copy.deepcopy(self.ase_mol)
+        for atom, c in zip(ase_mol, coords):
+            atom.x = c[0].value_in_unit(unit.angstrom)
+            atom.y = c[1].value_in_unit(unit.angstrom)
+            atom.z = c[2].value_in_unit(unit.angstrom)
+
+        calculator = self.model.ase(dtype=torch.float64)
+        ase_mol.set_calculator(calculator)
+
+        vib = Vibrations(ase_mol)
+        vib.run()
+        vib_energies = vib.get_energies()
+        thermo = IdealGasThermo(vib_energies=vib_energies,
+                                atoms=ase_mol,
+                                geometry='nonlinear',
+                                symmetrynumber=1, spin=0)
+        
+        G = thermo.get_gibbs_energy(temperature=temperature.value_in_unit(unit.kelvin), pressure=101325.)
+        vib.write_jmol()
+        vib.clean()
+        return (G * conversion_factor_eV_to_kJ_mol) * unit.kilojoule_per_mole # eV * conversion_factor(eV to kJ/mol)
+
 
     def minimize(self, coords:simtk.unit.quantity.Quantity, fmax:float=0.001):
         
