@@ -13,6 +13,13 @@ from ase.vibrations import Vibrations
 from ase.thermochemistry import IdealGasThermo
 
 class ANI1_force_and_energy(object):
+
+    def __init__(self, 
+                model:torchani.models.ANI1ccx, 
+                atoms:str,
+                mol:Atoms,
+                use_pure_ani1ccx:bool=False
+                ):
     """
     Performs energy and force calculations.
     
@@ -27,13 +34,7 @@ class ANI1_force_and_energy(object):
         a boolian that controlls if a pure ani1ccx model is used
     """
 
-    def __init__(self, 
-                model:torchani.models.ANI1ccx, 
-                atoms:str,
-                mol:Atoms,
-                use_pure_ani1ccx:bool=False
-                ):
-        
+
         self.device = device
         self.model = model
         self.atoms = atoms
@@ -56,7 +57,10 @@ class ANI1_force_and_energy(object):
 
     def get_thermo_correction(self, coords:simtk.unit.quantity.Quantity) -> unit.quantity.Quantity :
         """
-        Returns the thermochemistry correction.
+        Returns the thermochemistry correction. This calls: https://wiki.fysik.dtu.dk/ase/ase/thermochemistry/thermochemistry.html
+        and uses the Ideal gas rigid rotor harmonic oscillator approximation to calculate the Gibbs free energy correction that 
+        needs to be added to the single point energy to obtain the Gibb's free energy
+
         Parameters
         ----------
         coords:simtk.unit.quantity.Quantity

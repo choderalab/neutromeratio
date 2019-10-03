@@ -13,7 +13,7 @@ import numpy as np
 import mdtraj as md
 from neutromeratio.constants import device
 import torchani
-from ..utils import is_quantity_close
+from openmmtools.utils import is_quantity_close
 
 def test_equ():
     assert(1.0 == 1.0)
@@ -160,7 +160,7 @@ def test_neutromeratio_energy_calculations_with_torchANI_model():
     assert(is_quantity_close(x, -216736.6903680688 * unit.kilocalorie_per_mole, rtol=1e-9))
 
 
-    # testint reverse - it should get the same energy
+    # testing reverse - it should get the same energy
     # because we set the same coordinates and no bonded info 
     # is given
 

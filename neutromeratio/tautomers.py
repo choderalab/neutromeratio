@@ -84,8 +84,8 @@ class Tautomer(object):
 
     def perform_tautomer_transformation_reverse(self):
         """
-        Performs a tautomer transformation from the initial state to the final state 
-        and sets parameter and restraints using the indexing of the initial state mol.
+        Performs a tautomer transformation from the final state to the initial state 
+        and sets parameter and restraints using the indexing of the final state mol.
         """
 
         m1 = copy.deepcopy(self.final_state_mol)
