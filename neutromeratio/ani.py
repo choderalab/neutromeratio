@@ -20,19 +20,19 @@ class ANI1_force_and_energy(object):
                 mol:Atoms,
                 use_pure_ani1ccx:bool=False
                 ):
-        """
-        Performs energy and force calculations.
-        
-        Parameters
-        ----------
-        model:
-        atoms: str
-            a string of atoms in the indexed order
-        mol: ase.Atoms
-            a ASE Atoms object with the atoms
-        use_pure_ani1ccx : bool
-            a boolian that controlls if a pure ani1ccx model is used
-        """
+            """
+            Performs energy and force calculations.
+            
+            Parameters
+            ----------
+            model:
+            atoms: str
+                a string of atoms in the indexed order
+            mol: ase.Atoms
+                a ASE Atoms object with the atoms
+            use_pure_ani1ccx : bool
+                a boolian that controlls if a pure ani1ccx model is used
+            """
 
 
         self.device = device
