@@ -2,31 +2,43 @@ import os
 import torchani
 import torch
 import numpy as np
-from .constants import nm_to_angstroms, hartree_to_kJ_mol, device, platform
+from .constants import nm_to_angstroms, hartree_to_kJ_mol, device, platform, conversion_factor_eV_to_kJ_mol, temperature
 from simtk import unit
 import simtk
 from .restraints import Restraint
 from ase.optimize import BFGS
-
+from ase import Atoms
+import copy
+from ase.vibrations import Vibrations
+from ase.thermochemistry import IdealGasThermo
 
 class ANI1_force_and_energy(object):
-    """
-    Performs energy and force calculations.
-    
-    Parameters
-    ----------
-    device:
-    """
 
     def __init__(self, 
                 model:torchani.models.ANI1ccx, 
                 atoms:str,
+                mol:Atoms,
                 use_pure_ani1ccx:bool=False
                 ):
+        """
+        Performs energy and force calculations.
         
+        Parameters
+        ----------
+        model:
+        atoms: str
+            a string of atoms in the indexed order
+        mol: ase.Atoms
+            a ASE Atoms object with the atoms
+        use_pure_ani1ccx : bool
+            a boolian that controlls if a pure ani1ccx model is used
+        """
+
+
         self.device = device
         self.model = model
         self.atoms = atoms
+        self.ase_mol = mol
         self.species = self.model.species_to_tensor(atoms).to(device).unsqueeze(0)
         self.platform = platform
         self.use_pure_ani1ccx = use_pure_ani1ccx
@@ -42,31 +54,68 @@ class ANI1_force_and_energy(object):
 
         self.list_of_restraints.append(restraint)
 
-    def minimize(self, ani_input, hybrid=False):
+
+    def get_thermo_correction(self, coords:simtk.unit.quantity.Quantity) -> unit.quantity.Quantity :
+        """
+        Returns the thermochemistry correction. This calls: https://wiki.fysik.dtu.dk/ase/ase/thermochemistry/thermochemistry.html
+        and uses the Ideal gas rigid rotor harmonic oscillator approximation to calculate the Gibbs free energy correction that 
+        needs to be added to the single point energy to obtain the Gibb's free energy
+
+        Parameters
+        ----------
+        coords:simtk.unit.quantity.Quantity
+        Returns
+        -------
+        gibbs_energy_correction : unit.kilojoule_per_mole
+        """
+
+        ase_mol = copy.deepcopy(self.ase_mol)
+        for atom, c in zip(ase_mol, coords):
+            atom.x = c[0].value_in_unit(unit.angstrom)
+            atom.y = c[1].value_in_unit(unit.angstrom)
+            atom.z = c[2].value_in_unit(unit.angstrom)
+
+        calculator = self.model.ase(dtype=torch.float64)
+        ase_mol.set_calculator(calculator)
+
+        vib = Vibrations(ase_mol)
+        vib.run()
+        vib_energies = vib.get_energies()
+        thermo = IdealGasThermo(vib_energies=vib_energies,
+                                atoms=ase_mol,
+                                geometry='nonlinear',
+                                symmetrynumber=1, spin=0)
         
-        # use ASE to minimize the molecule
-        # depending on the bool hybrid it either minimizes 
-        # the hybrid coordinates (a single conformation) 
-        # or the ligand coordinates (could be multiple conformations)
+        G = thermo.get_gibbs_energy(temperature=temperature.value_in_unit(unit.kelvin), pressure=101325.)
+        vib.write_jmol()
+        vib.clean()
+        return (G * conversion_factor_eV_to_kJ_mol) * unit.kilojoule_per_mole # eV * conversion_factor(eV to kJ/mol)
 
-        if hybrid:
-            calculator = self.model.ase(dtype=torch.float64)
-            mol = ani_input['ase_hybrid_mol']
-            mol.set_calculator(calculator)
-            print("Begin minimizing...")
-            opt = BFGS(mol)
-            opt.run(fmax=0.001)
-            ani_input['hybrid_coords'] = np.array(mol.get_positions()) * unit.angstrom
 
-        else:
-            for i in range(len(ani_input['ase_mol'])):
-                calculator = self.model.ase(dtype=torch.float64)
-                mol = ani_input['ase_mol'][i]
-                mol.set_calculator(calculator)
-                print("Begin minimizing...")
-                opt = BFGS(mol)
-                opt.run(fmax=0.001)
-                ani_input['ligand_coords'][i] = np.array(mol.get_positions()) * unit.angstrom
+    def minimize(self, coords:simtk.unit.quantity.Quantity, fmax:float=0.001):
+        """
+        Minimizes the molecule.
+        Parameters
+        ----------
+        coords:simtk.unit.quantity.Quantity
+        fmax: float
+        Returns
+        -------
+        coords:simtk.unit.quantity.Quantity
+        """
+        mol = copy.deepcopy(self.ase_mol)
+        calculator = self.model.ase(dtype=torch.float64)
+
+        for atom, c in zip(mol, coords):
+            atom.x = c[0].value_in_unit(unit.angstrom)
+            atom.y = c[1].value_in_unit(unit.angstrom)
+            atom.z = c[2].value_in_unit(unit.angstrom)
+
+        mol.set_calculator(calculator)
+        print("Begin minimizing...")
+        opt = BFGS(mol)
+        opt.run(fmax=fmax)
+        return np.array(mol.get_positions()) * unit.angstrom
 
     def calculate_force(self, x:simtk.unit.quantity.Quantity, lambda_value:float = 0.0) -> simtk.unit.quantity.Quantity:
         """
@@ -252,7 +301,7 @@ def load_model_ensemble(species, prefix, count):
 
 class LinearAlchemicalANI(AlchemicalANI):
 
-    def __init__(self, alchemical_atoms:list, ani_input:dict, pbc:bool=False):
+    def __init__(self, alchemical_atoms:list, box_length:unit.Quantity=0.0 * unit.angstrom):
         """Scale the indirect contributions of alchemical atoms to the energy sum by
         linearly interpolating, for other atom i, between the energy E_i^0 it would compute
         in the _complete absence_ of the alchemical atoms, and the energy E_i^1 it would compute
@@ -261,22 +310,22 @@ class LinearAlchemicalANI(AlchemicalANI):
         """
         super().__init__(alchemical_atoms)      
         self.neural_networks = load_model_ensemble(self.species, self.ensemble_prefix, self.ensemble_size)
-        self.ani_input = ani_input
         self.device = device
-        self.pbc = pbc
-        if pbc:
-            self.box_length = self.ani_input['box_length'].value_in_unit(unit.angstrom)
-        else:
-            self.box_length = 0.0 * unit.angstrom
+        assert(type(box_length) == unit.Quantity)
+        self.box_length = box_length.value_in_unit(unit.angstrom)
+            
 
     def forward(self, species_coordinates):
-        # for now only allow one alchemical atom
+
+        assert(len(self.alchemical_atoms) == 1)
+        alchemical_atom = self.alchemical_atoms[0]
 
         # LAMBDA = 1: fully interacting
         # species, AEVs of fully interacting system
         species, coordinates, lam = species_coordinates
+        print(lam)
         aevs = species_coordinates[:-1]
-        if self.pbc:
+        if self.box_length != 0.0:
             cell = torch.tensor(np.array([[self.box_length, 0.0, 0.0],[0.0,self.box_length,0.0],[0.0,0.0,self.box_length]]),
                                 device=self.device, dtype=torch.float)
             aevs = aevs[0], aevs[1], cell, torch.tensor([True, True, True], dtype=torch.bool, device=self.device)
@@ -288,15 +337,16 @@ class LinearAlchemicalANI(AlchemicalANI):
         nn_1 = self.neural_networks((species, aevs))[1]
         E_1 = self.energy_shifter((species, nn_1))[1]
         
-        # NOTE: this is inconsistent with the lambda definition in the staged simulation
         # LAMBDA == 1: fully interacting
         if float(lam) == 1.0:
             E = E_1
         else:
             # LAMBDA == 0: fully removed
             # species, AEVs of all other atoms, in absence of alchemical atoms
-            mod_species = torch.cat((species[:, :self.alchemical_atoms[0]],  species[:, self.alchemical_atoms[0]+1:]), dim=1)
-            mod_coordinates = torch.cat((coordinates[:, :self.alchemical_atoms[0]],  coordinates[:, self.alchemical_atoms[0]+1:]), dim=1) 
+            print(species)
+            mod_species = torch.cat((species[:, :alchemical_atom],  species[:, alchemical_atom+1:]), dim=1)
+            print(mod_species)
+            mod_coordinates = torch.cat((coordinates[:, :alchemical_atom],  coordinates[:, alchemical_atom+1:]), dim=1) 
             mod_aevs = self.aev_computer((mod_species, mod_coordinates))[1]
             # neural net output given these modified AEVs
             nn_0 = self.neural_networks((mod_species, mod_aevs))[1]
@@ -305,8 +355,9 @@ class LinearAlchemicalANI(AlchemicalANI):
         return species, E
 
 
-class LinearAlchemicalSingleTopologyANI(LinearAlchemicalANI):
-    def __init__(self, alchemical_atoms:list, ani_input:dict, pbc:bool=False):
+class LinearAlchemicalDualTopologyANI(LinearAlchemicalANI):
+   
+    def __init__(self, alchemical_atoms:list, box_length:unit.Quantity=0.0 * unit.angstrom):
         """Scale the indirect contributions of alchemical atoms to the energy sum by
         linearly interpolating, for other atom i, between the energy E_i^0 it would compute
         in the _complete absence_ of the alchemical atoms, and the energy E_i^1 it would compute
@@ -316,7 +367,7 @@ class LinearAlchemicalSingleTopologyANI(LinearAlchemicalANI):
 
         assert(len(alchemical_atoms) == 2)
 
-        super().__init__(alchemical_atoms, ani_input, pbc)      
+        super().__init__(alchemical_atoms, box_length)      
 
 
     def forward(self, species_coordinates):
@@ -325,11 +376,14 @@ class LinearAlchemicalSingleTopologyANI(LinearAlchemicalANI):
         # species, AEVs of fully interacting system
         species, coordinates, lam = species_coordinates
         aevs = species_coordinates[:-1]
-        if self.pbc:
+        if self.box_length != 0.0:
             cell = torch.tensor(np.array([[self.box_length, 0.0, 0.0],[0.0,self.box_length,0.0],[0.0,0.0,self.box_length]]),
                                 device=self.device, dtype=torch.float)
             aevs = aevs[0], aevs[1], cell, torch.tensor([True, True, True], dtype=torch.bool, device=self.device)
 
+        # NOTE: I am not happy about this - the order at which 
+        # the dummy atoms are set in alchemical_atoms determines 
+        # what is real and what is dummy at lambda 1 - that seems awefully error prone
         dummy_atom_0 = self.alchemical_atoms[0]
         dummy_atom_1 = self.alchemical_atoms[1]
 
