@@ -2,7 +2,7 @@ import os
 import torchani
 import torch
 import numpy as np
-from .constants import nm_to_angstroms, hartree_to_kJ_mol, device, platform, conversion_factor_eV_to_kJ_mol, temperature
+from .constants import nm_to_angstroms, hartree_to_kJ_mol, device, platform, conversion_factor_eV_to_kJ_mol, temperature, pressure
 from simtk import unit
 import simtk
 from .restraints import Restraint
@@ -86,7 +86,7 @@ class ANI1_force_and_energy(object):
                                 geometry='nonlinear',
                                 symmetrynumber=1, spin=0)
         
-        G = thermo.get_gibbs_energy(temperature=temperature.value_in_unit(unit.kelvin), pressure=101325.)
+        G = thermo.get_gibbs_energy(temperature=temperature.value_in_unit(unit.kelvin), pressure=pressure.value_in_unit(unit.pascal))
         vib.write_jmol()
         vib.clean()
         return (G * conversion_factor_eV_to_kJ_mol) * unit.kilojoule_per_mole # eV * conversion_factor(eV to kJ/mol)
@@ -113,7 +113,7 @@ class ANI1_force_and_energy(object):
 
         mol.set_calculator(calculator)
         print("Begin minimizing...")
-        opt = BFGS(mol)
+        opt = BFGS(mol, logfile='min-log.txt')
         opt.run(fmax=fmax)
         return np.array(mol.get_positions()) * unit.angstrom
 

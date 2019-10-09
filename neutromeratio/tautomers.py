@@ -157,19 +157,16 @@ class Tautomer(object):
             print(Chem.MolToSmiles(mol))
             raise NotImplementedError('Charged system')
 
-        Chem.rdmolops.RemoveStereochemistry(mol)
         Chem.rdmolops.AssignAtomChiralTagsFromStructure(mol)
 
         mol.SetProp("smiles", Chem.MolToSmiles(mol))
         mol.SetProp("charge", str(charge))
-        
         mol.SetProp("name", str(self.name))
 
         # generate numConfs for the smiles string 
         Chem.rdDistGeom.EmbedMultipleConfs(mol, numConfs=nr_of_conformations, enforceChirality=False, pruneRmsThresh=0.1)
         # aligne them and minimize
         AllChem.AlignMolConformers(mol)
-        AllChem.MMFFOptimizeMoleculeConfs(mol)
         return mol
 
 
@@ -306,3 +303,123 @@ class Tautomer(object):
         self.hybrid_ase_mol = mol
 
 
+    def remove_confs_based_on_RMSD(self, verbose = False):
+        # https://www.daylight.com/dayhtml_tutorials/languages/smarts/smarts_examples.html
+        # validate with: https://smartsview.zbh.uni-hamburg.de/
+
+        mols = [] 
+        energy_level = defaultdict(list)
+        energy_level_idx = defaultdict(list)
+        # prepare mols in energy level
+        add_hydrogens = []
+        copy_mols = copy.deepcopy(original_mols)
+        
+        #########################################
+        # search for important hydrogens
+        #########################################
+        
+        m = copy_mols[0]
+        print(Chem.MolToPDBBlock(m))
+
+        print('search for patterns ...')
+        # test for primary alcohol
+        patt = Chem.MolFromSmarts('[OX2H]')   
+        if m.HasSubstructMatch(patt):
+            print('found primary alcohol')
+            l = m.GetSubstructMatch(patt)
+            add_hydrogens.extend(l)
+
+        # test for imine
+        patt = Chem.MolFromSmarts('[CX3]=[NH]')
+        if m.HasSubstructMatch(patt):
+            print('found imine')
+            # TODO: can't get this to work!
+            l = m.GetSubstructMatch(patt)
+            add_hydrogens.extend(l)
+
+        # test for primary amine
+        patt = Chem.MolFromSmarts('[NX3;H2]')
+        if m.HasSubstructMatch(patt):
+            print('found amine')
+            l = m.GetSubstructMatch(patt)
+            add_hydrogens.extend(l)
+        
+        # test for cyanamide
+        patt = Chem.MolFromSmarts('[NX3][CX2]#[NX1]')
+        if m.HasSubstructMatch(patt):
+            print('found cyanamide')
+            l = m.GetSubstructMatch(patt)
+            add_hydrogens.extend(l)
+
+        # test for thiol
+        patt = Chem.MolFromSmarts('[#16X2H]')
+        if m.HasSubstructMatch(patt):
+            print('found thiol')
+            l = m.GetSubstructMatch(patt)
+            add_hydrogens.extend(l)
+
+
+        for m in copy_mols:
+            # unfortunatelly, RemoveHs() does not retain marked hydrogens
+            # therefore, I am mutation the important Hs to Li and then remutating them 
+            # to Hs
+            if add_hydrogens:
+                for idx in add_hydrogens:
+                    atom = m.GetAtomWithIdx(idx)
+                    for neighbor in atom.GetNeighbors():
+                        if neighbor.GetSymbol() == 'H':
+                            hydrogen = m.GetAtomWithIdx(neighbor.GetIdx())
+                            hydrogen.SetAtomicNum(3)
+
+                m = Chem.RemoveHs(m)
+                for atom in m.GetAtoms():
+                    if atom.GetSymbol() == 'Li':
+                        hydrogen = m.GetAtomWithIdx(atom.GetIdx())
+                        hydrogen.SetAtomicNum(1)
+            else:
+                m = Chem.RemoveHs(m)
+
+            mols.append(m)
+
+        complete_rmsd_list = []      
+        for m_i in mols:
+            for m_j in mols:
+                complete_rmsd_list.append(AllChem.GetBestRMS(m_i, m_j))
+
+        if any(i >= 0.1 for i in complete_rmsd_list):
+            # generate rmsd matrix and perform clustering
+            rmsd_matrix = np.zeros( (len(mols), len(mols)) )
+            for idx_i, m_i in enumerate(mols):
+                for idx_j, m_j in enumerate(mols):
+                    if idx_j < idx_i:
+                        continue
+                    elif idx_j == idx_i:
+                        rmsd = 0.0
+                    else:
+                        rmsd = float(round(AllChem.GetBestRMS(m_i, m_j), 1))
+                    rmsd_matrix[idx_i][idx_j]  = rmsd
+                    rmsd_matrix[idx_j][idx_i]  = rmsd
+
+
+            distArray = ssd.squareform(rmsd_matrix)
+            linked = linkage(distArray, method='weighted')
+            for mol_idx, cluster in enumerate(fcluster(linked, 0.1, criterion='distance')):
+                energy_level[cluster].append(mols[mol_idx])
+                energy_level_idx[cluster].append(mol_idx)
+
+            if verbose:
+                for l in energy_level:
+
+                    print('{} - {}'.format(l, energy_level_idx[l]))
+        
+        else:
+            energy_level[1] = mols
+        
+        energy_list_overcounts_removed = []
+        for level in energy_level:
+            tmp = []
+            for m in energy_level[level]:
+                tmp.append(float(m.GetProp('H')) - float(m.GetProp('TS1')))
+            energy_list_overcounts_removed.append(min(tmp))
+
+        return energy_list_overcounts_removed

@@ -533,3 +533,46 @@ def test_euqilibrium():
 
     equilibrium_samples, energies = langevin.run_dynamics(x0, n_steps=n_steps, stepsize=1.0 * unit.femtosecond, progress_bar=True)
 
+
+
+def test_tautomer_conformation():
+    # name of the system
+    name = 'molDWRow_298'
+    # number of steps
+
+    exp_results = pickle.load(open('data/exp_results.pickle', 'rb'))
+
+    t1_smiles = exp_results[name]['t1-smiles']
+    t2_smiles = exp_results[name]['t2-smiles']
+
+    tautomer = neutromeratio.Tautomer(name=name, intial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles), nr_of_conformations=50)
+    
+    print(f"Nr of initial conformations: {tautomer.intial_state_ligand_coords}")
+    print(f"Nr of final conformations: {tautomer.final_state_ligand_coords}")
+
+    tautomer = neutromeratio.Tautomer(name=name, intial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles), nr_of_conformations=5)   
+    tautomer.perform_tautomer_transformation_forward()
+    
+
+    # set model
+    model = torchani.models.ANI1ccx()
+    model = model.to(device)
+    torch.set_num_threads(1)
+
+    # calculate energy using both structures and pure ANI1ccx
+    for ase_mol, ligand_atoms, ligand_coords in zip([tautomer.intial_state_ase_mol, tautomer.final_state_ase_mol], [tautomer.intial_state_ligand_atoms, tautomer.final_state_ligand_atoms], [tautomer.intial_state_ligand_coords, tautomer.final_state_ligand_coords]): 
+        energy_function = neutromeratio.ANI1_force_and_energy(
+                                                model = model,
+                                                atoms = ligand_atoms,
+                                                mol = ase_mol,
+                                                use_pure_ani1ccx = True
+                                            )
+        for n_conf, coords in enumerate(ligand_coords):
+            # minimize
+            print(f"Conf: {n_conf}")
+            x = energy_function.minimize(coords, fmax=0.0005)
+            e = energy_function.calculate_energy(coords)
+            e_correction = energy_function.get_thermo_correction(x)
+            print(f"Energy: {e}")
+            print(f"Energy correction: {e_correction}")
+            

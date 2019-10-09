@@ -12,13 +12,14 @@ from IPython.core.display import display
 
 logger = logging.getLogger(__name__)
 
-def generate_nglview_object(traj:md.Trajectory, tautomer_transformation:dict) -> nglview.NGLWidget:
+def generate_nglview_object(traj:md.Trajectory, donor_hydrogen_idx:int = -1, acceptor_hydrogen_idx:int = -1) -> nglview.NGLWidget:
     """
-    Generates nglview object from topology and trajectory files.
+    Generates nglview object from a trajectory object. Generated with md.Trajectory(traj, top).
     Parameters
     ----------
-    top_file : file path to mdtraj readable topology file
-    traj_file : file path to mdtraj readable trajectory file
+    traj : md.Trajectory
+    donor_hydrogen_idx : int
+    acceptor_hydrogen_idx : int
 
     Returns
     -------
@@ -26,13 +27,13 @@ def generate_nglview_object(traj:md.Trajectory, tautomer_transformation:dict) ->
     """
 
     view = nglview.show_mdtraj(traj)
-    if 'donor_hydrogen_idx' in tautomer_transformation:
+    if donor_hydrogen_idx != -1 and acceptor_hydrogen_idx != -1:
 
         # Clear all representations to try new ones
         print('Hydrogen in GREEN  is real at lambda: 0.')
         print('Hydrogen in YELLOW is real at lambda: 1.')
-        view.add_representation('point', selection=[tautomer_transformation['donor_hydrogen_idx']], color='green', pointSize=3.5)
-        view.add_representation('point', selection=[tautomer_transformation['acceptor_hydrogen_idx']], color='yellow', pointSize=3.5)
+        view.add_representation('point', selection=[donor_hydrogen_idx], color='green', pointSize=3.5)
+        view.add_representation('point', selection=[acceptor_hydrogen_idx], color='yellow', pointSize=3.5)
     
     return view 
 
