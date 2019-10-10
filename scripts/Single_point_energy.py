@@ -39,7 +39,7 @@ for tautomer in [from_mol, to_mol]:
                                             use_pure_ani1ccx = True
                                         )
     # minimize
-    energy_function.minimize(ani_input, hybrid=False)
+    energy_function.minimize(ani_input)
 
     x0 = np.array(ani_input['ligand_coords'][0]) * unit.angstrom
     e.append(energy_function.calculate_energy(x0))

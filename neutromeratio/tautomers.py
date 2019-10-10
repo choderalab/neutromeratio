@@ -1,6 +1,6 @@
 import logging, copy, os, random
 import mdtraj as md
-from rdkit import Chem
+from rdkit import Chem, Geometry
 from rdkit.Chem import AllChem
 from rdkit.Chem import rdFMCS
 from .vis import display_mol
@@ -13,6 +13,8 @@ from ase import Atom, Atoms
 from .constants import device, platform
 from .mcmc import MC_Mover
 import torch, torchani
+from .constants import temperature, gas_constant
+from scipy.special import logsumexp
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +72,126 @@ class Tautomer(object):
         self.heavy_atom_hydrogen_acceptor_idx:int = -1
         self.ncmc_restraints:list = []
 
+
+    def _prune_conformers(self, mol:Chem.Mol, energies:list, rmsd_threshold:float)->Chem.Mol:
+        """
+        Adopted from: https://github.com/skearnes/rdkit-utils/blob/master/rdkit_utils/conformers.py
+        Prune conformers from a molecule using an RMSD threshold, starting
+        with the lowest energy conformer.
+        Parameters
+        ----------
+        mol : RDKit Mol
+            Molecule.
+        Returns
+        -------
+        A new RDKit Mol containing the chosen conformers, sorted by
+        increasing energy.
+        """
+        rmsd = self.get_conformer_rmsd(mol)
+
+        sort = np.argsort(energies)  # sort by increasing energy
+        keep = []  # always keep lowest-energy conformer
+        discard = []
+        for i in sort:
+
+            # always keep lowest-energy conformer
+            if len(keep) == 0:
+                keep.append(i)
+                continue
+
+            # get RMSD to selected conformers
+            this_rmsd = rmsd[i][np.asarray(keep, dtype=int)]
+
+            # discard conformers within the RMSD threshold
+            if np.all(this_rmsd >= rmsd_threshold):
+                keep.append(i)
+            else:
+                discard.append(i)
+
+        # create a new molecule to hold the chosen conformers
+        # this ensures proper conformer IDs and energy-based ordering
+        new_mol = Chem.Mol(mol)
+        new_mol.RemoveAllConformers()
+        conf_ids = [conf.GetId() for conf in mol.GetConformers()]
+        filtered_energies = []
+        for i in keep:
+            conf = mol.GetConformer(conf_ids[i])
+            filtered_energies.append(energies[i])
+            new_mol.AddConformer(conf, assignId=True)
+        return new_mol, filtered_energies
+
+
+
+    def generate_mining_minima_structures(self, rmsd_threshold:float=0.5)->(list, unit.Quantity):
+        """
+        Minimizes and filters conformations based on a RMSD treshold.
+        Parameters
+        ----------
+        rmsd_threshol : float
+            Treshold for RMSD filtering.
+        Returns
+        -------
+        confs_traj : list
+            list of md.Trajectory objects with filtered conformations
+        e : unit.Quantity
+            free energy difference dG(final_state - initial_state)
+        .
+        """
+
+        confs_traj = []
+        bw_energies = []
+
+        for ase_mol, rdkit_mol, ligand_atoms, ligand_coords, top in zip([self.intial_state_ase_mol, self.final_state_ase_mol], 
+        [copy.deepcopy(self.intial_state_mol), copy.deepcopy(self.final_state_mol)],
+        [self.intial_state_ligand_atoms, self.final_state_ligand_atoms], 
+        [self.intial_state_ligand_coords, self.final_state_ligand_coords], 
+        [self.intial_state_ligand_topology, self.final_state_ligand_topology]): 
+
+            model = torchani.models.ANI1ccx()
+            model = model.to(device)
+
+            energy_function = ANI1_force_and_energy(
+                                                    model = model,
+                                                    atoms = ligand_atoms,
+                                                    mol = ase_mol,
+                                                    use_pure_ani1ccx = True
+                                                )
+            traj = []
+            energies = []
+            for n_conf, coords in enumerate(ligand_coords):
+                # minimize
+                print(f"Conf: {n_conf}")
+                minimized_coords = energy_function.minimize(coords, fmax=0.0001)
+                energies.append(energy_function.calculate_energy(minimized_coords))
+                # update the coordinates in the rdkit mol
+                for atom in rdkit_mol.GetAtoms():
+                    conf = rdkit_mol.GetConformer(n_conf)
+                    new_coords = Geometry.rdGeometry.Point3D()
+                    new_coords.x = (minimized_coords[atom.GetIdx()][0]).value_in_unit(unit.angstrom)
+                    new_coords.y = minimized_coords[atom.GetIdx()][1].value_in_unit(unit.angstrom)
+                    new_coords.z = minimized_coords[atom.GetIdx()][2].value_in_unit(unit.angstrom)
+                    conf.SetAtomPosition(atom.GetIdx(), new_coords)
+   
+
+            # aligne the molecules
+            AllChem.AlignMolConformers(rdkit_mol)
+            min_and_filtered_rdkit_mol, filtered_energies = self._prune_conformers(rdkit_mol, energies, rmsd_threshold=rmsd_threshold)
+
+            # generate mdtraj object
+            traj = []
+            for conf_idx in range(min_and_filtered_rdkit_mol.GetNumConformers()):
+                tmp_coord_list = []
+                for a in min_and_filtered_rdkit_mol.GetAtoms():
+                    pos = min_and_filtered_rdkit_mol.GetConformer(conf_idx).GetAtomPosition(a.GetIdx())
+                    tmp_coord_list.append([pos.x, pos.y, pos.z])
+                tmp_coord_list = np.array(tmp_coord_list) * unit.angstrom
+                traj.append(tmp_coord_list.value_in_unit(unit.nanometer))
+
+            confs_traj.append(md.Trajectory(traj, top))
+            bw_energies.append(self.calculate_weighted_energy(filtered_energies))
+
+        e = (bw_energies[1] - bw_energies[0])
+        return confs_traj, e
 
     def perform_tautomer_transformation_forward(self):
         """
@@ -164,9 +286,7 @@ class Tautomer(object):
         mol.SetProp("name", str(self.name))
 
         # generate numConfs for the smiles string 
-        Chem.rdDistGeom.EmbedMultipleConfs(mol, numConfs=nr_of_conformations, enforceChirality=False, pruneRmsThresh=0.1)
-        # aligne them and minimize
-        AllChem.AlignMolConformers(mol)
+        Chem.rdDistGeom.EmbedMultipleConfs(mol, numConfs=nr_of_conformations, enforceChirality=False)
         return mol
 
 
@@ -302,124 +422,39 @@ class Tautomer(object):
         mol = Atoms(atom_list)
         self.hybrid_ase_mol = mol
 
-
-    def remove_confs_based_on_RMSD(self, verbose = False):
-        # https://www.daylight.com/dayhtml_tutorials/languages/smarts/smarts_examples.html
-        # validate with: https://smartsview.zbh.uni-hamburg.de/
-
-        mols = [] 
-        energy_level = defaultdict(list)
-        energy_level_idx = defaultdict(list)
-        # prepare mols in energy level
-        add_hydrogens = []
-        copy_mols = copy.deepcopy(original_mols)
-        
-        #########################################
-        # search for important hydrogens
-        #########################################
-        
-        m = copy_mols[0]
-        print(Chem.MolToPDBBlock(m))
-
-        print('search for patterns ...')
-        # test for primary alcohol
-        patt = Chem.MolFromSmarts('[OX2H]')   
-        if m.HasSubstructMatch(patt):
-            print('found primary alcohol')
-            l = m.GetSubstructMatch(patt)
-            add_hydrogens.extend(l)
-
-        # test for imine
-        patt = Chem.MolFromSmarts('[CX3]=[NH]')
-        if m.HasSubstructMatch(patt):
-            print('found imine')
-            # TODO: can't get this to work!
-            l = m.GetSubstructMatch(patt)
-            add_hydrogens.extend(l)
-
-        # test for primary amine
-        patt = Chem.MolFromSmarts('[NX3;H2]')
-        if m.HasSubstructMatch(patt):
-            print('found amine')
-            l = m.GetSubstructMatch(patt)
-            add_hydrogens.extend(l)
-        
-        # test for cyanamide
-        patt = Chem.MolFromSmarts('[NX3][CX2]#[NX1]')
-        if m.HasSubstructMatch(patt):
-            print('found cyanamide')
-            l = m.GetSubstructMatch(patt)
-            add_hydrogens.extend(l)
-
-        # test for thiol
-        patt = Chem.MolFromSmarts('[#16X2H]')
-        if m.HasSubstructMatch(patt):
-            print('found thiol')
-            l = m.GetSubstructMatch(patt)
-            add_hydrogens.extend(l)
+    @staticmethod
+    def get_conformer_rmsd(mol)->list:
+        """
+        Calculate conformer-conformer RMSD.
+        Parameters
+        ----------
+        mol : RDKit Mol
+            Molecule.
+        """
+        rmsd = np.zeros((mol.GetNumConformers(), mol.GetNumConformers()),
+                        dtype=float)
+        for i, ref_conf in enumerate(mol.GetConformers()):
+            for j, fit_conf in enumerate(mol.GetConformers()):
+                if i >= j:
+                    continue
+                rmsd[i, j] = AllChem.GetBestRMS(mol, mol, ref_conf.GetId(),
+                                                fit_conf.GetId())
+                rmsd[j, i] = rmsd[i, j]
+        return rmsd
 
 
-        for m in copy_mols:
-            # unfortunatelly, RemoveHs() does not retain marked hydrogens
-            # therefore, I am mutation the important Hs to Li and then remutating them 
-            # to Hs
-            if add_hydrogens:
-                for idx in add_hydrogens:
-                    atom = m.GetAtomWithIdx(idx)
-                    for neighbor in atom.GetNeighbors():
-                        if neighbor.GetSymbol() == 'H':
-                            hydrogen = m.GetAtomWithIdx(neighbor.GetIdx())
-                            hydrogen.SetAtomicNum(3)
+    @staticmethod
+    def calculate_weighted_energy(e_list):
+        #G = -RT Σ ln exp(-G/RT)
 
-                m = Chem.RemoveHs(m)
-                for atom in m.GetAtoms():
-                    if atom.GetSymbol() == 'Li':
-                        hydrogen = m.GetAtomWithIdx(atom.GetIdx())
-                        hydrogen.SetAtomicNum(1)
-            else:
-                m = Chem.RemoveHs(m)
+        if len(e_list) == 1:
+            e_bw = min(e_list)
 
-            mols.append(m)
-
-        complete_rmsd_list = []      
-        for m_i in mols:
-            for m_j in mols:
-                complete_rmsd_list.append(AllChem.GetBestRMS(m_i, m_j))
-
-        if any(i >= 0.1 for i in complete_rmsd_list):
-            # generate rmsd matrix and perform clustering
-            rmsd_matrix = np.zeros( (len(mols), len(mols)) )
-            for idx_i, m_i in enumerate(mols):
-                for idx_j, m_j in enumerate(mols):
-                    if idx_j < idx_i:
-                        continue
-                    elif idx_j == idx_i:
-                        rmsd = 0.0
-                    else:
-                        rmsd = float(round(AllChem.GetBestRMS(m_i, m_j), 1))
-                    rmsd_matrix[idx_i][idx_j]  = rmsd
-                    rmsd_matrix[idx_j][idx_i]  = rmsd
-
-
-            distArray = ssd.squareform(rmsd_matrix)
-            linked = linkage(distArray, method='weighted')
-            for mol_idx, cluster in enumerate(fcluster(linked, 0.1, criterion='distance')):
-                energy_level[cluster].append(mols[mol_idx])
-                energy_level_idx[cluster].append(mol_idx)
-
-            if verbose:
-                for l in energy_level:
-
-                    print('{} - {}'.format(l, energy_level_idx[l]))
-        
         else:
-            energy_level[1] = mols
+            l = []
+            for energy in e_list:
+                v = ((-1) * (energy)) / (gas_constant * temperature)
+                l.append(v)
         
-        energy_list_overcounts_removed = []
-        for level in energy_level:
-            tmp = []
-            for m in energy_level[level]:
-                tmp.append(float(m.GetProp('H')) - float(m.GetProp('TS1')))
-            energy_list_overcounts_removed.append(min(tmp))
-
-        return energy_list_overcounts_removed
+        e_bw = (-1) * gas_constant * temperature * (logsumexp(l)) 
+        return e_bw

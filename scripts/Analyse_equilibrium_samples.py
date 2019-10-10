@@ -8,9 +8,8 @@ import matplotlib.pyplot as plt
 import sys
 import torch
 from neutromeratio.parameter_gradients import FreeEnergyCalculator
-
+from neutromeratio.constants import temperature
 #######################
-temperature = 300 * unit.kelvin
 kT = kB * temperature
 
 # read in exp results, smiles and names
@@ -21,21 +20,13 @@ name = str(sys.argv[1])
 
 # don't change - direction is fixed for all runs
 #################
-from_mol_tautomer_idx = 1
-to_mol_tautomer_idx = 2
-
 t1_smiles = exp_results[name]['t1-smiles']
 t2_smiles = exp_results[name]['t2-smiles']
 
-# generate both rdkit mol
-mols = { 't1' : neutromeratio.generate_rdkit_mol(t1_smiles), 't2' : neutromeratio.generate_rdkit_mol(t2_smiles) }
-from_mol = mols[f"t{from_mol_tautomer_idx}"]
-to_mol = mols[f"t{to_mol_tautomer_idx}"]
-ani_input = neutromeratio.from_mol_to_ani_input(from_mol, nr_of_conf=1)
+tautomer = neutromeratio.Tautomer(name=name, intial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles), nr_of_conformations=1)
 
 # get tautomer transformation
-tautomer_transformation = neutromeratio.get_tautomer_transformation(from_mol, to_mol)
-neutromeratio.generate_hybrid_structure(ani_input, tautomer_transformation)
+tautomer.perform_tautomer_transformation_forward()
 # define the alchemical atoms
 alchemical_atoms=[tautomer_transformation['acceptor_hydrogen_idx'], tautomer_transformation['donor_hydrogen_idx']]
 

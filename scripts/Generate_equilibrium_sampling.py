@@ -27,13 +27,8 @@ exp_results = pickle.load(open('../data/exp_results.pickle', 'rb'))
 t1_smiles = exp_results[name]['t1-smiles']
 t2_smiles = exp_results[name]['t2-smiles']
 
-# generate both rdkit mol
-mols = { 't1' : neutromeratio.generate_rdkit_mol(t1_smiles), 't2' : neutromeratio.generate_rdkit_mol(t2_smiles) }
-from_mol = mols['t1']
-to_mol = mols['t2']
-ani_input = neutromeratio.from_mol_to_ani_input(from_mol, nr_of_conf=1)
+tautomer = neutromeratio.Tautomer(name=name, intial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles), nr_of_conformations=1)
 
-tautomer_transformation = neutromeratio.get_tautomer_transformation(from_mol, to_mol)
 neutromeratio.generate_hybrid_structure(ani_input, tautomer_transformation)
 
 # define the alchemical atoms

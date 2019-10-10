@@ -19,4 +19,4 @@ echo ${n_steps}
 . /data/shared/software/python_env/anaconda3/etc/profile.d/conda.sh
 conda activate ani36
 mkdir -p ../data/equilibrium_sampling/${molecule_name}
-python Equilibrium_sampling.py ${molecule_name} ${lambda_value} 'cpu' ${n_steps}
+python Generate_equilibrium_sampling.py ${molecule_name} ${lambda_value} 'cpu' ${n_steps}

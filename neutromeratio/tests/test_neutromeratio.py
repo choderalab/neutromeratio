@@ -552,7 +552,10 @@ def test_tautomer_conformation():
 
     tautomer = neutromeratio.Tautomer(name=name, intial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles), nr_of_conformations=5)   
     tautomer.perform_tautomer_transformation_forward()
-    
+
+    assert(len(tautomer.intial_state_ligand_coords) == 5)
+    assert(len(tautomer.final_state_ligand_coords) == 5)
+
 
     # set model
     model = torchani.models.ANI1ccx()
@@ -575,4 +578,4 @@ def test_tautomer_conformation():
             e_correction = energy_function.get_thermo_correction(x)
             print(f"Energy: {e}")
             print(f"Energy correction: {e_correction}")
-            
+    
