@@ -455,6 +455,7 @@ class Tautomer(object):
             for energy in e_list:
                 v = ((-1) * (energy)) / (gas_constant * temperature)
                 l.append(v)
-        
-        e_bw = (-1) * gas_constant * temperature * (logsumexp(l)) 
+       
+            e_bw = (-1) * gas_constant * temperature * (logsumexp(l)) 
+
         return e_bw
