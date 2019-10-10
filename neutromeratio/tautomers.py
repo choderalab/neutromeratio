@@ -122,7 +122,7 @@ class Tautomer(object):
 
 
 
-    def generate_mining_minima_structures(self, rmsd_threshold:float=0.5)->(list, unit.Quantity):
+    def generate_mining_minima_structures(self, rmsd_threshold:float=0.3)->(list, unit.Quantity):
         """
         Minimizes and filters conformations based on a RMSD treshold.
         Parameters
