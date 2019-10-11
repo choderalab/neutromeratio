@@ -162,7 +162,7 @@ class Tautomer(object):
                 # minimize
                 print(f"Conf: {n_conf}")
                 minimized_coords = energy_function.minimize(coords, fmax=0.0001)
-                energies.append(energy_function.calculate_energy(minimized_coords))
+                energies.append(energy_function.calculate_energy(minimized_coords) + energy_function.get_thermo_correction(minimized_coords))
                 # update the coordinates in the rdkit mol
                 for atom in rdkit_mol.GetAtoms():
                     conf = rdkit_mol.GetConformer(n_conf)

@@ -78,7 +78,7 @@ class ANI1_force_and_energy(object):
         calculator = self.model.ase(dtype=torch.float64)
         ase_mol.set_calculator(calculator)
 
-        vib = Vibrations(ase_mol)
+        vib = Vibrations(ase_mol, name=f"vib")
         vib.run()
         vib_energies = vib.get_energies()
         thermo = IdealGasThermo(vib_energies=vib_energies,
