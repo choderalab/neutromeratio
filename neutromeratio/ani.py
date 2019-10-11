@@ -88,8 +88,9 @@ class ANI1_force_and_energy(object):
         
         try:
             G = thermo.get_gibbs_energy(temperature=temperature.value_in_unit(unit.kelvin), pressure=pressure.value_in_unit(unit.pascal))
-        except ValueError:
-            raise ValueError
+        except ValueError as verror:
+            print(verror)
+            raise verror
         #vib.write_jmol()
         vib.clean()
         return (G * conversion_factor_eV_to_kJ_mol) * unit.kilojoule_per_mole # eV * conversion_factor(eV to kJ/mol)

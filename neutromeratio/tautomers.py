@@ -89,7 +89,7 @@ class Tautomer(object):
         """
         rmsd = self.get_conformer_rmsd(mol)
 
-        sort = np.argsort([x.value_in_unit(unit.kilocalorie_per_mole) for x in energies])  # sort by increasing energy
+        sort = np.argsort([x.value_in_unit(unit.kilocalorie_per_mole) for x in copy.deepcopy(energies)])  # sort by increasing energy
         keep = []  # always keep lowest-energy conformer
         discard = []
         for i in sort:
@@ -455,15 +455,11 @@ class Tautomer(object):
     def calculate_weighted_energy(e_list):
         #G = -RT Σ ln exp(-G/RT)
 
-        if len(e_list) == 1:
-            e_bw = min(e_list)
-
-        else:
-            l = []
-            for energy in e_list:
-                v = ((-1) * (energy)) / (gas_constant * temperature)
-                l.append(v)
-       
-            e_bw = (-1) * gas_constant * temperature * (logsumexp(l)) 
+        l = []
+        for energy in e_list:
+            v = ((-1) * (energy)) / (gas_constant * temperature)
+            l.append(v)
+    
+        e_bw = (-1) * gas_constant * temperature * (logsumexp(l)) 
 
         return e_bw

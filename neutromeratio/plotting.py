@@ -1,7 +1,6 @@
 import random
 import matplotlib.pyplot as plt
 from collections import OrderedDict
-import seaborn as sns
 import logging
 import pandas as pd
 import numpy as np
@@ -74,9 +73,8 @@ def plot_correlation_analysis(
     plt.tight_layout()
     
     plt.subplots_adjust(bottom=0.3), #left=1.3, right=0.3) 
-    sns.despine(fig)
 
-    return fig
+    return plt
 
 
 

@@ -28,5 +28,5 @@ tautomer.perform_tautomer_transformation_forward()
 confs_traj, e = tautomer.generate_mining_minima_structures()
 
 f = open('/home/mwieder/Work/Projects/neutromeratio/data/results/ANI1ccx_vacuum_MM_kcal.csv', 'a+')
-f.write(f"{name}, {e}\n")
+f.write(f"{name}, {e.in_units_of(unit.kilocalorie_per_mole)}\n")
 f.close()
