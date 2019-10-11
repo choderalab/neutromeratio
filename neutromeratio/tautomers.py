@@ -88,7 +88,7 @@ class Tautomer(object):
         increasing energy.
         """
         rmsd = self.get_conformer_rmsd(mol)
-
+        print(energies)
         sort = np.argsort(energies)  # sort by increasing energy
         keep = []  # always keep lowest-energy conformer
         discard = []
@@ -147,6 +147,7 @@ class Tautomer(object):
         [self.intial_state_ligand_coords, self.final_state_ligand_coords], 
         [self.intial_state_ligand_topology, self.final_state_ligand_topology]): 
 
+            print('Mining Minima starting ...')
             model = torchani.models.ANI1ccx()
             model = model.to(device)
 
@@ -189,6 +190,7 @@ class Tautomer(object):
 
             confs_traj.append(md.Trajectory(traj, top))
             bw_energies.append(self.calculate_weighted_energy(filtered_energies))
+            print('Mining Minima finished ...')
 
         e = (bw_energies[1] - bw_energies[0])
         return confs_traj, e
