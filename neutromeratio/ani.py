@@ -1,4 +1,4 @@
-import os
+import os, random
 import torchani
 import torch
 import numpy as np
@@ -78,7 +78,7 @@ class ANI1_force_and_energy(object):
         calculator = self.model.ase(dtype=torch.float64)
         ase_mol.set_calculator(calculator)
 
-        vib = Vibrations(ase_mol, name=f"vib")
+        vib = Vibrations(ase_mol, name=f"vib{random.randint(1,10000000)}")
         vib.run()
         vib_energies = vib.get_energies()
         thermo = IdealGasThermo(vib_energies=vib_energies,
