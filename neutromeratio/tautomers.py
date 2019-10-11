@@ -89,8 +89,7 @@ class Tautomer(object):
         """
         rmsd = self.get_conformer_rmsd(mol)
 
-        energies = [x.value_in_unit(unit.kilocalorie_per_mole) for x in energies]
-        sort = np.argsort(energies)  # sort by increasing energy
+        sort = np.argsort([x.value_in_unit(unit.kilocalorie_per_mole) for x in energies])  # sort by increasing energy
         keep = []  # always keep lowest-energy conformer
         discard = []
         for i in sort:
