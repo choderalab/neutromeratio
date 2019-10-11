@@ -4,7 +4,7 @@ from rdkit import Chem, Geometry
 from rdkit.Chem import AllChem
 from rdkit.Chem import rdFMCS
 from .vis import display_mol
-from .restraints import Restraint
+from .restraints import FlatBottomRestraint
 from .ani import ANI1_force_and_energy
 from simtk import unit
 from .utils import write_pdb
@@ -352,8 +352,8 @@ class Tautomer(object):
         AllChem.Compute2DCoords(m1)
         display_mol(m1)
         
-        r1 = Restraint( sigma=0.1 * unit.angstrom, atom_i_idx=donor, atom_j_idx=hydrogen_idx_that_moves, atoms=atoms, active_at_lambda=1)
-        r2 = Restraint( sigma=0.1 * unit.angstrom, atom_i_idx=acceptor, atom_j_idx=hydrogen_idx_that_moves, atoms=atoms, active_at_lambda=0)
+        r1 = FlatBottomRestraint( sigma=0.1 * unit.angstrom, atom_i_idx=donor, atom_j_idx=hydrogen_idx_that_moves, atoms=atoms, active_at_lambda=1)
+        r2 = FlatBottomRestraint( sigma=0.1 * unit.angstrom, atom_i_idx=acceptor, atom_j_idx=hydrogen_idx_that_moves, atoms=atoms, active_at_lambda=0)
 
         self.heavy_atom_hydrogen_donor_idx = donor
         self.hydrogen_idx = hydrogen_idx_that_moves
@@ -410,8 +410,8 @@ class Tautomer(object):
 
         # generate hybrid restraints
         # donor restraints are active at lambda = 1 because then donor hydrogen is turend off and vica versa
-        r1 = Restraint(0.1 * unit.angstrom, self.hybrid_hydrogen_idx_at_donor_heavy_atom, self.heavy_atom_hydrogen_donor_idx, atoms=hybrid_atoms, active_at_lambda=1)
-        r2 = Restraint(0.1 * unit.angstrom, self.hybrid_hydrogen_idx_at_acceptor_heavy_atom, self.heavy_atom_hydrogen_acceptor_idx, atoms=hybrid_atoms, active_at_lambda=0)
+        r1 = FlatBottomRestraint(0.1 * unit.angstrom, self.hybrid_hydrogen_idx_at_donor_heavy_atom, self.heavy_atom_hydrogen_donor_idx, atoms=hybrid_atoms, active_at_lambda=1)
+        r2 = FlatBottomRestraint(0.1 * unit.angstrom, self.hybrid_hydrogen_idx_at_acceptor_heavy_atom, self.heavy_atom_hydrogen_acceptor_idx, atoms=hybrid_atoms, active_at_lambda=0)
         self.hybrid_restraints = [r1, r2]
 
         # add to mdtraj ligand topology a new hydrogen

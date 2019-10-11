@@ -12,7 +12,9 @@ logger = logging.getLogger(__name__)
 
 def plot_correlation_analysis(
     df:pd.DataFrame,
-    title: str,
+    title:str,
+    x_label:str,
+    y_label:str,
     color: str,
     marker: str,
     error_color="black",
@@ -37,9 +39,9 @@ def plot_correlation_analysis(
         mark specific tautomers with labels in the plot
     """
 
+    fig = plt.figure(figsize=[8,8], dpi=300)
 
     plt.clf()
-    fig = plt.figure(figsize=[8,8], dpi=300)
     ax = plt.gca()
     ax.set_title(title, fontsize=10)
 
@@ -62,8 +64,8 @@ def plot_correlation_analysis(
     ax.plot((-10.0, 10.0), (0.0, 0.0), "r--", zorder=-1, linewidth=0.5, alpha=0.5)
     ax.plot((0.0, 0.0), (-10.0, 10.0), "r--", zorder=-1, linewidth=0.5, alpha=0.5)
 
-    ax.set_ylabel("Predicted dG [kcal/mol]", fontsize=9)
-    ax.set_xlabel("Experimental ddG [kcal/mol]", fontsize=9)
+    ax.set_ylabel(x_label, fontsize=9)
+    ax.set_xlabel(y_label, fontsize=9)
     ax.set_xlim([-22, 22])
     ax.set_ylim([-22, 22])
     #plt.xticks(np.arange(-10, 10, 2.0), fontsize=8)
@@ -74,7 +76,7 @@ def plot_correlation_analysis(
     
     plt.subplots_adjust(bottom=0.3), #left=1.3, right=0.3) 
 
-    return plt
+    return ax
 
 
 
@@ -182,7 +184,7 @@ def bootstrap_rmse_r(df: pd.DataFrame, nsamples: int):
     rs_array = np.asarray(rs_list)
 
     rmse = array_rmse(df.x, df.y)
-    rs = scs.pearsonr(df.experimental_values, df.y)[0]
+    rs = scs.pearsonr(df.x, df.y)[0]
 
     return (
         BootstrapDistribution(rmse, rmse_array),

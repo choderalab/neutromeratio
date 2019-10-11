@@ -43,17 +43,15 @@ class ANI1_force_and_energy(object):
         self.platform = platform
         self.use_pure_ani1ccx = use_pure_ani1ccx
         
-        self.flat_bottom_restraint = False
-        self.harmonic_restraint = False
         self.list_of_restraints = []
         # TODO: check availablity of platform
 
     def add_restraint(self, restraint:Restraint):
         # add a single restraint
-        assert(type(restraint) == Restraint)
-
         self.list_of_restraints.append(restraint)
 
+    def reset_restraints(self):
+        self.list_of_restraints = []
 
     def get_thermo_correction(self, coords:simtk.unit.quantity.Quantity) -> unit.quantity.Quantity :
         """
@@ -186,36 +184,18 @@ class ANI1_force_and_energy(object):
         
         # convert energy from hartrees to kJ/mol
         energy_in_kJ_mol = energy_in_hartree * hartree_to_kJ_mol
-
-        bias_flat_bottom = 0.0
-        bias_harmonic = 0.0
         bias = 0.0
 
-        if self.flat_bottom_restraint:
-            for restraint in self.list_of_restraints:
-                e = restraint.flat_bottom_position_restraint(coordinates * nm_to_angstroms)
-                if restraint.active_at_lambda == 1:
-                    e *= lambda_value
-                elif restraint.active_at_lambda == 0:
-                    e *= (1 - lambda_value)
-                else:
-                    # always on - active_at_lambda == -1
-                    pass 
-                bias_flat_bottom += e
-                bias += e
-
-        if self.harmonic_restraint:
-            for restraint in self.list_of_restraints:
-                e = restraint.harmonic_position_restraint(coordinates * nm_to_angstroms)
-                if restraint.active_at_lambda == 1:
-                    e *= lambda_value
-                elif restraint.active_at_lambda == 0:
-                    e *= (1 - lambda_value)
-                else:
-                    # always on - active_at_lambda == -1
-                    pass 
-                bias_harmonic += e
-                bias += e
+        for restraint in self.list_of_restraints:
+            e = restraint.restraint(coordinates * nm_to_angstroms)
+            if restraint.active_at_lambda == 1:
+                e *= lambda_value
+            elif restraint.active_at_lambda == 0:
+                e *= (1 - lambda_value)
+            else:
+                # always on - active_at_lambda == -1
+                pass 
+            bias += e
         
         energy_in_kJ_mol += bias
         return energy_in_kJ_mol

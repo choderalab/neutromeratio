@@ -14,6 +14,7 @@ import mdtraj as md
 from neutromeratio.constants import device
 import torchani
 from openmmtools.utils import is_quantity_close
+import pandas as pd
 
 def test_equ():
     assert(1.0 == 1.0)
@@ -277,13 +278,15 @@ def test_restraint():
     t.perform_tautomer_transformation_forward()
 
     atoms = t.intial_state_ligand_atoms
-    a = neutromeratio.Restraint(sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=-1)
+    harmonic = neutromeratio.restraints.HarmonicRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=-1)
+    flat_bottom = neutromeratio.restraints.FlatBottomRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=-1)
     
+
     coordinates = torch.tensor([t.intial_state_ligand_coords[0].value_in_unit(unit.nanometer)],
                         requires_grad=True, device=device, dtype=torch.float32)
 
-    print('Restraing: {}.'.format(a.harmonic_position_restraint(coordinates)))
-    print('Restraing: {}.'.format(a.flat_bottom_position_restraint(coordinates)))
+    print('Restraing: {}.'.format(harmonic.restraint(coordinates)))
+    print('Restraing: {}.'.format(flat_bottom.restraint(coordinates)))
 
 
 def test_restraint_with_alchemicalANI():
@@ -317,59 +320,56 @@ def test_restraint_with_alchemicalANI():
                                                 atoms = atoms,
                                                 mol = t.intial_state_ase_mol)
 
-    energy_function.flat_bottom_restraint  = False
-    energy_function.harmonic_restraint  = False
     energy_function.use_pure_ani1ccx = False
     x = energy_function.calculate_energy(x0, lambda_value=1.0)
     assert(is_quantity_close(x, -216736.6857518717* unit.kilocalorie_per_mole, rtol=1e-9))
     x = energy_function.calculate_energy(x0, lambda_value=0.0)
     assert(is_quantity_close(x, -216698.911373172* unit.kilocalorie_per_mole, rtol=1e-9))
 
-    # add the restraints - active at different lambda steps
-    restrain1 = neutromeratio.Restraint(sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=0)
-    restrain2 = neutromeratio.Restraint(sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=1)
-    restrain3 = neutromeratio.Restraint(sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=-1)
-
-    energy_function.add_restraint(restrain1)
-    energy_function.add_restraint(restrain2)
-    energy_function.add_restraint(restrain3)
 
     # test for that restraints do not add to energy
-    energy_function.flat_bottom_restraint  = False
-    energy_function.harmonic_restraint  = False
-    energy_function.use_pure_ani1ccx = False
-
     x = energy_function.calculate_energy(x0, lambda_value=0.0)
     assert(is_quantity_close(x, -216698.911373172* unit.kilocalorie_per_mole, rtol=1e-9))
 
     # test flat_bottom_restraint for lambda = 0.0
-    energy_function.flat_bottom_restraint  = True
-    energy_function.harmonic_restraint  = False
-    energy_function.use_pure_ani1ccx = False
+    r = []
+    restrain1 = neutromeratio.restraints.FlatBottomRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=0)
+    restrain2 = neutromeratio.restraints.FlatBottomRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=1)
+    restrain3 = neutromeratio.restraints.FlatBottomRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=-1)
+    for r in [restrain1, restrain2, restrain3]:
+        energy_function.add_restraint(r)
 
     x = energy_function.calculate_energy(x0, lambda_value=0.0)
     assert(is_quantity_close(x, -216527.22548065928* unit.kilocalorie_per_mole, rtol=1e-9))
 
+
     # test harmonic_restraint for lambda = 0.0 
-    energy_function.flat_bottom_restraint  = False
-    energy_function.harmonic_restraint  = True
-    energy_function.use_pure_ani1ccx = False
+    energy_function.reset_restraints()
+    r = []
+    restrain1 = neutromeratio.restraints.HarmonicRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=0)
+    restrain2 = neutromeratio.restraints.HarmonicRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=1)
+    restrain3 = neutromeratio.restraints.HarmonicRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=-1)
+    for r in [restrain1, restrain2, restrain3]:
+        energy_function.add_restraint(r)
 
     x = energy_function.calculate_energy(x0, lambda_value=0.0)
     assert(is_quantity_close(x, -216484.37304754654* unit.kilocalorie_per_mole, rtol=1e-9))
 
     # test harmonic_restraint for lambda = 1.0 
-    energy_function.flat_bottom_restraint  = False
-    energy_function.harmonic_restraint  = True
-    energy_function.use_pure_ani1ccx = False
-
     x = energy_function.calculate_energy(x0, lambda_value=1.0)
     assert(is_quantity_close(x, -216522.14742624626* unit.kilocalorie_per_mole, rtol=1e-9))
 
     # test harmonic_restraint and flat_bottom_restraint for lambda = 1.0 
-    energy_function.flat_bottom_restraint  = True
-    energy_function.harmonic_restraint  = True
-    energy_function.use_pure_ani1ccx = False
+    r = []
+    energy_function.reset_restraints()
+    restrain1 = neutromeratio.restraints.FlatBottomRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=0)
+    restrain2 = neutromeratio.restraints.FlatBottomRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=1)
+    restrain3 = neutromeratio.restraints.FlatBottomRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=-1)
+    restrain4 = neutromeratio.restraints.HarmonicRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=0)
+    restrain5 = neutromeratio.restraints.HarmonicRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=1)
+    restrain6 = neutromeratio.restraints.HarmonicRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=-1)
+    for r in [restrain1, restrain2, restrain3, restrain4, restrain5, restrain6]:
+        energy_function.add_restraint(r)
 
     x = energy_function.calculate_energy(x0, lambda_value=1.0)
     assert(is_quantity_close(x, -216350.46153373353* unit.kilocalorie_per_mole, rtol=1e-9))
@@ -511,8 +511,8 @@ def test_euqilibrium():
         energy_function.add_restraint(e)
 
     x0 = np.array(t.hybrid_coords) * unit.angstrom
+    x0 = energy_function.minimize(x0)
 
-    x = energy_function.minimize(x0)
 
     lambda_value = 1.0
     energy_and_force = lambda x : energy_function.calculate_force(x, lambda_value)
@@ -521,7 +521,7 @@ def test_euqilibrium():
                                 temperature = 300*unit.kelvin,
                                 energy_and_force = energy_and_force,
                                 )
-
+    
     equilibrium_samples, energies = langevin.run_dynamics(x0, n_steps=n_steps, stepsize=1.0 * unit.femtosecond, progress_bar=True)
 
     lambda_value = 0.0
@@ -579,3 +579,27 @@ def test_tautomer_conformation():
             print(f"Energy: {e}")
             print(f"Energy correction: {e_correction}")
     
+
+
+def test_plotting():
+    
+    from neutromeratio.constants import kT
+    from neutromeratio.plotting import plot_correlation_analysis
+    results = pickle.load(open('data/results/results.pickle', 'rb'))
+
+    x_list = []
+    y_list = []
+
+    for a in list(results.ddG_DFT):
+        a = a *kT
+        a = a.value_in_unit(unit.kilocalorie_per_mole)
+        x_list.append(a)
+        
+    for a in list(results.experimental_values):
+        a = a *kT
+        a = a.value_in_unit(unit.kilocalorie_per_mole)
+        y_list.append(a)
+
+
+    df = pd.DataFrame(list(zip(list(results.names), x_list, y_list, ['B3LYP/aug-cc-pVTZ']*len(results.names))), columns =['names', 'x', 'y', 'method']) 
+    plot_correlation_analysis(df, 'DFT(B3LYP/aug-cc-pVTZ) in vacuum vs experimental data in solution', 'test1', 'test2', 'g', 'o')
