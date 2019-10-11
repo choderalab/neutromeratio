@@ -86,8 +86,11 @@ class ANI1_force_and_energy(object):
                                 geometry='nonlinear',
                                 symmetrynumber=1, spin=0)
         
-        G = thermo.get_gibbs_energy(temperature=temperature.value_in_unit(unit.kelvin), pressure=pressure.value_in_unit(unit.pascal))
-        vib.write_jmol()
+        try:
+            G = thermo.get_gibbs_energy(temperature=temperature.value_in_unit(unit.kelvin), pressure=pressure.value_in_unit(unit.pascal))
+        except ValueError:
+            raise ValueError
+        #vib.write_jmol()
         vib.clean()
         return (G * conversion_factor_eV_to_kJ_mol) * unit.kilojoule_per_mole # eV * conversion_factor(eV to kJ/mol)
 
