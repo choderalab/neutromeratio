@@ -11,6 +11,7 @@ from ase import Atoms
 import copy
 from ase.vibrations import Vibrations
 from ase.thermochemistry import IdealGasThermo
+logger = logging.getLogger(__name__)
 
 class ANI1_force_and_energy(object):
 
@@ -111,6 +112,8 @@ class ANI1_force_and_energy(object):
         """
         mol = copy.deepcopy(self.ase_mol)
         calculator = self.model.ase(dtype=torch.float64)
+        logger.info(f"Fmax set to {fmax}")
+        logger.info(f"maxstep set to {maxstep}")
 
         for atom, c in zip(mol, coords):
             atom.x = c[0].value_in_unit(unit.angstrom)
