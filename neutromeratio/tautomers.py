@@ -162,7 +162,7 @@ class Tautomer(object):
             for n_conf, coords in enumerate(ligand_coords):
                 # minimize
                 print(f"Conf: {n_conf}")
-                minimized_coords = energy_function.minimize(coords, fmax=0.0001)
+                minimized_coords = energy_function.minimize(coords, fmax=0.0001, maxstep=0.01)
                 single_point_energy = energy_function.calculate_energy(minimized_coords)
                 try:
                     thermochemistry_correction = energy_function.get_thermo_correction(minimized_coords)  
