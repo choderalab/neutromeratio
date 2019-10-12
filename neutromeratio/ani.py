@@ -11,6 +11,8 @@ from ase import Atoms
 import copy
 from ase.vibrations import Vibrations
 from ase.thermochemistry import IdealGasThermo
+import logging
+
 logger = logging.getLogger(__name__)
 
 class ANI1_force_and_energy(object):
