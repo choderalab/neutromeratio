@@ -94,13 +94,17 @@ class ANI1_force_and_energy(object):
         return (G * conversion_factor_eV_to_kJ_mol) * unit.kilojoule_per_mole # eV * conversion_factor(eV to kJ/mol)
 
 
-    def minimize(self, coords:simtk.unit.quantity.Quantity, fmax:float=0.001):
+    def minimize(self, coords:simtk.unit.quantity.Quantity, fmax:float=0.001, maxstep:float=0.04):
         """
         Minimizes the molecule.
         Parameters
         ----------
         coords:simtk.unit.quantity.Quantity
         fmax: float
+            the final maximum accepted change in energy from t-1 optimization step to t
+        maxstep: float
+            Used to set the maximum distance an atom can move per
+            iteration (default value is 0.04 Å). Decrease this value for tricky geometries.
         Returns
         -------
         coords:simtk.unit.quantity.Quantity
@@ -115,7 +119,7 @@ class ANI1_force_and_energy(object):
 
         mol.set_calculator(calculator)
         print("Begin minimizing...")
-        opt = BFGS(mol, logfile='min-log.txt')
+        opt = BFGS(mol, logfile='min-log.txt', maxstep=maxstep)
         opt.run(fmax=fmax)
         return np.array(mol.get_positions()) * unit.angstrom
 

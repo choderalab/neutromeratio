@@ -18,7 +18,6 @@ from .mcmc import Instantaneous_MC_Mover, NonequilibriumMC
 from .equilibrium import LangevinDynamics, use_precalculated_md_and_performe_mc
 from .ani import ANI1_force_and_energy, LinearAlchemicalANI, LinearAlchemicalDualTopologyANI
 from .restraints import Restraint
-from .hybrid import generate_hybrid_structure
 # TODO: generating waterbox
 
 # Handle versioneer
