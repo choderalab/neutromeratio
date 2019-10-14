@@ -66,9 +66,11 @@ class LangevinDynamics(object):
         b = np.sqrt(1 - np.exp(-2 * collision_rate * stepsize))
 
         # compute force on initial configuration
-        F, E = self.energy_and_force(x0)
+        F, E, B = self.energy_and_force(x0)
         # energy is saved as a list
         energy = [E]
+        # bias is saved as a list
+        bias = [B]
 
         trange = range(n_steps)
         if progress_bar:
@@ -82,8 +84,9 @@ class LangevinDynamics(object):
             v = (a * v) + (b * sigma_v[:,None] * np.random.randn(*x.shape))
             # r
             x += (stepsize * 0.5) * v
-            F, E = self.energy_and_force(x)
+            F, E, B = self.energy_and_force(x)
             energy.append(E)
+            bias.append(B)
             # v
             v += (stepsize * 0.5) * F / masses[:,None]
 
@@ -96,7 +99,7 @@ class LangevinDynamics(object):
                 print("Numerical instability encountered!")
                 return traj, energy
             traj.append(x)
-        return traj, energy
+        return traj, energy, bias
 
 
         

@@ -51,7 +51,7 @@ class Restraint(object):
 
 class FlatBottomRestraint(Restraint):
 
-    def __init__(self, sigma:unit.Quantity, atom_i_idx:int, atom_j_idx:int, atoms:str, active_at_lambda:int):
+    def __init__(self, sigma:unit.Quantity, atom_i_idx:int, atom_j_idx:int, atoms:str, active_at_lambda:int=-1):
         super().__init__(sigma, atom_i_idx, atom_j_idx, atoms, active_at_lambda)
 
     def restraint(self, x):
@@ -69,7 +69,7 @@ class FlatBottomRestraint(Restraint):
     
 class HarmonicRestraint(Restraint):
 
-    def __init__(self, sigma:unit.Quantity, atom_i_idx:int, atom_j_idx:int, atoms:str, active_at_lambda:int):
+    def __init__(self, sigma:unit.Quantity, atom_i_idx:int, atom_j_idx:int, atoms:str, active_at_lambda:int=-1):
         super().__init__(sigma, atom_i_idx, atom_j_idx, atoms, active_at_lambda)
 
     def restraint(self, x):

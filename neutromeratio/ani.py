@@ -44,8 +44,7 @@ class ANI1_force_and_energy(object):
         self.ase_mol = mol
         self.species = self.model.species_to_tensor(atoms).to(device).unsqueeze(0)
         self.platform = platform
-        self.use_pure_ani1ccx = use_pure_ani1ccx
-        
+        self.use_pure_ani1ccx = use_pure_ani1ccx       
         self.list_of_restraints = []
         # TODO: check availablity of platform
 
@@ -149,7 +148,7 @@ class ANI1_force_and_energy(object):
         coordinates = torch.tensor([x.value_in_unit(unit.nanometer)],
                                 requires_grad=True, device=self.device, dtype=torch.float32)
 
-        energy_in_kJ_mol = self._calculate_energy(coordinates, lambda_value)
+        energy_in_kJ_mol, bias_in_kJ_mol = self._calculate_energy(coordinates, lambda_value)
 
         # derivative of E (in kJ/mol) w.r.t. coordinates (in nm)
         derivative = torch.autograd.grad((energy_in_kJ_mol).sum(), coordinates)[0]
@@ -161,7 +160,7 @@ class ANI1_force_and_energy(object):
         else:
             raise RuntimeError('Platform needs to be specified. Either CPU or CUDA.')
 
-        return F * (unit.kilojoule_per_mole / unit.nanometer), energy_in_kJ_mol.item() * unit.kilojoule_per_mole
+        return F * (unit.kilojoule_per_mole / unit.nanometer), energy_in_kJ_mol.item() * unit.kilojoule_per_mole, bias_in_kJ_mol.item() * unit.kilojoule_per_mole 
 
     
     def _calculate_energy(self, coordinates:torch.tensor, lambda_value:float)->torch.tensor:
@@ -193,7 +192,7 @@ class ANI1_force_and_energy(object):
         
         # convert energy from hartrees to kJ/mol
         energy_in_kJ_mol = energy_in_hartree * hartree_to_kJ_mol
-        bias = 0.0
+        bias_in_kJ_mol = 0.0
 
         for restraint in self.list_of_restraints:
             e = restraint.restraint(coordinates * nm_to_angstroms)
@@ -204,10 +203,10 @@ class ANI1_force_and_energy(object):
             else:
                 # always on - active_at_lambda == -1
                 pass 
-            bias += e
+            bias_in_kJ_mol += e
         
-        energy_in_kJ_mol += bias
-        return energy_in_kJ_mol
+        energy_in_kJ_mol += bias_in_kJ_mol
+        return energy_in_kJ_mol, bias_in_kJ_mol
         
 
 
@@ -232,7 +231,7 @@ class ANI1_force_and_energy(object):
         coordinates = torch.tensor([x.value_in_unit(unit.nanometer)],
                                 requires_grad=True, device=self.device, dtype=torch.float32)
 
-        energy_in_kJ_mol = self._calculate_energy(coordinates, lambda_value)
+        energy_in_kJ_mol, _ = self._calculate_energy(coordinates, lambda_value)
         return energy_in_kJ_mol.item() * unit.kilojoule_per_mole
 
 class AlchemicalANI(torchani.models.ANI1ccx):

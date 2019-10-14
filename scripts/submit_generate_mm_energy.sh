@@ -6,6 +6,7 @@
 #$ -pe smp 2
 #$ -o /data/shared/projects/SGE_LOG/
 ￼
+export NUMEXPR_MAX_THREADS=8
 molecule_name=$1 
 
 cd /home/mwieder/Work/Projects/neutromeratio/scripts

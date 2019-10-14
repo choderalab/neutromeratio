@@ -43,7 +43,7 @@ def plot_correlation_analysis(
 
     plt.clf()
     ax = plt.gca()
-    ax.set_title(title, fontsize=10)
+    ax.set_title(title, fontsize=20)
 
     rmse, r = bootstrap_rmse_r(df, 1000)
 
@@ -64,8 +64,8 @@ def plot_correlation_analysis(
     ax.plot((-10.0, 10.0), (0.0, 0.0), "r--", zorder=-1, linewidth=0.5, alpha=0.5)
     ax.plot((0.0, 0.0), (-10.0, 10.0), "r--", zorder=-1, linewidth=0.5, alpha=0.5)
 
-    ax.set_ylabel(x_label, fontsize=9)
-    ax.set_xlabel(y_label, fontsize=9)
+    ax.set_ylabel(x_label, fontsize=19)
+    ax.set_xlabel(y_label, fontsize=19)
     ax.set_xlim([-22, 22])
     ax.set_ylim([-22, 22])
     #plt.xticks(np.arange(-10, 10, 2.0), fontsize=8)

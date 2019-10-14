@@ -16,9 +16,6 @@ exp_results = pickle.load(open('../data/exp_results.pickle', 'rb'))
 name = str(sys.argv[1])
 torch.set_num_threads(2)
 
-from_mol_tautomer_idx = 1
-to_mol_tautomer_idx = 2
-
 t1_smiles = exp_results[name]['t1-smiles']
 t2_smiles = exp_results[name]['t2-smiles']
 
