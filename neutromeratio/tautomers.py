@@ -348,8 +348,7 @@ class Tautomer(object):
             increasing energy.
             """
             rmsd = get_conformer_rmsd(mol)
-            energies = [x.value_in_unit(unit.kilocalorie_per_mole) for x in energies]
-            sort = np.argsort()  # sort by increasing energy
+            sort = np.argsort([x.value_in_unit(unit.kilocalorie_per_mole) for x in energies])  # sort by increasing energy
             keep = []  # always keep lowest-energy conformer
             discard = []
             for i in sort:
@@ -411,9 +410,7 @@ class Tautomer(object):
                 l.append(v)
         
             e_bw = (-1) * gas_constant * temperature * (logsumexp(l)) 
-
             return e_bw
-
 
 
         confs_traj = []

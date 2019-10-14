@@ -76,8 +76,8 @@ def test_tautomer_transformation():
 
     # test if dual topology hybrid works
     assert(t.hybrid_atoms == 'CCCCCOOHHHHHHHHH')
-    assert(t.hybrid_hydrogen_idx_at_donor_heavy_atom == 11)
-    assert(t.hybrid_hydrogen_idx_at_acceptor_heavy_atom == 15)
+    assert(t.hydrogen_idx == 11)
+    assert(t.hybrid_dummy_hydrogen == 15)
 
     t.perform_tautomer_transformation_reverse()
 
@@ -89,8 +89,8 @@ def test_tautomer_transformation():
 
     # test if dual topology hybrid works
     assert(t.hybrid_atoms == 'CCCCCOOHHHHHHHHH')
-    assert(t.hybrid_hydrogen_idx_at_donor_heavy_atom == 14)
-    assert(t.hybrid_hydrogen_idx_at_acceptor_heavy_atom == 15)
+    assert(t.hydrogen_idx == 14)
+    assert(t.hybrid_dummy_hydrogen == 15)
 
 
     name = 'molDWRow_37'
@@ -108,8 +108,8 @@ def test_tautomer_transformation():
 
     # test if dual topology hybrid works
     assert(t.hybrid_atoms == 'CCCCCCCOOHHHHHHHHHHH')
-    assert(t.hybrid_hydrogen_idx_at_donor_heavy_atom == 18)
-    assert(t.hybrid_hydrogen_idx_at_acceptor_heavy_atom == 19)
+    assert(t.hydrogen_idx == 18)
+    assert(t.hybrid_dummy_hydrogen == 19)
 
     t.perform_tautomer_transformation_reverse()
     
@@ -121,8 +121,8 @@ def test_tautomer_transformation():
 
     # test if dual topology hybrid works CCOCCCCCOHHHHHHHHHHH
     assert(t.hybrid_atoms == 'CCOCCCCCOHHHHHHHHHHH')
-    assert(t.hybrid_hydrogen_idx_at_donor_heavy_atom == 12)
-    assert(t.hybrid_hydrogen_idx_at_acceptor_heavy_atom == 19)
+    assert(t.hydrogen_idx == 12)
+    assert(t.hybrid_dummy_hydrogen == 19)
 
 
 def test_neutromeratio_energy_calculations_with_torchANI_model():
@@ -235,7 +235,7 @@ def test_neutromeratio_energy_calculations_with_DualTopologyAlchemicalANI_model(
     t.perform_tautomer_transformation_forward()
   
     # generate tautomer transformation
-    dummy_atoms = [t.hybrid_hydrogen_idx_at_acceptor_heavy_atom, t.hybrid_hydrogen_idx_at_donor_heavy_atom]
+    dummy_atoms = [t.hybrid_dummy_hydrogen, t.hydrogen_idx]
     atoms = t.hybrid_atoms
     # overwrite the coordinates that rdkit generated with the first frame in the traj
     model = neutromeratio.ani.LinearAlchemicalDualTopologyANI(alchemical_atoms=dummy_atoms)
@@ -379,7 +379,7 @@ def test_restraint_with_alchemicalANIDualTopology():
 
     # the first of the alchemical_atoms will be dummy at lambda 0, the second at lambda 1
     # protocoll goes from 0 to 1
-    dummy_atoms = [tautomer.hybrid_hydrogen_idx_at_acceptor_heavy_atom, tautomer.hybrid_hydrogen_idx_at_donor_heavy_atom]
+    dummy_atoms = [tautomer.hybrid_dummy_hydrogen, tautomer.hydrogen_idx]
     atoms = tautomer.hybrid_atoms
 
     model = neutromeratio.ani.LinearAlchemicalDualTopologyANI(alchemical_atoms=dummy_atoms)
@@ -473,11 +473,11 @@ def test_euqilibrium():
     t1_smiles = exp_results[name]['t1-smiles']
     t2_smiles = exp_results[name]['t2-smiles']
 
-    t = neutromeratio.Tautomer(name=name, intial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles))
-    t.perform_tautomer_transformation_forward()
+    tautomer = neutromeratio.Tautomer(name=name, intial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles))
+    tautomer.perform_tautomer_transformation_forward()
 
     # define the alchemical atoms
-    alchemical_atoms=[t.hybrid_hydrogen_idx_at_acceptor_heavy_atom, t.hybrid_hydrogen_idx_at_donor_heavy_atom]
+    alchemical_atoms=[tautomer.hybrid_dummy_hydrogen, tautomer.hydrogen_idx]
 
     # extract hydrogen donor idx and hydrogen idx for from_mol
     model = neutromeratio.ani.LinearAlchemicalDualTopologyANI(alchemical_atoms=alchemical_atoms)
@@ -487,35 +487,34 @@ def test_euqilibrium():
     # perform initial sampling
     energy_function = neutromeratio.ANI1_force_and_energy(
                                             model = model,
-                                            atoms = t.hybrid_atoms,
-                                            mol = t.hybrid_ase_mol
+                                            atoms = tautomer.hybrid_atoms,
+                                            mol = tautomer.hybrid_ase_mol
                                             )
 
-    for e in t.hybrid_restraints:
+    for e in tautomer.ligand_restraints + tautomer.hybrid_ligand_restraints:
         energy_function.add_restraint(e)
 
-    x0 = np.array(t.hybrid_coords) * unit.angstrom
+    x0 = np.array(tautomer.hybrid_coords) * unit.angstrom
     x0 = energy_function.minimize(x0)
-
 
     lambda_value = 1.0
     energy_and_force = lambda x : energy_function.calculate_force(x, lambda_value)
 
-    langevin = neutromeratio.LangevinDynamics(atoms = t.hybrid_atoms,
+    langevin = neutromeratio.LangevinDynamics(atoms = tautomer.hybrid_atoms,
                                 temperature = 300*unit.kelvin,
                                 energy_and_force = energy_and_force,
                                 )
     
-    equilibrium_samples, energies = langevin.run_dynamics(x0, n_steps=n_steps, stepsize=1.0 * unit.femtosecond, progress_bar=True)
+    equilibrium_samples, energies, _ = langevin.run_dynamics(x0, n_steps=n_steps, stepsize=1.0 * unit.femtosecond, progress_bar=True)
 
     lambda_value = 0.0
     energy_and_force = lambda x : energy_function.calculate_force(x, lambda_value)
 
-    langevin = neutromeratio.LangevinDynamics(atoms = t.hybrid_atoms,
+    langevin = neutromeratio.LangevinDynamics(atoms = tautomer.hybrid_atoms,
                                 temperature = 300*unit.kelvin,
                                 energy_and_force = energy_and_force)
 
-    equilibrium_samples, energies = langevin.run_dynamics(x0, n_steps=n_steps, stepsize=1.0 * unit.femtosecond, progress_bar=True)
+    equilibrium_samples, energies, _ = langevin.run_dynamics(x0, n_steps=n_steps, stepsize=1.0 * unit.femtosecond, progress_bar=True)
 
 
 
