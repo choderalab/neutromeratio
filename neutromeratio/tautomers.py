@@ -93,7 +93,7 @@ class Tautomer(object):
         assert(type(diameter) == unit.Quantity)
         assert(type(topology) == md.Topology)
         assert(type(coordinates) == unit.Quantity)
-
+        logger.info('Adding droplet ...')
         # get topology from mdtraj to PDBfixer via pdb file # NOTE: Quote: 'if you need a tmp file, you should rethink your design decicions.' 
         pdb_filepath='structure.pdb'
         md.Trajectory(coordinates.value_in_unit(unit.nanometer), topology).save_pdb(pdb_filepath)
@@ -124,8 +124,10 @@ class Tautomer(object):
                 dist = np.sqrt(squared_dist)
                 if dist > radius:
                     to_delete.append(residue)
-                
+        
+        logger.info('Removing residues ...')    
         for residue in list(set(to_delete)):
+            logging.info('Remove: {}'.format(residue))
             structure.residues.remove(residue)
             
         structure.write_pdb(pdb_filepath)
