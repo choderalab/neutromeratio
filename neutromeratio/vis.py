@@ -27,6 +27,7 @@ def generate_nglview_object(traj:md.Trajectory, donor_hydrogen_idx:int = -1, acc
     """
 
     view = nglview.show_mdtraj(traj)
+    view.add_representation('line', selection='water')
     if donor_hydrogen_idx != -1 and acceptor_hydrogen_idx != -1:
 
         # Clear all representations to try new ones

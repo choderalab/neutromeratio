@@ -6,9 +6,7 @@ import pandas as pd
 import numpy as np
 import scipy.stats as scs
 
-
 logger = logging.getLogger(__name__)
-
 
 def plot_correlation_analysis(
     df:pd.DataFrame,
@@ -43,12 +41,12 @@ def plot_correlation_analysis(
 
     plt.clf()
     ax = plt.gca()
-    ax.set_title(title, fontsize=20)
+    ax.set_title(title, fontsize=15)
 
     rmse, r = bootstrap_rmse_r(df, 1000)
 
-    plt.text(-15.0 , 15.0, r"{} : $\rho = {}$".format(list(df["method"])[0], r), fontsize=6)
-    plt.text(-15.0 , 14.0, r"RMSE$ = {}$".format(rmse), fontsize=6)
+    plt.text(-15.0 , 15.0, r"{} : $\rho = {}$".format(list(df["method"])[0], r), fontsize=10)
+    plt.text(-15.0 , 13.0, r"RMSE$ = {}$".format(rmse), fontsize=10)
 
     for X, Y, method, name in zip(df.x, df.y, df.method, df.names):
         ax.scatter(X, Y, color=color, label=method, s=10)
@@ -64,90 +62,18 @@ def plot_correlation_analysis(
     ax.plot((-10.0, 10.0), (0.0, 0.0), "r--", zorder=-1, linewidth=0.5, alpha=0.5)
     ax.plot((0.0, 0.0), (-10.0, 10.0), "r--", zorder=-1, linewidth=0.5, alpha=0.5)
 
-    ax.set_ylabel(x_label, fontsize=19)
-    ax.set_xlabel(y_label, fontsize=19)
+    ax.set_ylabel(x_label, fontsize=15)
+    ax.set_xlabel(y_label, fontsize=15)
     ax.set_xlim([-22, 22])
     ax.set_ylim([-22, 22])
-    #plt.xticks(np.arange(-10, 10, 2.0), fontsize=8)
+    #plt.xticks(np.arange(-10, 10, 2.0), fontsize=15)
     handles, labels = plt.gca().get_legend_handles_labels()
     by_label = OrderedDict(zip(labels, handles))
     plt.legend(by_label.values(), by_label.keys(), loc='lower right')
     plt.tight_layout()
-    
     plt.subplots_adjust(bottom=0.3), #left=1.3, right=0.3) 
-
     return ax
 
-
-
-
-# def plot_correlation_analysis(
-#     df:pd.DataFrame,
-#     title: str,
-#     color: str,
-#     marker: str,
-#     error_color="black",
-#     nsamples=5000,
-#     mark_tautomer_names:list=[],
-# ):
-#     """Plot correlation between experiment and prediction.
-    
-#     Parameters
-#     ----------
-#     df : pd.Dataframe
-#         the df contains columns with colum names 'names', 'predicted_values', 'experimental_values', 'method'
-#     title : str
-#         to put above plot. use '' (empty string) for no title.
-#     color : str
-#         edge color of the markers. This plot uses open markers.
-#     error_color : str
-#         color of the error bars
-#     nsamples : int
-#         number of samples to draw for bootstrap
-#     mark_tautomer_names : list of str
-#         mark specific tautomers with labels in the plot
-#     """
-
-
-#     plt.clf()
-#     fig = plt.figure(figsize=[8,8], dpi=300)
-#     ax = plt.gca()
-#     ax.set_title(title, fontsize=10)
-
-#     rmse, r = bootstrap_rmse_r(df, 1000)
-
-#     plt.text(-15.0 , 15.0, r"{} : $\rho = {}$".format(list(df["method"])[0], r), fontsize=6)
-#     plt.text(-15.0 , 14.0, r"RMSE$ = {}$".format(rmse), fontsize=6)
-
-
-#     for X, Y, method, name in zip(df.experimental_values, df.predicted_values, df.method, df.names):
-#         ax.scatter(X, Y, color=color, label=method, s=10)
-#         # mark tautomer pairs that behave strangly
-#         if name in mark_tautomer_names:
-#             ax.annotate(str(name), (X, Y), fontsize=5)
-
-#     # draw lines +- 1kcal/mol
-#     ax.plot((-16.0, 10.0), (-16.0, 10.0), "k--", zorder=-1, linewidth=0.5, alpha=0.5)
-#     ax.plot((-15.0, 10.0), (-16.0, 9.0), "gray", zorder=-1, linewidth=0.5, alpha=0.5)
-#     ax.plot((-16.0, 9.0), (-15.0, 10.0), "gray", zorder=-1, linewidth=0.5, alpha=0.5)
-    
-#     ax.plot((-10.0, 10.0), (0.0, 0.0), "r--", zorder=-1, linewidth=0.5, alpha=0.5)
-#     ax.plot((0.0, 0.0), (-10.0, 10.0), "r--", zorder=-1, linewidth=0.5, alpha=0.5)
-
-#     ax.set_ylabel("Predicted dG [kcal/mol]", fontsize=9)
-#     ax.set_xlabel("Experimental ddG [kcal/mol]", fontsize=9)
-#     ax.set_xlim([-22, 22])
-#     ax.set_ylim([-22, 22])
-#     #plt.xticks(np.arange(-10, 10, 2.0), fontsize=8)
-#     handles, labels = plt.gca().get_legend_handles_labels()
-#     by_label = OrderedDict(zip(labels, handles))
-#     plt.legend(by_label.values(), by_label.keys(), loc='lower right')
-#     plt.tight_layout()
-    
-#     plt.subplots_adjust(bottom=0.3), #left=1.3, right=0.3) 
-
-#     sns.despine(fig)
-#     return fig
 
 def array_rmse(x1: np.ndarray, x2: np.ndarray) -> float:
     """Returns the root mean squared error between two arrays."""

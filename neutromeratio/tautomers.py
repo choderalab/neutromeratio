@@ -1,10 +1,11 @@
 import logging, copy, os, random
 import mdtraj as md
+import parmed as pm
 from rdkit import Chem, Geometry
 from rdkit.Chem import AllChem
 from rdkit.Chem import rdFMCS
 from .vis import display_mol
-from .restraints import FlatBottomRestraint
+from .restraints import FlatBottomRestraint, FlatBottomRestraintToCenter
 from .ani import ANI1_force_and_energy
 from simtk import unit
 from .utils import write_pdb
@@ -15,6 +16,8 @@ from .mcmc import MC_Mover
 import torch, torchani
 from .constants import temperature, gas_constant
 from scipy.special import logsumexp
+from pdbfixer import PDBFixer
+from simtk.openmm import Vec3
 
 logger = logging.getLogger(__name__)
 
@@ -62,11 +65,16 @@ class Tautomer(object):
         self.hybrid_dummy_hydrogen:int = -1 # the dummy hydrogen
         self.hybrid_atoms:str = ''
         self.hybrid_coords:list = []
-        self.hybrid_ase_mol:Atoms = None
-        self.hybrid_topology:md.Topology = None       
+        self.hybrid_ase_mol:Atoms = Atoms()
+        self.hybrid_topology:md.Topology = md.Topology()       
         self.heavy_atom_hydrogen_donor_idx:int = -1 # the heavy atom that losses the hydrogen
         self.hydrogen_idx:int = -1 # the tautomer hydrogen
         self.heavy_atom_hydrogen_acceptor_idx:int = -1 # the heavy atom that accepts the hydrogen
+
+        self.ligand_in_water_atoms:str = ""
+        self.ligand_in_water_coordinates:list = []
+        self.ligand_in_water_ase_mol:Atoms = Atoms()
+        self.ligand_in_water_topology:md.Topology = md.Topology()
 
         # restraints for the ligand system
         self.ligand_restraints = []
@@ -74,6 +82,90 @@ class Tautomer(object):
         self.hybrid_ligand_restraints = []
         # restraints for the solvent
         self.solvent_restraints = []
+
+
+    def add_droplet(self, topology:md.Topology, coordinates, diameter:unit.quantity.Quantity=(3.0 * unit.nanometer)):
+    
+        """
+        A bit of a lie - what we are doing is adding a box and then removing everything 
+        outside a given radius.
+        """
+        assert(type(diameter) == unit.Quantity)
+        assert(type(topology) == md.Topology)
+        assert(type(coordinates) == unit.Quantity)
+
+        # get topology from mdtraj to PDBfixer via pdb file # NOTE: Quote: 'if you need a tmp file, you should rethink your design decicions.' 
+        pdb_filepath='structure.pdb'
+        md.Trajectory(coordinates.value_in_unit(unit.nanometer), topology).save_pdb(pdb_filepath)
+        pdb = PDBFixer(filename=pdb_filepath)
+        os.remove(pdb_filepath)
+        # put the ligand in the center
+        l = diameter.value_in_unit(unit.nanometer)
+        pdb.positions = np.array(pdb.positions.value_in_unit(unit.nanometer)) + (l/2)
+        # add water
+        pdb.addSolvent(boxVectors=(Vec3(l, 0.0, 0.0), Vec3(0.0, l, 0.0), Vec3(0.0, 0.0, l)))
+        # get topology from PDBFixer to mdtraj # NOTE: a second tmpfile - not happy about this 
+        from simtk.openmm.app import PDBFile
+        PDBFile.writeFile(pdb.topology, pdb.positions, open(pdb_filepath, 'w'))
+        # load pdb in parmed
+        structure = pm.load_file(pdb_filepath)
+        os.remove(pdb_filepath)
+
+        # search for residues that are outside of the cutoff and delete them
+        to_delete = []
+        radius = diameter.value_in_unit(unit.angstrom)/2
+        for residue in structure.residues:
+                
+            for atom in residue:
+                p1 = np.array([atom.xx, atom.xy, atom.xz])
+                p2 = np.array([radius, radius, radius])
+
+                squared_dist = np.sum((p1-p2)**2, axis=0)
+                dist = np.sqrt(squared_dist)
+                if dist > radius:
+                    to_delete.append(residue)
+                
+        for residue in list(set(to_delete)):
+            structure.residues.remove(residue)
+            
+        structure.write_pdb(pdb_filepath)
+        
+        # load pdb with mdtraj
+        traj = md.load(pdb_filepath)
+        os.remove(pdb_filepath)
+
+        # set coordinates #NOTE: note the xyz[0]
+        self.ligand_in_water_coordinates = traj.xyz[0] * unit.nanometer
+
+        # generate atom string
+        atom_list = []
+        for atom in traj.topology.atoms:
+            atom_list.append(atom.element.symbol)
+        
+        # set atom string
+        self.ligand_in_water_atoms = ''.join(atom_list)
+        # set mdtraj topology
+        self.ligand_in_water_topology = traj.topology
+
+        # generate an ase mol for minimization
+        ase_atom_list = []
+        self.solvent_restraints
+        for idx, element, xyz in zip(range(len(self.ligand_in_water_atoms)), self.ligand_in_water_atoms, self.ligand_in_water_coordinates):
+            if idx > len(self.hybrid_atoms) and element == 'O': # even if are not looking at a hybrid it should still be fine 
+                self.solvent_restraints.append(FlatBottomRestraintToCenter(sigma=0.1 * unit.angstrom, radius=diameter/2, atom_idx = idx, active_at_lambda=-1))
+            c_list = (xyz[0].value_in_unit(unit.angstrom), xyz[1].value_in_unit(unit.angstrom), xyz[2].value_in_unit(unit.angstrom)) 
+            ase_atom_list.append(Atom(element, c_list))
+        mol = Atoms(ase_atom_list)
+        self.ligand_in_water_ase_mol = mol      
+        
+        # generate oxygen restraint
+
+
+        # return a mdtraj object for visual check
+        return md.Trajectory(self.ligand_in_water_coordinates.value_in_unit(unit.nanometer), self.ligand_in_water_topology)
+
+        
+
 
     def perform_tautomer_transformation_forward(self):
         """
@@ -124,8 +216,7 @@ class Tautomer(object):
             for a in mol.GetAtoms():
                 pos = mol.GetConformer(conf_idx).GetAtomPosition(a.GetIdx())
                 tmp_coord_list.append([pos.x, pos.y, pos.z])
-            tmp_coord_list = np.array(tmp_coord_list) * unit.angstrom
-            coord_list.append(tmp_coord_list)
+            coord_list.append(np.array(tmp_coord_list) * unit.angstrom)
 
         # generate bond list
         bond_list = []
@@ -136,8 +227,6 @@ class Tautomer(object):
             if a1.GetSymbol() == 'H' or a2.GetSymbol() == 'H':
                 bond_list.append((a1.GetIdx(), a2.GetIdx()))
     
-
-
         # get mdtraj topology
         n = random.random()
         # TODO: use tmpfile for this https://stackabuse.com/the-python-tempfile-module/ or io.StringIO

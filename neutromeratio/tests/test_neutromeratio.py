@@ -124,6 +124,8 @@ def test_tautomer_transformation():
     assert(t.hydrogen_idx == 12)
     assert(t.hybrid_dummy_hydrogen == 19)
 
+    # test if droplet works for 
+    t.add_droplet(t.final_state_ligand_topology, t.final_state_ligand_coords[0])
 
 def test_neutromeratio_energy_calculations_with_torchANI_model():
     

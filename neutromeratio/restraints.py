@@ -67,6 +67,32 @@ class FlatBottomRestraint(Restraint):
         logging.debug('Flat bottom bias introduced: {:0.4f}'.format(e.item()))
         return e.to(device=self.device)
     
+
+class FlatBottomRestraintToCenter(object):
+    def __init__(self, sigma:unit.Quantity, radius:unit.Quantity, atom_idx:int, active_at_lambda:int=-1):
+        assert(type(sigma) == unit.Quantity)
+        k = (kB * temperature) / (sigma**2)
+        self.k = k.value_in_unit((unit.kilo * unit.joule) / ((unit.angstrom **2) * unit.mole))
+        self.device = device
+        self.atom_idx = atom_idx
+        self.active_at_lambda = active_at_lambda
+        self.upper_bound = radius.value_in_unit(unit.angstrom) + 0.2
+        self.radius = radius.value_in_unit(unit.angstrom)
+        self.center = torch.tensor([self.radius, self.radius, self.radius], dtype=torch.double, device=self.device)
+
+    def restraint(self, x):
+
+        # x in angstrom
+        distance = torch.norm(x[0][self.atom_idx] - self.center)
+        if distance >= self.upper_bound:
+            e = (self.k/2) * (distance.double() - self.upper_bound)**2 
+        else:
+            e = torch.tensor(0.0, dtype=torch.double, device=self.device)
+        logging.debug('Flat center bottom bias introduced: {:0.4f}'.format(e.item()))
+        return e.to(device=self.device)
+
+
+
 class HarmonicRestraint(Restraint):
 
     def __init__(self, sigma:unit.Quantity, atom_i_idx:int, atom_j_idx:int, atoms:str, active_at_lambda:int=-1):
