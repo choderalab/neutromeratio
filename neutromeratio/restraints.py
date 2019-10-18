@@ -23,14 +23,14 @@ class BaseRestraint(object):
 
 class PointAtomRestraint(BaseRestraint):
 
-    def __init__(self, sigma:unit.Quantity, point:unit.Quantity, active_at_lambda:int):
+    def __init__(self, sigma:unit.Quantity, point:np.array, active_at_lambda:int):
         """
         Defines a restraint. 
 
         Parameters
         ----------
         sigma : in angstrom
-        point : np.array 3D, unit'd
+        point : np.array 3D, value in angstrom
         active_at_lambda : int
             Integer to indicccate at which state the restraint is fully active. Either 0 (for 
             lambda 0), or 1 (for lambda 1) or -1 (always active)
@@ -41,7 +41,7 @@ class PointAtomRestraint(BaseRestraint):
         """
 
         super().__init__(sigma, active_at_lambda)
-        assert(type(point) == unit.Quantity)
+        assert(type(point) == np.array)
         self.point = torch.from_numpy(point).to(dtype=torch.double, device=self.device) 
 
 
@@ -119,7 +119,9 @@ class FlatBottomRestraintToCenter(PointAtomRestraint):
         """
         
         assert(type(sigma) == unit.Quantity)
-        super().__init__(sigma, point, active_at_lambda)
+        assert(type(point) == unit.Quantity)
+
+        super().__init__(sigma, point.value_in_unit(unit.angstrom), active_at_lambda)
 
         self.atom_idx = atom_idx
         self.cutoff_radius = radius.value_in_unit(unit.angstrom) + 0.2
