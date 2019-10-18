@@ -41,7 +41,7 @@ def plot_correlation_analysis(
 
     plt.clf()
     ax = plt.gca()
-    ax.set_title(title, fontsize=15)
+    ax.set_title(title, fontsize=20)
 
     rmse, r = bootstrap_rmse_r(df, 1000)
 

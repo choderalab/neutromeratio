@@ -5,7 +5,7 @@ import numpy as np
 from .constants import nm_to_angstroms, hartree_to_kJ_mol, device, platform, conversion_factor_eV_to_kJ_mol, temperature, pressure
 from simtk import unit
 import simtk
-from .restraints import Restraint
+from .restraints import BaseRestraint
 from ase.optimize import BFGS
 from ase import Atoms
 import copy
@@ -48,7 +48,7 @@ class ANI1_force_and_energy(object):
         self.list_of_restraints = []
         # TODO: check availablity of platform
 
-    def add_restraint(self, restraint:Restraint):
+    def add_restraint(self, restraint:BaseRestraint):
         # add a single restraint
         self.list_of_restraints.append(restraint)
 
