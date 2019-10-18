@@ -103,17 +103,22 @@ class Tautomer(object):
         l = diameter.value_in_unit(unit.nanometer)
         pdb.positions = np.array(pdb.positions.value_in_unit(unit.nanometer)) + (l/2)
         # add water
+        logger.info('Adding water ...')
+
         pdb.addSolvent(boxVectors=(Vec3(l, 0.0, 0.0), Vec3(0.0, l, 0.0), Vec3(0.0, 0.0, l)))
         # get topology from PDBFixer to mdtraj # NOTE: a second tmpfile - not happy about this 
         from simtk.openmm.app import PDBFile
         PDBFile.writeFile(pdb.topology, pdb.positions, open(pdb_filepath, 'w'))
         # load pdb in parmed
+        logger.info('Load with parmed ...')
+
         structure = pm.load_file(pdb_filepath)
         os.remove(pdb_filepath)
 
         # search for residues that are outside of the cutoff and delete them
         to_delete = []
         radius = diameter.value_in_unit(unit.angstrom)/2
+        logger.info('Flag residues ...')
         for residue in structure.residues:
                 
             for atom in residue:
@@ -125,7 +130,7 @@ class Tautomer(object):
                 if dist > radius:
                     to_delete.append(residue)
         
-        logger.info('Removing residues ...')    
+        logger.info('Delete residues ...')    
         for residue in list(set(to_delete)):
             logging.info('Remove: {}'.format(residue))
             structure.residues.remove(residue)

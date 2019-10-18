@@ -11,19 +11,16 @@ import pickle
 import torchani
 import torch
 from neutromeratio.constants import device, platform
+import sys
 
 exp_results = pickle.load(open('../data/exp_results.pickle', 'rb'))
 
-# specify the system you want to simulate
-name = 'molDWRow_298'
-#name = 'molDWRow_37'
-#name = 'molDWRow_45'
-#name = 'molDWRow_160'
-#name = 'molDWRow_590'
-
-
+# name of the system
+name = str(sys.argv[1])
+# lambda state
+lambda_value = float(sys.argv[2])
 # number of steps
-n_steps = 1000
+n_steps = int(sys.argv[3])
 
 exp_results = pickle.load(open('../data/exp_results.pickle', 'rb'))
 
@@ -59,19 +56,23 @@ for r in tautomer.hybrid_ligand_restraints:
     energy_function.add_restraint(r)
 
 
-trajectory = []
-bias_list = []
-for lambda_value in np.linspace(0,1,10):
-    print(lambda_value)
-    energy_and_force = lambda x : energy_function.calculate_force(x, lambda_value)
-    langevin = neutromeratio.LangevinDynamics(atoms = tautomer.ligand_in_water_atoms,
-                                temperature = 300*unit.kelvin,
-                                energy_and_force = energy_and_force)
-    x0 = np.array(tautomer.ligand_in_water_coordinates) * unit.angstrom
-    x0 = energy_function.minimize(x0)
+print(lambda_value)
+energy_and_force = lambda x : energy_function.calculate_force(x, lambda_value)
+langevin = neutromeratio.LangevinDynamics(atoms = tautomer.ligand_in_water_atoms,
+                            temperature = 300*unit.kelvin,
+                            energy_and_force = energy_and_force)
+x0 = np.array(tautomer.ligand_in_water_coordinates) * unit.angstrom
+x0 = energy_function.minimize(x0)
 
+
+equilibrium_samples, energies, bias = langevin.run_dynamics(x0, n_steps=n_steps, stepsize=0.5 * unit.femtosecond, progress_bar=True)
     
-    equilibrium_samples, energies, bias = langevin.run_dynamics(x0, n_steps=n_steps, stepsize=0.5 * unit.femtosecond, progress_bar=True)
-    bias_list.append(bias)
-    trajectory.append(equilibrium_samples)
-    
+# save equilibrium energy values 
+f = open(f"../data/equilibrium_sampling/{name}/{name}_lambda_{lambda_value:0.4f}_energy_in_droplet.csv", 'w+')
+for e in energies:
+    f.write('{}\n'.format(e))
+f.close()
+
+equilibrium_samples = [x / unit.nanometer for x in equilibrium_samples]
+ani_traj = md.Trajectory(equilibrium_samples[::20], tautomer.ligand_in_water_topology)
+ani_traj.save(f"../data/equilibrium_sampling/{name}/{name}_lambda_{lambda_value:0.4f}_in_droplet.dcd", force_overwrite=True)

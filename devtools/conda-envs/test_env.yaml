@@ -24,8 +24,6 @@ dependencies:
   - pip
   - pymbar
   - tqdm
-  #- simtk
-  - pytest
   - rdkit
   - scipy
   - pytest-cov
