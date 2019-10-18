@@ -95,7 +95,9 @@ class Tautomer(object):
         assert(type(coordinates) == unit.Quantity)
         logger.info('Adding droplet ...')
         # get topology from mdtraj to PDBfixer via pdb file # NOTE: Quote: 'if you need a tmp file, you should rethink your design decicions.' 
-        pdb_filepath='structure.pdb'
+        n = random.random()
+        # TODO: use tmpfile for this https://stackabuse.com/the-python-tempfile-module/ or io.StringIO
+        pdb_filepath=f"tmp{n:0.9f}.pdb"
         md.Trajectory(coordinates.value_in_unit(unit.nanometer), topology).save_pdb(pdb_filepath)
         pdb = PDBFixer(filename=pdb_filepath)
         os.remove(pdb_filepath)
