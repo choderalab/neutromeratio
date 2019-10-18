@@ -120,12 +120,13 @@ class Tautomer(object):
         # search for residues that are outside of the cutoff and delete them
         to_delete = []
         radius = diameter.value_in_unit(unit.angstrom)/2
+        center = np.array([radius, radius, radius])
         logger.info('Flag residues ...')
         for residue in structure.residues:
                 
             for atom in residue:
                 p1 = np.array([atom.xx, atom.xy, atom.xz])
-                p2 = np.array([radius, radius, radius])
+                p2 = center
 
                 squared_dist = np.sum((p1-p2)**2, axis=0)
                 dist = np.sqrt(squared_dist)
@@ -161,15 +162,12 @@ class Tautomer(object):
         self.solvent_restraints
         for idx, element, xyz in zip(range(len(self.ligand_in_water_atoms)), self.ligand_in_water_atoms, self.ligand_in_water_coordinates):
             if idx > len(self.hybrid_atoms) and element == 'O': # even if are not looking at a hybrid it should still be fine 
-                self.solvent_restraints.append(FlatBottomRestraintToCenter(sigma=0.1 * unit.angstrom, radius=diameter/2, atom_idx = idx, active_at_lambda=-1))
+                self.solvent_restraints.append(FlatBottomRestraintToCenter(sigma=0.1 * unit.angstrom, point=center * unit.angstrom, radius=diameter/2, atom_idx = idx, active_at_lambda=-1))
             c_list = (xyz[0].value_in_unit(unit.angstrom), xyz[1].value_in_unit(unit.angstrom), xyz[2].value_in_unit(unit.angstrom)) 
             ase_atom_list.append(Atom(element, c_list))
         mol = Atoms(ase_atom_list)
         self.ligand_in_water_ase_mol = mol      
         
-        # generate oxygen restraint
-
-
         # return a mdtraj object for visual check
         return md.Trajectory(self.ligand_in_water_coordinates.value_in_unit(unit.nanometer), self.ligand_in_water_topology)
 
