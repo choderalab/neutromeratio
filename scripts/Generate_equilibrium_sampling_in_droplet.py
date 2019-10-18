@@ -62,7 +62,7 @@ langevin = neutromeratio.LangevinDynamics(atoms = tautomer.ligand_in_water_atoms
                             temperature = 300*unit.kelvin,
                             energy_and_force = energy_and_force)
 x0 = np.array(tautomer.ligand_in_water_coordinates) * unit.angstrom
-x0 = energy_function.minimize(x0)
+#x0 = energy_function.minimize(x0) # NOTE: No minimizing!
 
 
 equilibrium_samples, energies, bias = langevin.run_dynamics(x0, n_steps=n_steps, stepsize=0.5 * unit.femtosecond, progress_bar=True)
