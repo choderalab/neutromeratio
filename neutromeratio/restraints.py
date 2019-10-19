@@ -85,9 +85,8 @@ class FlatBottomRestraint(AtomAtomRestraint):
         super().__init__(sigma, atom_i_idx, atom_j_idx, atoms, active_at_lambda)
 
     def restraint(self, x):
-        assert(type(x) == unit.Quantity)
+
         # x in angstrom
-        x = x.value_in_unit(unit.angstrom)
         distance = torch.norm(x[0][self.atom_i_idx] - x[0][self.atom_j_idx])
         if distance <= self.lower_bound:
             e = (self.k/2) * (self.lower_bound - distance.double())**2
@@ -105,9 +104,8 @@ class HarmonicRestraint(AtomAtomRestraint):
         super().__init__(sigma, atom_i_idx, atom_j_idx, atoms, active_at_lambda)
 
     def restraint(self, x):
-        assert(type(x) == unit.Quantity)
+
         # x in angstrom
-        x = x.value_in_unit(unit.angstrom)
         distance = torch.norm(x[0][self.atom_i_idx] - x[0][self.atom_j_idx]) 
         e = (self.k/2) *(distance.double() - self.mean_bond_length)**2
         logging.debug('Harmonic bias introduced: {:0.4f}'.format(e.item()))
@@ -128,9 +126,7 @@ class FlatBottomRestraintToCenter(PointAtomRestraint):
         self.cutoff_radius = radius.value_in_unit(unit.angstrom) + 0.2
 
     def restraint(self, x):
-        assert(type(x) == unit.Quantity)
         # x in angstrom
-        x = x.value_in_unit(unit.angstrom)
         distance = torch.norm(x[0][self.atom_idx] - self.point)
         if distance >= self.cutoff_radius:
             e = (self.k/2) * (distance.double() - self.cutoff_radius)**2 
@@ -176,8 +172,7 @@ class CenterOfMassRestraint(PointAtomRestraint):
         return ligand_x.T.dot(self.masses)
 
     def restraint(self, x):
-        assert(type(x) == unit.Quantity)
-
+        # x in angstrom
         com = self._calculate_center_of_mass(x)
         e = torch.from_numpy(self.k/2) * (com.sum() **2)
     
