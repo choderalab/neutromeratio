@@ -161,7 +161,7 @@ class CenterOfMassRestraint(PointAtomRestraint):
         for i in atom_idx:
             self.mass_list.append(mass_dict_in_daltons[atoms[i]])
         masses = np.array(self.mass_list) 
-        self.masses = torch.from_numpy(masses / masses.sum(), device=device) 
+        self.masses = torch.from_numpy(masses / masses.sum()).to(dtype=torch.double, device=self.device) 
 
     def _calculate_center_of_mass(self, x):
         """
