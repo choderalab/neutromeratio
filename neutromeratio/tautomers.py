@@ -64,6 +64,7 @@ class Tautomer(object):
         # attributes for the protocol
         self.hybrid_dummy_hydrogen:int = -1 # the dummy hydrogen
         self.hybrid_atoms:str = ''
+        self.hybird_ligand_idxs = []
         self.hybrid_coords:list = []
         self.hybrid_ase_mol:Atoms = Atoms()
         self.hybrid_topology:md.Topology = md.Topology()       
@@ -82,6 +83,8 @@ class Tautomer(object):
         self.hybrid_ligand_restraints = []
         # restraints for the solvent
         self.solvent_restraints = []
+        # COM restraint
+        self.com_restraints = []
 
 
     def add_droplet(self, topology:md.Topology, coordinates, diameter:unit.quantity.Quantity=(30.0 * unit.angstrom)):
@@ -124,14 +127,9 @@ class Tautomer(object):
         radius = diameter.value_in_unit(unit.angstrom)/2
         center = np.array([radius, radius, radius])
         logger.info('Flag residues ...')
-        ligand_atoms_idx = []
-        ligand_atoms = ''
 
         for residue in structure.residues:
             for atom in residue:
-                if residue.name == 'UNL':
-                    ligand_atoms_idx.append(atom.idx)
-                    ligand_atoms += atom.element_name
 
                 p1 = np.array([atom.xx, atom.xy, atom.xz])
                 p2 = center
@@ -175,14 +173,24 @@ class Tautomer(object):
         mol = Atoms(ase_atom_list)
         self.ligand_in_water_ase_mol = mol      
         
-        # add center of mass restraint
-        com_restraint = CenterOfMassRestraint(sigma=1.0 * unit.angstrom, point=center * unit.angstrom, atom_idx=ligand_atoms_idx, atoms=self.ligand_in_water_atoms)
-        self.solvent_restraints.append(com_restraint)
-        
+
         # return a mdtraj object for visual check
         return md.Trajectory(self.ligand_in_water_coordinates.value_in_unit(unit.nanometer), self.ligand_in_water_topology)
 
         
+    def add_COM_for_hybrid_ligand(self, center):
+
+        assert(type(center) == unit.Quantity)
+        atoms = self.hybrid_atoms
+        idx = self.hybird_ligand_idxs
+        self.add_COM_restraint(sigma=2.0 * unit.angstrom, point=center, atom_idx=idx, atoms=atoms)
+
+
+    def add_COM_restraint(self, sigma:unit.Quantity, point, atom_idx:list, atoms:str):
+
+        # add center of mass restraint
+        com_restraint = CenterOfMassRestraint(sigma=sigma, point=point, atom_idx=atom_idx, atoms=atoms)
+        self.com_restraints.append(com_restraint)
 
 
     def perform_tautomer_transformation_forward(self):
@@ -386,6 +394,7 @@ class Tautomer(object):
                                             )
         
         self.hybrid_atoms = hybrid_atoms
+        self.hybird_ligand_idxs = [i for i in range(len(hybrid_atoms))]
         energy_function.use_pure_ani1ccx = True
         # generate MC mover to get new hydrogen position
         hydrogen_mover = MC_Mover(self.heavy_atom_hydrogen_donor_idx, 

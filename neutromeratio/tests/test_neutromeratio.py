@@ -608,7 +608,7 @@ def test_plotting():
 
 def test_generating_droplet():
 
-    exp_results = pickle.load(open('data/results/exp_results.pickle', 'rb'))
+    exp_results = pickle.load(open('data/results/results.pickle', 'rb'))
 
     name = 'molDWRow_298'
 

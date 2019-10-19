@@ -170,7 +170,6 @@ class CenterOfMassRestraint(PointAtomRestraint):
         atom str and coordinate file.
         """
         ligand_x = x[0][:len(self.mass_list)].double() # select only the ligand coordinates
-        print(ligand_x)
         return torch.matmul(torch.transpose(ligand_x, 0, 1), self.masses)
 
     def restraint(self, x):
@@ -179,5 +178,4 @@ class CenterOfMassRestraint(PointAtomRestraint):
 
         com = self._calculate_center_of_mass(x)
         e = (self.k/2) * (com.sum() **2)
-    
         return e.to(device=self.device)
