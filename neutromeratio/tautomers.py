@@ -84,7 +84,7 @@ class Tautomer(object):
         self.solvent_restraints = []
 
 
-    def add_droplet(self, topology:md.Topology, coordinates, diameter:unit.quantity.Quantity=(3.0 * unit.nanometer)):
+    def add_droplet(self, topology:md.Topology, coordinates, diameter:unit.quantity.Quantity=(30.0 * unit.angstrom)):
     
         """
         A bit of a lie - what we are doing is adding a box and then removing everything 
@@ -98,16 +98,19 @@ class Tautomer(object):
         n = random.random()
         # TODO: use tmpfile for this https://stackabuse.com/the-python-tempfile-module/ or io.StringIO
         pdb_filepath=f"tmp{n:0.9f}.pdb"
+
+        # mdtraj works with nanomter
         md.Trajectory(coordinates.value_in_unit(unit.nanometer), topology).save_pdb(pdb_filepath)
         pdb = PDBFixer(filename=pdb_filepath)
         os.remove(pdb_filepath)
+
         # put the ligand in the center
-        l = diameter.value_in_unit(unit.nanometer)
-        pdb.positions = np.array(pdb.positions.value_in_unit(unit.nanometer)) + (l/2)
+        l_in_nanometer = diameter.value_in_unit(unit.nanometer)
+        pdb.positions = np.array(pdb.positions.value_in_unit(unit.nanometer)) + (l_in_nanometer/2)
         # add water
         logger.info('Adding water ...')
 
-        pdb.addSolvent(boxVectors=(Vec3(l, 0.0, 0.0), Vec3(0.0, l, 0.0), Vec3(0.0, 0.0, l)))
+        pdb.addSolvent(boxVectors=(Vec3(l_in_nanometer, 0.0, 0.0), Vec3(0.0, l_in_nanometer, 0.0), Vec3(0.0, 0.0, l_in_nanometer)))
         # get topology from PDBFixer to mdtraj # NOTE: a second tmpfile - not happy about this 
         from simtk.openmm.app import PDBFile
         PDBFile.writeFile(pdb.topology, pdb.positions, open(pdb_filepath, 'w'))
@@ -159,7 +162,7 @@ class Tautomer(object):
 
         # generate an ase mol for minimization
         ase_atom_list = []
-        self.solvent_restraints
+        self.solvent_restraints = []
         for idx, element, xyz in zip(range(len(self.ligand_in_water_atoms)), self.ligand_in_water_atoms, self.ligand_in_water_coordinates):
             if idx > len(self.hybrid_atoms) and element == 'O': # even if are not looking at a hybrid it should still be fine 
                 self.solvent_restraints.append(FlatBottomRestraintToCenter(sigma=0.1 * unit.angstrom, point=center * unit.angstrom, radius=diameter/2, atom_idx = idx, active_at_lambda=-1))

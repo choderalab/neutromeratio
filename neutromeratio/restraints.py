@@ -1,5 +1,5 @@
 from simtk import unit
-from .constants import nm_to_angstroms, bond_length_dict, temperature, device
+from .constants import nm_to_angstroms, bond_length_dict, temperature, device, mass_dict_in_daltons
 import numpy as np
 import torch
 import logging
@@ -136,26 +136,45 @@ class FlatBottomRestraintToCenter(PointAtomRestraint):
         logging.debug('Flat center bottom bias introduced: {:0.4f}'.format(e.item()))
         return e.to(device=self.device)
 
-class CenterOfMassRestraint(object):
+class CenterOfMassRestraint(PointAtomRestraint):
 
-    def __init__(self, sigma:unit.Quantity, radius:unit.Quantity, atom_idx:int, active_at_lambda:int=-1):
+    def __init__(self, sigma:unit.Quantity, point:unit.Quantity, atom_idx:list, atoms:str, active_at_lambda:int=-1):
+        """
+        Center of mass restraint.
+
+        Parameters
+        ----------
+        sigma : in angstrom
+        point : np.array, unit'd
+        atom_idx : list
+            list of atoms idxs
+        atoms: str
+            Str of atoms to retrieve element information
+        """
         assert(type(sigma) == unit.Quantity)
-        k = (kB * temperature) / (sigma**2)
-        self.k = k.value_in_unit((unit.kilo * unit.joule) / ((unit.angstrom **2) * unit.mole))
-        self.device = device
+        assert(type(point) == unit.Quantity)
+        super().__init__(sigma, point.value_in_unit(unit.angstrom), active_at_lambda)       
         self.atom_idx = atom_idx
-        self.active_at_lambda = active_at_lambda
-        self.cutoff_radius = radius.value_in_unit(unit.angstrom) + 0.2
-        self.radius = radius.value_in_unit(unit.angstrom)
-        self.center = torch.tensor([self.radius, self.radius, self.radius], dtype=torch.double, device=self.device)
+
+        self.mass_list = []
+        for i in atom_idx:
+            self.mass_list.append(mass_dict_in_daltons[atoms[i]])
+        masses = np.array(self.mass_list) 
+        self.masses = masses / masses.sum() 
+
+    def _calculate_center_of_mass(self, x):
+        """
+        Calculates the center of mass.
+        One assumption that we are making here is that the ligand is at the beginning of the 
+        atom str and coordinate file.
+        """
+        ligand_x = x[:len(self.mass_list)] # select only the ligand coordinates
+        return ligand_x.T.dot(self.masses)
 
     def restraint(self, x):
+        assert(type(x) == unit.Quantity)
 
-        # x in angstrom
-        distance = torch.norm(x[0][self.atom_idx] - self.center)
-        if distance >= self.cutoff_radius:
-            e = (self.k/2) * (distance.double() - self.cutoff_radius)**2 
-        else:
-            e = torch.tensor(0.0, dtype=torch.double, device=self.device)
-        logging.debug('Flat center bottom bias introduced: {:0.4f}'.format(e.item()))
+        com = self._calculate_center_of_mass(x)
+        e = torch.from_numpy(self.k/2) * (com.sum() **2)
+    
         return e.to(device=self.device)
