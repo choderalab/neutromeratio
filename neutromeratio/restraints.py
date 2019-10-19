@@ -17,7 +17,7 @@ class BaseRestraint(object):
 
         assert(type(sigma) == unit.Quantity)
         k = (kB * temperature) / (sigma**2)
-        self.k = k.value_in_unit((unit.kilo * unit.joule) / ((unit.angstrom **2) * unit.mole))
+        self.k = torch.tensor(k.value_in_unit((unit.kilo * unit.joule) / ((unit.angstrom **2) * unit.mole))).to(device=device)
         self.device = device
         self.active_at_lambda = active_at_lambda
 
