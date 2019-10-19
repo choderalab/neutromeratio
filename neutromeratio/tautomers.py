@@ -177,7 +177,8 @@ class Tautomer(object):
         
         # add center of mass restraint
         com_restraint = CenterOfMassRestraint(sigma=1.0 * unit.angstrom, point=center * unit.angstrom, atom_idx=ligand_atoms_idx, atoms=self.ligand_in_water_atoms)
-
+        self.solvent_restraints.append(com_restraint)
+        
         # return a mdtraj object for visual check
         return md.Trajectory(self.ligand_in_water_coordinates.value_in_unit(unit.nanometer), self.ligand_in_water_topology)
 

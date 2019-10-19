@@ -25,7 +25,7 @@ class PointAtomRestraint(BaseRestraint):
 
     def __init__(self, sigma:unit.Quantity, point:np.array, active_at_lambda:int):
         """
-        Defines a restraint. 
+        Defines a Point to Atom restraint. 
 
         Parameters
         ----------
@@ -50,7 +50,7 @@ class AtomAtomRestraint(BaseRestraint):
 
     def __init__(self, sigma:unit.Quantity, atom_i_idx:int, atom_j_idx:int, atoms:str, active_at_lambda:int):
         """
-        Defines a restraint. 
+        Defines a Atom to Atom restraint. 
 
         Parameters
         ----------
@@ -155,6 +155,7 @@ class CenterOfMassRestraint(PointAtomRestraint):
         assert(type(point) == unit.Quantity)
         super().__init__(sigma, point.value_in_unit(unit.angstrom), active_at_lambda)       
         self.atom_idx = atom_idx
+        logger.info('Center Of Mass restraint added.')
 
         self.mass_list = []
         for i in atom_idx:
