@@ -41,7 +41,7 @@ class PointAtomRestraint(BaseRestraint):
         """
 
         super().__init__(sigma, active_at_lambda)
-        assert(type(point) == np.array)
+        assert(type(point) == np.ndarray)
         self.point = torch.from_numpy(point).to(dtype=torch.double, device=self.device) 
 
 
@@ -120,7 +120,6 @@ class FlatBottomRestraintToCenter(PointAtomRestraint):
         
         assert(type(sigma) == unit.Quantity)
         assert(type(point) == unit.Quantity)
-
         super().__init__(sigma, point.value_in_unit(unit.angstrom), active_at_lambda)
 
         self.atom_idx = atom_idx

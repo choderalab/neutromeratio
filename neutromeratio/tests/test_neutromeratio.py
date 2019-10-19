@@ -604,3 +604,39 @@ def test_plotting():
 
     df = pd.DataFrame(list(zip(list(results.names), x_list, y_list, ['B3LYP/aug-cc-pVTZ']*len(results.names))), columns =['names', 'x', 'y', 'method']) 
     plot_correlation_analysis(df, 'DFT(B3LYP/aug-cc-pVTZ) in vacuum vs experimental data in solution', 'test1', 'test2', 'g', 'o')
+
+
+def test_generating_droplet():
+
+    exp_results = pickle.load(open('data/results/exp_results.pickle', 'rb'))
+
+    name = 'molDWRow_298'
+
+    t1_smiles = exp_results[name]['t1-smiles']
+    t2_smiles = exp_results[name]['t2-smiles']
+
+    # generate both rdkit mol
+    tautomer = neutromeratio.Tautomer(name=name, intial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles), nr_of_conformations=20)
+    tautomer.perform_tautomer_transformation_forward()
+    tautomer.add_droplet(tautomer.hybrid_topology, tautomer.hybrid_coords)
+
+    # define the alchemical atoms
+    alchemical_atoms=[tautomer.hybrid_dummy_hydrogen, tautomer.hydrogen_idx]
+
+    # extract hydrogen donor idx and hydrogen idx for from_mol
+    model = neutromeratio.ani.LinearAlchemicalDualTopologyANI(alchemical_atoms=alchemical_atoms)
+    model = model.to(device)
+
+    # perform initial sampling
+    energy_function = neutromeratio.ANI1_force_and_energy(
+                                            model = model,
+                                            atoms = tautomer.ligand_in_water_atoms,
+                                            mol = tautomer.ligand_in_water_ase_mol,
+                                            )
+
+    for r in tautomer.ligand_restraints:
+        energy_function.add_restraint(r)
+
+    for r in tautomer.hybrid_ligand_restraints:
+        energy_function.add_restraint(r)
+        
