@@ -85,7 +85,7 @@ class FlatBottomRestraint(AtomAtomRestraint):
         super().__init__(sigma, atom_i_idx, atom_j_idx, atoms, active_at_lambda)
 
     def restraint(self, x):
-
+        assert(type(x) == torch.Tensor)
         # x in angstrom
         distance = torch.norm(x[0][self.atom_i_idx] - x[0][self.atom_j_idx])
         if distance <= self.lower_bound:
@@ -104,7 +104,7 @@ class HarmonicRestraint(AtomAtomRestraint):
         super().__init__(sigma, atom_i_idx, atom_j_idx, atoms, active_at_lambda)
 
     def restraint(self, x):
-
+        assert(type(x) == torch.Tensor)
         # x in angstrom
         distance = torch.norm(x[0][self.atom_i_idx] - x[0][self.atom_j_idx]) 
         e = (self.k/2) *(distance.double() - self.mean_bond_length)**2
@@ -127,6 +127,7 @@ class FlatBottomRestraintToCenter(PointAtomRestraint):
 
     def restraint(self, x):
         # x in angstrom
+        assert(type(x) == torch.Tensor)
         distance = torch.norm(x[0][self.atom_idx] - self.point)
         if distance >= self.cutoff_radius:
             e = (self.k/2) * (distance.double() - self.cutoff_radius)**2 
@@ -160,7 +161,7 @@ class CenterOfMassRestraint(PointAtomRestraint):
         for i in atom_idx:
             self.mass_list.append(mass_dict_in_daltons[atoms[i]])
         masses = np.array(self.mass_list) 
-        self.masses = masses / masses.sum() 
+        self.masses = torch.from_numpy(masses / masses.sum()) 
 
     def _calculate_center_of_mass(self, x):
         """
@@ -168,12 +169,15 @@ class CenterOfMassRestraint(PointAtomRestraint):
         One assumption that we are making here is that the ligand is at the beginning of the 
         atom str and coordinate file.
         """
-        ligand_x = x[:len(self.mass_list)] # select only the ligand coordinates
-        return ligand_x.T.dot(self.masses)
+        ligand_x = x[0][:len(self.mass_list)].double() # select only the ligand coordinates
+        print(ligand_x)
+        return torch.matmul(torch.transpose(ligand_x, 0, 1), self.masses)
 
     def restraint(self, x):
         # x in angstrom
+        assert(type(x) == torch.Tensor)
+
         com = self._calculate_center_of_mass(x)
-        e = torch.from_numpy(self.k/2) * (com.sum() **2)
+        e = (self.k/2) * (com.sum() **2)
     
         return e.to(device=self.device)
