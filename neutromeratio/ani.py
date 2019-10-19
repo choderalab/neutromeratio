@@ -195,7 +195,7 @@ class ANI1_force_and_energy(object):
         bias_in_kJ_mol = 0.0
 
         for restraint in self.list_of_restraints:
-            e = restraint.restraint(coordinates * nm_to_angstroms)
+            e = restraint.restraint(coordinates)
             if restraint.active_at_lambda == 1:
                 e *= lambda_value
             elif restraint.active_at_lambda == 0:
