@@ -5,7 +5,7 @@ from rdkit import Chem, Geometry
 from rdkit.Chem import AllChem
 from rdkit.Chem import rdFMCS
 from .vis import display_mol
-from .restraints import FlatBottomRestraint, FlatBottomRestraintToCenter
+from .restraints import FlatBottomRestraint, FlatBottomRestraintToCenter, CenterOfMassRestraint
 from .ani import ANI1_force_and_energy
 from simtk import unit
 from .utils import write_pdb
@@ -94,7 +94,7 @@ class Tautomer(object):
         assert(type(topology) == md.Topology)
         assert(type(coordinates) == unit.Quantity)
         logger.info('Adding droplet ...')
-        # get topology from mdtraj to PDBfixer via pdb file # NOTE: Quote: 'if you need a tmp file, you should rethink your design decicions.' 
+        # get topology from mdtraj to PDBfixer via pdb file # NOTE: 'rethink your design decicions.' :-) 
         n = random.random()
         # TODO: use tmpfile for this https://stackabuse.com/the-python-tempfile-module/ or io.StringIO
         pdb_filepath=f"tmp{n:0.9f}.pdb"
@@ -116,7 +116,6 @@ class Tautomer(object):
         PDBFile.writeFile(pdb.topology, pdb.positions, open(pdb_filepath, 'w'))
         # load pdb in parmed
         logger.info('Load with parmed ...')
-
         structure = pm.load_file(pdb_filepath)
         os.remove(pdb_filepath)
 
@@ -125,9 +124,15 @@ class Tautomer(object):
         radius = diameter.value_in_unit(unit.angstrom)/2
         center = np.array([radius, radius, radius])
         logger.info('Flag residues ...')
+        ligand_atoms_idx = []
+        ligand_atoms = ''
+
         for residue in structure.residues:
-                
             for atom in residue:
+                if residue.name == 'UNL':
+                    ligand_atoms_idx.append(atom.idx)
+                    ligand_atoms += atom.element_name
+
                 p1 = np.array([atom.xx, atom.xy, atom.xz])
                 p2 = center
 
@@ -142,7 +147,6 @@ class Tautomer(object):
             structure.residues.remove(residue)
             
         structure.write_pdb(pdb_filepath)
-        
         # load pdb with mdtraj
         traj = md.load(pdb_filepath)
         os.remove(pdb_filepath)
@@ -171,6 +175,9 @@ class Tautomer(object):
         mol = Atoms(ase_atom_list)
         self.ligand_in_water_ase_mol = mol      
         
+        # add center of mass restraint
+        com_restraint = CenterOfMassRestraint(sigma=1.0 * unit.angstrom, point=center * unit.angstrom, atom_idx=ligand_atoms_idx, atoms=self.ligand_in_water_atoms)
+
         # return a mdtraj object for visual check
         return md.Trajectory(self.ligand_in_water_coordinates.value_in_unit(unit.nanometer), self.ligand_in_water_topology)
 
