@@ -183,7 +183,7 @@ class Tautomer(object):
         assert(type(center) == unit.Quantity)
         atoms = self.hybrid_atoms
         idx = self.hybird_ligand_idxs
-        self.add_COM_restraint(sigma=2.0 * unit.angstrom, point=center, atom_idx=idx, atoms=atoms)
+        self.add_COM_restraint(sigma=0.2 * unit.angstrom, point=center, atom_idx=idx, atoms=atoms)
 
 
     def add_COM_restraint(self, sigma:unit.Quantity, point, atom_idx:list, atoms:str):
