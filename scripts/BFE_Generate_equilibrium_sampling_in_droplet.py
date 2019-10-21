@@ -83,12 +83,12 @@ equilibrium_samples, energies, bias = langevin.run_dynamics(x0, n_steps=n_steps,
 
 # save equilibrium energy values 
 f = open(f"../data/equilibrium_sampling/{name}/{name}_lambda_{lambda_value:0.4f}_energy_in_droplet_forward.csv", 'w+')
-for e in energies:
+for e in energies[::20]:
     f.write('{}\n'.format(e))
 f.close()
 
 f = open(f"../data/equilibrium_sampling/{name}/{name}_lambda_{lambda_value:0.4f}_bias_in_droplet_forward.csv", 'w+')
-for e in bias:
+for e in bias[::20]:
     f.write('{}\n'.format(e))
 f.close()
 
