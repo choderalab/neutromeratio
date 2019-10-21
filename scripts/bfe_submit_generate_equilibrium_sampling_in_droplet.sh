@@ -10,7 +10,7 @@
 #BSUB -m "ls-gpu lt-gpu lp-gpu lg-gpu"
 #BSUB -L /bin/bash
 
-idx=$1 
+idx=$LSB_JOBINDEX 
 n_steps=50000 
 
 cd /home/wiederm/neutromeratio/neutromeratio/scripts
