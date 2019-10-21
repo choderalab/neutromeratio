@@ -177,5 +177,6 @@ class CenterOfMassRestraint(PointAtomRestraint):
         assert(type(x) == torch.Tensor)
 
         com = self._calculate_center_of_mass(x)
-        e = (self.k/2) * (com.sum() **2)
+        e = (com.sum() **2)
+        #e = (self.k/2) * (com.sum() **2)
         return e.to(device=self.device)
