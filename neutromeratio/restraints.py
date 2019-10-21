@@ -14,18 +14,27 @@ logger = logging.getLogger(__name__)
 class BaseRestraint(object):
 
     def __init__(self, sigma:unit.Quantity, active_at_lambda:int):
+        """
+        Defines a restraint base class
+        Parameters
+        ----------
+        sigma : in angstrom
+        active_at_lambda : int
+            Integer to indicccate at which state the restraint is fully active. Either 0 (for 
+            lambda 0), or 1 (for lambda 1) or -1 (always active)
+        """
 
         assert(type(sigma) == unit.Quantity)
         k = (kB * temperature) / (sigma**2)
-        self.k = torch.tensor(k.value_in_unit((unit.kilo * unit.joule) / ((unit.angstrom **2) * unit.mole))).to(device=device)
         self.device = device
         self.active_at_lambda = active_at_lambda
+        self.k = torch.tensor(k.value_in_unit((unit.kilo * unit.joule) / ((unit.angstrom **2) * unit.mole)), dtype=torch.double, device=self.device, requires_grad=True)
 
 class PointAtomRestraint(BaseRestraint):
 
     def __init__(self, sigma:unit.Quantity, point:np.array, active_at_lambda:int):
         """
-        Defines a Point to Atom restraint. 
+        Defines a Point to Atom restraint base class. 
 
         Parameters
         ----------
@@ -49,7 +58,7 @@ class AtomAtomRestraint(BaseRestraint):
 
     def __init__(self, sigma:unit.Quantity, atom_i_idx:int, atom_j_idx:int, atoms:str, active_at_lambda:int):
         """
-        Defines a Atom to Atom restraint. 
+        Defines a Atom to Atom restraint base class. 
 
         Parameters
         ----------
@@ -114,7 +123,17 @@ class HarmonicRestraint(AtomAtomRestraint):
 class FlatBottomRestraintToCenter(PointAtomRestraint):
     def __init__(self, sigma:unit.Quantity, point:unit.Quantity, radius:unit.Quantity, atom_idx:int, active_at_lambda:int=-1):
         """
-        Flat well restraint that becomes active when water moves outside of radius.
+        Flat well restraint that becomes active when atom moves outside of radius.
+        Parameters
+        ----------
+        sigma : float, unit'd
+        point : np.array, unit'd
+        radius : float, unit'd
+        atom_idx : list
+            list of atoms idxs
+        active_at_lambda : int
+            Integer to indicccate at which state the restraint is fully active. Either 0 (for 
+            lambda 0), or 1 (for lambda 1) or -1 (always active)
         """
         
         assert(type(sigma) == unit.Quantity)
