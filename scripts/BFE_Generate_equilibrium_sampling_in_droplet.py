@@ -11,7 +11,7 @@ import pickle
 import torchani
 import torch
 from neutromeratio.constants import device, platform
-import sys
+import sys, os
 
 # name of the system
 idx = int(sys.argv[1])
@@ -74,9 +74,13 @@ langevin = neutromeratio.LangevinDynamics(atoms = tautomer.ligand_in_water_atoms
 x0 = np.array(tautomer.ligand_in_water_coordinates) * unit.angstrom
 #x0 = energy_function.minimize(x0) # NOTE: No minimizing!
 
+if not os.path.exists(f"../data/equilibrium_sampling/{name}/"):
+    os.makedirs(f"../data/equilibrium_sampling/{name}/")
 
 equilibrium_samples, energies, bias = langevin.run_dynamics(x0, n_steps=n_steps, stepsize=0.5 * unit.femtosecond, progress_bar=True)
     
+
+
 # save equilibrium energy values 
 f = open(f"../data/equilibrium_sampling/{name}/{name}_lambda_{lambda_value:0.4f}_energy_in_droplet_forward.csv", 'w+')
 for e in energies:
