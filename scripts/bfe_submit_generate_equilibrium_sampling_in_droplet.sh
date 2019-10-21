@@ -1,6 +1,6 @@
 #! /bin/bash
 
-#BSUB -W 2:00
+#BSUB -W 3:00
 #BSUB -n 1 
 #BSUB -R rusage[mem=8]
 #BSUB -R span[hosts=1]
