@@ -141,7 +141,7 @@ class FlatBottomRestraintToCenter(PointAtomRestraint):
         super().__init__(sigma, point.value_in_unit(unit.angstrom), active_at_lambda)
 
         self.atom_idx = atom_idx
-        self.cutoff_radius = radius.value_in_unit(unit.angstrom) + 0.2
+        self.cutoff_radius = radius.value_in_unit(unit.angstrom)
 
     def restraint(self, x):
         # x in angstrom

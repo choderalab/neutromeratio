@@ -18,6 +18,8 @@ idx = int(sys.argv[1])
 # number of steps
 n_steps = int(sys.argv[2])
 
+mode = 'forward'
+
 protocol = []
 exp_results = pickle.load(open('../data/exp_results.pickle', 'rb'))
 for name in exp_results:
@@ -33,7 +35,12 @@ t2_smiles = exp_results[name]['t2-smiles']
 
 # generate both rdkit mol
 tautomer = neutromeratio.Tautomer(name=name, intial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles), nr_of_conformations=20)
-tautomer.perform_tautomer_transformation_forward()
+if mode == 'forward':
+    tautomer.perform_tautomer_transformation_forward()
+elif mode == 'reverse':
+    tautomer.perform_tautomer_transformation_reverse()
+else:
+    raise RuntimeError('No tautomer reaction direction was specified.')
 diameter_in_angstrom = 16
 m = tautomer.add_droplet(tautomer.hybrid_topology, tautomer.hybrid_coords, diameter=diameter_in_angstrom * unit.angstrom)
 
@@ -83,16 +90,16 @@ equilibrium_samples, energies, bias = langevin.run_dynamics(x0, n_steps=n_steps,
 
 # save equilibrium energy values 
 f = open(f"/data/chodera/wiederm/equilibrium_sampling/{name}/{name}_lambda_{lambda_value:0.4f}_energy_in_droplet_forward.csv", 'w+')
-for e in energies[::50]:
+for e in energies[::25]:
     f.write('{}\n'.format(e))
 f.close()
 
 f = open(f"/data/chodera/wiederm/equilibrium_sampling/{name}/{name}_lambda_{lambda_value:0.4f}_bias_in_droplet_forward.csv", 'w+')
-for e in bias[::50]:
+for e in bias[::25]:
     f.write('{}\n'.format(e))
 f.close()
 
 
 equilibrium_samples = [x.value_in_unit(unit.nanometer) for x in equilibrium_samples]
-ani_traj = md.Trajectory(equilibrium_samples[::50], tautomer.ligand_in_water_topology)
+ani_traj = md.Trajectory(equilibrium_samples[::25], tautomer.ligand_in_water_topology)
 ani_traj.save(f"/data/chodera/wiederm/equilibrium_sampling/{name}/{name}_lambda_{lambda_value:0.4f}_in_droplet_forward.dcd", force_overwrite=True)
