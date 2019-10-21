@@ -11,7 +11,7 @@
 #BSUB -L /bin/bash
 
 idx=$1 
-n_steps=50000 
+n_steps=100000 
 
 cd /home/wiederm/neutromeratio/neutromeratio/scripts
 hostname
