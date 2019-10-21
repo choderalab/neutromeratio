@@ -1,11 +1,14 @@
-#$ -S /bin/bash
-#$ -M marcus.wieder@univie.ac.at
-#$ -m e
-#$ -j y
-#$ -p -700
-#$ -pe smp 2
-#$ -o /data/shared/projects/SGE_LOG/
-￼#$ -l gpu=1
+#! /bin/bash
+
+#BSUB -W 2:00
+#BSUB -n 1 
+#BSUB -R rusage[mem=8]
+#BSUB -R span[hosts=1]
+#BSUB -q gpuqueue
+#BSUB -gpu num=1:j_exclusive=yes:mode=shared
+#BSUB -o /home/wiederm/LOG/equ_droplet_job%J.log
+#BSUB -m "ls-gpu lt-gpu lp-gpu lg-gpu"
+#BSUB -L /bin/bash
 
 idx=$1 
 n_steps=50000 

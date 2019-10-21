@@ -74,20 +74,20 @@ langevin = neutromeratio.LangevinDynamics(atoms = tautomer.ligand_in_water_atoms
 x0 = np.array(tautomer.ligand_in_water_coordinates) * unit.angstrom
 #x0 = energy_function.minimize(x0) # NOTE: No minimizing!
 
-if not os.path.exists(f"../data/equilibrium_sampling/{name}/"):
-    os.makedirs(f"../data/equilibrium_sampling/{name}/")
+if not os.path.exists(f"/data/chodera/wiederm/equilibrium_sampling/{name}/"):
+    os.makedirs(f"/data/chodera/wiederm/equilibrium_sampling/{name}/")
 
 equilibrium_samples, energies, bias = langevin.run_dynamics(x0, n_steps=n_steps, stepsize=0.5 * unit.femtosecond, progress_bar=True)
     
 
 
 # save equilibrium energy values 
-f = open(f"../data/equilibrium_sampling/{name}/{name}_lambda_{lambda_value:0.4f}_energy_in_droplet_forward.csv", 'w+')
+f = open(f"/data/chodera/wiederm/equilibrium_sampling/{name}/{name}_lambda_{lambda_value:0.4f}_energy_in_droplet_forward.csv", 'w+')
 for e in energies[::20]:
     f.write('{}\n'.format(e))
 f.close()
 
-f = open(f"../data/equilibrium_sampling/{name}/{name}_lambda_{lambda_value:0.4f}_bias_in_droplet_forward.csv", 'w+')
+f = open(f"/data/chodera/wiederm/equilibrium_sampling/{name}/{name}_lambda_{lambda_value:0.4f}_bias_in_droplet_forward.csv", 'w+')
 for e in bias[::20]:
     f.write('{}\n'.format(e))
 f.close()
@@ -95,4 +95,4 @@ f.close()
 
 equilibrium_samples = [x.value_in_unit(unit.nanometer) for x in equilibrium_samples]
 ani_traj = md.Trajectory(equilibrium_samples[::20], tautomer.ligand_in_water_topology)
-ani_traj.save(f"../data/equilibrium_sampling/{name}/{name}_lambda_{lambda_value:0.4f}_in_droplet_forward.dcd", force_overwrite=True)
+ani_traj.save(f"/data/chodera/wiederm/equilibrium_sampling/{name}/{name}_lambda_{lambda_value:0.4f}_in_droplet_forward.dcd", force_overwrite=True)
