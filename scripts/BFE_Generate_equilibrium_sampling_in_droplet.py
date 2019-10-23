@@ -34,7 +34,7 @@ for name in exp_results:
     for lambda_value in np.linspace(0,1, 21):
         protocol.append((name, np.round(lambda_value, 2)))
 
-name, lambda_value = protocol[idx]
+name, lambda_value = protocol[idx-1]
 print(name)
 print(lambda_value)
 
