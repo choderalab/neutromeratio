@@ -75,8 +75,7 @@ for r in tautomer.com_restraints:
 
 print(lambda_value)
 energy_and_force = lambda x : energy_function.calculate_force(x, lambda_value)
-langevin = neutromeratio.LangevinDynamics(atoms = tautomer.ligand_in_water_atoms,
-                            temperature = 300*unit.kelvin,
+langevin = neutromeratio.LangevinDynamics(atoms = tautomer.ligand_in_water_atoms,                            
                             energy_and_force = energy_and_force)
 x0 = np.array(tautomer.ligand_in_water_coordinates) * unit.angstrom
 #x0 = energy_function.minimize(x0) # NOTE: No minimizing!
