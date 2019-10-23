@@ -24,7 +24,7 @@ protocol = []
 exp_results = pickle.load(open('../data/exp_results.pickle', 'rb'))
 for name in exp_results:
     for lambda_value in np.linspace(0,1,11):
-        protocol.append((name, lambda_value))
+        protocol.append((name, np.round(lambda_value, 2)))
 
 name, lambda_value = protocol[idx]
 print(name)
