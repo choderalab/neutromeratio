@@ -1,5 +1,5 @@
 import numpy as np
-from .constants import speed_unit, distance_unit, kB, mass_dict_in_daltons
+from .constants import speed_unit, distance_unit, kB, mass_dict_in_daltons, temperature
 from simtk import unit
 from tqdm import tqdm
 from .ani import ANI1_force_and_energy
@@ -8,7 +8,7 @@ import mdtraj as md
 
 class LangevinDynamics(object):
 
-    def __init__(self, atoms:str, temperature:unit.quantity.Quantity, energy_and_force:ANI1_force_and_energy.calculate_force):
+    def __init__(self, atoms:str, energy_and_force:ANI1_force_and_energy.calculate_force):
         self.energy_and_force = energy_and_force
         self.temperature = temperature
         self.atoms = atoms

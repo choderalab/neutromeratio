@@ -1,14 +1,11 @@
 #! /bin/bash
 
-#BSUB -W 3:00
-#BSUB -n 1 
-#BSUB -R rusage[mem=8]
-#BSUB -R span[hosts=1]
-#BSUB -q gpuqueue
-#BSUB -gpu num=1:j_exclusive=yes:mode=shared
+#BSUB -W 18:00
+#BSUB -n 2
+#BSUB -R span[ptile=2]
 #BSUB -o /home/wiederm/LOG/equ_droplet_job%J.log
-#BSUB -m "ls-gpu lt-gpu lp-gpu lg-gpu"
 #BSUB -L /bin/bash
+#BSUB -R rusage[mem=1]
 
 idx=$LSB_JOBINDEX 
 n_steps=50000 
