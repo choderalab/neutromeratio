@@ -13,6 +13,12 @@ import torch
 from neutromeratio.constants import device, platform
 import sys, os
 
+exclude = ['molDWRow_1004', 'molDWRow_1110', 'molDWRow_1184', 'molDWRow_1185', 'molDWRow_1189', 'molDWRow_1262', 'molDWRow_1263',
+'molDWRow_1267', 'molDWRow_1275', 'molDWRow_1279', 'molDWRow_1280', 'molDWRow_1282', 'molDWRow_1283', 'molDWRow_553',
+'molDWRow_557', 'molDWRow_580', 'molDWRow_581', 'molDWRow_582', 'molDWRow_615', 'molDWRow_616', 'molDWRow_617',
+'molDWRow_618', 'molDWRow_643', 'molDWRow_758', 'molDWRow_82', 'molDWRow_83', 'molDWRow_952', 'molDWRow_953',
+'molDWRow_955', 'molDWRow_988', 'molDWRow_989', 'molDWRow_990', 'molDWRow_991', 'molDWRow_992']
+
 # name of the system
 idx = int(sys.argv[1])
 # number of steps
@@ -23,7 +29,9 @@ mode = 'forward'
 protocol = []
 exp_results = pickle.load(open('../data/exp_results.pickle', 'rb'))
 for name in exp_results:
-    for lambda_value in np.linspace(0,1,11):
+    if name in exclude:
+        continue
+    for lambda_value in np.linspace(0,1, 21):
         protocol.append((name, np.round(lambda_value, 2)))
 
 name, lambda_value = protocol[idx]

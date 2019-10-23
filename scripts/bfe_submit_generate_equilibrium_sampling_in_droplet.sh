@@ -1,6 +1,6 @@
 #! /bin/bash
 
-#BSUB -W 18:00
+#BSUB -W 15:00
 #BSUB -n 2
 #BSUB -R span[ptile=2]
 #BSUB -o /home/wiederm/LOG/equ_droplet_job%J.log
@@ -18,4 +18,5 @@ echo ${n_steps}
 . /home/wiederm/anaconda3/etc/profile.d/conda.sh
 conda activate ani36
 #mkdir -p ../data/equilibrium_sampling/${molecule_name}
+# nr of jobs: 10080
 python BFE_Generate_equilibrium_sampling_in_droplet.py ${idx} ${n_steps}
