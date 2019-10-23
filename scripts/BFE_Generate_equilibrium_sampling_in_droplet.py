@@ -86,7 +86,6 @@ if not os.path.exists(f"/data/chodera/wiederm/equilibrium_sampling/{name}/"):
 equilibrium_samples, energies, bias = langevin.run_dynamics(x0, n_steps=n_steps, stepsize=0.5 * unit.femtosecond, progress_bar=False)
     
 
-
 # save equilibrium energy values 
 f = open(f"/data/chodera/wiederm/equilibrium_sampling/{name}/{name}_lambda_{lambda_value:0.4f}_energy_in_droplet_{mode}.csv", 'w+')
 for e in energies[::25]:
