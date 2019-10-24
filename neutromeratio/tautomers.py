@@ -531,6 +531,7 @@ class Tautomer(object):
 
         bw_energies = []
         confs_traj = []
+        minimum_energies = []
 
         for ase_mol, rdkit_mol, ligand_atoms, ligand_coords, top in zip([self.intial_state_ase_mol, self.final_state_ase_mol], 
         [copy.deepcopy(self.intial_state_mol), copy.deepcopy(self.final_state_mol)],
@@ -586,8 +587,9 @@ class Tautomer(object):
                 traj.append(tmp_coord_list.value_in_unit(unit.nanometer))
 
             confs_traj.append(md.Trajectory(traj, top))
+            minimum_energies.append(filtered_energies)
             bw_energies.append(calculate_weighted_energy(filtered_energies))
             print('Mining Minima finished ...')
 
         e = (bw_energies[1] - bw_energies[0])
-        return confs_traj, e
+        return confs_traj, e, minimum_energies
