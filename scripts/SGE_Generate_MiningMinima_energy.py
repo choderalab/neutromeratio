@@ -32,12 +32,12 @@ confs_traj[1].save_dcd(f"/home/mwieder/Work/Projects/neutromeratio/data/mining_m
 confs_traj[1].save_pdb(f"/home/mwieder/Work/Projects/neutromeratio/data/mining_minima/{name}/mm_confs_t2.pdb", force_overwrite=True)
 
 # write minimum energies
-f = open(f"/home/mwieder/Work/Projects/neutromeratio/data/mining_minima/{name}/mm_confs_e_t1.csv")
+f = open(f"/home/mwieder/Work/Projects/neutromeratio/data/mining_minima/{name}/mm_confs_e_t1.csv", "w+")
 for e in minimum_energies[0]:
     f.write(f"{e}\n")
 f.close()
 # write minimum energies
-f = open(f"/home/mwieder/Work/Projects/neutromeratio/data/mining_minima/{name}/mm_confs_e_t2.csv")
+f = open(f"/home/mwieder/Work/Projects/neutromeratio/data/mining_minima/{name}/mm_confs_e_t2.csv", "w+")
 for e in minimum_energies[1]:
     f.write(f"{e}\n")
 f.close()
