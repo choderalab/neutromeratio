@@ -298,7 +298,7 @@ class Tautomer(object):
         mol.SetProp("name", str(self.name))
 
         # generate numConfs for the smiles string 
-        Chem.rdDistGeom.EmbedMultipleConfs(mol, numConfs=nr_of_conformations, enforceChirality=True) # NOTE: that means that we are not sampling stereoisomers anymore
+        Chem.rdDistGeom.EmbedMultipleConfs(mol, numConfs=nr_of_conformations, enforceChirality=False) # NOTE: that means that we are not sampling stereoisomers anymore
         return mol
 
 
