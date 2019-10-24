@@ -5,7 +5,7 @@
 #BSUB -R span[ptile=2]
 #BSUB -o /home/wiederm/LOG/equ_droplet_job%J.log
 #BSUB -L /bin/bash
-#BSUB -R rusage[mem=2]
+#BSUB -R rusage[mem=3]
 
 idx=$LSB_JOBINDEX 
 n_steps=50000 

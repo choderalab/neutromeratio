@@ -88,9 +88,7 @@ langevin = neutromeratio.LangevinDynamics(atoms = tautomer.ligand_in_water_atoms
 x0 = np.array(tautomer.ligand_in_water_coordinates) * unit.angstrom
 #x0 = energy_function.minimize(x0) # NOTE: No minimizing!
 
-if not os.path.exists(f"/data/chodera/wiederm/equilibrium_sampling/{name}/"):
-    os.makedirs(f"/data/chodera/wiederm/equilibrium_sampling/{name}/")
-
+os.makedirs(f"/data/chodera/wiederm/equilibrium_sampling/{name}/", exist_ok=True)
 equilibrium_samples, energies, bias = langevin.run_dynamics(x0, n_steps=n_steps, stepsize=0.5 * unit.femtosecond, progress_bar=False)
     
 
