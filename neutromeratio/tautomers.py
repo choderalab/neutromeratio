@@ -529,8 +529,8 @@ class Tautomer(object):
             return e_bw
 
 
-        confs_traj = []
         bw_energies = []
+        confs_traj = []
 
         for ase_mol, rdkit_mol, ligand_atoms, ligand_coords, top in zip([self.intial_state_ase_mol, self.final_state_ase_mol], 
         [copy.deepcopy(self.intial_state_mol), copy.deepcopy(self.final_state_mol)],

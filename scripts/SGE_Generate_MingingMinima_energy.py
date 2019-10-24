@@ -8,7 +8,7 @@ import torchani
 import torch
 from tqdm import tqdm
 import matplotlib.pyplot as plt
-import random, sys
+import random, sys, os
 
 exp_results = pickle.load(open('../data/exp_results.pickle', 'rb'))
 
@@ -23,7 +23,12 @@ tautomer = neutromeratio.Tautomer(name=name, intial_state_mol=neutromeratio.gene
 tautomer.perform_tautomer_transformation_forward()
 
 confs_traj, e = tautomer.generate_mining_minima_structures()
+os.makedirs(f"/home/mwieder/Work/Projects/neutromeratio/data/mining_minima/{name}", exist_ok=True)
+confs_traj[0].save_dcd(f"/home/mwieder/Work/Projects/neutromeratio/data/mining_minima/mm_confs_t1.dcd", force_overwrite=True)
+confs_traj[0].save_pdb(f"/home/mwieder/Work/Projects/neutromeratio/data/mining_minima/mm_confs_t1.pdb", force_overwrite=True)
+confs_traj[0].save_dcd(f"/home/mwieder/Work/Projects/neutromeratio/data/mining_minima/mm_confs_t1.dcd", force_overwrite=True)
+confs_traj[0].save_pdb(f"/home/mwieder/Work/Projects/neutromeratio/data/mining_minima/mm_confs_t1.pdb", force_overwrite=True)
 
-f = open('/home/mwieder/Work/Projects/neutromeratio/data/results/ANI1ccx_vacuum_MM_kcal.csv', 'a+')
-f.write(f"{name}, {e.in_units_of(unit.kilocalorie_per_mole)}\n")
+f = open('/home/mwieder/Work/Projects/neutromeratio/data/mining_minima/MM_ANIccx_vacuum.csv', 'a+')
+f.write(f"{name}, {e}, {str(confs_traj[0].n_frames)}, {str(confs_traj[1].n_frames)}\n")
 f.close()

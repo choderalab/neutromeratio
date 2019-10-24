@@ -10,7 +10,6 @@
 idx=$LSB_JOBINDEX 
 n_steps=50000 
 
-cd /home/wiederm/neutromeratio/neutromeratio/scripts
 hostname
 echo ${idx}
 echo ${n_steps}
