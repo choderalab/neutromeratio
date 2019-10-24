@@ -16,4 +16,4 @@ echo ${molecule_name}
 . /data/shared/software/python_env/anaconda3/etc/profile.d/conda.sh
 conda activate ani36
 
-python Generate_MM_energy.py ${molecule_name}
+python SGE_Generate_MiningMinima_energy.py ${molecule_name}
