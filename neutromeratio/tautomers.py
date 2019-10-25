@@ -433,7 +433,7 @@ class Tautomer(object):
         mol = Atoms(atom_list)
         self.hybrid_ase_mol = mol
 
-    def generate_mining_minima_structures(self, rmsd_threshold:float=0.3)->(list, unit.Quantity):
+    def generate_mining_minima_structures(self, rmsd_threshold:float=0.3)->(list, unit.Quantity, list):
         """
         Minimizes and filters conformations based on a RMSD treshold.
         Parameters
@@ -446,7 +446,8 @@ class Tautomer(object):
             list of md.Trajectory objects with filtered conformations
         e : unit.Quantity
             free energy difference dG(final_state - initial_state)
-        .
+        minimum_energies : list
+            list of energies for the different minimum conformations
         """
 
         def prune_conformers(mol:Chem.Mol, energies:list, rmsd_threshold:float)->Chem.Mol:

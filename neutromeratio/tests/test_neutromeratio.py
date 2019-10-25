@@ -503,7 +503,6 @@ def test_euqilibrium():
     energy_and_force = lambda x : energy_function.calculate_force(x, lambda_value)
 
     langevin = neutromeratio.LangevinDynamics(atoms = tautomer.hybrid_atoms,
-                                temperature = 300*unit.kelvin,
                                 energy_and_force = energy_and_force,
                                 )
     
@@ -513,7 +512,6 @@ def test_euqilibrium():
     energy_and_force = lambda x : energy_function.calculate_force(x, lambda_value)
 
     langevin = neutromeratio.LangevinDynamics(atoms = tautomer.hybrid_atoms,
-                                temperature = 300*unit.kelvin,
                                 energy_and_force = energy_and_force)
 
     equilibrium_samples, energies, _ = langevin.run_dynamics(x0, n_steps=n_steps, stepsize=1.0 * unit.femtosecond, progress_bar=True)
@@ -578,7 +576,7 @@ def test_mining_minima():
     tautomer = neutromeratio.Tautomer(name=name, intial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles), nr_of_conformations=2)
     tautomer.perform_tautomer_transformation_forward()
 
-    confs_traj, e = tautomer.generate_mining_minima_structures()
+    confs_traj, e, minimum_energies = tautomer.generate_mining_minima_structures()
 
 
 
