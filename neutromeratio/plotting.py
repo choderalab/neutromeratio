@@ -41,15 +41,15 @@ def plot_correlation_analysis(
 
     plt.clf()
     ax = plt.gca()
-    ax.set_title(title, fontsize=20)
+    ax.set_title(title, fontsize=25)
 
     rmse, r = bootstrap_rmse_r(df, 1000)
 
-    plt.text(-15.0 , 15.0, r"{} : $\rho = {}$".format(list(df["method"])[0], r), fontsize=10)
-    plt.text(-15.0 , 13.0, r"RMSE$ = {}$".format(rmse), fontsize=10)
+    plt.text(-15.0 , 15.0, r"{} : $\rho = {}$".format(list(df["method"])[0], r), fontsize=15)
+    plt.text(-15.0 , 13.0, r"RMSE$ = {}$".format(rmse), fontsize=15)
 
     for X, Y, method, name in zip(df.x, df.y, df.method, df.names):
-        ax.scatter(X, Y, color=color, label=method, s=10)
+        ax.scatter(X, Y, color=color, label=method, s=15)
         # mark tautomer pairs that behave strangly
         if name in mark_tautomer_names:
             ax.annotate(str(name), (X, Y), fontsize=5)
@@ -62,8 +62,8 @@ def plot_correlation_analysis(
     ax.plot((-10.0, 10.0), (0.0, 0.0), "r--", zorder=-1, linewidth=0.5, alpha=0.5)
     ax.plot((0.0, 0.0), (-10.0, 10.0), "r--", zorder=-1, linewidth=0.5, alpha=0.5)
 
-    ax.set_ylabel(x_label, fontsize=15)
-    ax.set_xlabel(y_label, fontsize=15)
+    ax.set_ylabel(x_label, fontsize=20)
+    ax.set_xlabel(y_label, fontsize=20)
     ax.set_xlim([-22, 22])
     ax.set_ylim([-22, 22])
     #plt.xticks(np.arange(-10, 10, 2.0), fontsize=15)
