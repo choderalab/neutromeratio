@@ -584,7 +584,7 @@ def test_plotting():
     
     from neutromeratio.constants import kT
     from neutromeratio.plotting import plot_correlation_analysis
-    results = pickle.load(open('data/results/results.pickle', 'rb'))
+    results = pickle.load(open('neutromeratio/data/all_results.pickle', 'rb'))
 
     x_list = []
     y_list = []
