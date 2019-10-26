@@ -15,7 +15,7 @@ from rdkit.Chem import AllChem
 from neutromeratio.constants import temperature, gas_constant
 from scipy.special import logsumexp
 
- def get_conformer_rmsd(mols)->list:
+def get_conformer_rmsd(mols)->list:
     """
     Calculate conformer-conformer RMSD.
     Parameters

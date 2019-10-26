@@ -19,10 +19,8 @@ exp_results = pickle.load(open('../data/exp_results.pickle', 'rb'))
 t1_smiles = exp_results[name]['t1-smiles']
 t2_smiles = exp_results[name]['t2-smiles']
 
-# generate both rdkit mol
-mols = { 't1' : neutromeratio.generate_rdkit_mol(t1_smiles), 't2' : neutromeratio.generate_rdkit_mol(t2_smiles) }
-from_mol = mols['t1']
-to_mol = mols['t2']
+tautomer = neutromeratio.Tautomer(name=name, intial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles), nr_of_conformations=100)
+tautomer.perform_tautomer_transformation_forward()
 
 # set model
 model = torchani.models.ANI1ccx()
@@ -30,20 +28,41 @@ model = model.to(device)
 torch.set_num_threads(2)
 e = []
 
+# t1
+t1_e = []
 # calculate energy using both structures and pure ANI1ccx
-for tautomer in [from_mol, to_mol]: 
-    ani_input = neutromeratio.from_mol_to_ani_input(tautomer, nr_of_conf=1)
-    energy_function = neutromeratio.ANI1_force_and_energy(
-                                            model = model,
-                                            atoms = ani_input['ligand_atoms'],
-                                            use_pure_ani1ccx = True
-                                        )
-    # minimize
-    energy_function.minimize(ani_input)
+energy_function = neutromeratio.ANI1_force_and_energy(
+                                        model = model,
+                                        mol = tautomer.intial_state_ase_mol,
+                                        atoms = tautomer.intial_state_ligand_atoms,
+                                        use_pure_ani1ccx = True)
 
-    x0 = np.array(ani_input['ligand_coords'][0]) * unit.angstrom
-    e.append(energy_function.calculate_energy(x0))
-e_diff = (e[1] - e[0])
-f = open('/home/mwieder/Work/Projects/neutromeratio/data/diff_single_point_minimized_energies.csv', 'a+')
-f.write(f"{name}, {e_diff}\n")
-f.close()
+for cor in tautomer.intial_state_ligand_coords:
+    # minimize
+    energy_function.minimize(cor)
+
+    x0 = np.array(cor) * unit.angstrom
+    t1_e.append(energy_function.calculate_energy(x0))
+    
+# t2
+t2_e = []
+# calculate energy using both structures and pure ANI1ccx
+energy_function = neutromeratio.ANI1_force_and_energy(
+                                        model = model,
+                                        mol = tautomer.final_state_ase_mol,
+                                        atoms = tautomer.final_state_ligand_atoms,
+                                        use_pure_ani1ccx = True)
+
+for cor in tautomer.final_state_ligand_coords:
+    # minimize
+    energy_function.minimize(cor)
+
+    x0 = np.array(cor) * unit.angstrom
+    t2_e.append(energy_function.calculate_energy(x0))
+       
+    
+e_diff = neutromeratio.reduced_pot(min(t2_e) - min(t1_e))
+print(e_diff)
+#f = open('/home/mwieder/Work/Projects/neutromeratio/data/diff_single_point_minimized_energiesV2.csv', 'a+')
+#f.write(f"{name}, {e_diff}\n")
+#f.close()
