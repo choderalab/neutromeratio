@@ -121,6 +121,7 @@ for env in ['vac', 'solv']:
                 filtered_energies.append(tmp_e[i])
                 
             bw_energies.append(neutromeratio.reduced_pot(calculate_weighted_energy(filtered_energies)))
+        
         if len(bw_energies) <= 1:
             continue
         e = bw_energies[1] - bw_energies[0]
