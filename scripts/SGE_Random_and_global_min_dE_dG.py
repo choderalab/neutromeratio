@@ -26,10 +26,9 @@ tautomer.perform_tautomer_transformation_forward()
 model = torchani.models.ANI1ccx()
 model = model.to(device)
 torch.set_num_threads(2)
-e = []
+
 
 # t1
-t1_e = []
 # calculate energy using both structures and pure ANI1ccx
 energy_function = neutromeratio.ANI1_force_and_energy(
                                         model = model,
@@ -37,15 +36,21 @@ energy_function = neutromeratio.ANI1_force_and_energy(
                                         atoms = tautomer.intial_state_ligand_atoms,
                                         use_pure_ani1ccx = True)
 
+t1_e = []
+t1_g = []
 for cor in tautomer.intial_state_ligand_coords:
     # minimize
     energy_function.minimize(cor)
-
     x0 = np.array(cor) * unit.angstrom
-    t1_e.append(energy_function.calculate_energy(x0))
+    # calculate electronic single point energy
+    e = energy_function.calculate_energy(x0)
+    # calculate Gibb's free energy
+    g = e + energy_function.get_thermo_correction(x0)
     
+    t1_e.append(e)
+    t1_g.append(g)
+
 # t2
-t2_e = []
 # calculate energy using both structures and pure ANI1ccx
 energy_function = neutromeratio.ANI1_force_and_energy(
                                         model = model,
@@ -53,16 +58,42 @@ energy_function = neutromeratio.ANI1_force_and_energy(
                                         atoms = tautomer.final_state_ligand_atoms,
                                         use_pure_ani1ccx = True)
 
+t2_e = []
+t2_g = []
 for cor in tautomer.final_state_ligand_coords:
     # minimize
     energy_function.minimize(cor)
-
     x0 = np.array(cor) * unit.angstrom
-    t2_e.append(energy_function.calculate_energy(x0))
-       
+    # calculate electronic single point energy
+    e = energy_function.calculate_energy(x0)
+    # calculate Gibb's free energy
+    g = e + energy_function.get_thermo_correction(x0)
     
+    t2_e.append(e)
+    t2_g.append(g)
+       
+# random aka the first dE and dG energy difference
+e_diff = neutromeratio.reduced_pot(t2_e[0] - t1_e[0])
+g_diff = neutromeratio.reduced_pot(t2_g[0] - t1_g[0])
+# write dE
+f = open('/home/mwieder/Work/Projects/neutromeratio/data/results/ANI1ccx_vacuum_random_minimum_dE.csv', 'a+')
+f.write(f"{name}, {e_diff}\n")
+f.close()
+# write dG
+f = open('/home/mwieder/Work/Projects/neutromeratio/data/results/ANI1ccx_vacuum_random_minimum_dG.csv', 'a+')
+f.write(f"{name}, {e_diff}\n")
+f.close()
+
+
+
+# 'global' minimum dE and dG energy difference
 e_diff = neutromeratio.reduced_pot(min(t2_e) - min(t1_e))
-print(e_diff)
-#f = open('/home/mwieder/Work/Projects/neutromeratio/data/diff_single_point_minimized_energiesV2.csv', 'a+')
-#f.write(f"{name}, {e_diff}\n")
-#f.close()
+g_diff = neutromeratio.reduced_pot(min(t2_g) - min(t1_g))
+# write dE
+f = open('/home/mwieder/Work/Projects/neutromeratio/data/results/ANI1ccx_vacuum_global_minimum_dE.csv', 'a+')
+f.write(f"{name}, {e_diff}\n")
+f.close()
+# write dG
+f = open('/home/mwieder/Work/Projects/neutromeratio/data/results/ANI1ccx_vacuum_global_minimum_dG.csv', 'a+')
+f.write(f"{name}, {e_diff}\n")
+f.close()

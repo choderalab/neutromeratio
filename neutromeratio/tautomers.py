@@ -433,7 +433,7 @@ class Tautomer(object):
         mol = Atoms(atom_list)
         self.hybrid_ase_mol = mol
 
-    def generate_mining_minima_structures(self, rmsd_threshold:float=0.3)->(list, unit.Quantity, list):
+    def generate_mining_minima_structures(self, rmsd_threshold:float=0.1)->(list, unit.Quantity, list):
         """
         Minimizes and filters conformations based on a RMSD treshold.
         Parameters
@@ -497,6 +497,78 @@ class Tautomer(object):
             return new_mol, filtered_energies
 
 
+        # def _remove_hydrogens(m:Chem.Mol):
+            
+        #     """Removing all hydrogens from the molecule with a few exceptions""" 
+
+        #     #########################################
+        #     # search for important hydrogens
+        #     #########################################
+        #     keep_hydrogens = []
+        #     logger.info('search for patterns ...')
+        #     # test for primary alcohol
+        #     patt = Chem.MolFromSmarts('[OX2H]')   
+        #     if m.HasSubstructMatch(patt):
+        #         logger.info('found primary alcohol')
+        #         l = m.GetSubstructMatch(patt)
+        #         keep_hydrogens.extend(l)
+
+        #     # test for imine
+        #     patt = Chem.MolFromSmarts('[CX3]=[NH]')
+        #     if m.HasSubstructMatch(patt):
+        #         logger.info('found imine')
+        #         l = m.GetSubstructMatch(patt)
+        #         keep_hydrogens.extend(l)
+                
+        #     # test for primary amine
+        #     patt = Chem.MolFromSmarts('[NX3;H2]')
+        #     if m.HasSubstructMatch(patt):
+        #         logger.info('found primary amine')
+        #         l = m.GetSubstructMatch(patt)
+        #         keep_hydrogens.extend(l)
+
+        #     # test for secondary amine
+        #     patt = Chem.MolFromSmarts('[NX3H]')
+        #     if m.HasSubstructMatch(patt):
+        #         logger.info('found secondary amine')
+        #         l = m.GetSubstructMatch(patt)
+        #         keep_hydrogens.extend(l)
+                               
+        #     # test for cyanamide
+        #     patt = Chem.MolFromSmarts('[NX3][CX2]#[NX1]')
+        #     if m.HasSubstructMatch(patt):
+        #         logger.info('found cyanamide')
+        #         l = m.GetSubstructMatch(patt)
+        #         keep_hydrogens.extend(l)
+
+        #     # test for thiol
+        #     patt = Chem.MolFromSmarts('[#16X2H]')
+        #     if m.HasSubstructMatch(patt):
+        #         logger.info('found thiol')
+        #         l = m.GetSubstructMatch(patt)
+        #         keep_hydrogens.extend(l)
+
+        #     # unfortunatelly, RemoveHs() does not retain marked hydrogens
+        #     # therefore, mutating important Hs to Li and then remutating them 
+        #     # to Hs
+        #     if keep_hydrogens:
+        #         for idx in keep_hydrogens:
+        #             atom = m.GetAtomWithIdx(idx)
+        #             for neighbor in atom.GetNeighbors():
+        #                 if neighbor.GetSymbol() == 'H':
+        #                     hydrogen = m.GetAtomWithIdx(neighbor.GetIdx())
+        #                     hydrogen.SetAtomicNum(3)
+
+        #         m = Chem.RemoveHs(m)
+        #         for atom in m.GetAtoms():
+        #             if atom.GetSymbol() == 'Li':
+        #                 hydrogen = m.GetAtomWithIdx(atom.GetIdx())
+        #                 hydrogen.SetAtomicNum(1)
+        #     else:
+        #         m = Chem.RemoveHs(m)
+
+        #     return m
+
 
         def get_conformer_rmsd(mol)->list:
             """
@@ -508,6 +580,9 @@ class Tautomer(object):
             """
             rmsd = np.zeros((mol.GetNumConformers(), mol.GetNumConformers()),
                             dtype=float)
+
+
+            #mol = _remove_hydrogens(copy.deepcopy(mol))
             for i, ref_conf in enumerate(mol.GetConformers()):
                 for j, fit_conf in enumerate(mol.GetConformers()):
                     if i >= j:
@@ -519,7 +594,7 @@ class Tautomer(object):
 
 
         def calculate_weighted_energy(e_list):
-            #G = -RT Σ ln exp(-G/RT)
+            #G = -RT ln Σ exp(-G/RT)
 
             l = []
             for energy in e_list:
@@ -560,7 +635,7 @@ class Tautomer(object):
                 try:
                     thermochemistry_correction = energy_function.get_thermo_correction(minimized_coords)  
                 except ValueError:
-                    print('Imaginary frequencies present - found transition state.')
+                    logger.critical('Imaginary frequencies present - found transition state.')
                     continue
                 energies.append(single_point_energy + thermochemistry_correction)
                 # update the coordinates in the rdkit mol

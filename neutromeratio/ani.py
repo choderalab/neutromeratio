@@ -78,7 +78,7 @@ class ANI1_force_and_energy(object):
         calculator = self.model.ase(dtype=torch.float64)
         ase_mol.set_calculator(calculator)
 
-        vib = Vibrations(ase_mol, name=f"vib{random.randint(1,10000000)}")
+        vib = Vibrations(ase_mol, name=f"/tmp/vib{random.randint(1,10000000)}")
         vib.run()
         vib_energies = vib.get_energies()
         thermo = IdealGasThermo(vib_energies=vib_energies,
@@ -91,7 +91,7 @@ class ANI1_force_and_energy(object):
         except ValueError as verror:
             print(verror)
             raise verror
-        #vib.write_jmol()
+        # removes the vib tmp files
         vib.clean()
         return (G * conversion_factor_eV_to_kJ_mol) * unit.kilojoule_per_mole # eV * conversion_factor(eV to kJ/mol)
 
