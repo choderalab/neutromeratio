@@ -43,6 +43,6 @@ for e in minimum_energies[1]:
 f.close()
 
 # write results
-f = open('/home/mwieder/Work/Projects/neutromeratio/data/mining_minima/MM_ANIccx_vacuum.csv', 'a+')
+f = open('/home/mwieder/Work/Projects/neutromeratio/data/mining_minima/MM_ANI1ccx_vacuum.csv', 'a+')
 f.write(f"{name}, {neutromeratio.reduced_pot(mining_min_e)}, {str(confs_traj[0].n_frames)}, {str(confs_traj[1].n_frames)}\n")
 f.close()

@@ -24,7 +24,7 @@ def plot_correlation_analysis(
     Parameters
     ----------
     df : pd.Dataframe
-        the df contains columns with colum names 'names', 'x', 'y', 'method'
+        the df contains columns with colum names 'names', 'x', 'y'
     title : str
         to put above plot. use '' (empty string) for no title.
     color : str
@@ -38,41 +38,48 @@ def plot_correlation_analysis(
     """
 
     fig = plt.figure(figsize=[8,8], dpi=300)
-
-    plt.clf()
+    fontsize=15
     ax = plt.gca()
-    ax.set_title(title, fontsize=25)
+    ax.set_title(title, fontsize=fontsize)
 
     rmse, r = bootstrap_rmse_r(df, 1000)
 
-    plt.text(-15.0 , 15.0, r"{} : $\rho = {}$".format(list(df["method"])[0], r), fontsize=15)
-    plt.text(-15.0 , 13.0, r"RMSE$ = {}$".format(rmse), fontsize=15)
+    plt.text(-20.0 , 20.0, r"$\rho = {}$".format(r), fontsize=fontsize)
+    plt.text(-20.0 , 17.0, r"RMSE$ = {}$".format(rmse), fontsize=fontsize)
 
-    for X, Y, method, name in zip(df.x, df.y, df.method, df.names):
-        ax.scatter(X, Y, color=color, label=method, s=15)
+    for X, Y, name in zip(df.x, df.y, df.names):
+        ax.scatter(X, Y, color='blue', s=15, alpha=0.6)
         # mark tautomer pairs that behave strangly
         if name in mark_tautomer_names:
-            ax.annotate(str(name), (X, Y), fontsize=5)
+            ax.annotate(str(name), (X, Y), fontsize=10)
 
     # draw lines +- 1kcal/mol
-    ax.plot((-16.0, 10.0), (-16.0, 10.0), "k--", zorder=-1, linewidth=0.5, alpha=0.5)
-    ax.plot((-15.0, 10.0), (-16.0, 9.0), "gray", zorder=-1, linewidth=0.5, alpha=0.5)
-    ax.plot((-16.0, 9.0), (-15.0, 10.0), "gray", zorder=-1, linewidth=0.5, alpha=0.5)
+    ax.plot((-22.0, 22.0), (-22.0, 22.0), "k--", zorder=-1, linewidth=1., alpha=0.5)
+    ax.plot((-21.0, 22.0), (-22.0, 21.0), "gray", zorder=-1, linewidth=1., alpha=0.5)
+    ax.plot((-22.0, 21.0), (-21.0, 22.0), "gray", zorder=-1, linewidth=1., alpha=0.5)
     
-    ax.plot((-10.0, 10.0), (0.0, 0.0), "r--", zorder=-1, linewidth=0.5, alpha=0.5)
-    ax.plot((0.0, 0.0), (-10.0, 10.0), "r--", zorder=-1, linewidth=0.5, alpha=0.5)
+    ax.plot((-22.0, 22.0), (0.0, 0.0), "r--", zorder=-1, linewidth=1., alpha=0.5)
+    ax.plot((0.0, 0.0), (-22.0, 22.0), "r--", zorder=-1, linewidth=1., alpha=0.5)
 
-    ax.set_ylabel(x_label, fontsize=20)
-    ax.set_xlabel(y_label, fontsize=20)
+    ax.set_ylabel(x_label, fontsize=fontsize)
+    ax.set_xlabel(y_label, fontsize=fontsize)
+    plt.tight_layout()
+    plt.fill(0.0, )
+    plt.subplots_adjust(bottom=0.3), #left=1.3, right=0.3) 
+    # make sure that we plot a square
+    ax.set_aspect('equal', 'box')
+    # color quadrants
+    x = np.arange(0.01,30,0.1)
+    y = -30 #np.arange(0.01,30,0.1)
+    plt.fill_between(x, y, color='#539ecd', alpha=0.2)
+
+    x = -np.arange(0.01,30,0.1)
+    y = 30 #np.arange(0.01,30,0.1)
+
+    plt.fill_between(x, y, color='#539ecd', alpha=0.2)
     ax.set_xlim([-22, 22])
     ax.set_ylim([-22, 22])
-    #plt.xticks(np.arange(-10, 10, 2.0), fontsize=15)
-    handles, labels = plt.gca().get_legend_handles_labels()
-    by_label = OrderedDict(zip(labels, handles))
-    plt.legend(by_label.values(), by_label.keys(), loc='lower right')
-    plt.tight_layout()
-    plt.subplots_adjust(bottom=0.3), #left=1.3, right=0.3) 
-    return ax
+    return plt
 
 
 def array_rmse(x1: np.ndarray, x2: np.ndarray) -> float:
@@ -99,7 +106,7 @@ def bootstrap_rmse_r(df: pd.DataFrame, nsamples: int):
 
     rmse_list = list()
     rs_list = list()
-    for i in range(nsamples):
+    for _ in range(nsamples):
         bootstrap_df = bootstrap_tautomer_exp_predict_results(df)
         exp = bootstrap_df.x
         pred = bootstrap_df.y

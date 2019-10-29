@@ -124,7 +124,7 @@ class ANI1_force_and_energy(object):
         mol.set_calculator(calculator)
         print("Begin minimizing...")
         opt = BFGS(mol, logfile='min-log.txt', maxstep=maxstep)
-        opt.run(fmax=fmax, steps=5000)
+        opt.run(fmax=fmax, steps=500)
         return np.array(mol.get_positions()) * unit.angstrom
 
     def calculate_force(self, x:simtk.unit.quantity.Quantity, lambda_value:float = 0.0) -> simtk.unit.quantity.Quantity:
