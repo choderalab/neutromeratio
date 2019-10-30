@@ -22,7 +22,7 @@ t2_smiles = exp_results[name]['t2-smiles']
 tautomer = neutromeratio.Tautomer(name=name, intial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles), nr_of_conformations=100)
 tautomer.perform_tautomer_transformation_forward()
 
-print('Treshold used for RMSD filtering: '.format(rmsd_threshold))
+print('Treshold used for RMSD filtering: {}'.format(rmsd_threshold))
 confs_traj, mining_min_e, minimum_energies = tautomer.generate_mining_minima_structures(rmsd_threshold=rmsd_threshold)
 
 #mkdir, write confs and structure
