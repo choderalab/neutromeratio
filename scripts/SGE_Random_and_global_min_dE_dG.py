@@ -38,14 +38,19 @@ energy_function = neutromeratio.ANI1_force_and_energy(
 
 t1_e = []
 t1_g = []
-for cor in tautomer.intial_state_ligand_coords:
+for coords in tautomer.intial_state_ligand_coords:
     # minimize
-    energy_function.minimize(cor)
-    x0 = np.array(cor) * unit.angstrom
+    minimized_coords = energy_function.minimize(coords, fmax=0.0001, maxstep=0.01)
     # calculate electronic single point energy
-    e = energy_function.calculate_energy(x0)
+    e = energy_function.calculate_energy(minimized_coords)
     # calculate Gibb's free energy
-    g = e + energy_function.get_thermo_correction(x0)
+    try:
+        thermochemistry_correction = energy_function.get_thermo_correction(minimized_coords)  
+    except ValueError:
+        print('Imaginary frequencies present - found transition state.')
+        continue
+
+    g = e + thermochemistry_correction
     
     t1_e.append(e)
     t1_g.append(g)
@@ -60,14 +65,19 @@ energy_function = neutromeratio.ANI1_force_and_energy(
 
 t2_e = []
 t2_g = []
-for cor in tautomer.final_state_ligand_coords:
+for coords in tautomer.final_state_ligand_coords:
     # minimize
-    energy_function.minimize(cor)
-    x0 = np.array(cor) * unit.angstrom
+    minimized_coords = energy_function.minimize(coords, fmax=0.0001, maxstep=0.01)
     # calculate electronic single point energy
-    e = energy_function.calculate_energy(x0)
+    e = energy_function.calculate_energy(minimized_coords)
     # calculate Gibb's free energy
-    g = e + energy_function.get_thermo_correction(x0)
+    try:
+        thermochemistry_correction = energy_function.get_thermo_correction(minimized_coords)  
+    except ValueError:
+        print('Imaginary frequencies present - found transition state.')
+        continue
+
+    g = e + thermochemistry_correction
     
     t2_e.append(e)
     t2_g.append(g)
