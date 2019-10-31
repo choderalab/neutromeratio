@@ -105,5 +105,5 @@ f.write(f"{name}, {e_diff}\n")
 f.close()
 # write dG
 f = open('/home/mwieder/Work/Projects/neutromeratio/data/results/ANI1ccx_vacuum_global_minimum_dG.csv', 'a+')
-f.write(f"{name}, {e_diff}\n")
+f.write(f"{name}, {g_diff}\n")
 f.close()
