@@ -116,7 +116,6 @@ class Tautomer(object):
             pdb_filepath=f"tmp{random.randint(1,10000000)}.pdb"
         
         if not os.path.exists(pdb_filepath):
-            
 
             # mdtraj works with nanomter
             md.Trajectory(coordinates.value_in_unit(unit.nanometer), topology).save_pdb(pdb_filepath)

@@ -54,7 +54,7 @@ elif mode == 'reverse':
 else:
     raise RuntimeError('No tautomer reaction direction was specified.')
 
-
+os.makedirs("{base_path}/{name}")
 m = tautomer.add_droplet(tautomer.hybrid_topology, 
 tautomer.hybrid_coords, 
 diameter=diameter_in_angstrom * unit.angstrom, 
