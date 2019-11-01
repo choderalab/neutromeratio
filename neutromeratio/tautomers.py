@@ -87,67 +87,86 @@ class Tautomer(object):
         self.com_restraints = []
 
 
-    def add_droplet(self, topology:md.Topology, coordinates, diameter:unit.quantity.Quantity=(30.0 * unit.angstrom)):
-    
+    def add_droplet(self, topology:md.Topology, coordinates:unit.quantity.Quantity, diameter:unit.quantity.Quantity=(30.0 * unit.angstrom), file=None):
         """
-        A bit of a lie - what we are doing is adding a box and then removing everything 
-        outside a given radius.
+        Adding a droplet with a given diameter around a small molecule.
+        
+        Parameters
+        ----------
+        topology: md.Topology
+            topology of the molecule
+        coordinates: np.array, unit'd
+        diameter: float, unit'd
+        file: str
+            if file is provided the final droplet pdb is either kept and can be reused or if 
+            file already exists it will be used to create the same droplet.
         """
+
         assert(type(diameter) == unit.Quantity)
         assert(type(topology) == md.Topology)
         assert(type(coordinates) == unit.Quantity)
-        logger.info('Adding droplet ...')
-        # get topology from mdtraj to PDBfixer via pdb file # NOTE: 'rethink your design decicions.' :-) 
-        n = random.random()
-        # TODO: use tmpfile for this https://stackabuse.com/the-python-tempfile-module/ or io.StringIO
-        pdb_filepath=f"tmp{n:0.9f}.pdb"
-
-        # mdtraj works with nanomter
-        md.Trajectory(coordinates.value_in_unit(unit.nanometer), topology).save_pdb(pdb_filepath)
-        pdb = PDBFixer(filename=pdb_filepath)
-        os.remove(pdb_filepath)
-
-        # put the ligand in the center
-        l_in_nanometer = diameter.value_in_unit(unit.nanometer)
-        pdb.positions = np.array(pdb.positions.value_in_unit(unit.nanometer)) + (l_in_nanometer/2)
-        # add water
-        logger.info('Adding water ...')
-
-        pdb.addSolvent(boxVectors=(Vec3(l_in_nanometer, 0.0, 0.0), Vec3(0.0, l_in_nanometer, 0.0), Vec3(0.0, 0.0, l_in_nanometer)))
-        # get topology from PDBFixer to mdtraj # NOTE: a second tmpfile - not happy about this 
-        from simtk.openmm.app import PDBFile
-        PDBFile.writeFile(pdb.topology, pdb.positions, open(pdb_filepath, 'w'))
-        # load pdb in parmed
-        logger.info('Load with parmed ...')
-        structure = pm.load_file(pdb_filepath)
-        os.remove(pdb_filepath)
-
-        # search for residues that are outside of the cutoff and delete them
-        to_delete = []
-        radius = diameter.value_in_unit(unit.angstrom)/2
-        center = np.array([radius, radius, radius])
-        logger.info('Flag residues ...')
-
-        for residue in structure.residues:
-            for atom in residue:
-
-                p1 = np.array([atom.xx, atom.xy, atom.xz])
-                p2 = center
-
-                squared_dist = np.sum((p1-p2)**2, axis=0)
-                dist = np.sqrt(squared_dist)
-                if dist > radius:
-                    to_delete.append(residue)
         
-        logger.info('Delete residues ...')    
-        for residue in list(set(to_delete)):
-            logging.info('Remove: {}'.format(residue))
-            structure.residues.remove(residue)
+        logger.info('Adding droplet ...')
+        # get topology from mdtraj to PDBfixer via pdb file 
+
+        # if no solvated pdb file is provided generate one
+        if file:
+            pdb_filepath=file
+        else:
+            pdb_filepath=f"tmp{random.randint(1,10000000)}.pdb"
+        
+        if not os.path.exists(pdb_filepath):
             
-        structure.write_pdb(pdb_filepath)
+
+            # mdtraj works with nanomter
+            md.Trajectory(coordinates.value_in_unit(unit.nanometer), topology).save_pdb(pdb_filepath)
+            pdb = PDBFixer(filename=pdb_filepath)
+            os.remove(pdb_filepath)
+
+            # put the ligand in the center
+            l_in_nanometer = diameter.value_in_unit(unit.nanometer)
+            pdb.positions = np.array(pdb.positions.value_in_unit(unit.nanometer)) + (l_in_nanometer/2)
+            # add water
+            logger.info('Adding water ...')
+
+            pdb.addSolvent(boxVectors=(Vec3(l_in_nanometer, 0.0, 0.0), Vec3(0.0, l_in_nanometer, 0.0), Vec3(0.0, 0.0, l_in_nanometer)))
+            # get topology from PDBFixer to mdtraj # NOTE: a second tmpfile - not happy about this 
+            from simtk.openmm.app import PDBFile
+            PDBFile.writeFile(pdb.topology, pdb.positions, open(pdb_filepath, 'w'))
+            # load pdb in parmed
+            logger.info('Load with parmed ...')
+            structure = pm.load_file(pdb_filepath)
+            os.remove(pdb_filepath)
+
+            # search for residues that are outside of the cutoff and delete them
+            to_delete = []
+            radius = diameter.value_in_unit(unit.angstrom)/2
+            center = np.array([radius, radius, radius])
+            logger.info('Flag residues ...')
+
+            for residue in structure.residues:
+                for atom in residue:
+
+                    p1 = np.array([atom.xx, atom.xy, atom.xz])
+                    p2 = center
+
+                    squared_dist = np.sum((p1-p2)**2, axis=0)
+                    dist = np.sqrt(squared_dist)
+                    if dist > radius:
+                        to_delete.append(residue)
+            
+            logger.info('Delete residues ...')    
+            for residue in list(set(to_delete)):
+                logging.info('Remove: {}'.format(residue))
+                structure.residues.remove(residue)
+            
+            structure.write_pdb(pdb_filepath)
+        
+        
         # load pdb with mdtraj
         traj = md.load(pdb_filepath)
-        os.remove(pdb_filepath)
+        if not file:
+            os.remove(pdb_filepath)
 
         # set coordinates #NOTE: note the xyz[0]
         self.ligand_in_water_coordinates = traj.xyz[0] * unit.nanometer
@@ -173,7 +192,6 @@ class Tautomer(object):
         mol = Atoms(ase_atom_list)
         self.ligand_in_water_ase_mol = mol      
         
-
         # return a mdtraj object for visual check
         return md.Trajectory(self.ligand_in_water_coordinates.value_in_unit(unit.nanometer), self.ligand_in_water_topology)
 
@@ -254,11 +272,11 @@ class Tautomer(object):
                 bond_list.append((a1.GetIdx(), a2.GetIdx()))
     
         # get mdtraj topology
-        n = random.random()
+        n = random.randint(1,10000000)
         # TODO: use tmpfile for this https://stackabuse.com/the-python-tempfile-module/ or io.StringIO
-        _ = write_pdb(mol, f"tmp{n:0.9f}.pdb")
-        topology = md.load(f"tmp{n:0.9f}.pdb").topology
-        os.remove(f"tmp{n:0.9f}.pdb")
+        _ = write_pdb(mol, f"tmp{n}.pdb")
+        topology = md.load(f"tmp{n}.pdb").topology
+        os.remove(f"tmp{n}.pdb")
         
         ani_input =  {'ligand_atoms' : ''.join(atom_list), 
                 'ligand_coords' : coord_list, 
