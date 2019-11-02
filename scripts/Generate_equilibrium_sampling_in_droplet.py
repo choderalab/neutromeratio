@@ -63,7 +63,7 @@ m = tautomer.add_droplet(tautomer.hybrid_topology,
 # define the alchemical atoms
 alchemical_atoms=[tautomer.hybrid_dummy_hydrogen, tautomer.hydrogen_idx]
 
-print('Nr of atoms: {}'.format(len(tautomer.ligand_in_water_atoms))
+print('Nr of atoms: {}'.format(len(tautomer.ligand_in_water_atoms)))
 
 
 # extract hydrogen donor idx and hydrogen idx for from_mol
