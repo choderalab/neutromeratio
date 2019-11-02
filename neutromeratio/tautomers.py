@@ -87,7 +87,10 @@ class Tautomer(object):
         self.com_restraints = []
 
 
-    def add_droplet(self, topology:md.Topology, coordinates:unit.quantity.Quantity, diameter:unit.quantity.Quantity=(30.0 * unit.angstrom), file=None):
+    def add_droplet(self, topology:md.Topology, 
+                    coordinates:unit.quantity.Quantity, 
+                    diameter:unit.quantity.Quantity=(30.0 * unit.angstrom), 
+                    file=None):
         """
         Adding a droplet with a given diameter around a small molecule.
         
@@ -108,6 +111,8 @@ class Tautomer(object):
         
         logger.info('Adding droplet ...')
         # get topology from mdtraj to PDBfixer via pdb file 
+        radius = diameter.value_in_unit(unit.angstrom)/2
+        center = np.array([radius, radius, radius])
 
         # if no solvated pdb file is provided generate one
         if file:
@@ -139,8 +144,6 @@ class Tautomer(object):
 
             # search for residues that are outside of the cutoff and delete them
             to_delete = []
-            radius = diameter.value_in_unit(unit.angstrom)/2
-            center = np.array([radius, radius, radius])
             logger.info('Flag residues ...')
 
             for residue in structure.residues:
@@ -183,16 +186,27 @@ class Tautomer(object):
         # generate an ase mol for minimization
         ase_atom_list = []
         self.solvent_restraints = []
-        for idx, element, xyz in zip(range(len(self.ligand_in_water_atoms)), self.ligand_in_water_atoms, self.ligand_in_water_coordinates):
+        for idx, element, xyz in zip(range(len(self.ligand_in_water_atoms)), 
+                                self.ligand_in_water_atoms, 
+                                self.ligand_in_water_coordinates):
+                                    
             if idx > len(self.hybrid_atoms) and element == 'O': # even if are not looking at a hybrid it should still be fine 
-                self.solvent_restraints.append(FlatBottomRestraintToCenter(sigma=0.1 * unit.angstrom, point=center * unit.angstrom, radius=diameter/2, atom_idx = idx, active_at_lambda=-1))
-            c_list = (xyz[0].value_in_unit(unit.angstrom), xyz[1].value_in_unit(unit.angstrom), xyz[2].value_in_unit(unit.angstrom)) 
+                self.solvent_restraints.append(FlatBottomRestraintToCenter(sigma=0.1 * unit.angstrom, 
+                                                                        point=center * unit.angstrom, 
+                                                                        radius=diameter/2, 
+                                                                        atom_idx = idx, 
+                                                                        active_at_lambda=-1))
+            c_list = (xyz[0].value_in_unit(unit.angstrom), 
+                        xyz[1].value_in_unit(unit.angstrom), 
+                        xyz[2].value_in_unit(unit.angstrom)) 
+            
             ase_atom_list.append(Atom(element, c_list))
         mol = Atoms(ase_atom_list)
         self.ligand_in_water_ase_mol = mol      
         
         # return a mdtraj object for visual check
-        return md.Trajectory(self.ligand_in_water_coordinates.value_in_unit(unit.nanometer), self.ligand_in_water_topology)
+        return md.Trajectory(self.ligand_in_water_coordinates.value_in_unit(unit.nanometer), 
+                                self.ligand_in_water_topology)
 
         
     def add_COM_for_hybrid_ligand(self, center):
