@@ -54,11 +54,11 @@ elif mode == 'reverse':
 else:
     raise RuntimeError('No tautomer reaction direction was specified.')
 
-os.makedirs("{base_path}/{name}")
+os.makedirs(f"{base_path}/{name}", exist_ok=True)
 m = tautomer.add_droplet(tautomer.hybrid_topology, 
-tautomer.hybrid_coords, 
-diameter=diameter_in_angstrom * unit.angstrom, 
-file=f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_in_droplet_{mode}.dcd")
+                            tautomer.hybrid_coords, 
+                            diameter=diameter_in_angstrom * unit.angstrom, 
+                            file=f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_in_droplet_{mode}.dcd")
 
 # define the alchemical atoms
 alchemical_atoms=[tautomer.hybrid_dummy_hydrogen, tautomer.hydrogen_idx]
