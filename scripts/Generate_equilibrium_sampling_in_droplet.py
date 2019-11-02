@@ -58,10 +58,13 @@ os.makedirs(f"{base_path}/{name}", exist_ok=True)
 m = tautomer.add_droplet(tautomer.hybrid_topology, 
                             tautomer.hybrid_coords, 
                             diameter=diameter_in_angstrom * unit.angstrom, 
-                            file=f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_in_droplet_{mode}.dcd")
+                            file=f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_in_droplet_{mode}.pdb")
 
 # define the alchemical atoms
 alchemical_atoms=[tautomer.hybrid_dummy_hydrogen, tautomer.hydrogen_idx]
+
+print('Nr of atoms: {}'.format(len(tautomer.ligand_in_water_atoms))
+
 
 # extract hydrogen donor idx and hydrogen idx for from_mol
 model = neutromeratio.ani.LinearAlchemicalDualTopologyANI(alchemical_atoms=alchemical_atoms)
@@ -97,12 +100,11 @@ langevin = neutromeratio.LangevinDynamics(atoms = tautomer.ligand_in_water_atoms
 x0 = tautomer.ligand_in_water_coordinates
 #x0 = energy_function.minimize(x0) # NOTE: No minimizing!
 
-os.makedirs(f"{base_path}", exist_ok=True)
 equilibrium_samples, energies, bias = langevin.run_dynamics(x0, n_steps=n_steps, stepsize=0.5 * unit.femtosecond, progress_bar=False)
-    
+   
 
 # save equilibrium energy values 
-f = open(f"{base_path}/{name}_lambda_{lambda_value:0.4f}_energy_in_droplet_{mode}.csv", 'w+')
+f = open(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_energy_in_droplet_{mode}.csv", 'w+')
 for e in energies[::20]:
     f.write('{}\n'.format(e))
 f.close()
@@ -116,4 +118,3 @@ f.close()
 equilibrium_samples = [x.value_in_unit(unit.nanometer) for x in equilibrium_samples]
 ani_traj = md.Trajectory(equilibrium_samples[::20], tautomer.ligand_in_water_topology)
 ani_traj.save(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_in_droplet_{mode}.dcd", force_overwrite=True)
-ani_traj.save

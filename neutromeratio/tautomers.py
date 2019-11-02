@@ -116,8 +116,10 @@ class Tautomer(object):
 
         # if no solvated pdb file is provided generate one
         if file:
+            # read in the file with the defined droplet
             pdb_filepath=file
         else:
+            # generage a one time droplet
             pdb_filepath=f"tmp{random.randint(1,10000000)}.pdb"
         
         if not os.path.exists(pdb_filepath):
