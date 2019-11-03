@@ -3,28 +3,29 @@ from simtk import unit
 import sys
 import torch
 
-# this is a pointer to the module object instance itself.
-# this = sys.modules[__name__]
-# print(this)
-# # we can explicitly make assignments on it 
-# this.temperature = None
-# this.platform = None
-# this.kT = None
-# this.device = None
+platform = 'cpu'
+temperature = 300 * unit.kelvin
+kT = kB * temperature
+device = torch.device(platform)
 
-# def initialize_variables(temperature, platform):
+
+# this = sys.modules[__name__]
+# this.platform = None
+# this.device = None
+# this.temperature = None
+# this.kT = None
+
+# def initialize_temperature(temperature):
 #     if (this.temperature is None):
 #         # also in local function scope. no scope specifier like global is needed
-#         if type(temperature) == unit.Quantity:
-#             this.temperature = temperature
-#             this.kT = kB * temperature
-#         else:
-#             this.temperature = temperature * unit.kelvin
-#             this.kT = kB * temperature
+#         assert(type(temperature) == unit.Quantity)
+#         this.temperature = temperature
+#         this.kT = kB * temperature
 #     else:
 #         msg = "Temperature is already initialized to {0}."
 #         raise RuntimeError(msg.format(this.temperature))
 
+# def initialize_platform(platform):
 #     if (this.platform is None):
 #         # also in local function scope. no scope specifier like global is needed
 #         this.platform = platform
@@ -33,10 +34,6 @@ import torch
 #         msg = "Platform is already initialized to {0}."
 #         raise RuntimeError(msg.format(this.platform))
 
-temperature = 300 * unit.kelvin
-platform = 'cpu'
-kT = kB * temperature
-device = torch.device(platform)
 torch.set_num_threads(2)
 
 # openmm units
@@ -61,3 +58,5 @@ bond_length_dict = {frozenset(['C', 'H']) : 1.09 * unit.angstrom,
                     }
 
 conversion_factor_eV_to_kJ_mol = 96.485
+pressure = 101325.0 * unit.pascal
+gas_constant = 0.0019872036 * (unit.kilocalorie_per_mole / unit.kelvin)

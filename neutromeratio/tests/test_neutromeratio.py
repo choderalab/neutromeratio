@@ -14,6 +14,7 @@ import mdtraj as md
 from neutromeratio.constants import device
 import torchani
 from openmmtools.utils import is_quantity_close
+import pandas as pd
 
 def test_equ():
     assert(1.0 == 1.0)
@@ -75,8 +76,8 @@ def test_tautomer_transformation():
 
     # test if dual topology hybrid works
     assert(t.hybrid_atoms == 'CCCCCOOHHHHHHHHH')
-    assert(t.hybrid_hydrogen_idx_at_donor_heavy_atom == 11)
-    assert(t.hybrid_hydrogen_idx_at_acceptor_heavy_atom == 15)
+    assert(t.hydrogen_idx == 11)
+    assert(t.hybrid_dummy_hydrogen == 15)
 
     t.perform_tautomer_transformation_reverse()
 
@@ -88,8 +89,8 @@ def test_tautomer_transformation():
 
     # test if dual topology hybrid works
     assert(t.hybrid_atoms == 'CCCCCOOHHHHHHHHH')
-    assert(t.hybrid_hydrogen_idx_at_donor_heavy_atom == 14)
-    assert(t.hybrid_hydrogen_idx_at_acceptor_heavy_atom == 15)
+    assert(t.hydrogen_idx == 14)
+    assert(t.hybrid_dummy_hydrogen == 15)
 
 
     name = 'molDWRow_37'
@@ -107,8 +108,8 @@ def test_tautomer_transformation():
 
     # test if dual topology hybrid works
     assert(t.hybrid_atoms == 'CCCCCCCOOHHHHHHHHHHH')
-    assert(t.hybrid_hydrogen_idx_at_donor_heavy_atom == 18)
-    assert(t.hybrid_hydrogen_idx_at_acceptor_heavy_atom == 19)
+    assert(t.hydrogen_idx == 18)
+    assert(t.hybrid_dummy_hydrogen == 19)
 
     t.perform_tautomer_transformation_reverse()
     
@@ -120,9 +121,11 @@ def test_tautomer_transformation():
 
     # test if dual topology hybrid works CCOCCCCCOHHHHHHHHHHH
     assert(t.hybrid_atoms == 'CCOCCCCCOHHHHHHHHHHH')
-    assert(t.hybrid_hydrogen_idx_at_donor_heavy_atom == 12)
-    assert(t.hybrid_hydrogen_idx_at_acceptor_heavy_atom == 19)
+    assert(t.hydrogen_idx == 12)
+    assert(t.hybrid_dummy_hydrogen == 19)
 
+    # test if droplet works for 
+    t.add_droplet(t.final_state_ligand_topology, t.final_state_ligand_coords[0])
 
 def test_neutromeratio_energy_calculations_with_torchANI_model():
     
@@ -153,8 +156,6 @@ def test_neutromeratio_energy_calculations_with_torchANI_model():
                                                 atoms = atoms,
                                                 mol = t.intial_state_ase_mol)
 
-    energy_function.flat_bottom_restraint  = False
-    energy_function.harmonic_restraint  = False
     energy_function.use_pure_ani1ccx = True
     x = energy_function.calculate_energy(x0,)
     assert(is_quantity_close(x, -216736.6903680688 * unit.kilocalorie_per_mole, rtol=1e-9))
@@ -177,8 +178,6 @@ def test_neutromeratio_energy_calculations_with_torchANI_model():
                                                 atoms = atoms,
                                                 mol = t.final_state_ase_mol)
 
-    energy_function.flat_bottom_restraint  = False
-    energy_function.harmonic_restraint  = False
     energy_function.use_pure_ani1ccx = True
     x = energy_function.calculate_energy(x0,)
     assert(is_quantity_close(x, -216736.6903680688 * unit.kilocalorie_per_mole, rtol=1e-9))
@@ -216,9 +215,6 @@ def test_neutromeratio_energy_calculations_with_LinearAlchemicalANI_model():
                                                 atoms = atoms,
                                                 mol = t.intial_state_ase_mol)
 
-    energy_function.flat_bottom_restraint  = False
-    energy_function.harmonic_restraint  = False
-    energy_function.use_pure_ani1ccx = False
     x = energy_function.calculate_energy(x0, lambda_value=1.0)
     assert(is_quantity_close(x, -216736.6857518717* unit.kilocalorie_per_mole, rtol=1e-9))
     x = energy_function.calculate_energy(x0, lambda_value=0.0)
@@ -241,7 +237,7 @@ def test_neutromeratio_energy_calculations_with_DualTopologyAlchemicalANI_model(
     t.perform_tautomer_transformation_forward()
   
     # generate tautomer transformation
-    dummy_atoms = [t.hybrid_hydrogen_idx_at_acceptor_heavy_atom, t.hybrid_hydrogen_idx_at_donor_heavy_atom]
+    dummy_atoms = [t.hybrid_dummy_hydrogen, t.hydrogen_idx]
     atoms = t.hybrid_atoms
     # overwrite the coordinates that rdkit generated with the first frame in the traj
     model = neutromeratio.ani.LinearAlchemicalDualTopologyANI(alchemical_atoms=dummy_atoms)
@@ -255,9 +251,7 @@ def test_neutromeratio_energy_calculations_with_DualTopologyAlchemicalANI_model(
     traj = neutromeratio.equilibrium.read_precalculated_md('neutromeratio/data/mol298_t1.pdb', 'neutromeratio/data/mol298_t1.dcd')
 
     x0 = traj[0]
-    energy_function.flat_bottom_restraint  = False
-    energy_function.harmonic_restraint  = False
-    energy_function.use_pure_ani1ccx = False
+
     x = energy_function.calculate_energy(x0, lambda_value=1.0)
     assert(is_quantity_close(x, -216707.18481400612* unit.kilocalorie_per_mole, rtol=1e-9))
     x = energy_function.calculate_energy(x0, lambda_value=0.0)
@@ -273,17 +267,19 @@ def test_restraint():
     t1_smiles = exp_results[name]['t1-smiles']
     t2_smiles = exp_results[name]['t2-smiles']
 
-    t = Tautomer(name=name, intial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles))
-    t.perform_tautomer_transformation_forward()
+    tautomer = Tautomer(name=name, intial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles))
+    tautomer.perform_tautomer_transformation_forward()
 
-    atoms = t.intial_state_ligand_atoms
-    a = neutromeratio.Restraint(sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=-1)
+    atoms = tautomer.intial_state_ligand_atoms
+    harmonic = neutromeratio.restraints.HarmonicRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms)
+    flat_bottom = neutromeratio.restraints.FlatBottomRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms)
     
-    coordinates = torch.tensor([t.intial_state_ligand_coords[0].value_in_unit(unit.nanometer)],
+
+    coordinates = torch.tensor([tautomer.intial_state_ligand_coords[0].value_in_unit(unit.nanometer)],
                         requires_grad=True, device=device, dtype=torch.float32)
 
-    print('Restraing: {}.'.format(a.harmonic_position_restraint(coordinates)))
-    print('Restraing: {}.'.format(a.flat_bottom_position_restraint(coordinates)))
+    print('Restraing: {}.'.format(harmonic.restraint(coordinates)))
+    print('Restraing: {}.'.format(flat_bottom.restraint(coordinates)))
 
 
 def test_restraint_with_alchemicalANI():
@@ -301,11 +297,11 @@ def test_restraint_with_alchemicalANI():
     t1_smiles = exp_results[name]['t1-smiles']
     t2_smiles = exp_results[name]['t2-smiles']
 
-    t = Tautomer(name=name, intial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles))
-    t.perform_tautomer_transformation_forward()
+    tautomer = Tautomer(name=name, intial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles))
+    tautomer.perform_tautomer_transformation_forward()
 
-    atoms = t.intial_state_ligand_atoms
-    hydrogen_idx = t.hydrogen_idx
+    atoms = tautomer.intial_state_ligand_atoms
+    hydrogen_idx = tautomer.hydrogen_idx
 
     # overwrite the coordinates that rdkit generated with the first frame in the traj
     x0 = traj[0]
@@ -315,61 +311,52 @@ def test_restraint_with_alchemicalANI():
     energy_function = neutromeratio.ANI1_force_and_energy(
                                                 model = model,
                                                 atoms = atoms,
-                                                mol = t.intial_state_ase_mol)
+                                                mol = tautomer.intial_state_ase_mol)
 
-    energy_function.flat_bottom_restraint  = False
-    energy_function.harmonic_restraint  = False
-    energy_function.use_pure_ani1ccx = False
     x = energy_function.calculate_energy(x0, lambda_value=1.0)
     assert(is_quantity_close(x, -216736.6857518717* unit.kilocalorie_per_mole, rtol=1e-9))
     x = energy_function.calculate_energy(x0, lambda_value=0.0)
     assert(is_quantity_close(x, -216698.911373172* unit.kilocalorie_per_mole, rtol=1e-9))
 
-    # add the restraints - active at different lambda steps
-    restrain1 = neutromeratio.Restraint(sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=0)
-    restrain2 = neutromeratio.Restraint(sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=1)
-    restrain3 = neutromeratio.Restraint(sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=-1)
-
-    energy_function.add_restraint(restrain1)
-    energy_function.add_restraint(restrain2)
-    energy_function.add_restraint(restrain3)
-
-    # test for that restraints do not add to energy
-    energy_function.flat_bottom_restraint  = False
-    energy_function.harmonic_restraint  = False
-    energy_function.use_pure_ani1ccx = False
-
-    x = energy_function.calculate_energy(x0, lambda_value=0.0)
-    assert(is_quantity_close(x, -216698.911373172* unit.kilocalorie_per_mole, rtol=1e-9))
 
     # test flat_bottom_restraint for lambda = 0.0
-    energy_function.flat_bottom_restraint  = True
-    energy_function.harmonic_restraint  = False
-    energy_function.use_pure_ani1ccx = False
+    r = []
+    restrain1 = neutromeratio.restraints.FlatBottomRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=0)
+    restrain2 = neutromeratio.restraints.FlatBottomRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=1)
+    restrain3 = neutromeratio.restraints.FlatBottomRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=-1)
+    for r in [restrain1, restrain2, restrain3]:
+        energy_function.add_restraint(r)
 
     x = energy_function.calculate_energy(x0, lambda_value=0.0)
     assert(is_quantity_close(x, -216527.22548065928* unit.kilocalorie_per_mole, rtol=1e-9))
 
     # test harmonic_restraint for lambda = 0.0 
-    energy_function.flat_bottom_restraint  = False
-    energy_function.harmonic_restraint  = True
-    energy_function.use_pure_ani1ccx = False
+    energy_function.reset_restraints()
+    r = []
+    restrain1 = neutromeratio.restraints.HarmonicRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=0)
+    restrain2 = neutromeratio.restraints.HarmonicRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=1)
+    restrain3 = neutromeratio.restraints.HarmonicRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=-1)
+    for r in [restrain1, restrain2, restrain3]:
+        energy_function.add_restraint(r)
 
     x = energy_function.calculate_energy(x0, lambda_value=0.0)
     assert(is_quantity_close(x, -216484.37304754654* unit.kilocalorie_per_mole, rtol=1e-9))
 
     # test harmonic_restraint for lambda = 1.0 
-    energy_function.flat_bottom_restraint  = False
-    energy_function.harmonic_restraint  = True
-    energy_function.use_pure_ani1ccx = False
-
     x = energy_function.calculate_energy(x0, lambda_value=1.0)
     assert(is_quantity_close(x, -216522.14742624626* unit.kilocalorie_per_mole, rtol=1e-9))
 
     # test harmonic_restraint and flat_bottom_restraint for lambda = 1.0 
-    energy_function.flat_bottom_restraint  = True
-    energy_function.harmonic_restraint  = True
-    energy_function.use_pure_ani1ccx = False
+    r = []
+    energy_function.reset_restraints()
+    restrain1 = neutromeratio.restraints.FlatBottomRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=0)
+    restrain2 = neutromeratio.restraints.FlatBottomRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=1)
+    restrain3 = neutromeratio.restraints.FlatBottomRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=-1)
+    restrain4 = neutromeratio.restraints.HarmonicRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=0)
+    restrain5 = neutromeratio.restraints.HarmonicRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=1)
+    restrain6 = neutromeratio.restraints.HarmonicRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=-1)
+    for r in [restrain1, restrain2, restrain3, restrain4, restrain5, restrain6]:
+        energy_function.add_restraint(r)
 
     x = energy_function.calculate_energy(x0, lambda_value=1.0)
     assert(is_quantity_close(x, -216350.46153373353* unit.kilocalorie_per_mole, rtol=1e-9))
@@ -386,27 +373,26 @@ def test_restraint_with_alchemicalANIDualTopology():
     t1_smiles = exp_results[name]['t1-smiles']
     t2_smiles = exp_results[name]['t2-smiles']
 
-    t = neutromeratio.Tautomer(name=name, intial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles))
-    t.perform_tautomer_transformation_forward()
+    tautomer = neutromeratio.Tautomer(name=name, intial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles))
+    tautomer.perform_tautomer_transformation_forward()
     
     traj = neutromeratio.equilibrium.read_precalculated_md('neutromeratio/data/mol298_t1.pdb', 'neutromeratio/data/mol298_t1.dcd')
     x0 = traj[0]
 
     # the first of the alchemical_atoms will be dummy at lambda 0, the second at lambda 1
     # protocoll goes from 0 to 1
-    dummy_atoms = [t.hybrid_hydrogen_idx_at_acceptor_heavy_atom, t.hybrid_hydrogen_idx_at_donor_heavy_atom]
-    atoms = t.hybrid_atoms
+    dummy_atoms = [tautomer.hybrid_dummy_hydrogen, tautomer.hydrogen_idx]
+    atoms = tautomer.hybrid_atoms
 
     model = neutromeratio.ani.LinearAlchemicalDualTopologyANI(alchemical_atoms=dummy_atoms)
     
     energy_function = neutromeratio.ANI1_force_and_energy(
                                                 model = model,
                                                 atoms = atoms,
-                                                mol = t.hybrid_ase_mol)
+                                                mol = tautomer.hybrid_ase_mol)
 
-    energy_function.flat_bottom_restraint  = False
-    energy_function.harmonic_restraint  = False
-    energy_function.use_pure_ani1ccx = False
+    energy_function.list_of_restraints = tautomer.ligand_restraints
+
     x = energy_function.calculate_energy(x0, lambda_value=0.0)
     assert(is_quantity_close(x, -216763.81517969485* unit.kilocalorie_per_mole, rtol=1e-9))
 
@@ -489,11 +475,11 @@ def test_euqilibrium():
     t1_smiles = exp_results[name]['t1-smiles']
     t2_smiles = exp_results[name]['t2-smiles']
 
-    t = neutromeratio.Tautomer(name=name, intial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles))
-    t.perform_tautomer_transformation_forward()
+    tautomer = neutromeratio.Tautomer(name=name, intial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles))
+    tautomer.perform_tautomer_transformation_forward()
 
     # define the alchemical atoms
-    alchemical_atoms=[t.hybrid_hydrogen_idx_at_acceptor_heavy_atom, t.hybrid_hydrogen_idx_at_donor_heavy_atom]
+    alchemical_atoms=[tautomer.hybrid_dummy_hydrogen, tautomer.hydrogen_idx]
 
     # extract hydrogen donor idx and hydrogen idx for from_mol
     model = neutromeratio.ani.LinearAlchemicalDualTopologyANI(alchemical_atoms=alchemical_atoms)
@@ -503,33 +489,152 @@ def test_euqilibrium():
     # perform initial sampling
     energy_function = neutromeratio.ANI1_force_and_energy(
                                             model = model,
-                                            atoms = t.hybrid_atoms,
-                                            mol = t.hybrid_ase_mol
+                                            atoms = tautomer.hybrid_atoms,
+                                            mol = tautomer.hybrid_ase_mol
                                             )
 
-    for e in t.hybrid_restraints:
+    for e in tautomer.ligand_restraints + tautomer.hybrid_ligand_restraints:
         energy_function.add_restraint(e)
 
-    x0 = np.array(t.hybrid_coords) * unit.angstrom
-
-    x = energy_function.minimize(x0)
+    x0 = np.array(tautomer.hybrid_coords) * unit.angstrom
+    x0 = energy_function.minimize(x0)
 
     lambda_value = 1.0
     energy_and_force = lambda x : energy_function.calculate_force(x, lambda_value)
 
-    langevin = neutromeratio.LangevinDynamics(atoms = t.hybrid_atoms,
-                                temperature = 300*unit.kelvin,
+    langevin = neutromeratio.LangevinDynamics(atoms = tautomer.hybrid_atoms,
                                 energy_and_force = energy_and_force,
                                 )
-
-    equilibrium_samples, energies = langevin.run_dynamics(x0, n_steps=n_steps, stepsize=1.0 * unit.femtosecond, progress_bar=True)
+    
+    equilibrium_samples, energies, _ = langevin.run_dynamics(x0, n_steps=n_steps, stepsize=1.0 * unit.femtosecond, progress_bar=True)
 
     lambda_value = 0.0
     energy_and_force = lambda x : energy_function.calculate_force(x, lambda_value)
 
-    langevin = neutromeratio.LangevinDynamics(atoms = t.hybrid_atoms,
-                                temperature = 300*unit.kelvin,
+    langevin = neutromeratio.LangevinDynamics(atoms = tautomer.hybrid_atoms,
                                 energy_and_force = energy_and_force)
 
-    equilibrium_samples, energies = langevin.run_dynamics(x0, n_steps=n_steps, stepsize=1.0 * unit.femtosecond, progress_bar=True)
+    equilibrium_samples, energies, _ = langevin.run_dynamics(x0, n_steps=n_steps, stepsize=1.0 * unit.femtosecond, progress_bar=True)
 
+
+
+def test_tautomer_conformation():
+    # name of the system
+    name = 'molDWRow_298'
+    # number of steps
+
+    exp_results = pickle.load(open('data/exp_results.pickle', 'rb'))
+
+    t1_smiles = exp_results[name]['t1-smiles']
+    t2_smiles = exp_results[name]['t2-smiles']
+
+    tautomer = neutromeratio.Tautomer(name=name, intial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles), nr_of_conformations=50)
+    
+    print(f"Nr of initial conformations: {tautomer.intial_state_ligand_coords}")
+    print(f"Nr of final conformations: {tautomer.final_state_ligand_coords}")
+
+    tautomer = neutromeratio.Tautomer(name=name, intial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles), nr_of_conformations=5)   
+    tautomer.perform_tautomer_transformation_forward()
+
+    assert(len(tautomer.intial_state_ligand_coords) == 5)
+    assert(len(tautomer.final_state_ligand_coords) == 5)
+
+
+    # set model
+    model = torchani.models.ANI1ccx()
+    model = model.to(device)
+    torch.set_num_threads(1)
+
+    # calculate energy using both structures and pure ANI1ccx
+    for ase_mol, ligand_atoms, ligand_coords in zip([tautomer.intial_state_ase_mol, tautomer.final_state_ase_mol], [tautomer.intial_state_ligand_atoms, tautomer.final_state_ligand_atoms], [tautomer.intial_state_ligand_coords, tautomer.final_state_ligand_coords]): 
+        energy_function = neutromeratio.ANI1_force_and_energy(
+                                                model = model,
+                                                atoms = ligand_atoms,
+                                                mol = ase_mol,
+                                                use_pure_ani1ccx = True
+                                            )
+        for n_conf, coords in enumerate(ligand_coords):
+            # minimize
+            print(f"Conf: {n_conf}")
+            x = energy_function.minimize(coords, fmax=0.0005)
+            e = energy_function.calculate_energy(coords)
+            e_correction = energy_function.get_thermo_correction(x)
+            print(f"Energy: {e}")
+            print(f"Energy correction: {e_correction}")
+    
+
+def test_mining_minima():
+    # name of the system
+    name = 'molDWRow_298'
+    # number of steps
+    exp_results = pickle.load(open('data/exp_results.pickle', 'rb'))
+    torch.set_num_threads(1)
+
+    t1_smiles = exp_results[name]['t1-smiles']
+    t2_smiles = exp_results[name]['t2-smiles']
+
+    tautomer = neutromeratio.Tautomer(name=name, intial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles), nr_of_conformations=2)
+    tautomer.perform_tautomer_transformation_forward()
+
+    confs_traj, e, minimum_energies = tautomer.generate_mining_minima_structures()
+
+
+
+def test_plotting():
+    
+    from neutromeratio.constants import kT
+    from neutromeratio.plotting import plot_correlation_analysis
+    results = pickle.load(open('neutromeratio/data/all_results.pickle', 'rb'))
+
+    x_list = []
+    y_list = []
+
+    for a in list(results.ddG_DFT):
+        a = a *kT
+        a = a.value_in_unit(unit.kilocalorie_per_mole)
+        x_list.append(a)
+        
+    for a in list(results.experimental_values):
+        a = a *kT
+        a = a.value_in_unit(unit.kilocalorie_per_mole)
+        y_list.append(a)
+
+
+    df = pd.DataFrame(list(zip(list(results.names), x_list, y_list, ['B3LYP/aug-cc-pVTZ']*len(results.names))), columns =['names', 'x', 'y', 'method']) 
+    plot_correlation_analysis(df, 'DFT(B3LYP/aug-cc-pVTZ) in vacuum vs experimental data in solution', 'test1', 'test2', 'g', 'o')
+
+
+def test_generating_droplet():
+
+    exp_results = pickle.load(open('data/exp_results.pickle', 'rb'))
+
+    name = 'molDWRow_298'
+
+    t1_smiles = exp_results[name]['t1-smiles']
+    t2_smiles = exp_results[name]['t2-smiles']
+
+    # generate both rdkit mol
+    tautomer = neutromeratio.Tautomer(name=name, intial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles), nr_of_conformations=20)
+    tautomer.perform_tautomer_transformation_forward()
+    tautomer.add_droplet(tautomer.hybrid_topology, tautomer.hybrid_coords)
+
+    # define the alchemical atoms
+    alchemical_atoms=[tautomer.hybrid_dummy_hydrogen, tautomer.hydrogen_idx]
+
+    # extract hydrogen donor idx and hydrogen idx for from_mol
+    model = neutromeratio.ani.LinearAlchemicalDualTopologyANI(alchemical_atoms=alchemical_atoms)
+    model = model.to(device)
+
+    # perform initial sampling
+    energy_function = neutromeratio.ANI1_force_and_energy(
+                                            model = model,
+                                            atoms = tautomer.ligand_in_water_atoms,
+                                            mol = tautomer.ligand_in_water_ase_mol,
+                                            )
+
+    for r in tautomer.ligand_restraints:
+        energy_function.add_restraint(r)
+
+    for r in tautomer.hybrid_ligand_restraints:
+        energy_function.add_restraint(r)
+        

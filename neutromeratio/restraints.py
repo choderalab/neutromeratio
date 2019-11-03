@@ -1,5 +1,5 @@
 from simtk import unit
-from .constants import nm_to_angstroms, bond_length_dict, temperature, device
+from .constants import nm_to_angstroms, bond_length_dict, temperature, device, mass_dict_in_daltons
 import numpy as np
 import torch
 import logging
@@ -11,11 +11,54 @@ import torch
 logger = logging.getLogger(__name__)
 
 
-class Restraint(object):
+class BaseRestraint(object):
+
+    def __init__(self, sigma:unit.Quantity, active_at_lambda:int):
+        """
+        Defines a restraint base class
+        Parameters
+        ----------
+        sigma : in angstrom
+        active_at_lambda : int
+            Integer to indicccate at which state the restraint is fully active. Either 0 (for 
+            lambda 0), or 1 (for lambda 1) or -1 (always active)
+        """
+
+        assert(type(sigma) == unit.Quantity)
+        k = (kB * temperature) / (sigma**2)
+        self.device = device
+        self.active_at_lambda = active_at_lambda
+        self.k = torch.tensor(k.value_in_unit((unit.kilo * unit.joule) / ((unit.angstrom **2) * unit.mole)), dtype=torch.double, device=self.device, requires_grad=True)
+
+class PointAtomRestraint(BaseRestraint):
+
+    def __init__(self, sigma:unit.Quantity, point:np.array, active_at_lambda:int):
+        """
+        Defines a Point to Atom restraint base class. 
+
+        Parameters
+        ----------
+        sigma : in angstrom
+        point : np.array 3D, value in angstrom
+        active_at_lambda : int
+            Integer to indicccate at which state the restraint is fully active. Either 0 (for 
+            lambda 0), or 1 (for lambda 1) or -1 (always active)
+        Returns
+        -------
+        e : float
+            bias
+        """
+
+        super().__init__(sigma, active_at_lambda)
+        assert(type(point) == np.ndarray)
+        self.point = torch.tensor(point, dtype=torch.double, device=self.device, requires_grad=True) 
+
+
+class AtomAtomRestraint(BaseRestraint):
 
     def __init__(self, sigma:unit.Quantity, atom_i_idx:int, atom_j_idx:int, atoms:str, active_at_lambda:int):
         """
-        Defines a restraint. 
+        Defines a Atom to Atom restraint base class. 
 
         Parameters
         ----------
@@ -34,23 +77,27 @@ class Restraint(object):
         e : float
             bias
         """
-
-        assert(type(sigma) == unit.Quantity)
-        k = (kB * temperature) / (sigma**2)
-        self.k = k.value_in_unit((unit.kilo * unit.joule) / ((unit.angstrom **2) * unit.mole))
-        self.device = device
+        super().__init__(sigma, active_at_lambda)
         self.atom_i_element = atoms[atom_i_idx]
         self.atom_j_element = atoms[atom_j_idx]
         self.atom_i_idx = atom_i_idx
         self.atom_j_idx = atom_j_idx
-        self.mean_bond_length = (bond_length_dict[frozenset([self.atom_i_element, self.atom_j_element])]).value_in_unit(unit.angstrom)
-        self.active_at_lambda = active_at_lambda
+        try:
+            self.mean_bond_length = (bond_length_dict[frozenset([self.atom_i_element, self.atom_j_element])]).value_in_unit(unit.angstrom)
+        except KeyError:
+            logger.critical('Bond between: {} - {}'.format(self.atom_i_element, self.atom_j_element))
+            raise KeyError('Element not implemented.')
         self.upper_bound = self.mean_bond_length + 0.2
         self.lower_bound = self.mean_bond_length - 0.2
 
 
-    def flat_bottom_position_restraint(self, x):
+class FlatBottomRestraint(AtomAtomRestraint):
 
+    def __init__(self, sigma:unit.Quantity, atom_i_idx:int, atom_j_idx:int, atoms:str, active_at_lambda:int=-1):
+        super().__init__(sigma, atom_i_idx, atom_j_idx, atoms, active_at_lambda)
+
+    def restraint(self, x):
+        assert(type(x) == torch.Tensor)
         # x in angstrom
         distance = torch.norm(x[0][self.atom_i_idx] - x[0][self.atom_j_idx])
         if distance <= self.lower_bound:
@@ -62,9 +109,14 @@ class Restraint(object):
         logging.debug('Flat bottom bias introduced: {:0.4f}'.format(e.item()))
         return e.to(device=self.device)
     
-    
-    def harmonic_position_restraint(self, x):
 
+class HarmonicRestraint(AtomAtomRestraint):
+
+    def __init__(self, sigma:unit.Quantity, atom_i_idx:int, atom_j_idx:int, atoms:str, active_at_lambda:int=-1):
+        super().__init__(sigma, atom_i_idx, atom_j_idx, atoms, active_at_lambda)
+
+    def restraint(self, x):
+        assert(type(x) == torch.Tensor)
         # x in angstrom
         distance = torch.norm(x[0][self.atom_i_idx] - x[0][self.atom_j_idx]) 
         e = (self.k/2) *(distance.double() - self.mean_bond_length)**2
@@ -72,123 +124,82 @@ class Restraint(object):
         return e.to(device=self.device)
 
 
+class FlatBottomRestraintToCenter(PointAtomRestraint):
+    def __init__(self, sigma:unit.Quantity, point:unit.Quantity, radius:unit.Quantity, atom_idx:int, active_at_lambda:int=-1):
+        """
+        Flat well restraint that becomes active when atom moves outside of radius.
+        Parameters
+        ----------
+        sigma : float, unit'd
+        point : np.array, unit'd
+        radius : float, unit'd
+        atom_idx : list
+            list of atoms idxs
+        active_at_lambda : int
+            Integer to indicccate at which state the restraint is fully active. Either 0 (for 
+            lambda 0), or 1 (for lambda 1) or -1 (always active)
+        """
+        
+        assert(type(sigma) == unit.Quantity)
+        assert(type(point) == unit.Quantity)
+        super().__init__(sigma, point.value_in_unit(unit.angstrom), active_at_lambda)
 
+        self.atom_idx = atom_idx
+        self.cutoff_radius = radius.value_in_unit(unit.angstrom) - 0.9 # effective radius is smaller to keep the density correct
 
+    def restraint(self, x):
+        # x in angstrom
+        assert(type(x) == torch.Tensor)
+        distance = torch.norm(x[0][self.atom_idx] - self.point)
+        if distance >= self.cutoff_radius:
+            e = (self.k/2) * (distance.double() - self.cutoff_radius)**2 
+        else:
+            e = torch.tensor(0.0, dtype=torch.double, device=self.device)
+        logging.debug('Flat center bottom bias introduced: {:0.4f}'.format(e.item()))
+        return e.to(device=self.device)
 
+class CenterOfMassRestraint(PointAtomRestraint):
 
+    def __init__(self, sigma:unit.Quantity, point:unit.Quantity, atom_idx:list, atoms:str, active_at_lambda:int=-1):
+        """
+        Center of mass restraint.
 
+        Parameters
+        ----------
+        sigma : in angstrom
+        point : np.array, unit'd
+        atom_idx : list
+            list of atoms idxs
+        atoms: str
+            Str of atoms to retrieve element information
+        """
+        assert(type(sigma) == unit.Quantity)
+        assert(type(point) == unit.Quantity)
+        super().__init__(sigma, point.value_in_unit(unit.angstrom), active_at_lambda)       
+        self.atom_idx = atom_idx
+        logger.info('Center Of Mass restraint added.')
 
+        self.mass_list = []
+        for i in atom_idx:
+            self.mass_list.append(mass_dict_in_daltons[atoms[i]])
+        masses = np.array(self.mass_list)
+        scaled_masses = masses / masses.sum() 
+        self.masses = torch.tensor(scaled_masses, dtype=torch.double, device=self.device, requires_grad=True) 
 
-# def flat_bottom_position_restraint(x, tautomer_transformation:dict, atom_list:list, restrain_acceptor:bool, restrain_donor:bool, device:torch.device):
-    
-#     """
-#     Applies a flat bottom positional restraint.
+    def _calculate_center_of_mass(self, x):
+        """
+        Calculates the center of mass.
+        One assumption that we are making here is that the ligand is at the beginning of the 
+        atom str and coordinate file.
+        """
+        ligand_x = x[0][:len(self.mass_list)].double() # select only the ligand coordinates
+        return torch.matmul(ligand_x.T, self.masses)
 
-#     Parameters
-#     ----------
-#     x0 : array of floats, unit'd (distance unit)
-#         initial configuration
-#     tautomer_transformation : dict
-#         dictionary with index of acceptor, donor and hydrogen idx
-#     atom_list : list 
-#         list of elements
-#     restrain_acceptor : bool
-#         should the acceptor be restraint
-#     restrain_donor : boold
-#         should the donor be restraint
+    def restraint(self, x):
+        # x in angstrom
+        assert(type(x) == torch.Tensor)
 
-#     Returns
-#     -------
-#     e : float
-#         bias
-#     """
-
-#     sigma = 0.1 * unit.angstrom
-#     T = 300 * unit.kelvin
-#     k = (kB * T) / (sigma**2)
-
-#     if restrain_acceptor:
-#         heavy_atom_idx = tautomer_transformation['acceptor_idx']
-#         if 'acceptor_hydrogen_idx' in tautomer_transformation:
-#             hydrogen_idx = tautomer_transformation['acceptor_hydrogen_idx']
-#         else:
-#             hydrogen_idx = tautomer_transformation['hydrogen_idx']
-#     elif restrain_donor:
-#         heavy_atom_idx = tautomer_transformation['donor_idx']
-#         if 'donor_hydrogen_idx' in tautomer_transformation:
-#             hydrogen_idx = tautomer_transformation['donor_hydrogen_idx']
-#         else:
-#             hydrogen_idx = tautomer_transformation['hydrogen_idx']
-#     else:
-#         raise RuntimeError('Something went wrong.')
-    
-#     heavy_atom_element = atom_list[heavy_atom_idx]
-#     mean_bond_length = bond_length_dict['{}H'.format(heavy_atom_element)]
-
-#     upper_bound = mean_bond_length.value_in_unit(unit.angstrom) + 0.2
-#     lower_bound = mean_bond_length.value_in_unit(unit.angstrom) - 0.2
-
-#     k = k.value_in_unit((unit.kilo * unit.joule) / ((unit.angstrom **2) * unit.mole))
-#     distance = torch.norm(x[0][hydrogen_idx] - x[0][heavy_atom_idx]) * nm_to_angstroms
-#     if distance <= lower_bound:
-#         e = (k/2) * (lower_bound - distance.double())**2
-#     elif distance >= upper_bound:
-#         e = (k/2) * (distance.double() - upper_bound)**2 
-#     else:
-#         e = torch.tensor(0.0, dtype=torch.double, device=device)
-#     logging.debug('Flat bottom bias introduced: {:0.4f}'.format(e.item()))
-#     return e.to(device=device)
-
-
-# def harmonic_position_restraint(x, tautomer_transformation:dict, atom_list:list, restrain_acceptor:bool, restrain_donor:bool, device:torch.device):
-    
-#     """
-#     Applies a gaussian positional restraint.
-
-#     Parameters
-#     ----------
-#     x0 : array of floats, unit'd (distance unit)
-#         initial configuration
-#     tautomer_transformation : dict
-#         dictionary with index of acceptor, donor and hydrogen idx
-#     atom_list : list 
-#         list of elements
-#     restrain_acceptor : bool
-#         should the acceptor be restraint
-#     restrain_donor : boold
-#         should the donor be restraint
-
-#     Returns
-#     -------
-#     e : float
-#         bias
-#     """
-
-#     if restrain_acceptor:
-#         heavy_atom_idx = tautomer_transformation['acceptor_idx']
-#         if 'acceptor_hydrogen_idx' in tautomer_transformation:
-#             hydrogen_idx = tautomer_transformation['acceptor_hydrogen_idx']
-#         else:
-#             hydrogen_idx = tautomer_transformation['hydrogen_idx']
-#     elif restrain_donor:
-#         heavy_atom_idx = tautomer_transformation['donor_idx']
-#         if 'donor_hydrogen_idx' in tautomer_transformation:
-#             hydrogen_idx = tautomer_transformation['donor_hydrogen_idx']
-#         else:
-#             hydrogen_idx = tautomer_transformation['hydrogen_idx']
-#     else:
-#         raise RuntimeError('Something went wrong.')
-    
-#     sigma = 0.1 * unit.angstrom
-#     T = 300 * unit.kelvin
-#     k = (kB * T) / (sigma**2) 
-#     heavy_atom_element = atom_list[heavy_atom_idx]
-#     mean_bond_length = (bond_length_dict['{}H'.format(heavy_atom_element)]).value_in_unit(unit.angstrom)
-#     logging.debug('Mean bond length: {}'.format(mean_bond_length))
-
-#     distance = torch.norm(x[0][hydrogen_idx] - x[0][heavy_atom_idx]) * nm_to_angstroms
-#     logging.debug('Distance: {}'.format(distance))
-#     k = k.value_in_unit((unit.kilo * unit.joule) / ((unit.angstrom **2) * unit.mole))
-#     e = (k/2) *(distance.double() - mean_bond_length)**2
-#     logging.debug('Harmonic bias introduced: {:0.4f}'.format(e.item()))
-#     return e.to(device=device)
+        com = self._calculate_center_of_mass(x)
+        com_distance_to_point = torch.norm(com - self.point)
+        e = (self.k/2) * (com_distance_to_point.sum() **2)
+        return e.to(device=self.device)
