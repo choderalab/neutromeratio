@@ -439,7 +439,7 @@ class Tautomer(object):
         min_e = 100 * unit.kilocalorie_per_mole
         min_coordinates = None
 
-        for _ in range(500):
+        for _ in range(100):
             hybrid_coord = hydrogen_mover._move_hydrogen_to_acceptor_idx(ligand_coords, override=False)
             e = energy_function.calculate_energy(hybrid_coord, lambda_value=1.0)
             if e < min_e:

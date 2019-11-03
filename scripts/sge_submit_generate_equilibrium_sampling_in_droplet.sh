@@ -7,7 +7,7 @@
 #$ -o /data/shared/projects/SGE_LOG/
 
 idx=${1} 
-n_steps=50000 
+n_steps=500 
 
 hostname
 echo ${idx}

@@ -2,7 +2,7 @@ import os, random
 import torchani
 import torch
 import numpy as np
-from .constants import nm_to_angstroms, hartree_to_kJ_mol, device, platform, conversion_factor_eV_to_kJ_mol, temperature, pressure
+from .constants import nm_to_angstroms, kT, hartree_to_kJ_mol, device, platform, conversion_factor_eV_to_kJ_mol, temperature, pressure
 from simtk import unit
 import simtk
 from .restraints import BaseRestraint
@@ -12,6 +12,7 @@ import copy
 from ase.vibrations import Vibrations
 from ase.thermochemistry import IdealGasThermo
 import logging
+from scipy.optimize import minimize
 
 logger = logging.getLogger(__name__)
 
@@ -96,36 +97,33 @@ class ANI1_force_and_energy(object):
         return (G * conversion_factor_eV_to_kJ_mol) * unit.kilojoule_per_mole # eV * conversion_factor(eV to kJ/mol)
 
 
-    def minimize(self, coords:simtk.unit.quantity.Quantity, fmax:float=0.001, maxstep:float=0.04):
+    def minimize(self, coords:simtk.unit.quantity.Quantity, maxiter:int = 1000, lambda_value:float = 0.0):
         """
         Minimizes the molecule.
         Parameters
         ----------
         coords:simtk.unit.quantity.Quantity
-        fmax: float
-            the final maximum accepted change in energy from t-1 optimization step to t
-        maxstep: float
-            Used to set the maximum distance an atom can move per
-            iteration (default value is 0.04 Å). Decrease this value for tricky geometries.
+        maxiter: int
+            Maximum number of minimization steps performed.
+        lambda_value: float
+            indicate position in lambda protocoll to control how dummy atoms are handled
         Returns
         -------
         coords:simtk.unit.quantity.Quantity
         """
-        mol = copy.deepcopy(self.ase_mol)
-        calculator = self.model.ase(dtype=torch.float64)
-        logger.info(f"Fmax set to {fmax}")
-        logger.info(f"maxstep set to {maxstep}")
 
-        for atom, c in zip(mol, coords):
-            atom.x = c[0].value_in_unit(unit.angstrom)
-            atom.y = c[1].value_in_unit(unit.angstrom)
-            atom.z = c[2].value_in_unit(unit.angstrom)
+        from scipy import optimize
+        assert(type(coords) == unit.Quantity)
 
-        mol.set_calculator(calculator)
+        x = coords.value_in_unit(unit.angstrom)
+
         print("Begin minimizing...")
-        opt = BFGS(mol, logfile='min-log.txt', maxstep=maxstep)
-        opt.run(fmax=fmax, steps=500)
-        return np.array(mol.get_positions()) * unit.angstrom
+        f = optimize.minimize(self._traget_energy_function, x, method='L-BFGS-B', 
+                      jac=True, args=(lambda_value),
+                      options={'maxiter' : maxiter, 'disp' : True})
+
+        logger.critical(f"Minimization status: {f.success}")
+        return f.x.reshape(-1,3) * unit.angstrom
 
     def calculate_force(self, x:simtk.unit.quantity.Quantity, lambda_value:float = 0.0) -> simtk.unit.quantity.Quantity:
         """
@@ -209,9 +207,28 @@ class ANI1_force_and_energy(object):
         energy_in_kJ_mol += bias_in_kJ_mol
         return energy_in_kJ_mol, bias_in_kJ_mol
         
+    def _traget_energy_function(self, x, lambda_value:float=0.0) -> float:
+        """
+        Given a coordinate set (x) the energy is calculated in kJ/mol.
 
+        Parameters
+        ----------
+        x : array of floats, unit'd (distance unit)
+            initial configuration
+        lambda_value : float
+            between 0.0 and 1.0 - at zero contributions of alchemical atoms are zero
 
-    def calculate_energy(self, x:simtk.unit.quantity.Quantity, lambda_value:float = 0.0) -> simtk.unit.quantity.Quantity:
+        Returns
+        -------
+        E : float, unit'd 
+        """
+        x = x.reshape(-1,3) * unit.angstrom
+        F, E, _ = self.calculate_force(x, lambda_value)
+        F_flat = -np.array(F.value_in_unit(unit.kilojoule_per_mole/unit.angstrom).flatten(), dtype=np.float64)
+        print(E)
+        return E.value_in_unit(unit.kilojoule_per_mole), F_flat
+
+    def calculate_energy(self, x:simtk.unit.quantity.Quantity, lambda_value:float=0.0) -> simtk.unit.quantity.Quantity:
         """
         Given a coordinate set (x) the energy is calculated in kJ/mol.
 
@@ -227,8 +244,10 @@ class ANI1_force_and_energy(object):
         E : float, unit'd 
         """
 
-        assert(type(x) == unit.Quantity)
-
+        try:
+            assert(type(x) == unit.Quantity)
+        except AssertionError:
+            raise AssertionError(x)
         coordinates = torch.tensor([x.value_in_unit(unit.nanometer)],
                                 requires_grad=True, device=self.device, dtype=torch.float32)
 

@@ -82,7 +82,11 @@ class AtomAtomRestraint(BaseRestraint):
         self.atom_j_element = atoms[atom_j_idx]
         self.atom_i_idx = atom_i_idx
         self.atom_j_idx = atom_j_idx
-        self.mean_bond_length = (bond_length_dict[frozenset([self.atom_i_element, self.atom_j_element])]).value_in_unit(unit.angstrom)
+        try:
+            self.mean_bond_length = (bond_length_dict[frozenset([self.atom_i_element, self.atom_j_element])]).value_in_unit(unit.angstrom)
+        except KeyError:
+            logger.critical('Bond between: {} - {}'.format(self.atom_i_element, self.atom_j_element))
+            raise KeyError('Element not implemented.')
         self.upper_bound = self.mean_bond_length + 0.2
         self.lower_bound = self.mean_bond_length - 0.2
 
