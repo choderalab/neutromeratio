@@ -57,7 +57,8 @@ else:
 os.makedirs(f"{base_path}/{name}", exist_ok=True)
 m = tautomer.add_droplet(tautomer.hybrid_topology, 
                             tautomer.hybrid_coords, 
-                            diameter=diameter_in_angstrom * unit.angstrom, 
+                            diameter=diameter_in_angstrom * unit.angstrom,
+                            restrain_hydrogens=True,
                             file=f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_in_droplet_{mode}.pdb")
 
 # define the alchemical atoms
