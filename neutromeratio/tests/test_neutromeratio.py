@@ -424,9 +424,7 @@ def test_min_and_single_point_energy():
 
         for coords in ligand_coords:
             # minimize
-            x = energy_function.minimize(coords)
-
-            x0 = np.array(x) * unit.angstrom
+            x0, hist_e = energy_function.minimize(coords)
             print(energy_function.calculate_energy(x0))
 
 
@@ -459,7 +457,7 @@ def test_thermochemistry():
                                             )
         for coords in ligand_coords:
             # minimize
-            x = energy_function.minimize(coords)
+            x, hist_e = energy_function.minimize(coords)
             energy_function.get_thermo_correction(x)
 
 
@@ -490,14 +488,14 @@ def test_euqilibrium():
     energy_function = neutromeratio.ANI1_force_and_energy(
                                             model = model,
                                             atoms = tautomer.hybrid_atoms,
-                                            mol = tautomer.hybrid_ase_mol
+                                            mol = None
                                             )
 
     for e in tautomer.ligand_restraints + tautomer.hybrid_ligand_restraints:
         energy_function.add_restraint(e)
 
     x0 = np.array(tautomer.hybrid_coords) * unit.angstrom
-    x0 = energy_function.minimize(x0)
+    x0, hist_e = energy_function.minimize(x0)
 
     lambda_value = 1.0
     energy_and_force = lambda x : energy_function.calculate_force(x, lambda_value)
@@ -556,8 +554,8 @@ def test_tautomer_conformation():
         for n_conf, coords in enumerate(ligand_coords):
             # minimize
             print(f"Conf: {n_conf}")
-            x = energy_function.minimize(coords)
-            e = energy_function.calculate_energy(coords)
+            x, e_min_history = energy_function.minimize(coords)
+            e = energy_function.calculate_energy(x)
             e_correction = energy_function.get_thermo_correction(x)
             print(f"Energy: {e}")
             print(f"Energy correction: {e_correction}")

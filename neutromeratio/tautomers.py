@@ -192,7 +192,7 @@ class Tautomer(object):
                     if str(atom.element.symbol) == 'O':
                         self.solvent_restraints.append(FlatBottomRestraintToCenter(sigma=0.1 * unit.angstrom, 
                                                                                 point=center * unit.angstrom, 
-                                                                                radius=(diameter/2) -1, #NOTE: reducing the radius 
+                                                                                radius=(diameter/2), #NOTE: reducing the radius 
                                                                                 atom_idx = atom.index, 
                                                                                 active_at_lambda=-1))
                         print('Adding COM restraint to {}'.format(atom.index))
@@ -588,7 +588,7 @@ class Tautomer(object):
             for n_conf, coords in enumerate(ligand_coords):
                 # minimize
                 print(f"Conf: {n_conf}")
-                minimized_coords = energy_function.minimize(coords)
+                minimized_coords, e_min_history = energy_function.minimize(coords)
                 single_point_energy = energy_function.calculate_energy(minimized_coords)
                 try:
                     thermochemistry_correction = energy_function.get_thermo_correction(minimized_coords)  
