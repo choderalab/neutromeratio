@@ -37,8 +37,6 @@ class ANI1_force_and_energy(object):
         use_pure_ani1ccx : bool
             a boolian that controlls if a pure ani1ccx model is used
         """
-
-
         self.device = device
         self.model = model
         self.atoms = atoms
@@ -111,19 +109,22 @@ class ANI1_force_and_energy(object):
         -------
         coords:simtk.unit.quantity.Quantity
         """
-
         from scipy import optimize
         assert(type(coords) == unit.Quantity)
 
         x = coords.value_in_unit(unit.angstrom)
-
+        self.memory_of_energy = []
         print("Begin minimizing...")
         f = optimize.minimize(self._traget_energy_function, x, method='L-BFGS-B', 
                       jac=True, args=(lambda_value),
                       options={'maxiter' : maxiter, 'disp' : True})
 
         logger.critical(f"Minimization status: {f.success}")
-        return f.x.reshape(-1,3) * unit.angstrom
+        memory_of_energy = copy.deepcopy(self.memory_of_energy)
+        self.memory_of_energy = []
+        #plt.plot([e.value_in_unit(unit.kilojoule_per_mole) for e in e_history],)
+
+        return f.x.reshape(-1,3) * unit.angstrom, memory_of_energy 
 
     def calculate_force(self, x:simtk.unit.quantity.Quantity, lambda_value:float = 0.0) -> simtk.unit.quantity.Quantity:
         """
@@ -225,7 +226,7 @@ class ANI1_force_and_energy(object):
         x = x.reshape(-1,3) * unit.angstrom
         F, E, _ = self.calculate_force(x, lambda_value)
         F_flat = -np.array(F.value_in_unit(unit.kilojoule_per_mole/unit.angstrom).flatten(), dtype=np.float64)
-        print(E)
+        self.memory_of_energy.append(E)
         return E.value_in_unit(unit.kilojoule_per_mole), F_flat
 
     def calculate_energy(self, x:simtk.unit.quantity.Quantity, lambda_value:float=0.0) -> simtk.unit.quantity.Quantity:

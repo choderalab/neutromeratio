@@ -246,7 +246,7 @@ def test_neutromeratio_energy_calculations_with_DualTopologyAlchemicalANI_model(
     energy_function = neutromeratio.ANI1_force_and_energy(
                                                 model = model,
                                                 atoms = atoms,
-                                                mol = t.hybrid_ase_mol)
+                                                mol = None)
     
     traj = neutromeratio.equilibrium.read_precalculated_md('neutromeratio/data/mol298_t1.pdb', 'neutromeratio/data/mol298_t1.dcd')
 
@@ -389,7 +389,7 @@ def test_restraint_with_alchemicalANIDualTopology():
     energy_function = neutromeratio.ANI1_force_and_energy(
                                                 model = model,
                                                 atoms = atoms,
-                                                mol = tautomer.hybrid_ase_mol)
+                                                mol = None)
 
     energy_function.list_of_restraints = tautomer.ligand_restraints
 
@@ -556,7 +556,7 @@ def test_tautomer_conformation():
         for n_conf, coords in enumerate(ligand_coords):
             # minimize
             print(f"Conf: {n_conf}")
-            x = energy_function.minimize(coords, fmax=0.0005)
+            x = energy_function.minimize(coords)
             e = energy_function.calculate_energy(coords)
             e_correction = energy_function.get_thermo_correction(x)
             print(f"Energy: {e}")
@@ -629,7 +629,7 @@ def test_generating_droplet():
     energy_function = neutromeratio.ANI1_force_and_energy(
                                             model = model,
                                             atoms = tautomer.ligand_in_water_atoms,
-                                            mol = tautomer.ligand_in_water_ase_mol,
+                                            mol = None,
                                             )
 
     for r in tautomer.ligand_restraints:

@@ -66,7 +66,6 @@ class Tautomer(object):
         self.hybrid_atoms:str = ''
         self.hybird_ligand_idxs = []
         self.hybrid_coords:list = []
-        self.hybrid_ase_mol:Atoms = Atoms()
         self.hybrid_topology:md.Topology = md.Topology()       
         self.heavy_atom_hydrogen_donor_idx:int = -1 # the heavy atom that losses the hydrogen
         self.hydrogen_idx:int = -1 # the tautomer hydrogen
@@ -74,7 +73,6 @@ class Tautomer(object):
 
         self.ligand_in_water_atoms:str = ""
         self.ligand_in_water_coordinates:list = []
-        self.ligand_in_water_ase_mol:Atoms = Atoms()
         self.ligand_in_water_topology:md.Topology = md.Topology()
 
         # restraints for the ligand system
@@ -89,7 +87,8 @@ class Tautomer(object):
 
     def add_droplet(self, topology:md.Topology, 
                     coordinates:unit.quantity.Quantity, 
-                    diameter:unit.quantity.Quantity=(30.0 * unit.angstrom), 
+                    diameter:unit.quantity.Quantity=(30.0 * unit.angstrom),
+                    restrain_hydrogens=True, 
                     file=None):
         """
         Adding a droplet with a given diameter around a small molecule.
@@ -185,27 +184,34 @@ class Tautomer(object):
         # set mdtraj topology
         self.ligand_in_water_topology = traj.topology
 
-        # generate an ase mol for minimization
-        ase_atom_list = []
+        # set COM restraints
         self.solvent_restraints = []
-        for idx, element, xyz in zip(range(len(self.ligand_in_water_atoms)), 
-                                self.ligand_in_water_atoms, 
-                                self.ligand_in_water_coordinates):
-                                    
-            if idx > len(self.hybrid_atoms) and element == 'O': # even if are not looking at a hybrid it should still be fine 
-                self.solvent_restraints.append(FlatBottomRestraintToCenter(sigma=0.1 * unit.angstrom, 
-                                                                        point=center * unit.angstrom, 
-                                                                        radius=diameter/2, 
-                                                                        atom_idx = idx, 
-                                                                        active_at_lambda=-1))
-            c_list = (xyz[0].value_in_unit(unit.angstrom), 
-                        xyz[1].value_in_unit(unit.angstrom), 
-                        xyz[2].value_in_unit(unit.angstrom)) 
-            
-            ase_atom_list.append(Atom(element, c_list))
-        mol = Atoms(ase_atom_list)
-        self.ligand_in_water_ase_mol = mol      
+        for residue in traj.topology.residues:   
+            if residue.is_water:
+                for atom in residue.atoms:
+                    if str(atom.element.symbol) == 'O':
+                        self.solvent_restraints.append(FlatBottomRestraintToCenter(sigma=0.1 * unit.angstrom, 
+                                                                                point=center * unit.angstrom, 
+                                                                                radius=(diameter/2) -1, #NOTE: reducing the radius 
+                                                                                atom_idx = atom.index, 
+                                                                                active_at_lambda=-1))
+                        print('Adding COM restraint to {}'.format(atom.index))
         
+        if restrain_hydrogens:
+            for residue in traj.topology.residues:   
+                if residue.is_water:
+                    oxygen_idx = None
+                    hydrogen_idxs = []
+                    for atom in residue.atoms:
+                        if str(atom.element.symbol) == 'O':
+                            oxygen_idx = atom.index
+                        elif str(atom.element.symbol) == 'H':
+                            hydrogen_idxs.append(atom.index)
+                        else:
+                            raise RuntimeError('Water should only consist of O and H atoms.')
+                    self.solvent_restraints.append(FlatBottomRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=oxygen_idx, atom_j_idx=hydrogen_idxs[0], atoms=self.ligand_in_water_atoms))
+                    self.solvent_restraints.append(FlatBottomRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=oxygen_idx, atom_j_idx=hydrogen_idxs[1], atoms=self.ligand_in_water_atoms))
+            
         # return a mdtraj object for visual check
         return md.Trajectory(self.ligand_in_water_coordinates.value_in_unit(unit.nanometer), 
                                 self.ligand_in_water_topology)
@@ -277,7 +283,7 @@ class Tautomer(object):
                 tmp_coord_list.append([pos.x, pos.y, pos.z])
             coord_list.append(np.array(tmp_coord_list) * unit.angstrom)
 
-        # generate bond list
+        # generate bond list of heavy atoms to hydrogens
         bond_list = []
         for b in mol.GetBonds():
             a1 = (b.GetBeginAtom())
@@ -299,7 +305,7 @@ class Tautomer(object):
                 'ligand_bonds' : bond_list
                 }
 
-        # generate ONE ASE object
+        # generate ONE ASE object if thermocorrections are needed
         ase_atom_list = []
         for e, c in zip(ani_input['ligand_atoms'], coord_list[0]):
             c_list = (c[0].value_in_unit(unit.angstrom), c[1].value_in_unit(unit.angstrom), c[2].value_in_unit(unit.angstrom)) 
@@ -360,7 +366,7 @@ class Tautomer(object):
                 logger.info('Index of atom that moves: {}.'.format(a.GetIdx()))
                 hydrogen_idx_that_moves = a.GetIdx()
 
-        # adding ligand constraints
+        # adding ligand constraints for heavy atom - hydrogen
         for b in ligand_bonds:
             a1 =  b[0]
             a2 =  b[1]
@@ -458,14 +464,6 @@ class Tautomer(object):
         hybrid_topology.add_bond(hybrid_topology.atom(self.heavy_atom_hydrogen_acceptor_idx), dummy_atom)
         self.hybrid_topology = hybrid_topology
 
-        # generate an ASE topology for the hybrid mol to minimze later 
-        atom_list = []
-        for e, c in zip(self.hybrid_atoms, self.hybrid_coords):
-            c_list = (c[0].value_in_unit(unit.angstrom), c[1].value_in_unit(unit.angstrom), c[2].value_in_unit(unit.angstrom)) 
-            atom_list.append(Atom(e, c_list))
-        mol = Atoms(atom_list)
-        self.hybrid_ase_mol = mol
-
     def generate_mining_minima_structures(self, rmsd_threshold:float=0.1)->(list, unit.Quantity, list):
         """
         Minimizes and filters conformations based on a RMSD treshold.
@@ -530,79 +528,6 @@ class Tautomer(object):
             return new_mol, filtered_energies
 
 
-        # def _remove_hydrogens(m:Chem.Mol):
-            
-        #     """Removing all hydrogens from the molecule with a few exceptions""" 
-
-        #     #########################################
-        #     # search for important hydrogens
-        #     #########################################
-        #     keep_hydrogens = []
-        #     logger.info('search for patterns ...')
-        #     # test for primary alcohol
-        #     patt = Chem.MolFromSmarts('[OX2H]')   
-        #     if m.HasSubstructMatch(patt):
-        #         logger.info('found primary alcohol')
-        #         l = m.GetSubstructMatch(patt)
-        #         keep_hydrogens.extend(l)
-
-        #     # test for imine
-        #     patt = Chem.MolFromSmarts('[CX3]=[NH]')
-        #     if m.HasSubstructMatch(patt):
-        #         logger.info('found imine')
-        #         l = m.GetSubstructMatch(patt)
-        #         keep_hydrogens.extend(l)
-                
-        #     # test for primary amine
-        #     patt = Chem.MolFromSmarts('[NX3;H2]')
-        #     if m.HasSubstructMatch(patt):
-        #         logger.info('found primary amine')
-        #         l = m.GetSubstructMatch(patt)
-        #         keep_hydrogens.extend(l)
-
-        #     # test for secondary amine
-        #     patt = Chem.MolFromSmarts('[NX3H]')
-        #     if m.HasSubstructMatch(patt):
-        #         logger.info('found secondary amine')
-        #         l = m.GetSubstructMatch(patt)
-        #         keep_hydrogens.extend(l)
-                               
-        #     # test for cyanamide
-        #     patt = Chem.MolFromSmarts('[NX3][CX2]#[NX1]')
-        #     if m.HasSubstructMatch(patt):
-        #         logger.info('found cyanamide')
-        #         l = m.GetSubstructMatch(patt)
-        #         keep_hydrogens.extend(l)
-
-        #     # test for thiol
-        #     patt = Chem.MolFromSmarts('[#16X2H]')
-        #     if m.HasSubstructMatch(patt):
-        #         logger.info('found thiol')
-        #         l = m.GetSubstructMatch(patt)
-        #         keep_hydrogens.extend(l)
-
-        #     # unfortunatelly, RemoveHs() does not retain marked hydrogens
-        #     # therefore, mutating important Hs to Li and then remutating them 
-        #     # to Hs
-        #     if keep_hydrogens:
-        #         for idx in keep_hydrogens:
-        #             atom = m.GetAtomWithIdx(idx)
-        #             for neighbor in atom.GetNeighbors():
-        #                 if neighbor.GetSymbol() == 'H':
-        #                     hydrogen = m.GetAtomWithIdx(neighbor.GetIdx())
-        #                     hydrogen.SetAtomicNum(3)
-
-        #         m = Chem.RemoveHs(m)
-        #         for atom in m.GetAtoms():
-        #             if atom.GetSymbol() == 'Li':
-        #                 hydrogen = m.GetAtomWithIdx(atom.GetIdx())
-        #                 hydrogen.SetAtomicNum(1)
-        #     else:
-        #         m = Chem.RemoveHs(m)
-
-        #     return m
-
-
         def get_conformer_rmsd(mol)->list:
             """
             Calculate conformer-conformer RMSD.
@@ -663,7 +588,7 @@ class Tautomer(object):
             for n_conf, coords in enumerate(ligand_coords):
                 # minimize
                 print(f"Conf: {n_conf}")
-                minimized_coords = energy_function.minimize(coords, fmax=0.0001, maxstep=0.01)
+                minimized_coords = energy_function.minimize(coords)
                 single_point_energy = energy_function.calculate_energy(minimized_coords)
                 try:
                     thermochemistry_correction = energy_function.get_thermo_correction(minimized_coords)  
