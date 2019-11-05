@@ -89,7 +89,7 @@ class Tautomer(object):
                     coordinates:unit.quantity.Quantity, 
                     diameter:unit.quantity.Quantity=(30.0 * unit.angstrom),
                     restrain_hydrogens=True, 
-                    file=None):
+                    file=None)->mdtraj.Trajectory:
         """
         Adding a droplet with a given diameter around a small molecule.
         
@@ -102,6 +102,9 @@ class Tautomer(object):
         file: str
             if file is provided the final droplet pdb is either kept and can be reused or if 
             file already exists it will be used to create the same droplet.
+        Returns
+        ----------
+        A mdtraj.Trajectory object with the ligand centered in the solvent for inspection. 
         """
 
         assert(type(diameter) == unit.Quantity)
@@ -190,11 +193,12 @@ class Tautomer(object):
             if residue.is_water:
                 for atom in residue.atoms:
                     if str(atom.element.symbol) == 'O':
-                        self.solvent_restraints.append(FlatBottomRestraintToCenter(sigma=0.1 * unit.angstrom, 
-                                                                                point=center * unit.angstrom, 
-                                                                                radius=(diameter/2), #NOTE: reducing the radius 
-                                                                                atom_idx = atom.index, 
-                                                                                active_at_lambda=-1))
+                        self.solvent_restraints.append(
+                            FlatBottomRestraintToCenter(sigma=0.1 * unit.angstrom, 
+                                                        point=center * unit.angstrom, 
+                                                        radius=(diameter/2), #NOTE: reducing the radius 
+                                                        atom_idx = atom.index, 
+                                                        active_at_lambda=-1))
                         print('Adding COM restraint to {}'.format(atom.index))
         
         if restrain_hydrogens:

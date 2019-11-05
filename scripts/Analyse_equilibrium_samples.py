@@ -1,17 +1,26 @@
+import neutromeratio
+from openmmtools.constants import kB
 from simtk import unit
 import numpy as np
-from tqdm import tqdm
-import mdtraj as md
-import nglview
-from rdkit import Chem
-from rdkit.Chem import AllChem
-import neutromeratio
-import matplotlib.pyplot as plt
 import pickle
-import torchani
+import mdtraj as md
+import matplotlib.pyplot as plt
+import sys
 import torch
-from neutromeratio.constants import device, platform
-import sys, os
+from neutromeratio.parameter_gradients import FreeEnergyCalculator
+from neutromeratio.constants import kT
+
+# job idx
+idx = int(sys.argv[1])
+# diameter
+diameter_in_angstrom = int(sys.argv[2])
+# where to write the results
+base_path = str(sys.argv[3])
+#######################
+mode = 'forward'
+
+# read in exp results, smiles and names
+exp_results = pickle.load(open('../data/exp_results.pickle', 'rb'))
 
 exclude = ['molDWRow_1004', 'molDWRow_1110', 'molDWRow_1184', 'molDWRow_1185', 'molDWRow_1189', 'molDWRow_1262', 'molDWRow_1263',
 'molDWRow_1267', 'molDWRow_1275', 'molDWRow_1279', 'molDWRow_1280', 'molDWRow_1282', 'molDWRow_1283', 'molDWRow_553',
@@ -20,30 +29,20 @@ exclude = ['molDWRow_1004', 'molDWRow_1110', 'molDWRow_1184', 'molDWRow_1185', '
 'molDWRow_955', 'molDWRow_988', 'molDWRow_989', 'molDWRow_990', 'molDWRow_991', 'molDWRow_992']
 
 # name of the system
-idx = int(sys.argv[1])
-# number of steps
-n_steps = int(sys.argv[2])
-# diameter
-diameter_in_angstrom = int(sys.argv[3])
-# where to write the results
-base_path = str(sys.argv[4])
-
-mode = 'forward'
-
-protocol = []
-exp_results = pickle.load(open('../data/exp_results.pickle', 'rb'))
+protocoll = []
 for name in exp_results:
     if name in exclude:
         continue
-    for lambda_value in np.linspace(0,1, 21):
-        protocol.append((name, np.round(lambda_value, 2)))
+    protocoll.append(name)
 
-name, lambda_value = protocol[idx-1]
+name = protocoll[idx-1]
 print(name)
-print(lambda_value)
 
+# don't change - direction is fixed for all runs
+#################
 t1_smiles = exp_results[name]['t1-smiles']
 t2_smiles = exp_results[name]['t2-smiles']
+
 
 # generate both rdkit mol
 tautomer = neutromeratio.Tautomer(name=name, intial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles), nr_of_conformations=20)
@@ -54,8 +53,7 @@ elif mode == 'reverse':
 else:
     raise RuntimeError('No tautomer reaction direction was specified.')
 
-os.makedirs(f"{base_path}/{name}", exist_ok=True)
-m = tautomer.add_droplet(tautomer.hybrid_topology, 
+tautomer.add_droplet(tautomer.hybrid_topology, 
                             tautomer.hybrid_coords, 
                             diameter=diameter_in_angstrom * unit.angstrom,
                             restrain_hydrogens=True,
@@ -93,29 +91,48 @@ for r in tautomer.solvent_restraints:
 for r in tautomer.com_restraints:
     energy_function.add_restraint(r)
 
-print(lambda_value)
-energy_and_force = lambda x : energy_function.calculate_force(x, lambda_value)
-langevin = neutromeratio.LangevinDynamics(atoms = tautomer.ligand_in_water_atoms,                            
-                            energy_and_force = energy_and_force)
 
-x0 = tautomer.ligand_in_water_coordinates
-x0, e_history = energy_function.minimize(x0, maxiter=5000, lambda_value=lambda_value) 
 
-equilibrium_samples, energies, bias = langevin.run_dynamics(x0, n_steps=n_steps, stepsize=0.5 * unit.femtosecond, progress_bar=False)
-   
 
-# save equilibrium energy values 
-f = open(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_energy_in_droplet_{mode}.csv", 'w+')
-for e in energies[::20]:
-    f.write('{}\n'.format(e))
+
+
+
+
+
+
+
+
+# 20 steps inclusive endpoints
+# getting all the energies, snapshots and lambda values in lists
+# NOTE: This will be changed in the future
+lambda_value = 0.0
+energies = []
+ani_trajs = []
+lambdas = []
+for _ in range(20):
+    lambdas.append(lambda_value)
+    f_traj = f"/home/mwieder/Work/Projects/neutromeratio/data/equilibrium_sampling/{name}/{name}_lambda_{lambda_value:0.4f}.dcd"
+    traj = md.load_dcd(f_traj, top=ani_input['hybrid_topology'])
+    ani_trajs.append(traj)
+    
+    f = open(f"/home/mwieder/Work/Projects/neutromeratio/data/equilibrium_sampling/{name}/{name}_lambda_{lambda_value:0.4f}_energy.csv", 'r')  
+    tmp_e = []
+    for e in f:
+        tmp_e.append(float(e))
+    f.close()
+    
+    energies.append(np.array(tmp_e))
+    lambda_value +=0.05
+
+# plotting the energies of all equilibrium runs
+for e in energies: 
+    plt.plot(e, alpha=0.5)
+plt.show()
+plt.savefig(f"/home/mwieder/Work/Projects/neutromeratio/data/equilibrium_sampling/{name}/{name}_energy.png")
+
+# calculate free energy in kT
+fec = FreeEnergyCalculator(ani_model=energy_function, ani_trajs=ani_trajs, potential_energy_trajs=energies, lambdas=lambdas)
+free_energy_in_kT = fec.compute_free_energy_difference()
+f = open('/home/mwieder/Work/Projects/neutromeratio/data/equilibrium_sampling/energies.csv', 'a+')
+f.write(f"{name}, {free_energy_in_kT}\n")
 f.close()
-
-f = open(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_bias_in_droplet_{mode}.csv", 'w+')
-for e in bias[::20]:
-    f.write('{}\n'.format(e))
-f.close()
-
-
-equilibrium_samples = [x.value_in_unit(unit.nanometer) for x in equilibrium_samples]
-ani_traj = md.Trajectory(equilibrium_samples[::20], tautomer.ligand_in_water_topology)
-ani_traj.save(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_in_droplet_{mode}.dcd", force_overwrite=True)
