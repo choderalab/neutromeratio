@@ -89,7 +89,7 @@ class Tautomer(object):
                     coordinates:unit.quantity.Quantity, 
                     diameter:unit.quantity.Quantity=(30.0 * unit.angstrom),
                     restrain_hydrogens=True, 
-                    file=None)->mdtraj.Trajectory:
+                    file=None)->md.Trajectory:
         """
         Adding a droplet with a given diameter around a small molecule.
         
