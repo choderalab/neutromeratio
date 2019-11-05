@@ -76,7 +76,7 @@ torch.set_num_threads(2)
 energy_function = neutromeratio.ANI1_force_and_energy(
                                         model = model,
                                         atoms = tautomer.ligand_in_water_atoms,
-                                        mol = tautomer.ligand_in_water_ase_mol,
+                                        mol = None,
                                         )
 
 tautomer.add_COM_for_hybrid_ligand(np.array([diameter_in_angstrom/2, diameter_in_angstrom/2, diameter_in_angstrom/2]) * unit.angstrom)
