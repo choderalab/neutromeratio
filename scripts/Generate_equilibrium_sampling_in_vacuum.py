@@ -23,16 +23,14 @@ exclude = ['molDWRow_1004', 'molDWRow_1110', 'molDWRow_1184', 'molDWRow_1185', '
 idx = int(sys.argv[1])
 # number of steps
 n_steps = int(sys.argv[2])
-# diameter
-diameter_in_angstrom = int(sys.argv[3])
 # where to write the results
-base_path = str(sys.argv[4])
+base_path = str(sys.argv[3])
 
 mode = 'forward'
 
 protocol = []
 exp_results = pickle.load(open('../data/exp_results.pickle', 'rb'))
-for name in exp_results:
+for name in sorted(exp_results):
     if name in exclude:
         continue
     for lambda_value in np.linspace(0,1, 21):
@@ -52,8 +50,8 @@ if mode == 'forward':
     tautomer_atoms = tautomer.intial_state_ligand_atoms
     x0 = tautomer.intial_state_ligand_coords
 elif mode == 'reverse':
-    tautomer_atoms = tautomer.final_state_ligand_atoms
     tautomer.perform_tautomer_transformation_reverse()
+    tautomer_atoms = tautomer.final_state_ligand_atoms
     x0 = tautomer.final_state_ligand_coords
 else:
     raise RuntimeError('No tautomer reaction direction was specified.')

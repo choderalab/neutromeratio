@@ -30,7 +30,7 @@ exclude = ['molDWRow_1004', 'molDWRow_1110', 'molDWRow_1184', 'molDWRow_1185', '
 
 # name of the system
 protocoll = []
-for name in exp_results:
+for name in sorted(exp_results):
     if name in exclude:
         continue
     protocoll.append(name)
@@ -101,7 +101,7 @@ lambdas = []
 for _ in range(21):
     lambdas.append(lambda_value)
     f_traj = f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}.dcd"
-    traj = md.load_dcd(f_traj, top=tautomer.ligand_in_water_coordinates)
+    traj = md.load_dcd(f_traj, top=tautomer.ligand_in_water_topology)
     ani_trajs.append(traj)
     
     f = open(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_energy_in_droplet_{mode}.csv", 'r')  
@@ -125,3 +125,5 @@ free_energy_in_kT = fec.compute_free_energy_difference()
 f = open(f"{base_path}/energies.csv", 'a+')
 f.write(f"{name}, {free_energy_in_kT}\n")
 f.close()
+
+unit.kilo

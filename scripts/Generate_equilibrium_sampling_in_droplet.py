@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import pickle
 import torchani
 import torch
-from neutromeratio.constants import device, platform
+from neutromeratio.constants import device, platform, kT
 import sys, os
 
 exclude = ['molDWRow_1004', 'molDWRow_1110', 'molDWRow_1184', 'molDWRow_1185', 'molDWRow_1189', 'molDWRow_1262', 'molDWRow_1263',
@@ -32,7 +32,7 @@ mode = 'forward'
 
 protocol = []
 exp_results = pickle.load(open('../data/exp_results.pickle', 'rb'))
-for name in exp_results:
+for name in sorted(exp_results):
     if name in exclude:
         continue
     for lambda_value in np.linspace(0,1, 21):
@@ -107,11 +107,13 @@ equilibrium_samples, energies, bias = langevin.run_dynamics(x0, n_steps=n_steps,
 # save equilibrium energy values 
 f = open(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_energy_in_droplet_{mode}.csv", 'w+')
 for e in energies[::20]:
+    e_unitless = e / kT
     f.write('{}\n'.format(e))
 f.close()
 
 f = open(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_bias_in_droplet_{mode}.csv", 'w+')
 for e in bias[::20]:
+    e_unitless = e / kT
     f.write('{}\n'.format(e))
 f.close()
 
