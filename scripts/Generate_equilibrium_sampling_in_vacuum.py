@@ -44,15 +44,16 @@ t1_smiles = exp_results[name]['t1-smiles']
 t2_smiles = exp_results[name]['t2-smiles']
 
 # generate both rdkit mol
-tautomer = neutromeratio.Tautomer(name=name, intial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles), nr_of_conformations=20)
 if mode == 'forward':
+    tautomer = neutromeratio.Tautomer(name=name, intial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles), nr_of_conformations=1)
     tautomer.perform_tautomer_transformation_forward()
-    tautomer_atoms = tautomer.intial_state_ligand_atoms
-    x0 = tautomer.intial_state_ligand_coords
+    tautomer_atoms = tautomer.hybrid_atoms
+    x0 = tautomer.hybrid_coords
 elif mode == 'reverse':
+    tautomer = neutromeratio.Tautomer(name=name, intial_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), nr_of_conformations=1)
     tautomer.perform_tautomer_transformation_reverse()
-    tautomer_atoms = tautomer.final_state_ligand_atoms
-    x0 = tautomer.final_state_ligand_coords
+    tautomer_atoms = tautomer.hybrid_atoms
+    x0 = tautomer.hybrid_coords
 else:
     raise RuntimeError('No tautomer reaction direction was specified.')
 
