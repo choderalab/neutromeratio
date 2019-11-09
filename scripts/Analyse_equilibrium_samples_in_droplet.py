@@ -100,11 +100,11 @@ ani_trajs = []
 lambdas = []
 for _ in range(21):
     lambdas.append(lambda_value)
-    f_traj = f"/home/mwieder/Work/Projects/neutromeratio/data/equilibrium_sampling/{name}/{name}_lambda_{lambda_value:0.4f}.dcd"
-    traj = md.load_dcd(f_traj, top=ani_input['hybrid_topology'])
+    f_traj = f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}.dcd"
+    traj = md.load_dcd(f_traj, top=tautomer.ligand_in_water_coordinates)
     ani_trajs.append(traj)
     
-    f = open(f"/home/mwieder/Work/Projects/neutromeratio/data/equilibrium_sampling/{name}/{name}_lambda_{lambda_value:0.4f}_energy.csv", 'r')  
+    f = open(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_energy_in_droplet_{mode}.csv", 'r')  
     tmp_e = []
     for e in f:
         tmp_e.append(float(e))
@@ -117,11 +117,11 @@ for _ in range(21):
 for e in energies: 
     plt.plot(e, alpha=0.5)
 plt.show()
-plt.savefig(f"/home/mwieder/Work/Projects/neutromeratio/data/equilibrium_sampling/{name}/{name}_energy.png")
+plt.savefig(f"{base_path}/{name}/{name}_energy.png")
 
 # calculate free energy in kT
 fec = FreeEnergyCalculator(ani_model=energy_function, ani_trajs=ani_trajs, potential_energy_trajs=energies, lambdas=lambdas)
 free_energy_in_kT = fec.compute_free_energy_difference()
-f = open('/home/mwieder/Work/Projects/neutromeratio/data/equilibrium_sampling/energies.csv', 'a+')
+f = open(f"{base_path}/energies.csv", 'a+')
 f.write(f"{name}, {free_energy_in_kT}\n")
 f.close()
