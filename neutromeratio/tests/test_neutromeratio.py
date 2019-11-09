@@ -221,7 +221,7 @@ def test_neutromeratio_energy_calculations_with_LinearAlchemicalANI_model():
     assert(is_quantity_close(x, -216698.911373172* unit.kilocalorie_per_mole, rtol=1e-9))
 
 
-def test_neutromeratio_energy_calculations_with_DualTopologyAlchemicalANI_model():
+def test_neutromeratio_energy_calculations_with_LinearAlchemicalDualTopologyANI_model():
     from neutromeratio.tautomers import Tautomer
    
     # read in exp_results.pickle
@@ -362,7 +362,7 @@ def test_restraint_with_alchemicalANI():
     assert(is_quantity_close(x, -216350.46153373353* unit.kilocalorie_per_mole, rtol=1e-9))
 
 
-def test_restraint_with_alchemicalANIDualTopology():
+def test_restraint_with_LinearAlchemicalDualTopologyANI():
   
     # read in exp_results.pickle
     with open('data/exp_results.pickle', 'rb') as f:

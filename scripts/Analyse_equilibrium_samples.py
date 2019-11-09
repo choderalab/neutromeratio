@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import sys
 import torch
 from neutromeratio.parameter_gradients import FreeEnergyCalculator
-from neutromeratio.constants import kT
+from neutromeratio.constants import kT, device
 
 # job idx
 idx = int(sys.argv[1])
@@ -64,7 +64,6 @@ alchemical_atoms=[tautomer.hybrid_dummy_hydrogen, tautomer.hydrogen_idx]
 
 print('Nr of atoms: {}'.format(len(tautomer.ligand_in_water_atoms)))
 
-
 # extract hydrogen donor idx and hydrogen idx for from_mol
 model = neutromeratio.ani.LinearAlchemicalDualTopologyANI(alchemical_atoms=alchemical_atoms)
 model = model.to(device)
@@ -92,24 +91,14 @@ for r in tautomer.com_restraints:
     energy_function.add_restraint(r)
 
 
-
-
-
-
-
-
-
-
-
-
-# 20 steps inclusive endpoints
+# 21 steps inclusive endpoints
 # getting all the energies, snapshots and lambda values in lists
 # NOTE: This will be changed in the future
 lambda_value = 0.0
 energies = []
 ani_trajs = []
 lambdas = []
-for _ in range(20):
+for _ in range(21):
     lambdas.append(lambda_value)
     f_traj = f"/home/mwieder/Work/Projects/neutromeratio/data/equilibrium_sampling/{name}/{name}_lambda_{lambda_value:0.4f}.dcd"
     traj = md.load_dcd(f_traj, top=ani_input['hybrid_topology'])
@@ -124,7 +113,7 @@ for _ in range(20):
     energies.append(np.array(tmp_e))
     lambda_value +=0.05
 
-# plotting the energies of all equilibrium runs
+# plotting the energies for all equilibrium runs
 for e in energies: 
     plt.plot(e, alpha=0.5)
 plt.show()
