@@ -158,7 +158,7 @@ class Tautomer(object):
 
                     squared_dist = np.sum((p1-p2)**2, axis=0)
                     dist = np.sqrt(squared_dist)
-                    if dist > radius:
+                    if dist > radius+1: # NOTE: distance must be greater than radisu + 1 Angstrom
                         to_delete.append(residue)
             
             logger.info('Delete residues ...')    
@@ -187,7 +187,7 @@ class Tautomer(object):
         # set mdtraj topology
         self.ligand_in_water_topology = traj.topology
 
-        # set COM restraints
+        # set FlattBottomRestraintToCenter restraints
         self.solvent_restraints = []
         for residue in traj.topology.residues:   
             if residue.is_water:
@@ -196,10 +196,10 @@ class Tautomer(object):
                         self.solvent_restraints.append(
                             FlatBottomRestraintToCenter(sigma=0.1 * unit.angstrom, 
                                                         point=center * unit.angstrom, 
-                                                        radius=(diameter/2), #NOTE: reducing the radius 
+                                                        radius=(diameter/2),  
                                                         atom_idx = atom.index, 
                                                         active_at_lambda=-1))
-                        print('Adding COM restraint to {}'.format(atom.index))
+                        print('Adding restraint to center to {}'.format(atom.index))
         
         if restrain_hydrogens:
             for residue in traj.topology.residues:   

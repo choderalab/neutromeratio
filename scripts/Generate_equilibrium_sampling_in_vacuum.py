@@ -89,8 +89,7 @@ langevin = neutromeratio.LangevinDynamics(atoms = tautomer_atoms,
 x0, e_history = energy_function.minimize(x0, maxiter=5000, lambda_value=lambda_value) 
 
 equilibrium_samples, energies, bias = langevin.run_dynamics(x0, n_steps=n_steps, 
-stepsize=0.5 * unit.femtosecond, 
-progress_bar=False)
+stepsize=0.5 * unit.femtosecond, progress_bar=False)
    
 
 # save equilibrium energy values 
