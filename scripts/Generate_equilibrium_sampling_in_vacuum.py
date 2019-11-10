@@ -105,5 +105,5 @@ f.close()
 
 
 equilibrium_samples = [x.value_in_unit(unit.nanometer) for x in equilibrium_samples]
-ani_traj = md.Trajectory(equilibrium_samples[::20], tautomer.ligand_in_water_topology)
+ani_traj = md.Trajectory(equilibrium_samples[::20], tautomer.hybrid_topology)
 ani_traj.save(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_in_vacuum_{mode}.dcd", force_overwrite=True)

@@ -53,7 +53,25 @@ class FreeEnergyCalculator():
                 u_kn[k, n] = self.ani_model.calculate_energy(snapshots[n], lamb) / kT
         self.mbar = MBAR(u_kn, N_k)
 
+    @property
+    def free_energy_differences(self):
+        """matrix of free energy differences"""
+        return self.mbar.getFreeEnergyDifferences()[0]
+    
+    @property
+    def free_energy_difference_uncertainties(self):
+        """matrix of asymptotic uncertainty-estimates accompanying free energy differences"""
+        return self.mbar.getFreeEnergyDifferences()[1]
+    
+    @property
+    def end_state_free_energy_difference(self):
+        """DeltaF[lambda=1 --> lambda=0]"""
+        DeltaF_ij, dDeltaF_ij = self.mbar.getFreeEnergyDifferences()
+        K = len(DeltaF_ij)
+        return DeltaF_ij[K-1, 0], dDeltaF_ij[K-1, 0]
+
     def compute_perturbed_free_energies(self, u_ln):
+        """compute perturbed free energies at new thermodynamic states l"""
         assert (type(u_ln) == torch.Tensor)
 
         def torchify(x):
