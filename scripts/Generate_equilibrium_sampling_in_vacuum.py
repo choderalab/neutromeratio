@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import pickle
 import torchani
 import torch
-from neutromeratio.constants import device, platform
+from neutromeratio.constants import device, platform, kT
 import sys, os
 
 exclude = ['molDWRow_1004', 'molDWRow_1110', 'molDWRow_1184', 'molDWRow_1185', 'molDWRow_1189', 'molDWRow_1262', 'molDWRow_1263',
