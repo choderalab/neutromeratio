@@ -99,6 +99,7 @@ energies = []
 ani_trajs = []
 lambdas = []
 for _ in range(21):
+    lambda_value = float(np.round(lambda_value, 4))
     lambdas.append(lambda_value)
     f_traj = f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_in_droplet_{mode}.dcd"
     traj = md.load_dcd(f_traj, top=tautomer.ligand_in_water_topology)

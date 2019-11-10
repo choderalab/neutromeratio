@@ -194,7 +194,7 @@ class ANI1_force_and_energy(object):
         # convert energy from hartrees to kJ/mol
         energy_in_kJ_mol = energy_in_hartree * hartree_to_kJ_mol
         bias_in_kJ_mol = torch.tensor(0.0,
-                                device=self.device, dtype=torch.float32)
+                                device=self.device, dtype=torch.float64)
 
         for restraint in self.list_of_restraints:
             e = restraint.restraint(coordinates * nm_to_angstroms)
