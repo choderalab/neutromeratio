@@ -95,12 +95,14 @@ stepsize=0.5 * unit.femtosecond, progress_bar=False)
 # save equilibrium energy values 
 f = open(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_energy_in_vacuum_{mode}.csv", 'w+')
 for e in energies[::20]:
-    f.write('{}\n'.format(e))
+    e_unitless = e / kT
+    f.write('{}\n'.format(e_unitless))
 f.close()
 
 f = open(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_bias_in_vacuum_{mode}.csv", 'w+')
 for e in bias[::20]:
-    f.write('{}\n'.format(e))
+    e_unitless = e / kT
+    f.write('{}\n'.format(e_unitless))
 f.close()
 
 
