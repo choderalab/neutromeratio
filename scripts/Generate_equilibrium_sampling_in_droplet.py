@@ -120,19 +120,19 @@ for n_steps in [n_steps_junk] *10:
 
     # save equilibrium energy values 
     f = open(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_energy_in_droplet_{mode}.csv", 'w+')
-    for e in energies[::20]:
+    for e in energies_global[::20]:
         e_unitless = e / kT
         f.write('{}\n'.format(e_unitless))
     f.close()
 
     f = open(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_bias_in_droplet_{mode}.csv", 'w+')
-    for e in bias[::20]:
+    for e in bias_global[::20]:
         e_unitless = e / kT
         f.write('{}\n'.format(e_unitless))
     f.close()
 
 
-    equilibrium_samples = [x.value_in_unit(unit.nanometer) for x in equilibrium_samples]
-    ani_traj = md.Trajectory(equilibrium_samples[::20], tautomer.ligand_in_water_topology)
+    equilibrium_samples_in_nm = [x.value_in_unit(unit.nanometer) for x in equilibrium_samples_global]
+    ani_traj = md.Trajectory(equilibrium_samples_in_nm[::20], tautomer.ligand_in_water_topology)
     ani_traj.save(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_in_droplet_{mode}.dcd", force_overwrite=True)
 
