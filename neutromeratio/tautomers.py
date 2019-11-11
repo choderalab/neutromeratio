@@ -609,7 +609,6 @@ class Tautomer(object):
                     new_coords.z = minimized_coords[atom.GetIdx()][2].value_in_unit(unit.angstrom)
                     conf.SetAtomPosition(atom.GetIdx(), new_coords)
    
-
             # aligne the molecules
             AllChem.AlignMolConformers(rdkit_mol)
             min_and_filtered_rdkit_mol, filtered_energies = prune_conformers(rdkit_mol, copy.deepcopy(energies), rmsd_threshold=rmsd_threshold)
