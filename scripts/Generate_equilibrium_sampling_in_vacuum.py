@@ -59,7 +59,7 @@ else:
 
 os.makedirs(f"{base_path}/{name}", exist_ok=True)
 # define the alchemical atoms
-alchemical_atoms=[tautomer.hybrid_dummy_hydrogen, tautomer.hydrogen_idx]
+alchemical_atoms=[tautomer.hybrid_hydrogen_idx_at_lambda_1, tautomer.hybrid_hydrogen_idx_at_lambda_0]
 
 print('Nr of atoms: {}'.format(len(tautomer.ligand_in_water_atoms)))
 

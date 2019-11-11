@@ -12,7 +12,7 @@ from IPython.core.display import display
 
 logger = logging.getLogger(__name__)
 
-def generate_nglview_object(traj:md.Trajectory, donor_hydrogen_idx:int = -1, acceptor_hydrogen_idx:int = -1) -> nglview.NGLWidget:
+def generate_nglview_object(traj:md.Trajectory, radius:int=18, donor_hydrogen_idx:int=-1, acceptor_hydrogen_idx:int=-1) -> nglview.NGLWidget:
     """
     Generates nglview object from a trajectory object. Generated with md.Trajectory(traj, top).
     Parameters
@@ -27,7 +27,10 @@ def generate_nglview_object(traj:md.Trajectory, donor_hydrogen_idx:int = -1, acc
     """
 
     view = nglview.show_mdtraj(traj)
-    view.add_representation('line', selection='water')
+    view.add_representation(repr_type='ball+stick', selection='water', opacity=0.4, color='blue')
+    view.shape.add_sphere([18/2, 18/2, 18/2], [0,0,1], (18)/2)
+    view.update_representation(component=1, repr_index=0, opacity=0.2)
+
     if donor_hydrogen_idx != -1 and acceptor_hydrogen_idx != -1:
 
         # Clear all representations to try new ones

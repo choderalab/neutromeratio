@@ -76,21 +76,21 @@ def test_tautomer_transformation():
 
     # test if dual topology hybrid works
     assert(t.hybrid_atoms == 'CCCCCOOHHHHHHHHH')
-    assert(t.hydrogen_idx == 11)
-    assert(t.hybrid_dummy_hydrogen == 15)
+    assert(t.hybrid_hydrogen_idx_at_lambda_0 == 11)
+    assert(t.hybrid_hydrogen_idx_at_lambda_1 == 15)
 
     t.perform_tautomer_transformation_reverse()
 
     # test if t1 centric mapping of hydrogen, heavy atom acceptor and donor works
     assert(t.intial_state_ligand_atoms == 'CCCCCOOHHHHHHHH')
-    assert(t.hydrogen_idx == 14)
+    assert(t.hybrid_hydrogen_idx_at_lambda_0 == 14)
     assert(t.heavy_atom_hydrogen_acceptor_idx  == 2)
     assert(t.heavy_atom_hydrogen_donor_idx == 5)
 
     # test if dual topology hybrid works
     assert(t.hybrid_atoms == 'CCCCCOOHHHHHHHHH')
-    assert(t.hydrogen_idx == 14)
-    assert(t.hybrid_dummy_hydrogen == 15)
+    assert(t.hybrid_hydrogen_idx_at_lambda_0 == 14)
+    assert(t.hybrid_hydrogen_idx_at_lambda_1 == 15)
 
 
     name = 'molDWRow_37'
@@ -108,8 +108,8 @@ def test_tautomer_transformation():
 
     # test if dual topology hybrid works
     assert(t.hybrid_atoms == 'CCCCCCCOOHHHHHHHHHHH')
-    assert(t.hydrogen_idx == 18)
-    assert(t.hybrid_dummy_hydrogen == 19)
+    assert(t.hybrid_hydrogen_idx_at_lambda_0 == 18)
+    assert(t.hybrid_hydrogen_idx_at_lambda_1 == 19)
 
     t.perform_tautomer_transformation_reverse()
     
@@ -121,8 +121,8 @@ def test_tautomer_transformation():
 
     # test if dual topology hybrid works CCOCCCCCOHHHHHHHHHHH
     assert(t.hybrid_atoms == 'CCOCCCCCOHHHHHHHHHHH')
-    assert(t.hydrogen_idx == 12)
-    assert(t.hybrid_dummy_hydrogen == 19)
+    assert(t.hybrid_hydrogen_idx_at_lambda_0 == 12)
+    assert(t.hybrid_hydrogen_idx_at_lambda_1 == 19)
 
     # test if droplet works for 
     t.add_droplet(t.final_state_ligand_topology, t.final_state_ligand_coords[0])
@@ -237,7 +237,7 @@ def test_neutromeratio_energy_calculations_with_LinearAlchemicalDualTopologyANI_
     t.perform_tautomer_transformation_forward()
   
     # generate tautomer transformation
-    dummy_atoms = [t.hybrid_dummy_hydrogen, t.hydrogen_idx]
+    dummy_atoms = [t.hybrid_hydrogen_idx_at_lambda_1, t.hybrid_hydrogen_idx_at_lambda_0]
     atoms = t.hybrid_atoms
     # overwrite the coordinates that rdkit generated with the first frame in the traj
     model = neutromeratio.ani.LinearAlchemicalDualTopologyANI(alchemical_atoms=dummy_atoms)
@@ -381,7 +381,7 @@ def test_restraint_with_LinearAlchemicalDualTopologyANI():
 
     # the first of the alchemical_atoms will be dummy at lambda 0, the second at lambda 1
     # protocoll goes from 0 to 1
-    dummy_atoms = [tautomer.hybrid_dummy_hydrogen, tautomer.hydrogen_idx]
+    dummy_atoms = [tautomer.hybrid_hydrogen_idx_at_lambda_1, tautomer.hybrid_hydrogen_idx_at_lambda_0]
     atoms = tautomer.hybrid_atoms
 
     model = neutromeratio.ani.LinearAlchemicalDualTopologyANI(alchemical_atoms=dummy_atoms)
@@ -477,7 +477,7 @@ def test_euqilibrium():
     tautomer.perform_tautomer_transformation_forward()
 
     # define the alchemical atoms
-    alchemical_atoms=[tautomer.hybrid_dummy_hydrogen, tautomer.hydrogen_idx]
+    alchemical_atoms=[tautomer.hybrid_hydrogen_idx_at_lambda_1, tautomer.hybrid_hydrogen_idx_at_lambda_0]
 
     # extract hydrogen donor idx and hydrogen idx for from_mol
     model = neutromeratio.ani.LinearAlchemicalDualTopologyANI(alchemical_atoms=alchemical_atoms)
@@ -617,7 +617,7 @@ def test_generating_droplet():
     tautomer.add_droplet(tautomer.hybrid_topology, tautomer.hybrid_coords)
 
     # define the alchemical atoms
-    alchemical_atoms=[tautomer.hybrid_dummy_hydrogen, tautomer.hydrogen_idx]
+    alchemical_atoms=[tautomer.hybrid_hydrogen_idx_at_lambda_1, tautomer.hybrid_hydrogen_idx_at_lambda_0]
 
     # extract hydrogen donor idx and hydrogen idx for from_mol
     model = neutromeratio.ani.LinearAlchemicalDualTopologyANI(alchemical_atoms=alchemical_atoms)

@@ -62,13 +62,14 @@ class Tautomer(object):
         self.final_state_ase_mol:Atoms = final_state_ani_input['ase_mol']
 
         # attributes for the protocol
-        self.hybrid_dummy_hydrogen:int = -1 # the dummy hydrogen
+        self.hybrid_hydrogen_idx_at_lambda_1:int = -1 # the dummy hydrogen
         self.hybrid_atoms:str = ''
-        self.hybird_ligand_idxs = []
+        self.hybrid_ligand_idxs = []
         self.hybrid_coords:list = []
         self.hybrid_topology:md.Topology = md.Topology()       
         self.heavy_atom_hydrogen_donor_idx:int = -1 # the heavy atom that losses the hydrogen
         self.hydrogen_idx:int = -1 # the tautomer hydrogen
+        self.hybrid_hydrogen_idx_at_lambda_0:int = -1
         self.heavy_atom_hydrogen_acceptor_idx:int = -1 # the heavy atom that accepts the hydrogen
 
         self.ligand_in_water_atoms:str = ""
@@ -225,7 +226,7 @@ class Tautomer(object):
 
         assert(type(center) == unit.Quantity)
         atoms = self.hybrid_atoms
-        idx = self.hybird_ligand_idxs
+        idx = self.hybrid_ligand_idxs
         self.add_COM_restraint(sigma=0.2 * unit.angstrom, point=center, atom_idx=idx, atoms=atoms)
 
 
@@ -341,7 +342,8 @@ class Tautomer(object):
         mol.SetProp("name", str(self.name))
 
         # generate numConfs for the smiles string 
-        Chem.rdDistGeom.EmbedMultipleConfs(mol, numConfs=nr_of_conformations, enforceChirality=False) # NOTE: that means that we are not sampling stereoisomers anymore
+        Chem.rdDistGeom.EmbedMultipleConfs(mol, numConfs=nr_of_conformations, 
+        enforceChirality=True) # NOTE enforceChirality!
         return mol
 
 
@@ -411,6 +413,7 @@ class Tautomer(object):
 
         self.heavy_atom_hydrogen_donor_idx = donor
         self.hydrogen_idx = hydrogen_idx_that_moves
+        self.hybrid_hydrogen_idx_at_lambda_0 = hydrogen_idx_that_moves
         self.heavy_atom_hydrogen_acceptor_idx = acceptor
         self.ncmc_restraints = [r1,r2]
 
@@ -437,7 +440,7 @@ class Tautomer(object):
                                             )
         
         self.hybrid_atoms = hybrid_atoms
-        self.hybird_ligand_idxs = [i for i in range(len(hybrid_atoms))]
+        self.hybrid_ligand_idxs = [i for i in range(len(hybrid_atoms))]
         energy_function.use_pure_ani1ccx = True
         # generate MC mover to get new hydrogen position
         hydrogen_mover = MC_Mover(self.heavy_atom_hydrogen_donor_idx, 
@@ -456,11 +459,11 @@ class Tautomer(object):
                 min_e = e
                 min_coordinates = hybrid_coord 
         
-        self.hybrid_dummy_hydrogen = len(hybrid_atoms) -1
+        self.hybrid_hydrogen_idx_at_lambda_1 = len(hybrid_atoms) -1
         self.hybrid_coords = min_coordinates
 
         # add restraint between dummy atom and heavy atom
-        self.hybrid_ligand_restraints.append(FlatBottomRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=self.hybrid_dummy_hydrogen, atom_j_idx=self.heavy_atom_hydrogen_acceptor_idx, atoms=hybrid_atoms))
+        self.hybrid_ligand_restraints.append(FlatBottomRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=self.hybrid_hydrogen_idx_at_lambda_1, atom_j_idx=self.heavy_atom_hydrogen_acceptor_idx, atoms=hybrid_atoms))
 
         # add to mdtraj ligand topology a new hydrogen
         hybrid_topology = copy.deepcopy(ligand_topology)
