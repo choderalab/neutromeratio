@@ -22,7 +22,10 @@ idx = int(sys.argv[1])
 diameter_in_angstrom = int(sys.argv[2])
 # where to write the results
 base_path = str(sys.argv[3])
+env = str(sys.argv[4])
+assert(env == 'droplet' or env == 'vacuum')
 #######################
+
 mode = 'forward'
 
 # read in exp results, smiles and names
@@ -59,16 +62,20 @@ elif mode == 'reverse':
 else:
     raise RuntimeError('No tautomer reaction direction was specified.')
 
-tautomer.add_droplet(tautomer.hybrid_topology, 
-                            tautomer.hybrid_coords, 
-                            diameter=diameter_in_angstrom * unit.angstrom,
-                            restrain_hydrogens=True,
-                            file=f"{base_path}/{name}/{name}_in_droplet_{mode}.pdb")
+if env == 'droplet':
+    tautomer.add_droplet(tautomer.hybrid_topology, 
+                                tautomer.hybrid_coords, 
+                                diameter=diameter_in_angstrom * unit.angstrom,
+                                restrain_hydrogens=True,
+                                file=f"{base_path}/{name}/{name}_in_droplet_{mode}.pdb")
+    print('Nr of atoms: {}'.format(len(tautomer.ligand_in_water_atoms)))
+    atoms = tautomer.ligand_in_water_atoms
+else:
+    atoms = tautomer.hybrid_atoms
 
 # define the alchemical atoms
 alchemical_atoms=[tautomer.hybrid_hydrogen_idx_at_lambda_1, tautomer.hybrid_hydrogen_idx_at_lambda_0]
 
-print('Nr of atoms: {}'.format(len(tautomer.ligand_in_water_atoms)))
 
 # extract hydrogen donor idx and hydrogen idx for from_mol
 model = neutromeratio.ani.LinearAlchemicalDualTopologyANI(alchemical_atoms=alchemical_atoms)
@@ -78,11 +85,10 @@ torch.set_num_threads(2)
 # perform initial sampling
 energy_function = neutromeratio.ANI1_force_and_energy(
                                         model = model,
-                                        atoms = tautomer.ligand_in_water_atoms,
+                                        atoms = atoms,
                                         mol = None,
                                         )
 
-tautomer.add_COM_for_hybrid_ligand(np.array([diameter_in_angstrom/2, diameter_in_angstrom/2, diameter_in_angstrom/2]) * unit.angstrom)
 
 for r in tautomer.ligand_restraints:
     energy_function.add_restraint(r)
@@ -90,11 +96,15 @@ for r in tautomer.ligand_restraints:
 for r in tautomer.hybrid_ligand_restraints:
     energy_function.add_restraint(r)
 
-for r in tautomer.solvent_restraints:
-    energy_function.add_restraint(r)
+if env == 'droplet':
 
-for r in tautomer.com_restraints:
-    energy_function.add_restraint(r)
+    tautomer.add_COM_for_hybrid_ligand(np.array([diameter_in_angstrom/2, diameter_in_angstrom/2, diameter_in_angstrom/2]) * unit.angstrom)
+
+    for r in tautomer.solvent_restraints:
+        energy_function.add_restraint(r)
+
+    for r in tautomer.com_restraints:
+        energy_function.add_restraint(r)
 
 
 # get steps inclusive endpoints
@@ -111,7 +121,7 @@ for dcd_filename in dcds:
     traj = md.load_dcd(dcd_filename, top=tautomer.ligand_in_water_topology)
     print(len(traj))
     ani_trajs.append(traj)  
-    f = open(f"{base_path}/{name}/{name}_lambda_{lam:0.4f}_energy_in_droplet_{mode}.csv", 'r')  
+    f = open(f"{base_path}/{name}/{name}_lambda_{lam:0.4f}_energy_in_{env}_{mode}.csv", 'r')  
     tmp_e = []
     for e in f:
         tmp_e.append(float(e))
