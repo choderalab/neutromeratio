@@ -14,6 +14,8 @@ from ase.thermochemistry import IdealGasThermo
 import logging
 from scipy.optimize import minimize
 from collections import namedtuple
+from functools import partial
+
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +56,43 @@ class ANI1_force_and_energy(object):
 
     def reset_restraints(self):
         self.list_of_restraints = []
+
+
+    def _compute_bias(self, x, lambda_value=0.05):
+        # use correct bias in between the end-points...
+        coordinates = torch.Tensor([x/unit.nanometer], device=device)
+        
+        bias_in_kJ_mol = torch.tensor(0.0,
+                                    device=self.device, dtype=torch.float64)
+
+        for restraint in self.list_of_restraints:
+            e = restraint.restraint(coordinates * nm_to_angstroms)
+            if restraint.active_at_lambda == 1:
+                e *= lambda_value
+            elif restraint.active_at_lambda == 0:
+                e *= (1 - lambda_value)
+            else:
+                # always on - active_at_lambda == -1
+                pass 
+            bias_in_kJ_mol += e
+        return bias_in_kJ_mol
+
+
+    def compute_bias_on_snapshots(self, snapshots, lambda_value=0.0)->float:
+        """
+        Calculates the energy of all bias activate at lambda_value on a given snapshot.
+        Returns
+        -------
+        reduced_bias : float
+            the bias in kT
+        """
+        bias_in_kJ_mol = list(map(partial(self._compute_bias, lambda_value=lambda_value), snapshots))
+        unitted_bias = np.array(list(map(float, bias_in_kJ_mol))) * unit.kilojoules_per_mole
+        reduced_bias = unitted_bias / kT
+        
+        return reduced_bias
+
+
 
     def get_thermo_correction(self, coords:simtk.unit.quantity.Quantity) -> unit.quantity.Quantity :
         """

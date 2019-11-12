@@ -9,6 +9,12 @@ import sys
 import torch
 from neutromeratio.parameter_gradients import FreeEnergyCalculator
 from neutromeratio.constants import kT, device
+from glob import glob
+
+def parse_lambda_from_dcd_filename(dcd_filename):
+    return float(dcd_filename[:dcd_filename.find('_in_droplet')].split('_')[-1])
+
+
 
 # job idx
 idx = int(sys.argv[1])
@@ -91,28 +97,26 @@ for r in tautomer.com_restraints:
     energy_function.add_restraint(r)
 
 
-# 21 steps inclusive endpoints
-# getting all the energies, snapshots and lambda values in lists
-# NOTE: This will be changed in the future
-lambda_value = 0.0
-energies = []
-ani_trajs = []
+
+# get steps inclusive endpoints
+# and lambda values in list
+dcds = glob(f"{base_path}/{name}/*.dcd")
+
 lambdas = []
-for _ in range(21):
-    lambda_value = float(np.round(lambda_value, 4))
-    lambdas.append(lambda_value)
-    f_traj = f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_in_droplet_{mode}.dcd"
-    traj = md.load_dcd(f_traj, top=tautomer.ligand_in_water_topology)
-    ani_trajs.append(traj)
-    
-    f = open(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_energy_in_droplet_{mode}.csv", 'r')  
+ani_trajs = []
+energies = []
+
+for dcd_filename in dcds:
+    lam = parse_lambda_from_dcd_filename(dcd_filename)
+    lambdas.append(lam)
+    traj = md.load_dcd(dcd_filename, top=tautomer.ligand_in_water_topology)
+    ani_trajs.append(traj)  
+    f = open(f"{base_path}/{name}/{name}_lambda_{lam:0.4f}_energy_in_droplet_{mode}.csv", 'r')  
     tmp_e = []
     for e in f:
         tmp_e.append(float(e))
     f.close()
-    
     energies.append(np.array(tmp_e))
-    lambda_value +=0.05
 
 # plotting the energies for all equilibrium runs
 for e in energies: 

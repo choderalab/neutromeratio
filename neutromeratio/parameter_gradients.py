@@ -18,6 +18,7 @@ class FreeEnergyCalculator():
                  lambdas,
                  max_snapshots_per_window=50,
                  ):
+        
         K = len(lambdas)
         assert (len(ani_trajs) == K)
         assert (len(potential_energy_trajs) == K)
@@ -45,12 +46,18 @@ class FreeEnergyCalculator():
             snapshots.extend(new_snapshots)
 
         self.snapshots = snapshots
-        N = len(snapshots)
-        u_kn = np.zeros((K, N))
-        for k in range(K):
-            lamb = lambdas[k]
-            for n in range(N):
-                u_kn[k, n] = self.ani_model.calculate_energy(snapshots[n], lamb) / kT
+        # end-point energies
+
+        lambda0_energies = [self.ani_model.calculate_energy(x, lambda_value=0.0) for x in tqdm(snapshots)]
+        lambda1_energies = [self.ani_model.calculate_energy(x, lambda_value=1.0) for x in tqdm(snapshots)]
+
+        lambda0_us = np.array([U/kT for U in lambda0_energies])
+        lambda1_us = np.array([U/kT for U in lambda1_energies])
+
+        def get_u_n(lam=0.0):
+            return (1 - lam) * lambda0_us + lam * lambda1_us
+
+        u_kn = np.stack([get_u_n(lam) for lam in sorted(lambdas)])
         self.mbar = MBAR(u_kn, N_k)
 
     @property
