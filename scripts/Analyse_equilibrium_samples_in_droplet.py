@@ -69,8 +69,10 @@ if env == 'droplet':
                                 file=f"{base_path}/{name}/{name}_in_droplet_{mode}.pdb")
     print('Nr of atoms: {}'.format(len(tautomer.ligand_in_water_atoms)))
     atoms = tautomer.ligand_in_water_atoms
+    top = tautomer.ligand_in_water_topology
 else:
     atoms = tautomer.hybrid_atoms
+    top = tautomer.hybrid_topology
 
 # define the alchemical atoms
 alchemical_atoms=[tautomer.hybrid_hydrogen_idx_at_lambda_1, tautomer.hybrid_hydrogen_idx_at_lambda_0]
@@ -117,7 +119,7 @@ energies = []
 for dcd_filename in dcds:
     lam = parse_lambda_from_dcd_filename(dcd_filename, env)
     lambdas.append(lam)
-    traj = md.load_dcd(dcd_filename, top=tautomer.ligand_in_water_topology)
+    traj = md.load_dcd(dcd_filename, top=top)
     print(len(traj))
     ani_trajs.append(traj)  
     f = open(f"{base_path}/{name}/{name}_lambda_{lam:0.4f}_energy_in_{env}_{mode}.csv", 'r')  
