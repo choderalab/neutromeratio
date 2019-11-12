@@ -10,16 +10,10 @@ import matplotlib.pyplot as plt
 import pickle
 import torchani
 import torch
-from neutromeratio.constants import device, platform, kT
+from neutromeratio.constants import device, platform, kT, exclude_set
 import sys, os
 from tqdm import tqdm
 
-
-exclude = ['molDWRow_1004', 'molDWRow_1110', 'molDWRow_1184', 'molDWRow_1185', 'molDWRow_1189', 'molDWRow_1262', 'molDWRow_1263',
-'molDWRow_1267', 'molDWRow_1275', 'molDWRow_1279', 'molDWRow_1280', 'molDWRow_1282', 'molDWRow_1283', 'molDWRow_553',
-'molDWRow_557', 'molDWRow_580', 'molDWRow_581', 'molDWRow_582', 'molDWRow_615', 'molDWRow_616', 'molDWRow_617',
-'molDWRow_618', 'molDWRow_643', 'molDWRow_758', 'molDWRow_82', 'molDWRow_83', 'molDWRow_952', 'molDWRow_953',
-'molDWRow_955', 'molDWRow_988', 'molDWRow_989', 'molDWRow_990', 'molDWRow_991', 'molDWRow_992']
 
 # name of the system
 idx = int(sys.argv[1])
@@ -35,7 +29,7 @@ mode = 'forward'
 protocol = []
 exp_results = pickle.load(open('../data/exp_results.pickle', 'rb'))
 for name in sorted(exp_results):
-    if name in exclude:
+    if name in exclude_set:
         continue
     for lambda_value in np.linspace(0,1, 21):
         protocol.append((name, np.round(lambda_value, 2)))
@@ -48,7 +42,7 @@ t1_smiles = exp_results[name]['t1-smiles']
 t2_smiles = exp_results[name]['t2-smiles']
 
 # generate both rdkit mol
-tautomer = neutromeratio.Tautomer(name=name, intial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles), nr_of_conformations=20)
+tautomer = neutromeratio.Tautomer(name=name, initial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles), nr_of_conformations=20)
 if mode == 'forward':
     tautomer.perform_tautomer_transformation_forward()
 elif mode == 'reverse':

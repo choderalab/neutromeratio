@@ -19,7 +19,7 @@ exp_results = pickle.load(open('../data/exp_results.pickle', 'rb'))
 t1_smiles = exp_results[name]['t1-smiles']
 t2_smiles = exp_results[name]['t2-smiles']
 
-tautomer = neutromeratio.Tautomer(name=name, intial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles), nr_of_conformations=100)
+tautomer = neutromeratio.Tautomer(name=name, initial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles), nr_of_conformations=100)
 tautomer.perform_tautomer_transformation_forward()
 
 # set model
@@ -32,13 +32,13 @@ torch.set_num_threads(2)
 # calculate energy using both structures and pure ANI1ccx
 energy_function = neutromeratio.ANI1_force_and_energy(
                                         model = model,
-                                        mol = tautomer.intial_state_ase_mol,
-                                        atoms = tautomer.intial_state_ligand_atoms,
+                                        mol = tautomer.initial_state_ase_mol,
+                                        atoms = tautomer.initial_state_ligand_atoms,
                                         use_pure_ani1ccx = True)
 
 t1_e = []
 t1_g = []
-for coords in tautomer.intial_state_ligand_coords:
+for coords in tautomer.initial_state_ligand_coords:
     # minimize
     minimized_coords = energy_function.minimize(coords, fmax=0.0001, maxstep=0.01)
     # calculate electronic single point energy

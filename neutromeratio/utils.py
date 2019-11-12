@@ -41,8 +41,6 @@ def generate_rdkit_mol(smiles:str) -> Chem.Mol:
     """
     m = Chem.MolFromSmiles(smiles)
     m = Chem.AddHs(m)
-    # NOTE: here we enforce the chirality given in the SMILES string!
-    # but this will be overwritten when we add conformations
     AllChem.EmbedMolecule(m)
     return m
 

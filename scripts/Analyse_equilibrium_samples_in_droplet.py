@@ -53,7 +53,7 @@ t2_smiles = exp_results[name]['t2-smiles']
 
 
 # generate both rdkit mol
-tautomer = neutromeratio.Tautomer(name=name, intial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles), nr_of_conformations=20)
+tautomer = neutromeratio.Tautomer(name=name, initial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles), nr_of_conformations=20)
 if mode == 'forward':
     tautomer.perform_tautomer_transformation_forward()
 elif mode == 'reverse':

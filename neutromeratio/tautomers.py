@@ -18,6 +18,7 @@ from .constants import temperature, gas_constant
 from scipy.special import logsumexp
 from pdbfixer import PDBFixer
 from simtk.openmm import Vec3
+import networkx as nx
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,7 @@ class Tautomer(object):
     ----------
     name: str
         the name of the small molecule
-    intial_state_mol: rdkit.Chem.Mol
+    initial_state_mol: rdkit.Chem.Mol
         initial state mol
     final_state_mol: rdkit.Chem.Mol
         final state mol
@@ -37,22 +38,28 @@ class Tautomer(object):
         nr of conformations that are calculated
     """
 
-    def __init__(self, name:str, intial_state_mol:Chem.Mol, final_state_mol:Chem.Mol, nr_of_conformations:int=1, enforceChirality:bool=True):
+    def __init__(self, name:str, initial_state_mol:Chem.Mol, final_state_mol:Chem.Mol, nr_of_conformations:int=1, enforceChirality:bool=True):
 
         self.name = name
         self.nr_of_conformations = nr_of_conformations
-        assert(type(intial_state_mol) == Chem.Mol)
+        assert(type(initial_state_mol) == Chem.Mol)
         assert(type(final_state_mol) == Chem.Mol)
 
-        self.intial_state_mol:Chem.Mol = intial_state_mol
-        self.final_state_mol:Chem.Mol = final_state_mol
+        logger.info(f"Nr of conformations generated per tautomer: {nr_of_conformations}")
+        logger.info(f"Chirality enforced: {enforceChirality}")
 
-        intial_state_ani_input = self._from_mol_to_ani_input(self.intial_state_mol, enforceChirality)
-        self.intial_state_ligand_atoms = intial_state_ani_input['ligand_atoms']
-        self.intial_state_ligand_bonds = intial_state_ani_input['ligand_bonds']
-        self.intial_state_ligand_coords = intial_state_ani_input['ligand_coords']
-        self.intial_state_ligand_topology:md.Topology = intial_state_ani_input['ligand_topology']
-        self.intial_state_ase_mol:Atoms = intial_state_ani_input['ase_mol']
+        self.initial_state_mol:Chem.Mol = initial_state_mol
+        self.initial_state_mol_nx:nx.Graph = self._mol_to_nx(initial_state_mol)
+
+        self.final_state_mol:Chem.Mol = final_state_mol
+        self.final_state_mol_nx:nx.Graph = self._mol_to_nx(final_state_mol)
+
+        initial_state_ani_input = self._from_mol_to_ani_input(self.initial_state_mol, enforceChirality)
+        self.initial_state_ligand_atoms = initial_state_ani_input['ligand_atoms']
+        self.initial_state_ligand_bonds = initial_state_ani_input['ligand_bonds']
+        self.initial_state_ligand_coords = initial_state_ani_input['ligand_coords']
+        self.initial_state_ligand_topology:md.Topology = initial_state_ani_input['ligand_topology']
+        self.initial_state_ase_mol:Atoms = initial_state_ani_input['ase_mol']
 
         final_state_ani_input = self._from_mol_to_ani_input(self.final_state_mol, enforceChirality)
         self.final_state_ligand_atoms = final_state_ani_input['ligand_atoms']
@@ -84,6 +91,41 @@ class Tautomer(object):
         self.solvent_restraints = []
         # COM restraint
         self.com_restraints = []
+
+
+    def _mol_to_nx(self, mol:Chem.Mol):
+        G = nx.Graph()
+
+        for atom in mol.GetAtoms():
+            G.add_node(atom.GetIdx(),
+                    atomic_num=atom.GetAtomicNum(),
+                    formal_charge=atom.GetFormalCharge(),
+                    chiral_tag=atom.GetChiralTag(),
+                    hybridization=atom.GetHybridization(),
+                    num_explicit_hs=atom.GetNumExplicitHs(),
+                    is_aromatic=atom.GetIsAromatic())
+        for bond in mol.GetBonds():
+            G.add_edge(bond.GetBeginAtomIdx(),
+                    bond.GetEndAtomIdx(),
+                    bond_type=bond.GetBondType())
+        return G
+
+
+    @property
+    def initial_state_ligand_degeneracy(self):
+        # Now iterate over graph isomorphisms
+        from networkx.algorithms.isomorphism import GraphMatcher
+        graph_matcher = GraphMatcher(self.initial_state_mol_nx, self.initial_state_mol_nx)
+        degeneracy = sum([1 for isomorphism in graph_matcher.match()])
+        return degeneracy, graph_matcher
+
+    @property
+    def final_state_ligand_degeneracy(self):
+        # Now iterate over graph isomorphisms
+        from networkx.algorithms.isomorphism import GraphMatcher
+        graph_matcher = GraphMatcher(self.final_state_mol_nx, self.final_state_mol_nx)
+        degeneracy = sum([1 for isomorphism in graph_matcher.match()])
+        return degeneracy, graph_matcher
 
 
     def add_droplet(self, topology:md.Topology, 
@@ -245,10 +287,10 @@ class Tautomer(object):
 
         self.ligand_restraints = []
         self.hybrid_ligand_restraints = []
-        m1 = copy.deepcopy(self.intial_state_mol)
+        m1 = copy.deepcopy(self.initial_state_mol)
         m2 = copy.deepcopy(self.final_state_mol)
-        self._perform_tautomer_transformation(m1, m2, self.intial_state_ligand_bonds)
-        self._generate_hybrid_structure(self.intial_state_ligand_atoms, self.intial_state_ligand_coords[0], self.intial_state_ligand_topology)
+        self._perform_tautomer_transformation(m1, m2, self.initial_state_ligand_bonds)
+        self._generate_hybrid_structure(self.initial_state_ligand_atoms, self.initial_state_ligand_coords[0], self.initial_state_ligand_topology)
 
     def perform_tautomer_transformation_reverse(self):
         """
@@ -259,7 +301,7 @@ class Tautomer(object):
         self.ligand_restraints = []
         self.hybrid_ligand_restraints = []
         m1 = copy.deepcopy(self.final_state_mol)
-        m2 = copy.deepcopy(self.intial_state_mol)
+        m2 = copy.deepcopy(self.initial_state_mol)
         self._perform_tautomer_transformation(m1, m2, self.final_state_ligand_bonds)
         self._generate_hybrid_structure(self.final_state_ligand_atoms, self.final_state_ligand_coords[0], self.final_state_ligand_topology)
 
@@ -274,9 +316,10 @@ class Tautomer(object):
         for a in mol.GetAtoms():
             atom_list.append(a.GetSymbol())
 
+        if 'S' in atom_list:
+            raise NotImplementedError('Sulfur not yet included in ANI.')
         # generate conformations
         mol = self._generate_conformations_from_mol(mol, self.nr_of_conformations, enforceChirality)
-
         # generate coord list
         coord_list = []
 
@@ -313,8 +356,11 @@ class Tautomer(object):
         # generate ONE ASE object if thermocorrections are needed
         ase_atom_list = []
         for e, c in zip(ani_input['ligand_atoms'], coord_list[0]):
-            c_list = (c[0].value_in_unit(unit.angstrom), c[1].value_in_unit(unit.angstrom), c[2].value_in_unit(unit.angstrom)) 
-            ase_atom_list.append(Atom(e, c_list))
+                c_list = (c[0].value_in_unit(unit.angstrom), 
+                        c[1].value_in_unit(unit.angstrom), 
+                        c[2].value_in_unit(unit.angstrom)) 
+                ase_atom_list.append(Atom(e, c_list))
+
         mol = Atoms(ase_atom_list)
         ani_input['ase_mol'] = mol
         return ani_input
@@ -335,15 +381,20 @@ class Tautomer(object):
             print(Chem.MolToSmiles(mol))
             raise NotImplementedError('Charged system')
 
-        Chem.rdmolops.AssignAtomChiralTagsFromStructure(mol)
-
         mol.SetProp("smiles", Chem.MolToSmiles(mol))
         mol.SetProp("charge", str(charge))
         mol.SetProp("name", str(self.name))
 
         # generate numConfs for the smiles string 
-        Chem.rdDistGeom.EmbedMultipleConfs(mol, numConfs=nr_of_conformations, 
-        enforceChirality=enforceChirality) # NOTE enforceChirality!
+        new_confs = Chem.rdDistGeom.EmbedMultipleConfs(mol, 
+                                            numConfs=nr_of_conformations, 
+                                            enforceChirality=enforceChirality,
+                                            ignoreSmoothingFailures=True) # NOTE enforceChirality!
+        
+        assert(int(mol.GetNumConformers()) != 0)
+        assert(int(mol.GetNumConformers()) == nr_of_conformations)
+        
+
         return mol
 
 
@@ -574,11 +625,11 @@ class Tautomer(object):
         confs_traj = []
         minimum_energies = []
 
-        for ase_mol, rdkit_mol, ligand_atoms, ligand_coords, top in zip([self.intial_state_ase_mol, self.final_state_ase_mol], 
-        [copy.deepcopy(self.intial_state_mol), copy.deepcopy(self.final_state_mol)],
-        [self.intial_state_ligand_atoms, self.final_state_ligand_atoms], 
-        [self.intial_state_ligand_coords, self.final_state_ligand_coords], 
-        [self.intial_state_ligand_topology, self.final_state_ligand_topology]): 
+        for ase_mol, rdkit_mol, ligand_atoms, ligand_coords, top in zip([self.initial_state_ase_mol, self.final_state_ase_mol], 
+        [copy.deepcopy(self.initial_state_mol), copy.deepcopy(self.final_state_mol)],
+        [self.initial_state_ligand_atoms, self.final_state_ligand_atoms], 
+        [self.initial_state_ligand_coords, self.final_state_ligand_coords], 
+        [self.initial_state_ligand_topology, self.final_state_ligand_topology]): 
 
             print('Mining Minima starting ...')
             model = torchani.models.ANI1ccx()
