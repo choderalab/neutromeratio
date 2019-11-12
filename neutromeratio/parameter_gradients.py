@@ -74,7 +74,7 @@ class FreeEnergyCalculator():
     @property
     def end_state_free_energy_difference(self):
         """DeltaF[lambda=1 --> lambda=0]"""
-        DeltaF_ij, dDeltaF_ij = self.mbar.getFreeEnergyDifferences()
+        DeltaF_ij, dDeltaF_ij, _ = self.mbar.getFreeEnergyDifferences()
         K = len(DeltaF_ij)
         return DeltaF_ij[K-1, 0], dDeltaF_ij[K-1, 0]
 

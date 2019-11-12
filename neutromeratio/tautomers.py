@@ -37,7 +37,7 @@ class Tautomer(object):
         nr of conformations that are calculated
     """
 
-    def __init__(self, name:str, intial_state_mol:Chem.Mol, final_state_mol:Chem.Mol, nr_of_conformations:int=1):
+    def __init__(self, name:str, intial_state_mol:Chem.Mol, final_state_mol:Chem.Mol, nr_of_conformations:int=1, enforceChirality:bool=True):
 
         self.name = name
         self.nr_of_conformations = nr_of_conformations
@@ -47,14 +47,14 @@ class Tautomer(object):
         self.intial_state_mol:Chem.Mol = intial_state_mol
         self.final_state_mol:Chem.Mol = final_state_mol
 
-        intial_state_ani_input = self._from_mol_to_ani_input(self.intial_state_mol)
+        intial_state_ani_input = self._from_mol_to_ani_input(self.intial_state_mol, enforceChirality)
         self.intial_state_ligand_atoms = intial_state_ani_input['ligand_atoms']
         self.intial_state_ligand_bonds = intial_state_ani_input['ligand_bonds']
         self.intial_state_ligand_coords = intial_state_ani_input['ligand_coords']
         self.intial_state_ligand_topology:md.Topology = intial_state_ani_input['ligand_topology']
         self.intial_state_ase_mol:Atoms = intial_state_ani_input['ase_mol']
 
-        final_state_ani_input = self._from_mol_to_ani_input(self.final_state_mol)
+        final_state_ani_input = self._from_mol_to_ani_input(self.final_state_mol, enforceChirality)
         self.final_state_ligand_atoms = final_state_ani_input['ligand_atoms']
         self.final_state_ligand_bonds = final_state_ani_input['ligand_bonds']
         self.final_state_ligand_coords = final_state_ani_input['ligand_coords']
@@ -263,7 +263,7 @@ class Tautomer(object):
         self._perform_tautomer_transformation(m1, m2, self.final_state_ligand_bonds)
         self._generate_hybrid_structure(self.final_state_ligand_atoms, self.final_state_ligand_coords[0], self.final_state_ligand_topology)
 
-    def _from_mol_to_ani_input(self, mol:Chem.Mol):
+    def _from_mol_to_ani_input(self, mol:Chem.Mol, enforceChirality:bool):
         """
         Helper function - does not need to be called directly.
         Generates ANI input from a rdkit mol object
@@ -275,7 +275,7 @@ class Tautomer(object):
             atom_list.append(a.GetSymbol())
 
         # generate conformations
-        mol = self._generate_conformations_from_mol(mol, self.nr_of_conformations)
+        mol = self._generate_conformations_from_mol(mol, self.nr_of_conformations, enforceChirality)
 
         # generate coord list
         coord_list = []
@@ -320,7 +320,7 @@ class Tautomer(object):
         return ani_input
 
 
-    def _generate_conformations_from_mol(self, mol:Chem.Mol, nr_of_conformations:int):
+    def _generate_conformations_from_mol(self, mol:Chem.Mol, nr_of_conformations:int, enforceChirality:bool):
         """
         Helper function - does not need to be called directly.
         Generates conformations from a rdkit mol object.        
@@ -343,7 +343,7 @@ class Tautomer(object):
 
         # generate numConfs for the smiles string 
         Chem.rdDistGeom.EmbedMultipleConfs(mol, numConfs=nr_of_conformations, 
-        enforceChirality=True) # NOTE enforceChirality!
+        enforceChirality=enforceChirality) # NOTE enforceChirality!
         return mol
 
 
