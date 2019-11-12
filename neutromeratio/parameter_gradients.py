@@ -5,6 +5,7 @@ import torch
 from pymbar import MBAR
 from pymbar.timeseries import detectEquilibration
 from simtk import unit
+from tqdm import tqdm
 
 from neutromeratio.ani import AlchemicalANI
 from neutromeratio.constants import temperature, kT

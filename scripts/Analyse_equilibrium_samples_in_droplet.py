@@ -97,7 +97,6 @@ for r in tautomer.com_restraints:
     energy_function.add_restraint(r)
 
 
-
 # get steps inclusive endpoints
 # and lambda values in list
 dcds = glob(f"{base_path}/{name}/*.dcd")
@@ -110,6 +109,7 @@ for dcd_filename in dcds:
     lam = parse_lambda_from_dcd_filename(dcd_filename)
     lambdas.append(lam)
     traj = md.load_dcd(dcd_filename, top=tautomer.ligand_in_water_topology)
+    print(len(traj))
     ani_trajs.append(traj)  
     f = open(f"{base_path}/{name}/{name}_lambda_{lam:0.4f}_energy_in_droplet_{mode}.csv", 'r')  
     tmp_e = []
