@@ -11,19 +11,18 @@ from neutromeratio.parameter_gradients import FreeEnergyCalculator
 from neutromeratio.constants import kT, device
 from glob import glob
 
-def parse_lambda_from_dcd_filename(dcd_filename):
-    return float(dcd_filename[:dcd_filename.find('_in_droplet')].split('_')[-1])
-
-
+def parse_lambda_from_dcd_filename(dcd_filename, env):
+    return float(dcd_filename[:dcd_filename.find(f"_in_{env}")].split('_')[-1])
 
 # job idx
 idx = int(sys.argv[1])
-# diameter
-diameter_in_angstrom = int(sys.argv[2])
 # where to write the results
-base_path = str(sys.argv[3])
-env = str(sys.argv[4])
+base_path = str(sys.argv[2])
+env = str(sys.argv[3])
 assert(env == 'droplet' or env == 'vacuum')
+# diameter
+if env == 'droplet':
+   diameter_in_angstrom = int(sys.argv[4])
 #######################
 
 mode = 'forward'
@@ -116,7 +115,7 @@ ani_trajs = []
 energies = []
 
 for dcd_filename in dcds:
-    lam = parse_lambda_from_dcd_filename(dcd_filename)
+    lam = parse_lambda_from_dcd_filename(dcd_filename, env)
     lambdas.append(lam)
     traj = md.load_dcd(dcd_filename, top=tautomer.ligand_in_water_topology)
     print(len(traj))
