@@ -76,7 +76,7 @@ class FreeEnergyCalculator():
         """DeltaF[lambda=1 --> lambda=0]"""
         DeltaF_ij, dDeltaF_ij, _ = self.mbar.getFreeEnergyDifferences()
         K = len(DeltaF_ij)
-        return DeltaF_ij[K-1, 0], dDeltaF_ij[K-1, 0]
+        return DeltaF_ij[0, K-1], dDeltaF_ij[0, K-1]
 
     def compute_perturbed_free_energies(self, u_ln):
         """compute perturbed free energies at new thermodynamic states l"""
