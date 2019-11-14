@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import sys
 import torch
 from neutromeratio.parameter_gradients import FreeEnergyCalculator
-from neutromeratio.constants import kT, device
+from neutromeratio.constants import kT, device, exclude_set
 from glob import glob
 
 def parse_lambda_from_dcd_filename(dcd_filename, env):
@@ -30,16 +30,10 @@ mode = 'forward'
 # read in exp results, smiles and names
 exp_results = pickle.load(open('../data/exp_results.pickle', 'rb'))
 
-exclude = ['molDWRow_1004', 'molDWRow_1110', 'molDWRow_1184', 'molDWRow_1185', 'molDWRow_1189', 'molDWRow_1262', 'molDWRow_1263',
-'molDWRow_1267', 'molDWRow_1275', 'molDWRow_1279', 'molDWRow_1280', 'molDWRow_1282', 'molDWRow_1283', 'molDWRow_553',
-'molDWRow_557', 'molDWRow_580', 'molDWRow_581', 'molDWRow_582', 'molDWRow_615', 'molDWRow_616', 'molDWRow_617',
-'molDWRow_618', 'molDWRow_643', 'molDWRow_758', 'molDWRow_82', 'molDWRow_83', 'molDWRow_952', 'molDWRow_953',
-'molDWRow_955', 'molDWRow_988', 'molDWRow_989', 'molDWRow_990', 'molDWRow_991', 'molDWRow_992']
-
 # name of the system
 protocoll = []
 for name in sorted(exp_results):
-    if name in exclude:
+    if name in exclude_set:
         continue
     protocoll.append(name)
 
