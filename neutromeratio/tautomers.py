@@ -14,7 +14,7 @@ from ase import Atom, Atoms
 from .constants import device, platform
 from .mcmc import MC_Mover
 import torch, torchani
-from .constants import temperature, gas_constant
+from .constants import temperature, gas_constant, kT
 from scipy.special import logsumexp
 from pdbfixer import PDBFixer
 from simtk.openmm import Vec3
@@ -117,7 +117,15 @@ class Tautomer(object):
         from networkx.algorithms.isomorphism import GraphMatcher
         graph_matcher = GraphMatcher(self.initial_state_mol_nx, self.initial_state_mol_nx)
         degeneracy = sum([1 for isomorphism in graph_matcher.match()])
-        return degeneracy, graph_matcher
+        return degeneracy
+
+    @property
+    def initial_state_entropy_correction(self):
+        return (- kT * np.log(self.initial_state_ligand_degeneracy)).in_units_of(unit.kilocalorie_per_mole)
+
+    @property
+    def final_state_entropy_correction(self):
+        return (- kT * np.log(self.final_state_ligand_degeneracy)).in_units_of(unit.kilocalorie_per_mole)
 
     @property
     def final_state_ligand_degeneracy(self):
@@ -125,7 +133,7 @@ class Tautomer(object):
         from networkx.algorithms.isomorphism import GraphMatcher
         graph_matcher = GraphMatcher(self.final_state_mol_nx, self.final_state_mol_nx)
         degeneracy = sum([1 for isomorphism in graph_matcher.match()])
-        return degeneracy, graph_matcher
+        return degeneracy
 
 
     def add_droplet(self, topology:md.Topology, 
@@ -522,13 +530,15 @@ class Tautomer(object):
         hybrid_topology.add_bond(hybrid_topology.atom(self.heavy_atom_hydrogen_acceptor_idx), dummy_atom)
         self.hybrid_topology = hybrid_topology
 
-    def generate_mining_minima_structures(self, rmsd_threshold:float=0.1)->(list, unit.Quantity, list):
+    def generate_mining_minima_structures(self, rmsd_threshold:float=0.1, include_entropy_correction:bool=False)->(list, unit.Quantity, list):
         """
         Minimizes and filters conformations based on a RMSD treshold.
         Parameters
         ----------
         rmsd_threshol : float
             Treshold for RMSD filtering.
+        include_entropy_correction : bool
+            whether to include a degeneracy correction or not
         Returns
         -------
         confs_traj : list
@@ -625,11 +635,13 @@ class Tautomer(object):
         confs_traj = []
         minimum_energies = []
 
-        for ase_mol, rdkit_mol, ligand_atoms, ligand_coords, top in zip([self.initial_state_ase_mol, self.final_state_ase_mol], 
+        for ase_mol, rdkit_mol, ligand_atoms, ligand_coords, top, entropy_correction in zip(
+        [self.initial_state_ase_mol, self.final_state_ase_mol], 
         [copy.deepcopy(self.initial_state_mol), copy.deepcopy(self.final_state_mol)],
         [self.initial_state_ligand_atoms, self.final_state_ligand_atoms], 
         [self.initial_state_ligand_coords, self.final_state_ligand_coords], 
-        [self.initial_state_ligand_topology, self.final_state_ligand_topology]): 
+        [self.initial_state_ligand_topology, self.final_state_ligand_topology],
+        [self.initial_state_entropy_correction, self.final_state_entropy_correction]): 
 
             print('Mining Minima starting ...')
             model = torchani.models.ANI1ccx()
@@ -646,14 +658,19 @@ class Tautomer(object):
             for n_conf, coords in enumerate(ligand_coords):
                 # minimize
                 print(f"Conf: {n_conf}")
-                minimized_coords, e_min_history = energy_function.minimize(coords)
+                minimized_coords, _ = energy_function.minimize(coords)
                 single_point_energy = energy_function.calculate_energy(minimized_coords)
                 try:
                     thermochemistry_correction = energy_function.get_thermo_correction(minimized_coords)  
                 except ValueError:
                     logger.critical('Imaginary frequencies present - found transition state.')
                     continue
-                energies.append(single_point_energy + thermochemistry_correction)
+
+                if include_entropy_correction:
+                    energies.append(single_point_energy + thermochemistry_correction + entropy_correction)
+                else:
+                    energies.append(single_point_energy + thermochemistry_correction)
+
                 # update the coordinates in the rdkit mol
                 for atom in rdkit_mol.GetAtoms():
                     conf = rdkit_mol.GetConformer(n_conf)

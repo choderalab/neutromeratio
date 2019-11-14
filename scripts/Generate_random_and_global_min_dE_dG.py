@@ -31,10 +31,6 @@ print(name)
 t1_smiles = exp_results[name]['t1-smiles']
 t2_smiles = exp_results[name]['t2-smiles']
 
-entropy_correction = pickle.load(open('../data/results/entropy_correction.pickle', 'rb'))
-t1_entropy_correction = entropy_correction[name]['t1-entropy-correction [kT]']
-t2_entropy_correction = entropy_correction[name]['t2-entropy-correction [kT]']
-
 tautomer = neutromeratio.Tautomer(name=name, initial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), 
                                     final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles), 
                                     nr_of_conformations=100, 
@@ -69,7 +65,9 @@ for coords in tautomer.initial_state_ligand_coords:
         print('Imaginary frequencies present - found transition state.')
         continue
 
-    g = neutromeratio.reduced_pot(e) + neutromeratio.reduced_pot(thermochemistry_correction) + t1_entropy_correction
+    g = neutromeratio.reduced_pot(e) + \
+    neutromeratio.reduced_pot(thermochemistry_correction) + \
+    neutromeratio.reduced_pot(tautomer.initial_state_entropy_correction)
     
     t1_e.append(e)
     t1_g.append(g)
@@ -96,7 +94,9 @@ for coords in tautomer.final_state_ligand_coords:
         print('Imaginary frequencies present - found transition state.')
         continue
 
-    g = neutromeratio.reduced_pot(e) + neutromeratio.reduced_pot(thermochemistry_correction) + t2_entropy_correction
+    g = neutromeratio.reduced_pot(e) + \
+        neutromeratio.reduced_pot(thermochemistry_correction) + \
+        neutromeratio.reduced_pot(tautomer.final_state_entropy_correction)
     
     t2_e.append(e)
     t2_g.append(g)

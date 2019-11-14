@@ -1,5 +1,5 @@
 import neutromeratio
-from openmmtools.constants import kB
+from openmmtools.constants import kB, exclude_set
 from simtk import unit
 import numpy as np
 import pickle
@@ -10,10 +10,23 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 import random, sys, os
 
-exp_results = pickle.load(open('../data/exp_results.pickle', 'rb'))
 rmsd_threshold = 0.1 # Angstrom
+# job idx
+idx = int(sys.argv[1])
+
+# read in exp results, smiles and names
+exp_results = pickle.load(open('../data/exp_results.pickle', 'rb'))
+
 # name of the system
-name = str(sys.argv[1])
+protocoll = []
+for name in sorted(exp_results):
+    if name in exclude_set:
+        continue
+    protocoll.append(name)
+
+name = protocoll[idx-1]
+print(name)
+
 torch.set_num_threads(2)
 
 t1_smiles = exp_results[name]['t1-smiles']
@@ -23,7 +36,8 @@ tautomer = neutromeratio.Tautomer(name=name, initial_state_mol=neutromeratio.gen
 tautomer.perform_tautomer_transformation_forward()
 
 print('Treshold used for RMSD filtering: {}'.format(rmsd_threshold))
-confs_traj, mining_min_e, minimum_energies = tautomer.generate_mining_minima_structures(rmsd_threshold=rmsd_threshold)
+confs_traj, mining_min_e, minimum_energies = tautomer.generate_mining_minima_structures(rmsd_threshold=rmsd_threshold, 
+                                                                                        include_entropy_correction=True)
 
 #mkdir, write confs and structure
 os.makedirs(f"/home/mwieder/Work/Projects/neutromeratio/data/mining_minima/{name}", exist_ok=True)
