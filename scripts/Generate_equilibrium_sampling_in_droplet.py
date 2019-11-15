@@ -31,7 +31,7 @@ exp_results = pickle.load(open('../data/exp_results.pickle', 'rb'))
 for name in sorted(exp_results):
     if name in exclude_set:
         continue
-    for lambda_value in np.linspace(0,1, 21):
+    for lambda_value in np.linspace(0,1,21):
         protocol.append((name, np.round(lambda_value, 2)))
 
 name, lambda_value = protocol[idx-1]
