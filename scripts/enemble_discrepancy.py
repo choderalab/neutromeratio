@@ -236,28 +236,34 @@ def compute_annealed_reduced_u(raw_energies, lambda_value=0.0):
 def compute_u_in_all_lambdas(raw_energies, all_lambdas):
     return np.stack([compute_annealed_reduced_u(raw_energies, lam) for lam in all_lambdas])
 
-snapshots = []
-N_k = []
-energies_in_all_lambdas = []
 
+def form_u_kn(raw_energy_dict, lambdas, snapshot_index_dict):
+    K = len(lambdas)
+    N_k = []
+    energies_in_all_lambdas = []
+
+    for lam in lambdas:
+        reduced_potential_block = compute_u_in_all_lambdas(raw_energy_dict[lam], lambdas)
+        assert(len(reduced_potential_block) == K)
+        energies_in_all_lambdas.append(reduced_potential_block[:,snapshot_index_dict[lam]])
+        N_k.append(len(snapshot_index_dict[lam]))
+
+    u_kn = np.hstack(energies_in_all_lambdas)
+    assert(u_kn.shape == (K, sum(N_k)))
+    return u_kn, N_k
+
+valid_snapshot_index_dict = {}
 for lam in lambdas_with_usable_samples:
-    traj = trajs[lam][equilibration_time:last_valid_inds[lam]]
-    new_snapshots = list(traj.xyz * unit.nanometer)
-    reduced_potential_block = compute_u_in_all_lambdas(raw_energy_dict[lam], lambdas_with_usable_samples)
-    assert(reduced_potential_block.shape == (K, len(trajs[lam])))
-    energies_in_all_lambdas.append(reduced_potential_block[:,equilibration_time:last_valid_inds[lam]])
-    snapshots.extend(new_snapshots)
-    N_k.append(len(new_snapshots))
+    valid_snapshot_index_dict[lam] = np.arange(equilibration_time, last_valid_inds[lam])
 
-u_kn = np.hstack(energies_in_all_lambdas)
-assert(u_kn.shape == (K, sum(N_k)))
-
-N = len(snapshots)
-assert(N == sum(N_k))
-print(N_k, N)
-
+last_50_index_dict = {}
+all_lambdas = sorted(list(raw_energy_dict.keys()))
+for lam in all_lambdas:
+    traj_length = len(raw_energy_dict[lam].raw_energies_without_dummy_0)
+    last_50_index_dict[lam] = np.arange(traj_length - 50, traj_length)
 
 from pymbar import MBAR
+u_kn, N_k = form_u_kn(raw_energy_dict, lambdas_with_usable_samples, valid_snapshot_index_dict)
 mbar = MBAR(u_kn, N_k)
 DeltaFs, dDeltaFs = mbar.getFreeEnergyDifferences()[:2]
 
@@ -270,5 +276,26 @@ plt.xlabel('$\lambda$')
 plt.ylabel('$f(\lambda) - f(0)$ (kcal/mol)')
 plt.title('{} MBAR-estimated free energy differences\nusing only low-uncertainty snapshots'.format(name))
 plt.savefig('{}_result_using_low_uncertainty_snapshots.png'.format(name), dpi=300, bbox_inches='tight')
+plt.close()
 
 # TODO: bootstrap on the ensemble energies?
+
+plt.figure()
+plt.errorbar(lambdas_with_usable_samples, diffs, uncs, label='using valid samples only')
+u_kn, N_k = form_u_kn(raw_energy_dict, all_lambdas, last_50_index_dict)
+mbar_last_50 = MBAR(u_kn, N_k)
+DeltaFs, dDeltaFs = mbar_last_50.getFreeEnergyDifferences()[:2]
+
+diffs = (DeltaFs[0] * kT).value_in_unit(unit.kilocalorie_per_mole)
+uncs = (dDeltaFs[0] * kT).value_in_unit(unit.kilocalorie_per_mole)
+
+plt.errorbar(all_lambdas, diffs, uncs, label='using last 50 samples per $\lambda$')
+
+print('estimated free energy difference: {:.4f} +/- {:.4f} kcal/mol'.format(
+    diffs[-1], uncs[-1]))
+
+plt.xlabel('$\lambda$')
+plt.ylabel('$f(\lambda) - f(0)$ (kcal/mol)')
+plt.title('{} MBAR-estimated free energy differences'.format(name))
+plt.legend()
+plt.savefig('{}_comparison_between_low_uncertainty_snapshots_and_rest.png'.format(name), dpi=300, bbox_inches='tight')
