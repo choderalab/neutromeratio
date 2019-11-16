@@ -256,11 +256,11 @@ valid_snapshot_index_dict = {}
 for lam in lambdas_with_usable_samples:
     valid_snapshot_index_dict[lam] = np.arange(equilibration_time, last_valid_inds[lam])
 
-last_50_index_dict = {}
+default_index_dict = {}
 all_lambdas = sorted(list(raw_energy_dict.keys()))
 for lam in all_lambdas:
     traj_length = len(raw_energy_dict[lam].raw_energies_without_dummy_0)
-    last_50_index_dict[lam] = np.arange(traj_length - 50, traj_length)
+    default_index_dict[lam] = np.arange(equilibration_time, traj_length)
 
 from pymbar import MBAR
 u_kn, N_k = form_u_kn(raw_energy_dict, lambdas_with_usable_samples, valid_snapshot_index_dict)
@@ -282,14 +282,14 @@ plt.close()
 
 plt.figure()
 plt.errorbar(lambdas_with_usable_samples, diffs, uncs, label='using valid samples only')
-u_kn, N_k = form_u_kn(raw_energy_dict, all_lambdas, last_50_index_dict)
-mbar_last_50 = MBAR(u_kn, N_k)
-DeltaFs, dDeltaFs = mbar_last_50.getFreeEnergyDifferences()[:2]
+u_kn, N_k = form_u_kn(raw_energy_dict, all_lambdas, default_index_dict)
+mbar = MBAR(u_kn, N_k)
+DeltaFs, dDeltaFs = mbar.getFreeEnergyDifferences()[:2]
 
 diffs = (DeltaFs[0] * kT).value_in_unit(unit.kilocalorie_per_mole)
 uncs = (dDeltaFs[0] * kT).value_in_unit(unit.kilocalorie_per_mole)
 
-plt.errorbar(all_lambdas, diffs, uncs, label='using last 50 samples per $\lambda$')
+plt.errorbar(all_lambdas, diffs, uncs, label='using all snapshots per $\lambda$')
 
 print('estimated free energy difference: {:.4f} +/- {:.4f} kcal/mol'.format(
     diffs[-1], uncs[-1]))
