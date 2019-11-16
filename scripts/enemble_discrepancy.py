@@ -215,30 +215,13 @@ for lam in raw_energy_dict:
     last_valid_ind = compute_last_valid_ind(linear_penalty)
     last_valid_inds[lam] = last_valid_ind
 
+equilibration_time = 5 # TODO: comment on detectEquilibration behavior here...
 lambdas_with_usable_samples = []
 for lam in sorted(list(last_valid_inds.keys())):
-    if last_valid_inds[lam] > 5:
+    if last_valid_inds[lam] > equilibration_time:
         lambdas_with_usable_samples.append(lam)
 print(lambdas_with_usable_samples)
-
-snapshots = []
-N_k = []
-
-max_n_snapshots_per_state = 10
-
-for lam in lambdas_with_usable_samples:
-    traj = trajs[lam][5:last_valid_inds[lam]]
-    further_thinning = 1
-    if len(traj) > max_n_snapshots_per_state:
-        further_thinning = int(len(traj) / max_n_snapshots_per_state)
-    new_snapshots = list(traj.xyz[::further_thinning] * unit.nanometer)
-    snapshots.extend(new_snapshots)
-    N_k.append(len(new_snapshots))
-
-
-
-N = len(snapshots)
-print(N_k, N)
+K = len(lambdas_with_usable_samples)
 
 def compute_annealed_reduced_u(raw_energies, lambda_value=0.0):
     raw_energies_0 = raw_energies.raw_energies_without_dummy_0
@@ -248,3 +231,44 @@ def compute_annealed_reduced_u(raw_energies, lambda_value=0.0):
     total_energies_1 = raw_energies_1.mean(-1).sum(1)
     return (hartree_to_kJ_mol) * (
                 (1 - lambda_value) * total_energies_0 + lambda_value * total_energies_1) * unit.kilojoule_per_mole / kT
+
+
+def compute_u_in_all_lambdas(raw_energies, all_lambdas):
+    return np.stack([compute_annealed_reduced_u(raw_energies, lam) for lam in all_lambdas])
+
+snapshots = []
+N_k = []
+energies_in_all_lambdas = []
+
+for lam in lambdas_with_usable_samples:
+    traj = trajs[lam][equilibration_time:last_valid_inds[lam]]
+    new_snapshots = list(traj.xyz * unit.nanometer)
+    reduced_potential_block = compute_u_in_all_lambdas(raw_energy_dict[lam], lambdas_with_usable_samples)
+    assert(reduced_potential_block.shape == (K, len(trajs[lam])))
+    energies_in_all_lambdas.append(reduced_potential_block[:,equilibration_time:last_valid_inds[lam]])
+    snapshots.extend(new_snapshots)
+    N_k.append(len(new_snapshots))
+
+u_kn = np.hstack(energies_in_all_lambdas)
+assert(u_kn.shape == (K, sum(N_k)))
+
+N = len(snapshots)
+assert(N == sum(N_k))
+print(N_k, N)
+
+
+from pymbar import MBAR
+mbar = MBAR(u_kn, N_k)
+DeltaFs, dDeltaFs = mbar.getFreeEnergyDifferences()[:2]
+
+diffs = (DeltaFs[0] * kT).value_in_unit(unit.kilocalorie_per_mole)
+uncs = (dDeltaFs[0] * kT).value_in_unit(unit.kilocalorie_per_mole)
+print('estimated free energy difference: {:.4f} +/- {:.4f} kcal/mol'.format(
+    diffs[-1], uncs[-1]))
+plt.errorbar(lambdas_with_usable_samples, diffs, uncs)
+plt.xlabel('$\lambda$')
+plt.ylabel('$f(\lambda) - f(0)$ (kcal/mol)')
+plt.title('{} MBAR-estimated free energy differences\nusing only low-uncertainty snapshots'.format(name))
+plt.savefig('{}_result_using_low_uncertainty_snapshots.png'.format(name), dpi=300, bbox_inches='tight')
+
+# TODO: bootstrap on the ensemble energies?
