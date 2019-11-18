@@ -203,7 +203,7 @@ class ANI1_force_and_energy(object):
         return F * (unit.kilojoule_per_mole / unit.nanometer), energy_in_kJ_mol.item() * unit.kilojoule_per_mole, bias_in_kJ_mol.item() * unit.kilojoule_per_mole 
 
     
-    def _calculate_energy(self, coordinates:torch.tensor, lambda_value:float)->torch.tensor:
+    def _calculate_energy(self, coordinates:torch.tensor, lambda_value:float)->(torch.tensor, torch.tensor, torch.tensor):
         """
         Helpter function to return energies as tensor.
         Given a coordinate set the energy is calculated.
@@ -218,6 +218,10 @@ class ANI1_force_and_energy(object):
         -------
         energy_in_kJ_mol : torch.tensor
             return the energy with restraints added
+        bias_in_kJ_mol : torch.tensor
+            return the energy of the added restraints
+        stddev_in_kJ_mol : torch.tensor
+            return the stddev of the energy (without added restraints)
         """
 
         stddev_in_hartree = torch.tensor(0.0,
@@ -275,7 +279,7 @@ class ANI1_force_and_energy(object):
         self.memory_of_energy.append(E)
         return E.value_in_unit(unit.kilojoule_per_mole), F_flat
 
-    def calculate_energy(self, x:simtk.unit.quantity.Quantity, lambda_value:float=0.0) -> simtk.unit.quantity.Quantity:
+    def calculate_energy(self, x:simtk.unit.quantity.Quantity, lambda_value:float=0.0) -> (simtk.unit.quantity.Quantity, simtk.unit.quantity.Quantity, simtk.unit.quantity.Quantity):
         """
         Given a coordinate set (x) the energy is calculated in kJ/mol.
 
@@ -288,7 +292,9 @@ class ANI1_force_and_energy(object):
 
         Returns
         -------
-        E : float, unit'd 
+        energy : float, unit'd
+        bias : float, unit'd
+        stddev : float, unit'd
         """
 
         try:
@@ -337,8 +343,14 @@ class AEVScalingAlchemicalANI(AlchemicalANI):
 class Ensemble(torch.nn.ModuleList):
     """Compute the average output of an ensemble of modules."""
 
-    def forward(self, species_input):
-        # type: (Tuple[torch.Tensor, torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor]
+    def forward(self, species_input)->(torch.Tensor, torch.Tensor):
+        """
+        Returns the averager and mean of the NN ensemble energy prediction
+        Returns
+        -------
+        energy_mean : torch.Tensor in Hartree
+        stddev : torch.Tensor in Hartree
+        """
         outputs_tensor = torch.cat([x(species_input)[1].double() for x in self])       
         stddev = torch.std(outputs_tensor, unbiased=False)
         energy_mean = torch.mean(outputs_tensor)
@@ -420,9 +432,12 @@ class LinearAlchemicalDualTopologyANI(LinearAlchemicalANI):
         in the _complete absence_ of the alchemical atoms, and the energy E_i^1 it would compute
         in the _presence_ of the alchemical atoms.
         (Also scale direct contributions, as in DirectAlchemicalANI)
+
+        Parameters
+        ----------
+        alchemical_atoms : list
         adventure_mode : bool
             “Fortune and glory, kid. Fortune and glory.” - Indiana Jones
-
         """
 
         self.adventure_mode = adventure_mode
@@ -431,7 +446,20 @@ class LinearAlchemicalDualTopologyANI(LinearAlchemicalANI):
 
 
     def forward(self, species_coordinates):
-        # for now only allow one alchemical atom
+        """
+        Energy and stddev are calculated and linearly interpolated between 
+        the physical endstates at lambda 0 and lamb 1.
+        Parameters
+        ----------
+        species_coordinates
+        Returns
+        ----------
+        E : float
+            energy in hartree
+        stddev : float
+            energy in hartree
+        
+        """
 
         # species, AEVs of fully interacting system
         species, coordinates, lam = species_coordinates
@@ -461,4 +489,5 @@ class LinearAlchemicalDualTopologyANI(LinearAlchemicalANI):
         stddev = (lam * E_1_stddev) + ((1-lam) * E_0_stddev)
         if self.adventure_mode:
             logger.info(stddev)
+
         return species, E, stddev
