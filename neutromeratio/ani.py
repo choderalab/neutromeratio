@@ -188,7 +188,7 @@ class ANI1_force_and_energy(object):
         coordinates = torch.tensor([x.value_in_unit(unit.nanometer)],
                                 requires_grad=True, device=self.device, dtype=torch.float32)
 
-        energy_in_kJ_mol, bias_in_kJ_mol = self._calculate_energy(coordinates, lambda_value)
+        energy_in_kJ_mol, bias_in_kJ_mol, stddev_in_kJ_mol = self._calculate_energy(coordinates, lambda_value)
 
         # derivative of E (in kJ/mol) w.r.t. coordinates (in nm)
         derivative = torch.autograd.grad((energy_in_kJ_mol).sum(), coordinates)[0]
@@ -220,7 +220,12 @@ class ANI1_force_and_energy(object):
             return the energy with restraints added
         """
 
-        
+        stddev_in_hartree = torch.tensor(0.0,
+                                device=self.device, dtype=torch.float64)
+
+        bias_in_kJ_mol = torch.tensor(0.0,
+                                device=self.device, dtype=torch.float64)
+
         assert(float(lambda_value) <= 1.0 and float(lambda_value) >= 0.0)
 
         # coordinates in nm!
@@ -228,12 +233,11 @@ class ANI1_force_and_energy(object):
         if self.use_pure_ani1ccx:
             _, energy_in_hartree = self.model((self.species, coordinates * nm_to_angstroms))
         else:
-            _, energy_in_hartree = self.model((self.species, coordinates * nm_to_angstroms, lambda_value))
+            _, energy_in_hartree, stddev_in_hartree = self.model((self.species, coordinates * nm_to_angstroms, lambda_value))
         
         # convert energy from hartrees to kJ/mol
         energy_in_kJ_mol = energy_in_hartree * hartree_to_kJ_mol
-        bias_in_kJ_mol = torch.tensor(0.0,
-                                device=self.device, dtype=torch.float64)
+        stddev_in_kJ_mol = stddev_in_hartree * hartree_to_kJ_mol
 
         for restraint in self.list_of_restraints:
             e = restraint.restraint(coordinates * nm_to_angstroms)
@@ -247,7 +251,8 @@ class ANI1_force_and_energy(object):
             bias_in_kJ_mol += e
         
         energy_in_kJ_mol += bias_in_kJ_mol
-        return energy_in_kJ_mol, bias_in_kJ_mol
+
+        return energy_in_kJ_mol, bias_in_kJ_mol, stddev_in_kJ_mol
         
     def _traget_energy_function(self, x, lambda_value:float=0.0) -> float:
         """
@@ -293,8 +298,12 @@ class ANI1_force_and_energy(object):
         coordinates = torch.tensor([x.value_in_unit(unit.nanometer)],
                                 requires_grad=True, device=self.device, dtype=torch.float32)
 
-        energy_in_kJ_mol, _ = self._calculate_energy(coordinates, lambda_value)
-        return energy_in_kJ_mol.item() * unit.kilojoule_per_mole
+        energy_in_kJ_mol, bias_in_kJ_mol, stddev_in_kJ_mol = self._calculate_energy(coordinates, lambda_value)
+        energy = energy_in_kJ_mol.item() * unit.kilojoule_per_mole
+        bias = bias_in_kJ_mol.item() * unit.kilojoule_per_mole
+        stddev = stddev_in_kJ_mol.item() * unit.kilojoule_per_mole
+
+        return energy, bias, stddev
 
 class AlchemicalANI(torchani.models.ANI1ccx):
     
@@ -330,9 +339,10 @@ class Ensemble(torch.nn.ModuleList):
 
     def forward(self, species_input):
         # type: (Tuple[torch.Tensor, torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor]
-        outputs = [x(species_input)[1].double() for x in self]
-        energy = sum(outputs) / len(outputs)
-        return energy, outputs
+        outputs_tensor = torch.cat([x(species_input)[1].double() for x in self])       
+        stddev = torch.std(outputs_tensor, unbiased=False)
+        energy_mean = torch.mean(outputs_tensor)
+        return energy_mean, stddev
       
 
 def load_model_ensemble(species, prefix, count):
@@ -379,13 +389,14 @@ class LinearAlchemicalANI(AlchemicalANI):
         species, aevs = self.aev_computer(aevs)
 
         # neural net output given these AEVs
-        E_1_unshifted, _ = self.neural_networks((species, aevs))
+        E_1_unshifted, E_1_stddev = self.neural_networks((species, aevs))
         _, E_1 = self.energy_shifter((species, E_1_unshifted))
         print(E_1)
         
         # LAMBDA == 1: fully interacting
         if float(lam) == 1.0:
             E = E_1
+            stddev = E_1_stddev
         else:
             # LAMBDA == 0: fully removed
             # species, AEVs of all other atoms, in absence of alchemical atoms
@@ -393,24 +404,29 @@ class LinearAlchemicalANI(AlchemicalANI):
             mod_coordinates = torch.cat((coordinates[:, :alchemical_atom],  coordinates[:, alchemical_atom+1:]), dim=1) 
             _, mod_aevs = self.aev_computer((mod_species, mod_coordinates))
             # neural net output given these modified AEVs
-            E_0_unshifted, _ = self.neural_networks((mod_species, mod_aevs))
+            E_0_unshifted, E_0_stddev = self.neural_networks((mod_species, mod_aevs))
             _, E_0 = self.energy_shifter((species, E_0_unshifted))
             E = (lam * E_1) + ((1 - lam) * E_0)
-        return species, E
+            stddev = (lam * E_1_stddev) + ((1-lam) * E_0_stddev)
+
+        return species, E, stddev
 
 
 class LinearAlchemicalDualTopologyANI(LinearAlchemicalANI):
    
-    def __init__(self, alchemical_atoms:list):
+    def __init__(self, alchemical_atoms:list, adventure_mode:bool):
         """Scale the indirect contributions of alchemical atoms to the energy sum by
         linearly interpolating, for other atom i, between the energy E_i^0 it would compute
         in the _complete absence_ of the alchemical atoms, and the energy E_i^1 it would compute
         in the _presence_ of the alchemical atoms.
         (Also scale direct contributions, as in DirectAlchemicalANI)
+        adventure_mode : bool
+            “Fortune and glory, kid. Fortune and glory.” - Indiana Jones
+
         """
 
+        self.adventure_mode = adventure_mode
         assert(len(alchemical_atoms) == 2)
-
         super().__init__(alchemical_atoms)      
 
 
@@ -430,7 +446,7 @@ class LinearAlchemicalDualTopologyANI(LinearAlchemicalANI):
         mod_coordinates_0 = torch.cat((coordinates[:, :dummy_atom_0],  coordinates[:, dummy_atom_0+1:]), dim=1) 
         _, mod_aevs_0 = self.aev_computer((mod_species_0, mod_coordinates_0))
         # neural net output given these modified AEVs
-        E_0_unshifted, _ = self.neural_networks((mod_species_0, mod_aevs_0))
+        E_0_unshifted, E_0_stddev = self.neural_networks((mod_species_0, mod_aevs_0))
         _, E_0 = self.energy_shifter((mod_species_0, E_0_unshifted))
         
         # neural net output given these AEVs
@@ -438,8 +454,11 @@ class LinearAlchemicalDualTopologyANI(LinearAlchemicalANI):
         mod_coordinates_1 = torch.cat((coordinates[:, :dummy_atom_1],  coordinates[:, dummy_atom_1+1:]), dim=1) 
         _, mod_aevs_1 = self.aev_computer((mod_species_1, mod_coordinates_1))
         # neural net output given these modified AEVs
-        E_1_unshifted, _ = self.neural_networks((mod_species_1, mod_aevs_1))
+        E_1_unshifted, E_1_stddev= self.neural_networks((mod_species_1, mod_aevs_1))
         _, E_1 = self.energy_shifter((mod_species_1, E_1_unshifted))
 
         E = (lam * E_1) + ((1 - lam) * E_0)
-        return species, E
+        stddev = (lam * E_1_stddev) + ((1-lam) * E_0_stddev)
+        if self.adventure_mode:
+            logger.info(stddev)
+        return species, E, stddev

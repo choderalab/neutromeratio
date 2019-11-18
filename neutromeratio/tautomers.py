@@ -209,7 +209,7 @@ class Tautomer(object):
 
                     squared_dist = np.sum((p1-p2)**2, axis=0)
                     dist = np.sqrt(squared_dist)
-                    if dist > radius+1: # NOTE: distance must be greater than radisu + 1 Angstrom
+                    if dist > radius+1: # NOTE: distance must be greater than radius + 1 Angstrom
                         to_delete.append(residue)
             
             logger.info('Delete residues ...')    
@@ -513,7 +513,7 @@ class Tautomer(object):
 
         for _ in range(100):
             hybrid_coord = hydrogen_mover._move_hydrogen_to_acceptor_idx(ligand_coords, override=False)
-            e = energy_function.calculate_energy(hybrid_coord, lambda_value=1.0)
+            e, _, __ = energy_function.calculate_energy(hybrid_coord, lambda_value=1.0)
             if e < min_e:
                 min_e = e
                 min_coordinates = hybrid_coord 
@@ -659,7 +659,7 @@ class Tautomer(object):
                 # minimize
                 print(f"Conf: {n_conf}")
                 minimized_coords, _ = energy_function.minimize(coords)
-                single_point_energy = energy_function.calculate_energy(minimized_coords)
+                single_point_energy, _, __ = energy_function.calculate_energy(minimized_coords)
                 try:
                     thermochemistry_correction = energy_function.get_thermo_correction(minimized_coords)  
                 except ValueError:
