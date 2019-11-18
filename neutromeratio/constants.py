@@ -8,32 +8,6 @@ temperature = 300 * unit.kelvin
 kT = kB * temperature
 device = torch.device(platform)
 
-
-# this = sys.modules[__name__]
-# this.platform = None
-# this.device = None
-# this.temperature = None
-# this.kT = None
-
-# def initialize_temperature(temperature):
-#     if (this.temperature is None):
-#         # also in local function scope. no scope specifier like global is needed
-#         assert(type(temperature) == unit.Quantity)
-#         this.temperature = temperature
-#         this.kT = kB * temperature
-#     else:
-#         msg = "Temperature is already initialized to {0}."
-#         raise RuntimeError(msg.format(this.temperature))
-
-# def initialize_platform(platform):
-#     if (this.platform is None):
-#         # also in local function scope. no scope specifier like global is needed
-#         this.platform = platform
-#         this.device = torch.device(platform)
-#     else:
-#         msg = "Platform is already initialized to {0}."
-#         raise RuntimeError(msg.format(this.platform))
-
 torch.set_num_threads(2)
 
 # openmm units

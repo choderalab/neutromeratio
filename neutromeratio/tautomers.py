@@ -549,7 +549,7 @@ class Tautomer(object):
             list of energies for the different minimum conformations
         """
 
-        def prune_conformers(mol:Chem.Mol, energies:list, rmsd_threshold:float)->Chem.Mol:
+        def prune_conformers(mol:Chem.Mol, energies:list, rmsd_threshold:float)->(Chem.Mol, list):
             """
             Adopted from: https://github.com/skearnes/rdkit-utils/blob/master/rdkit_utils/conformers.py
             Prune conformers from a molecule using an RMSD threshold, starting

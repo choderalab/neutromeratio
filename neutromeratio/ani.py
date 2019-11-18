@@ -487,7 +487,8 @@ class LinearAlchemicalDualTopologyANI(LinearAlchemicalANI):
 
         E = (lam * E_1) + ((1 - lam) * E_0)
         stddev = (lam * E_1_stddev) + ((1-lam) * E_0_stddev)
-        if self.adventure_mode:
-            logger.info(stddev)
+        if self.adventure_mode == False:
+            if stddev > 5.0: 
+                logger.warning(stddev)
 
         return species, E, stddev

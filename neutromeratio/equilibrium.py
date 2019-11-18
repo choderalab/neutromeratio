@@ -9,6 +9,8 @@ import mdtraj as md
 class LangevinDynamics(object):
 
     def __init__(self, atoms:str, energy_and_force:ANI1_force_and_energy.calculate_force):
+
+        
         self.energy_and_force = energy_and_force
         self.temperature = temperature
         self.atoms = atoms
@@ -19,7 +21,7 @@ class LangevinDynamics(object):
                     stepsize:unit.quantity.Quantity = 1.0*unit.femtosecond,
                     collision_rate:unit.quantity.Quantity = 10/unit.picoseconds,
                     progress_bar:bool = False
-            ):
+            )->(list, list, list):
         """Unadjusted Langevin dynamics.
 
         Parameters
