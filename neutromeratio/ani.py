@@ -342,7 +342,7 @@ class AEVScalingAlchemicalANI(AlchemicalANI):
 
 class Ensemble(torch.nn.ModuleList):
     """Compute the average output of an ensemble of modules."""
-    def __init__(self, models, nr_of_atoms:init):
+    def __init__(self, models, nr_of_atoms:int):
         super().__init__(models)
         self.nr_of_atoms = nr_of_atoms
     
