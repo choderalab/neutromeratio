@@ -130,7 +130,12 @@ plt.show()
 plt.savefig(f"{base_path}/{name}/{name}_energy.png")
 
 # calculate free energy in kT
-fec = FreeEnergyCalculator(ani_model=energy_function, ani_trajs=ani_trajs, potential_energy_trajs=energies, lambdas=lambdas)
+fec = FreeEnergyCalculator(ani_model=energy_function, 
+                            ani_trajs=ani_trajs, 
+                            potential_energy_trajs=energies, 
+                            lambdas=lambdas,
+                            nr_of_atoms=len(atoms),
+                            max_snapshots_per_window=200)
 DeltaF_ji, dDeltaF_ji = fec.end_state_free_energy_difference
 f = open(f"{base_path}/energies.csv", 'a+')
 f.write(f"{name}, {DeltaF_ji}, {dDeltaF_ji}\n")

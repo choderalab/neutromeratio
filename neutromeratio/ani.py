@@ -342,7 +342,10 @@ class AEVScalingAlchemicalANI(AlchemicalANI):
 
 class Ensemble(torch.nn.ModuleList):
     """Compute the average output of an ensemble of modules."""
-
+    def __init__(self, models, nr_of_atoms:init):
+        super().__init__(models)
+        self.nr_of_atoms = nr_of_atoms
+    
     def forward(self, species_input)->(torch.Tensor, torch.Tensor):
         """
         Returns the averager and mean of the NN ensemble energy prediction
@@ -371,7 +374,7 @@ def load_model_ensemble(species, prefix, count):
     for i in range(count):
         network_dir = os.path.join('{}{}'.format(prefix, i), 'networks')
         models.append(torchani.neurochem.load_model(species, network_dir))
-    return Ensemble(models)
+    return Ensemble(models, len(species))
 
 
 class LinearAlchemicalANI(AlchemicalANI):
@@ -398,7 +401,7 @@ class LinearAlchemicalANI(AlchemicalANI):
         species, coordinates, lam = species_coordinates
         print(lam)
         aevs = (species, coordinates)
-        species, aevs = self.aev_computer(aevs)
+        species, aevs = self.sl(aevs)
 
         # neural net output given these AEVs
         E_1_unshifted, E_1_stddev = self.neural_networks((species, aevs))

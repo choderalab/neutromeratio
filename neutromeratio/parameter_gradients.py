@@ -17,6 +17,7 @@ class FreeEnergyCalculator():
                  ani_trajs: list,
                  potential_energy_trajs: list,
                  lambdas,
+                 nr_of_atoms:int,
                  max_snapshots_per_window=50,
                  ):
         
@@ -52,13 +53,18 @@ class FreeEnergyCalculator():
         lambda0_energies = [self.ani_model.calculate_energy(x, lambda_value=0.0) for x in tqdm(snapshots)]
         lambda1_energies = [self.ani_model.calculate_energy(x, lambda_value=1.0) for x in tqdm(snapshots)]
 
-        lambda0_us = np.array([U/kT for U in lambda0_energies])
-        lambda1_us = np.array([U/kT for U in lambda1_energies])
+        lambda0_us = np.array([U/kT for U in [e[0] for e in lambda0_energies]])
+        lambda1_us = np.array([U/kT for U in [e[0] for e in lambda1_energies]])
 
+        lambda0_stddev = np.array([U/kT for U in [e[0] for e in lambda0_energies]])
+        lambda1_stddev = np.array([U/kT for U in [e[0] for e in lambda1_energies]])
+        
         def get_u_n(lam=0.0):
+            if ((1 - lam) * lambda0_stddev + lam * lambda1_stddev) / nr_of_atoms > 0.5:
+                return None 
             return (1 - lam) * lambda0_us + lam * lambda1_us
 
-        u_kn = np.stack([get_u_n(lam) for lam in sorted(lambdas)])
+        u_kn = np.stack(filter(None, [get_u_n(lam) for lam in sorted(lambdas)]))
         self.mbar = MBAR(u_kn, N_k)
 
     @property
@@ -78,7 +84,7 @@ class FreeEnergyCalculator():
         K = len(DeltaF_ij)
         return DeltaF_ij[0, K-1], dDeltaF_ij[0, K-1]
 
-    def compute_perturbed_free_energies(self, u_ln):
+    def compute_perturbed_free_energies(self, u_ln, u0_stddev, u1_stddev):
         """compute perturbed free energies at new thermodynamic states l"""
         assert (type(u_ln) == torch.Tensor)
 
@@ -101,21 +107,25 @@ class FreeEnergyCalculator():
     def form_u_ln(self):
         
         # TODO: vectorize!
+        e0_e_b_stddev = [self.ani_model.calculate_energy(s, lambda_value = 0) for s in self.snapshots]
+        u0_stddev = [e_b_stddev[2] / kT for e_b_stddev in e0_e_b_stddev] 
         u_0 = torch.tensor(
-            [self.ani_model.calculate_energy(s, lambda_value = 0) / kT for s in self.snapshots],
+            [e_b_stddev[0] / kT for e_b_stddev in e0_e_b_stddev],
             dtype=torch.double, requires_grad=True,
         )
         # TODO: vectorize!
+        e1_e_b_stddev = [self.ani_model.calculate_energy(s, lambda_value = 1) for s in self.snapshots]
+        u1_stddev = [e_b_stddev[2] / kT for e_b_stddev in e1_e_b_stddev] 
         u_1 = torch.tensor(
-            [self.ani_model.calculate_energy(s, lambda_value = 1) / kT for s in self.snapshots],
+            [e_b_stddev[0] / kT for e_b_stddev in e1_e_b_stddev],
             dtype=torch.double, requires_grad=True,
         )
         u_ln = torch.stack([u_0, u_1])
-        return u_ln
+        return u_ln,  u0_stddev, u1_stddev
 
     def compute_free_energy_difference(self):
-        u_ln = self.form_u_ln()
-        f_k = self.compute_perturbed_free_energies(u_ln)
+        u_ln, u0_stddev, u1_stddev = self.form_u_ln()
+        f_k = self.compute_perturbed_free_energies(u_ln, u0_stddev, u1_stddev)
         return f_k[1] - f_k[0]
 
 
