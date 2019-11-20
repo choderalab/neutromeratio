@@ -401,7 +401,7 @@ class LinearAlchemicalANI(AlchemicalANI):
         species, coordinates, lam = species_coordinates
         print(lam)
         aevs = (species, coordinates)
-        species, aevs = self.sl(aevs)
+        species, aevs = self.aev_computer(aevs)
 
         # neural net output given these AEVs
         E_1_unshifted, E_1_stddev = self.neural_networks((species, aevs))
