@@ -77,7 +77,7 @@ class FreeEnergyCalculator():
                     logging.info('For lambda {} conformation {} is discarded because of a stddev of {}'.format(lam, idx, round(stddev_scaled, 2)))
             return np.array(filtered_e)
         u_kn = np.stack([get_u_n(nr_of_discarded_confs, lam) for lam in sorted(lambdas)])
-        logger.info('Nr of discarded confs is {}'.format(nr_of_discarded_confs))
+        logging.info('Nr of discarded confs is {}'.format(nr_of_discarded_confs))
         self.mbar = MBAR(u_kn, N_k)
 
     @property
