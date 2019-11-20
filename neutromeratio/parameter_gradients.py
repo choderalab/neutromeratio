@@ -55,17 +55,20 @@ class FreeEnergyCalculator():
         lambda0_e_b_stddev = [self.ani_model.calculate_energy(x, lambda_value=0.0) for x in tqdm(snapshots)]
         lambda1_e_b_stddev = [self.ani_model.calculate_energy(x, lambda_value=1.0) for x in tqdm(snapshots)]
 
-        lambda0_us = [U/kT for U in [e[0] for e in lambda0_e_b_stddev]]
-        lambda1_us = [U/kT for U in [e[0] for e in lambda1_e_b_stddev]]
-
-        lambda0_stddev = [U/kT for U in [e[2] for e in lambda0_e_b_stddev]]
-        lambda1_stddev = [U/kT for U in [e[2] for e in lambda1_e_b_stddev]]
+        # extract endpoint stddev
+        lambda0_us = [U/kT for U in [e_b_stddev[0] for e in lambda0_e_b_stddev]]
+        lambda1_us = [U/kT for U in [e_b_stddev[0] for e in lambda1_e_b_stddev]]
+        # extract endpoint energies
+        lambda0_stddev = [stddev/kT for stddev in [e_b_stddev[2] for e_b_stddev in lambda0_e_b_stddev]]
+        lambda1_stddev = [stddev/kT for stddev in [e_b_stddev[2] for e_b_stddev in lambda1_e_b_stddev]]
         
         def get_u_n(lam=0.0, per_atom_stddev_tresh = 0.5):
             filtered_e = []
             for idx in range(len(lambda0_e_b_stddev)):
                 e_scaled = (1 - lam) * lambda0_us[idx] + lam * lambda1_us[idx]
                 stddev_scaled = (1 - lam) * lambda0_stddev[idx] + lam * lambda1_stddev[idx]
+                print(stddev_scaled)
+                print(stddev_scaled/nr_of_atoms)
                 if (stddev_scaled/ nr_of_atoms) * hartree_to_kJ_mol < per_atom_stddev_tresh:
                     filtered_e.append(e_scaled)
                 else:
