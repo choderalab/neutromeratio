@@ -51,7 +51,7 @@ class FreeEnergyCalculator():
 
         lambda0_e_b_stddev = [self.ani_model.calculate_energy(x, lambda_value=0.0) for x in tqdm(snapshots)]
         lambda1_e_b_stddev = [self.ani_model.calculate_energy(x, lambda_value=1.0) for x in tqdm(snapshots)]
-
+        print(lambda0_e_b_stddev)
         # extract endpoint stddev
         lambda0_stddev = [stddev/kT for stddev in [e_b_stddev[2] for e_b_stddev in lambda0_e_b_stddev]]
         lambda1_stddev = [stddev/kT for stddev in [e_b_stddev[2] for e_b_stddev in lambda1_e_b_stddev]]
@@ -74,13 +74,13 @@ class FreeEnergyCalculator():
         filtered_lambda1_e_b_stddev = [i for j, i in enumerate(lambda1_e_b_stddev) if j not in remove_snapshots]
         print(filtered_lambda0_e_b_stddev)
         # extract endpoint energies
-        lambda0_us = [U/kT for U in [e_b_stddev[0] for e_b_stddev in filtered_lambda0_e_b_stddev]]
-        lambda1_us = [U/kT for U in [e_b_stddev[0] for e_b_stddev in filtered_lambda1_e_b_stddev]]
+        lambda0_us = np.array([U/kT for U in [e_b_stddev[0] for e_b_stddev in filtered_lambda0_e_b_stddev]])
+        lambda1_us = np.array([U/kT for U in [e_b_stddev[0] for e_b_stddev in filtered_lambda1_e_b_stddev]])
 
-        N_k = [[len(lambda0_e_b_stddev)] for _ in range(K)]
+        N_k = [len(filtered_lambda0_e_b_stddev)] * K
 
-        def get_u_n(lam=0.0, per_atom_stddev_tresh = 0.5):
-            return (1 - lam) * lambda0_us[idx] + lam * lambda1_us[idx]
+        def get_u_n(lam=0.0):
+            return (1 - lam) * lambda0_us + lam * lambda1_us
 
         u_kn = np.stack([get_u_n(lam) for lam in sorted(lambdas)])
         self.mbar = MBAR(u_kn, N_k)
