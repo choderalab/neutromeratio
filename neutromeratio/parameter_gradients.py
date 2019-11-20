@@ -68,13 +68,14 @@ class FreeEnergyCalculator():
             else:
                 pass
         
+        print(remove_snapshots)
         # filter out the removed indices
-        lambda0_e_b_stddev = [i for j, i in enumerate(lambda0_e_b_stddev) if j not in remove_snapshots]
-        lambda1_e_b_stddev = [i for j, i in enumerate(lambda1_e_b_stddev) if j not in remove_snapshots]
-
+        filtered_lambda0_e_b_stddev = [i for j, i in enumerate(lambda0_e_b_stddev) if j not in remove_snapshots]
+        filtered_lambda1_e_b_stddev = [i for j, i in enumerate(lambda1_e_b_stddev) if j not in remove_snapshots]
+        print(filtered_lambda0_e_b_stddev)
         # extract endpoint energies
-        lambda0_us = [U/kT for U in [e_b_stddev[0] for e_b_stddev in lambda0_e_b_stddev]]
-        lambda1_us = [U/kT for U in [e_b_stddev[0] for e_b_stddev in lambda1_e_b_stddev]]
+        lambda0_us = [U/kT for U in [e_b_stddev[0] for e_b_stddev in filtered_lambda0_e_b_stddev]]
+        lambda1_us = [U/kT for U in [e_b_stddev[0] for e_b_stddev in filtered_lambda1_e_b_stddev]]
 
         N_k = [[len(lambda0_e_b_stddev)] for _ in range(K)]
 
