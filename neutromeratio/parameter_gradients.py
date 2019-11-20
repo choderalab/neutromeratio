@@ -70,7 +70,7 @@ class FreeEnergyCalculator():
                 stddev_scaled = (1 - lam) * lambda0_stddev[idx] + lam * lambda1_stddev[idx]
                 print(stddev_scaled)
                 print(stddev_scaled/nr_of_atoms)
-                if ((stddev_scaled/ nr_of_atoms) * kT).in_units_of(unit.kilojoule_per_mole) < per_atom_stddev_tresh:
+                if ((stddev_scaled/ nr_of_atoms) * kT).value_in_unit(unit.kilojoule_per_mole) < per_atom_stddev_tresh:
                     filtered_e.append(e_scaled)
                     nr_of_discarded_confs += 1
                 else:
