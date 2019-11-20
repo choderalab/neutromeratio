@@ -32,8 +32,6 @@ class FreeEnergyCalculator():
         self.potential_energy_trajs = potential_energy_trajs
         self.lambdas = lambdas
 
-        # thin each based automatic equilibration detection
-        N_k = []
 
         snapshots = []
         for i in range(K):
@@ -46,7 +44,6 @@ class FreeEnergyCalculator():
                 thinning = int((len(traj) - equil) / max_snapshots_per_window)
 
             new_snapshots = list(traj[equil::thinning].xyz * unit.nanometer)[:max_snapshots_per_window]
-            N_k.append(len(new_snapshots))
             snapshots.extend(new_snapshots)
 
         self.snapshots = snapshots
@@ -62,22 +59,26 @@ class FreeEnergyCalculator():
         lambda0_stddev = [stddev/kT for stddev in [e_b_stddev[2] for e_b_stddev in lambda0_e_b_stddev]]
         lambda1_stddev = [stddev/kT for stddev in [e_b_stddev[2] for e_b_stddev in lambda1_e_b_stddev]]
         
-        nr_of_discarded_confs = 0
-        def get_u_n(nr_of_discarded_confs, lam=0.0, per_atom_stddev_tresh = 0.5):
+        def get_u_n(lam=0.0, per_atom_stddev_tresh = 0.5):
             filtered_e = []
             for idx in range(len(lambda0_e_b_stddev)):
                 e_scaled = (1 - lam) * lambda0_us[idx] + lam * lambda1_us[idx]
                 stddev_scaled = (1 - lam) * lambda0_stddev[idx] + lam * lambda1_stddev[idx]
-                print(stddev_scaled)
-                print(stddev_scaled/nr_of_atoms)
                 if ((stddev_scaled/ nr_of_atoms) * kT).value_in_unit(unit.kilojoule_per_mole) < per_atom_stddev_tresh:
                     filtered_e.append(e_scaled)
                     nr_of_discarded_confs += 1
                 else:
                     logging.info('For lambda {} conformation {} is discarded because of a stddev of {}'.format(lam, idx, round(stddev_scaled, 2)))
             return np.array(filtered_e)
-        u_kn = np.stack([get_u_n(nr_of_discarded_confs, lam) for lam in sorted(lambdas)])
-        logging.info('Nr of discarded confs is {}'.format(nr_of_discarded_confs))
+        
+        N_k = []
+        u_kn = []
+        for lam in sorted(lambdas):
+            e = get_u_n(lam)
+            u_kn.append(e)
+            N_k.append(len(e))
+        u_kn = np.stack(u_kn)
+
         self.mbar = MBAR(u_kn, N_k)
 
     @property
