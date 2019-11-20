@@ -62,20 +62,22 @@ class FreeEnergyCalculator():
         lambda0_stddev = [stddev/kT for stddev in [e_b_stddev[2] for e_b_stddev in lambda0_e_b_stddev]]
         lambda1_stddev = [stddev/kT for stddev in [e_b_stddev[2] for e_b_stddev in lambda1_e_b_stddev]]
         
-        def get_u_n(lam=0.0, per_atom_stddev_tresh = 0.5):
+        nr_of_discarded_confs = 0
+        def get_u_n(nr_of_discarded_confs, lam=0.0, per_atom_stddev_tresh = 0.5):
             filtered_e = []
             for idx in range(len(lambda0_e_b_stddev)):
                 e_scaled = (1 - lam) * lambda0_us[idx] + lam * lambda1_us[idx]
                 stddev_scaled = (1 - lam) * lambda0_stddev[idx] + lam * lambda1_stddev[idx]
                 print(stddev_scaled)
                 print(stddev_scaled/nr_of_atoms)
-                if (stddev_scaled/ nr_of_atoms) * hartree_to_kJ_mol < per_atom_stddev_tresh:
+                if ((stddev_scaled/ nr_of_atoms) * kT).in_units_of(unit.kilojoule_per_mole) < per_atom_stddev_tresh:
                     filtered_e.append(e_scaled)
+                    nr_of_discarded_confs += 1
                 else:
                     logging.info('For lambda {} conformation {} is discarded because of a stddev of {}'.format(lam, idx, round(stddev_scaled, 2)))
             return np.array(filtered_e)
-
-        u_kn = np.stack([get_u_n(lam) for lam in sorted(lambdas)])
+        u_kn = np.stack([get_u_n(nr_of_discarded_confs, lam) for lam in sorted(lambdas)])
+        logger.info('Nr of discarded confs is {}'.format(nr_of_discarded_confs))
         self.mbar = MBAR(u_kn, N_k)
 
     @property
