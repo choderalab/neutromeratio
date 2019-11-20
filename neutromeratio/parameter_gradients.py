@@ -29,7 +29,7 @@ class FreeEnergyCalculator():
 
         self.ani_model = ani_model
         self.ani_trajs = ani_trajs
-        self.potential_energy_trajs = potential_energy_trajs
+        self.potential_energy_trajs = potential_energy_trajs # for detecting equilibrium
         self.lambdas = lambdas
 
 
@@ -53,32 +53,35 @@ class FreeEnergyCalculator():
         lambda1_e_b_stddev = [self.ani_model.calculate_energy(x, lambda_value=1.0) for x in tqdm(snapshots)]
 
         # extract endpoint stddev
-        lambda0_us = [U/kT for U in [e_b_stddev[0] for e_b_stddev in lambda0_e_b_stddev]]
-        lambda1_us = [U/kT for U in [e_b_stddev[0] for e_b_stddev in lambda1_e_b_stddev]]
-        # extract endpoint energies
         lambda0_stddev = [stddev/kT for stddev in [e_b_stddev[2] for e_b_stddev in lambda0_e_b_stddev]]
         lambda1_stddev = [stddev/kT for stddev in [e_b_stddev[2] for e_b_stddev in lambda1_e_b_stddev]]
-        
-        def get_u_n(lam=0.0, per_atom_stddev_tresh = 0.5):
-            filtered_e = []
-            for idx in range(len(lambda0_e_b_stddev)):
-                e_scaled = (1 - lam) * lambda0_us[idx] + lam * lambda1_us[idx]
-                stddev_scaled = (1 - lam) * lambda0_stddev[idx] + lam * lambda1_stddev[idx]
-                if ((stddev_scaled/ nr_of_atoms) * kT).value_in_unit(unit.kilojoule_per_mole) < per_atom_stddev_tresh:
-                    filtered_e.append(e_scaled)
-                    nr_of_discarded_confs += 1
-                else:
-                    logging.info('For lambda {} conformation {} is discarded because of a stddev of {}'.format(lam, idx, round(stddev_scaled, 2)))
-            return np.array(filtered_e)
-        
-        N_k = []
-        u_kn = []
-        for lam in sorted(lambdas):
-            e = get_u_n(lam)
-            u_kn.append(e)
-            N_k.append(len(e))
-        u_kn = np.stack(u_kn)
 
+        # filter snapshots if stddev is too big
+        remove_snapshots = []
+        for idx in range(len(lambda0_e_b_stddev)):
+            if ((lambda0_stddev[idx]/ nr_of_atoms) * kT).value_in_unit(unit.kilojoule_per_mole) > per_atom_stddev_treshold:
+                logging.info('Lambda 0 conformation {} is discarded because of a stddev of {}'.format(idx, round(lambda0_stddev[idx]/ nr_of_atoms, 2)))
+                remove_snapshots.append(idx)
+            elif ((lambda1_stddev[idx]/ nr_of_atoms) * kT).value_in_unit(unit.kilojoule_per_mole) > per_atom_stddev_treshold:
+                logging.info('Lambda 1 conformation {} is discarded because of a stddev of {}'.format(idx, round(lambda1_stddev[idx]/ nr_of_atoms, 2)))
+                remove_snapshots.append(idx)
+            else:
+                pass
+        
+        # filter out the removed indices
+        lambda0_e_b_stddev = [i for j, i in enumerate(lambda0_e_b_stddev) if j not in remove_snapshots]
+        lambda1_e_b_stddev = [i for j, i in enumerate(lambda1_e_b_stddev) if j not in remove_snapshots]
+
+        # extract endpoint energies
+        lambda0_us = [U/kT for U in [e_b_stddev[0] for e_b_stddev in lambda0_e_b_stddev]]
+        lambda1_us = [U/kT for U in [e_b_stddev[0] for e_b_stddev in lambda1_e_b_stddev]]
+
+        N_k = [[len(lambda0_e_b_stddev)] for _ in range(K)]
+
+        def get_u_n(lam=0.0, per_atom_stddev_tresh = 0.5):
+            return (1 - lam) * lambda0_us[idx] + lam * lambda1_us[idx]
+
+        u_kn = np.stack([get_u_n(lam) for lam in sorted(lambdas)])
         self.mbar = MBAR(u_kn, N_k)
 
     @property

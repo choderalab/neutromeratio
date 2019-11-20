@@ -114,7 +114,6 @@ for dcd_filename in dcds:
     lam = parse_lambda_from_dcd_filename(dcd_filename, env)
     lambdas.append(lam)
     traj = md.load_dcd(dcd_filename, top=top)
-    print(len(traj))
     ani_trajs.append(traj)  
     f = open(f"{base_path}/{name}/{name}_lambda_{lam:0.4f}_energy_in_{env}_{mode}.csv", 'r')  
     tmp_e = []
