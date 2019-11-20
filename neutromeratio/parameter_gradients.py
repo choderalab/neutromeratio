@@ -70,7 +70,7 @@ class FreeEnergyCalculator():
             return np.array(filtered_e)
 
         u_kn = np.stack([get_u_n(lam) for lam in sorted(lambdas)])
-        self.filtered = MBAR(u_kn, N_k)
+        self.mbar = MBAR(u_kn, N_k)
 
     @property
     def free_energy_differences(self):
