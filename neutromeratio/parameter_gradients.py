@@ -18,6 +18,7 @@ class FreeEnergyCalculator():
                  potential_energy_trajs: list,
                  lambdas,
                  nr_of_atoms:int,
+                 per_atom_stddev_treshold:float=0.5,
                  max_snapshots_per_window=50,
                  ):
         
@@ -53,56 +54,38 @@ class FreeEnergyCalculator():
         lambda0_energies = [self.ani_model.calculate_energy(x, lambda_value=0.0) for x in tqdm(snapshots)]
         lambda1_energies = [self.ani_model.calculate_energy(x, lambda_value=1.0) for x in tqdm(snapshots)]
 
-        lambda0_us = np.array([U/kT for U in [e[0] for e in lambda0_energies]])
-        lambda1_us = np.array([U/kT for U in [e[0] for e in lambda1_energies]])
+        lambda0_us = [U/kT for U in [e[0] for e in lambda0_energies]]
+        lambda1_us = [U/kT for U in [e[0] for e in lambda1_energies]]
 
-        lambda0_stddev = np.array([U/kT for U in [e[0] for e in lambda0_energies]])
-        lambda1_stddev = np.array([U/kT for U in [e[0] for e in lambda1_energies]])
+        lambda0_stddev = [U/kT for U in [e[0] for e in lambda0_energies]]
+        lambda1_stddev = [U/kT for U in [e[0] for e in lambda1_energies]]
         
-        def get_u_n_filtered(lam=0.0):
-            if ((1 - lam) * lambda0_stddev + lam * lambda1_stddev) / nr_of_atoms > 0.5:
-                return None 
-            return (1 - lam) * lambda0_us + lam * lambda1_us
-        def get_u_n_unfiltered(lam=0.0):
-            return (1 - lam) * lambda0_us + lam * lambda1_us
+        def get_u_n(lam=0.0, per_atom_stddev_tresh = 0.5):
+            filtered_e = []
+            for idx in range(len(lambda0_energies)):
+                e_scaled = (1 - lam) * lambda0_us[idx] + lam * lambda1_us[idx]
+                stddev_scaled = (1 - lam) * lambda0_stddev[idx] + lam * lambda1_stddev[idx]
+                if stddev_scaled/ nr_of_atoms < per_atom_stddev_tresh:
+                    filtered_e.append(e_scaled)
+            return np.array(filtered_e)
 
-
-        u_kn_filtered = np.stack(filter(None, [get_u_n_filtered(lam) for lam in sorted(lambdas)]))
-        u_kn_unfiltered = np.stack(filter(None, [get_u_n_unfiltered(lam) for lam in sorted(lambdas)]))
-        self.mbar_filtered = MBAR(u_kn_filtered, N_k)
-        self.mbar_unfiltered = MBAR(u_kn_unfiltered, N_k)
+        u_kn = np.stack([get_u_n(lam) for lam in sorted(lambdas)])
+        self.filtered = MBAR(u_kn, N_k)
 
     @property
-    def unfiltered_free_energy_differences(self):
+    def free_energy_differences(self):
         """matrix of free energy differences"""
-        return self.mbar_unfiltered.getFreeEnergyDifferences()[0]
+        return self.mbar.getFreeEnergyDifferences()[0]
     
     @property
-    def unfiltered_free_energy_difference_uncertainties(self):
+    def free_energy_difference_uncertainties(self):
         """matrix of asymptotic uncertainty-estimates accompanying free energy differences"""
-        return self.mbar_unfiltered.getFreeEnergyDifferences()[1]
+        return self.mbar.getFreeEnergyDifferences()[1]
     
     @property
-    def unfiltered_end_state_free_energy_difference(self):
+    def end_state_free_energy_difference(self):
         """DeltaF[lambda=1 --> lambda=0]"""
-        DeltaF_ij, dDeltaF_ij, _ = self.mbar_unfiltered.getFreeEnergyDifferences()
-        K = len(DeltaF_ij)
-        return DeltaF_ij[0, K-1], dDeltaF_ij[0, K-1]
-
-    @property
-    def filtered_free_energy_differences(self):
-        """matrix of free energy differences"""
-        return self.mbar_filtered.getFreeEnergyDifferences()[0]
-    
-    @property
-    def filtered_free_energy_difference_uncertainties(self):
-        """matrix of asymptotic uncertainty-estimates accompanying free energy differences"""
-        return self.mbar_filtered.getFreeEnergyDifferences()[1]
-    
-    @property
-    def filtered_end_state_free_energy_difference(self):
-        """DeltaF[lambda=1 --> lambda=0]"""
-        DeltaF_ij, dDeltaF_ij, _ = self.mbar_filtered.getFreeEnergyDifferences()
+        DeltaF_ij, dDeltaF_ij, _ = self.mbar.getFreeEnergyDifferences()
         K = len(DeltaF_ij)
         return DeltaF_ij[0, K-1], dDeltaF_ij[0, K-1]
 
