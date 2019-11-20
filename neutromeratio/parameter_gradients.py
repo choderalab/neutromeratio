@@ -56,8 +56,8 @@ class FreeEnergyCalculator():
         lambda1_e_b_stddev = [self.ani_model.calculate_energy(x, lambda_value=1.0) for x in tqdm(snapshots)]
 
         # extract endpoint stddev
-        lambda0_us = [U/kT for U in [e_b_stddev[0] for e in lambda0_e_b_stddev]]
-        lambda1_us = [U/kT for U in [e_b_stddev[0] for e in lambda1_e_b_stddev]]
+        lambda0_us = [U/kT for U in [e_b_stddev[0] for e_b_stddev in lambda0_e_b_stddev]]
+        lambda1_us = [U/kT for U in [e_b_stddev[0] for e_b_stddev in lambda1_e_b_stddev]]
         # extract endpoint energies
         lambda0_stddev = [stddev/kT for stddev in [e_b_stddev[2] for e_b_stddev in lambda0_e_b_stddev]]
         lambda1_stddev = [stddev/kT for stddev in [e_b_stddev[2] for e_b_stddev in lambda1_e_b_stddev]]
