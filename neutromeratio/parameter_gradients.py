@@ -3,12 +3,13 @@
 import numpy as np
 import torch
 from pymbar import MBAR
+import logging
 from pymbar.timeseries import detectEquilibration
 from simtk import unit
 from tqdm import tqdm
 
 from neutromeratio.ani import AlchemicalANI
-from neutromeratio.constants import temperature, kT
+from neutromeratio.constants import kT, hartree_to_kJ_mol
 
 
 class FreeEnergyCalculator():
@@ -51,22 +52,24 @@ class FreeEnergyCalculator():
         self.snapshots = snapshots
         # end-point energies
 
-        lambda0_energies = [self.ani_model.calculate_energy(x, lambda_value=0.0) for x in tqdm(snapshots)]
-        lambda1_energies = [self.ani_model.calculate_energy(x, lambda_value=1.0) for x in tqdm(snapshots)]
+        lambda0_e_b_stddev = [self.ani_model.calculate_energy(x, lambda_value=0.0) for x in tqdm(snapshots)]
+        lambda1_e_b_stddev = [self.ani_model.calculate_energy(x, lambda_value=1.0) for x in tqdm(snapshots)]
 
-        lambda0_us = [U/kT for U in [e[0] for e in lambda0_energies]]
-        lambda1_us = [U/kT for U in [e[0] for e in lambda1_energies]]
+        lambda0_us = [U/kT for U in [e[0] for e in lambda0_e_b_stddev]]
+        lambda1_us = [U/kT for U in [e[0] for e in lambda1_e_b_stddev]]
 
-        lambda0_stddev = [U/kT for U in [e[0] for e in lambda0_energies]]
-        lambda1_stddev = [U/kT for U in [e[0] for e in lambda1_energies]]
+        lambda0_stddev = [U/kT for U in [e[2] for e in lambda0_e_b_stddev]]
+        lambda1_stddev = [U/kT for U in [e[2] for e in lambda1_e_b_stddev]]
         
         def get_u_n(lam=0.0, per_atom_stddev_tresh = 0.5):
             filtered_e = []
-            for idx in range(len(lambda0_energies)):
+            for idx in range(len(lambda0_e_b_stddev)):
                 e_scaled = (1 - lam) * lambda0_us[idx] + lam * lambda1_us[idx]
                 stddev_scaled = (1 - lam) * lambda0_stddev[idx] + lam * lambda1_stddev[idx]
-                if stddev_scaled/ nr_of_atoms < per_atom_stddev_tresh:
+                if (stddev_scaled/ nr_of_atoms) * hartree_to_kJ_mol < per_atom_stddev_tresh:
                     filtered_e.append(e_scaled)
+                else:
+                    logging.info('For lambda {} conformation {} is discarded because of a stddev of {}'.format(lam, idx, round(stddev_scaled, 2)))
             return np.array(filtered_e)
 
         u_kn = np.stack([get_u_n(lam) for lam in sorted(lambdas)])
@@ -186,7 +189,6 @@ if __name__ == '__main__':
     ani_model.restrain_donor = True
 
     langevin = neutromeratio.LangevinDynamics(atom_list=ani_input['hybrid_atoms'],
-                                              temperature=temperature,
                                               force=ani_model)
 
     x0 = np.array(ani_input['hybrid_coords']) * unit.angstrom
