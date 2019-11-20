@@ -47,42 +47,30 @@ class FreeEnergyCalculator():
             snapshots.extend(new_snapshots)
 
         self.snapshots = snapshots
-        # end-point energies
 
+        # end-point energies, bias, stddev
         lambda0_e_b_stddev = [self.ani_model.calculate_energy(x, lambda_value=0.0) for x in tqdm(snapshots)]
         lambda1_e_b_stddev = [self.ani_model.calculate_energy(x, lambda_value=1.0) for x in tqdm(snapshots)]
-        print(lambda0_e_b_stddev)
+
         # extract endpoint stddev
         lambda0_stddev = [stddev/kT for stddev in [e_b_stddev[2] for e_b_stddev in lambda0_e_b_stddev]]
         lambda1_stddev = [stddev/kT for stddev in [e_b_stddev[2] for e_b_stddev in lambda1_e_b_stddev]]
 
-        # filter snapshots if stddev is too big
-        remove_snapshots = []
-        for idx in range(len(lambda0_e_b_stddev)):
-            if ((lambda0_stddev[idx]/ nr_of_atoms) * kT).value_in_unit(unit.kilojoule_per_mole) > per_atom_stddev_treshold:
-                logging.info('Lambda 0 conformation {} is discarded because of a stddev of {}'.format(idx, round(lambda0_stddev[idx]/ nr_of_atoms, 2)))
-                remove_snapshots.append(idx)
-            elif ((lambda1_stddev[idx]/ nr_of_atoms) * kT).value_in_unit(unit.kilojoule_per_mole) > per_atom_stddev_treshold:
-                logging.info('Lambda 1 conformation {} is discarded because of a stddev of {}'.format(idx, round(lambda1_stddev[idx]/ nr_of_atoms, 2)))
-                remove_snapshots.append(idx)
-            else:
-                pass
-        
-        print(remove_snapshots)
-        # filter out the removed indices
-        filtered_lambda0_e_b_stddev = [i for j, i in enumerate(lambda0_e_b_stddev) if j not in remove_snapshots]
-        filtered_lambda1_e_b_stddev = [i for j, i in enumerate(lambda1_e_b_stddev) if j not in remove_snapshots]
-        print(filtered_lambda0_e_b_stddev)
         # extract endpoint energies
-        lambda0_us = np.array([U/kT for U in [e_b_stddev[0] for e_b_stddev in filtered_lambda0_e_b_stddev]])
-        lambda1_us = np.array([U/kT for U in [e_b_stddev[0] for e_b_stddev in filtered_lambda1_e_b_stddev]])
+        lambda0_e = [e/kT for e in [e_b_stddev[0] for e_b_stddev in lambda0_e_b_stddev]]
+        lambda1_e = [e/kT for e in [e_b_stddev[0] for e_b_stddev in lambda1_e_b_stddev]]
 
-        N_k = [len(filtered_lambda0_e_b_stddev)] * K
+        def get_mix(lambda0, lambda1, lam=0.0):
+            return (1 - lam) * lambda0 + lam * lambda1
 
-        def get_u_n(lam=0.0):
-            return (1 - lam) * lambda0_us + lam * lambda1_us
-
-        u_kn = np.stack([get_u_n(lam) for lam in sorted(lambdas)])
+        u_kn = np.stack([get_mix(lambda0_e, lambda1_e, lam) for lam in sorted(lambdas)])
+        u_kn_stddev = np.stack([(get_mix(lambda0_stddev, lambda1_stddev, lam) * kT).value_in_unit(unit.kilojoule_per_mole) for lam in sorted(lambdas)])
+        
+        u_kn_stddev_bool = u_kn_stddev < 0.5
+        u_kn_filtered = np.where(u_kn, u_kn_stddev_bool)
+        print(u_kn_filtered)
+        N_k = 0
+        
         self.mbar = MBAR(u_kn, N_k)
 
     @property
