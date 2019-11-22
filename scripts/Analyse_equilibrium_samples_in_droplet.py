@@ -132,7 +132,7 @@ fec = FreeEnergyCalculator(ani_model=energy_function,
                             lambdas=lambdas,
                             n_atoms=len(atoms),
                             max_snapshots_per_window=100,
-                            per_atom_stddev_treshold=-1)
+                            per_atom_stddev_treshold=0.5)
 DeltaF_ji, dDeltaF_ji = fec.end_state_free_energy_difference
 print(fec.end_state_free_energy_difference)
 f = open(f"{base_path}/energies_filtered.csv", 'a+')

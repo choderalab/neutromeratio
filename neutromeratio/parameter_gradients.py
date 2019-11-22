@@ -21,20 +21,19 @@ class FreeEnergyCalculator():
                  n_atoms:int,
                  per_atom_stddev_treshold:float=0.5,
                  max_snapshots_per_window=50,
-                 per_atom_thresh=0.5
                  ):
         
         K = len(lambdas)
         assert (len(ani_trajs) == K)
         assert (len(potential_energy_trajs) == K)
-
+        logging.info(f"Per atom treshold used for filtering: {per_atom_stddev_treshold}")
         self.ani_model = ani_model
         self.potential_energy_trajs = potential_energy_trajs # for detecting equilibrium
         self.lambdas = lambdas
         self.ani_trajs = ani_trajs
         self.n_atoms = n_atoms
 
-        N_k, snapshots, used_lambdas = self.remove_confs_with_high_stddev(max_snapshots_per_window, per_atom_thresh)
+        N_k, snapshots, used_lambdas = self.remove_confs_with_high_stddev(max_snapshots_per_window, per_atom_stddev_treshold)
 
         # end-point energies, bias, stddev
         lambda0_e_b_stddev = [self.ani_model.calculate_energy(x, lambda_value=0.0) for x in tqdm(snapshots)]
@@ -84,6 +83,9 @@ class FreeEnergyCalculator():
             ani_trajs[lam] = snapshots
 
         last_valid_inds = {}
+        logging.info(f"Per atom treshold used for filtering: {per_atom_thresh}")
+        logging.info(f"Max snapshots per lambda: {max_snapshots_per_window}")
+        
         for lam in ani_trajs:
             lambda0_stddev, lambda1_stddev = calculate_stddev(ani_trajs[lam])
             current_stddev = (1 - lam) * lambda0_stddev + lam * lambda1_stddev
