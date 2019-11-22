@@ -11,6 +11,8 @@ from tqdm import tqdm
 from neutromeratio.ani import AlchemicalANI
 from neutromeratio.constants import kT, hartree_to_kJ_mol
 
+logger = logging.getLogger(__name__)
+
 
 class FreeEnergyCalculator():
     def __init__(self,
@@ -66,7 +68,6 @@ class FreeEnergyCalculator():
             return np.array(lambda0_stddev), np.array(lambda1_stddev)
 
         def compute_linear_penalty(current_stddev):
-            
             total_thresh = (per_atom_thresh * self.n_atoms) * unit.kilojoule_per_mole
             linear_penalty = np.maximum(0, current_stddev - (total_thresh/kT))
             return linear_penalty
@@ -78,6 +79,9 @@ class FreeEnergyCalculator():
         for lam, traj, potential_energy in zip(self.lambdas, self.ani_trajs, self.potential_energy_trajs):
             equil, g = detectEquilibration(potential_energy)[:2]
             snapshots = list(traj[equil:].xyz * unit.nanometer)[:max_snapshots_per_window] # Note: no equil detection!
+            if len(snapshots) == 0: # otherwise we will get problems down the line
+                logger.warning('No equilibrium length detected - taking last 50 snapshots.')
+                snapshots = list(traj[-50:-1].xyz * unit.nanometer)
             ani_trajs[lam] = snapshots
 
         last_valid_inds = {}
