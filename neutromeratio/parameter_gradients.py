@@ -18,9 +18,10 @@ class FreeEnergyCalculator():
                  ani_trajs: list,
                  potential_energy_trajs: list,
                  lambdas,
-                 nr_of_atoms:int,
+                 n_atoms:int,
                  per_atom_stddev_treshold:float=0.5,
                  max_snapshots_per_window=50,
+                 per_atom_thresh=0.5
                  ):
         
         K = len(lambdas)
@@ -28,50 +29,91 @@ class FreeEnergyCalculator():
         assert (len(potential_energy_trajs) == K)
 
         self.ani_model = ani_model
-        self.ani_trajs = ani_trajs
         self.potential_energy_trajs = potential_energy_trajs # for detecting equilibrium
         self.lambdas = lambdas
+        self.ani_trajs = ani_trajs
+        self.n_atoms = n_atoms
 
-
-        snapshots = []
-        for i in range(K):
-            traj = self.ani_trajs[i]
-
-            equil, g = detectEquilibration(self.potential_energy_trajs[i])[:2]
-            thinning = int(g)
-            if len(traj[equil::thinning]) > max_snapshots_per_window:
-                # what thinning will give me len(traj[equil::thinning]) == max_snapshots_per_window?
-                thinning = int((len(traj) - equil) / max_snapshots_per_window)
-
-            new_snapshots = list(traj[equil::thinning].xyz * unit.nanometer)[:max_snapshots_per_window]
-            snapshots.extend(new_snapshots)
-
-        self.snapshots = snapshots
+        N_k, snapshots, used_lambdas = self.remove_confs_with_high_stddev(max_snapshots_per_window, per_atom_thresh)
 
         # end-point energies, bias, stddev
         lambda0_e_b_stddev = [self.ani_model.calculate_energy(x, lambda_value=0.0) for x in tqdm(snapshots)]
         lambda1_e_b_stddev = [self.ani_model.calculate_energy(x, lambda_value=1.0) for x in tqdm(snapshots)]
-
-        # extract endpoint stddev
-        lambda0_stddev = [stddev/kT for stddev in [e_b_stddev[2] for e_b_stddev in lambda0_e_b_stddev]]
-        lambda1_stddev = [stddev/kT for stddev in [e_b_stddev[2] for e_b_stddev in lambda1_e_b_stddev]]
 
         # extract endpoint energies
         lambda0_e = [e/kT for e in [e_b_stddev[0] for e_b_stddev in lambda0_e_b_stddev]]
         lambda1_e = [e/kT for e in [e_b_stddev[0] for e_b_stddev in lambda1_e_b_stddev]]
 
         def get_mix(lambda0, lambda1, lam=0.0):
-            return (1 - lam) * lambda0 + lam * lambda1
+            return (1 - lam) * np.array(lambda0) + lam * np.array(lambda1)
 
-        u_kn = np.stack([get_mix(lambda0_e, lambda1_e, lam) for lam in sorted(lambdas)])
-        u_kn_stddev = np.stack([(get_mix(lambda0_stddev, lambda1_stddev, lam) * kT).value_in_unit(unit.kilojoule_per_mole) for lam in sorted(lambdas)])
+        print('Nr of atoms: {}'.format(n_atoms))
         
-        u_kn_stddev_bool = u_kn_stddev < 0.5
-        u_kn_filtered = np.where(u_kn, u_kn_stddev_bool)
-        print(u_kn_filtered)
-        N_k = 0
+        u_kn = np.stack(
+            [get_mix(lambda0_e, lambda1_e, lam) for lam in sorted(used_lambdas)]
+            )
         
         self.mbar = MBAR(u_kn, N_k)
+
+
+
+    def remove_confs_with_high_stddev(self, max_snapshots_per_window:int, per_atom_thresh):
+        
+        def calculate_stddev(snapshots):
+            lambda0_e_b_stddev = [self.ani_model.calculate_energy(x, lambda_value=0.0) for x in tqdm(snapshots)]
+            lambda1_e_b_stddev = [self.ani_model.calculate_energy(x, lambda_value=1.0) for x in tqdm(snapshots)]
+
+            # extract endpoint stddev
+            lambda0_stddev = [stddev/kT for stddev in [e_b_stddev[2] for e_b_stddev in lambda0_e_b_stddev]]
+            lambda1_stddev = [stddev/kT for stddev in [e_b_stddev[2] for e_b_stddev in lambda1_e_b_stddev]]
+            return np.array(lambda0_stddev), np.array(lambda1_stddev)
+
+        def compute_linear_penalty(current_stddev):
+            
+            total_thresh = (per_atom_thresh * self.n_atoms) * unit.kilojoule_per_mole
+            linear_penalty = np.maximum(0, current_stddev - (total_thresh/kT))
+            return linear_penalty
+
+        def compute_last_valid_ind(linear_penalty):
+            return np.argmax(np.cumsum(linear_penalty) > 0) -1
+            
+        ani_trajs = {}
+        for lam, traj, potential_energy in zip(self.lambdas, self.ani_trajs, self.potential_energy_trajs):
+            equil, g = detectEquilibration(potential_energy)[:2]
+            snapshots = list(traj[equil:].xyz * unit.nanometer)[:max_snapshots_per_window] # Note: no equil detection!
+            ani_trajs[lam] = snapshots
+
+        last_valid_inds = {}
+        for lam in ani_trajs:
+            lambda0_stddev, lambda1_stddev = calculate_stddev(ani_trajs[lam])
+            current_stddev = (1 - lam) * lambda0_stddev + lam * lambda1_stddev
+            if per_atom_thresh < 0.0:
+                last_valid_ind = -1
+            else:
+                linear_penalty = compute_linear_penalty(current_stddev)
+                last_valid_ind = compute_last_valid_ind(linear_penalty)
+            last_valid_inds[lam] = last_valid_ind
+
+        lambdas_with_usable_samples = []
+        for lam in sorted(list(last_valid_inds.keys())):
+            if last_valid_inds[lam] > 5 or last_valid_inds[lam] == -1: # -1 means all can be used
+                lambdas_with_usable_samples.append(lam)
+
+        snapshots = []
+        N_k = []
+        max_n_snapshots_per_state = 10
+
+        for lam in lambdas_with_usable_samples:
+            traj = ani_trajs[lam][0:last_valid_inds[lam]]
+            further_thinning = 1
+            if len(traj) > max_n_snapshots_per_state:
+                further_thinning = int(len(traj) / max_n_snapshots_per_state)
+            new_snapshots = traj[::further_thinning]
+            snapshots.extend(new_snapshots)
+            N_k.append(len(new_snapshots))
+
+        return N_k, snapshots, lambdas_with_usable_samples
+
 
     @property
     def free_energy_differences(self):

@@ -116,11 +116,8 @@ for dcd_filename in dcds:
     traj = md.load_dcd(dcd_filename, top=top)
     ani_trajs.append(traj)  
     f = open(f"{base_path}/{name}/{name}_lambda_{lam:0.4f}_energy_in_{env}_{mode}.csv", 'r')  
-    tmp_e = []
-    for e in f:
-        tmp_e.append(float(e))
+    energies.append(np.array([float(e) for e in f]))
     f.close()
-    energies.append(np.array(tmp_e))
 
 # plotting the energies for all equilibrium runs
 for e in energies: 
@@ -133,10 +130,11 @@ fec = FreeEnergyCalculator(ani_model=energy_function,
                             ani_trajs=ani_trajs, 
                             potential_energy_trajs=energies, 
                             lambdas=lambdas,
-                            nr_of_atoms=len(atoms),
-                            max_snapshots_per_window=200)
+                            n_atoms=len(atoms),
+                            max_snapshots_per_window=100,
+                            per_atom_stddev_treshold=-1)
 DeltaF_ji, dDeltaF_ji = fec.end_state_free_energy_difference
 print(fec.end_state_free_energy_difference)
-f = open(f"{base_path}/energies.csv", 'a+')
+f = open(f"{base_path}/energies_filtered.csv", 'a+')
 f.write(f"{name}, {DeltaF_ji}, {dDeltaF_ji}\n")
 f.close()

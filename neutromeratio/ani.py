@@ -308,7 +308,6 @@ class ANI1_force_and_energy(object):
         energy = energy_in_kJ_mol.item() * unit.kilojoule_per_mole
         bias = bias_in_kJ_mol.item() * unit.kilojoule_per_mole
         stddev = stddev_in_kJ_mol.item() * unit.kilojoule_per_mole
-
         return energy, bias, stddev
 
 class AlchemicalANI(torchani.models.ANI1ccx):
