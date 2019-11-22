@@ -78,10 +78,12 @@ class FreeEnergyCalculator():
         ani_trajs = {}
         for lam, traj, potential_energy in zip(self.lambdas, self.ani_trajs, self.potential_energy_trajs):
             equil, g = detectEquilibration(potential_energy)[:2]
-            snapshots = list(traj[equil:].xyz * unit.nanometer)[:max_snapshots_per_window] # Note: no equil detection!
+            snapshots = list(traj[equil:].xyz * unit.nanometer)[:max_snapshots_per_window] 
             if len(snapshots) == 0: # otherwise we will get problems down the line
-                logger.warning('No equilibrium length detected - taking last 50 snapshots.')
-                snapshots = list(traj[-50:-1].xyz * unit.nanometer)
+                middle_of_traj = len(traj)/2
+                logger.warning(f"No equilibrium length detected in snapshots for lambda: {lam}")
+                logger.warning(f"Taking 50 snapshots from middle of simulation.")
+                snapshots = list(traj[middle_of_traj:middle_of_traj+50].xyz * unit.nanometer)
             ani_trajs[lam] = snapshots
 
         last_valid_inds = {}
