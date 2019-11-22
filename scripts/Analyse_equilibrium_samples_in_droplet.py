@@ -19,10 +19,11 @@ idx = int(sys.argv[1])
 # where to write the results
 base_path = str(sys.argv[2])
 env = str(sys.argv[3])
+per_atom_stddev_treshold = float(sys.argv[4])
 assert(env == 'droplet' or env == 'vacuum')
 # diameter
 if env == 'droplet':
-   diameter_in_angstrom = int(sys.argv[4])
+   diameter_in_angstrom = int(sys.argv[5])
 #######################
 
 mode = 'forward'
@@ -47,7 +48,10 @@ t2_smiles = exp_results[name]['t2-smiles']
 
 
 # generate both rdkit mol
-tautomer = neutromeratio.Tautomer(name=name, initial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles), nr_of_conformations=20)
+tautomer = neutromeratio.Tautomer(name=name, 
+                                initial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), 
+                                final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles), 
+                                nr_of_conformations=2)
 if mode == 'forward':
     tautomer.perform_tautomer_transformation_forward()
 elif mode == 'reverse':
@@ -61,6 +65,7 @@ if env == 'droplet':
                                 diameter=diameter_in_angstrom * unit.angstrom,
                                 restrain_hydrogens=True,
                                 file=f"{base_path}/{name}/{name}_in_droplet_{mode}.pdb")
+
     print('Nr of atoms: {}'.format(len(tautomer.ligand_in_water_atoms)))
     atoms = tautomer.ligand_in_water_atoms
     top = tautomer.ligand_in_water_topology
@@ -73,7 +78,9 @@ alchemical_atoms=[tautomer.hybrid_hydrogen_idx_at_lambda_1, tautomer.hybrid_hydr
 
 
 # extract hydrogen donor idx and hydrogen idx for from_mol
-model = neutromeratio.ani.LinearAlchemicalDualTopologyANI(alchemical_atoms=alchemical_atoms, adventure_mode=True)
+model = neutromeratio.ani.LinearAlchemicalDualTopologyANI(alchemical_atoms=alchemical_atoms, 
+                                                        adventure_mode=True)
+                                                        
 model = model.to(device)
 torch.set_num_threads(2)
 
@@ -128,8 +135,8 @@ fec = FreeEnergyCalculator(ani_model=energy_function,
                             lambdas=lambdas,
                             n_atoms=len(atoms),
                             max_snapshots_per_window=100,
-                            per_atom_stddev_treshold=0.5)
-                            
+                            per_atom_stddev_treshold=per_atom_stddev_treshold)
+
 DeltaF_ji, dDeltaF_ji = fec.end_state_free_energy_difference
 print(fec.end_state_free_energy_difference)
 f = open(f"{base_path}/energies_filtered.csv", 'a+')

@@ -9,10 +9,11 @@
 
 idx=$LSB_JOBINDEX 
 n_steps=50000 
-
+per_atom_stddev_treshold=0.5
 hostname
 echo ${idx}
 echo ${n_steps}
+echo ${per_atom_stddev_treshold}
 
 . /home/wiederm/anaconda3/etc/profile.d/conda.sh
 conda activate ani36

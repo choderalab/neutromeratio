@@ -54,8 +54,6 @@ class FreeEnergyCalculator():
         
         self.mbar = MBAR(u_kn, N_k)
 
-
-
     def remove_confs_with_high_stddev(self, max_snapshots_per_window:int, per_atom_thresh):
         
         def calculate_stddev(snapshots):
