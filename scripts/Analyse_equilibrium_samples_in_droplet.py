@@ -87,20 +87,15 @@ energy_function = neutromeratio.ANI1_force_and_energy(
 
 for r in tautomer.ligand_restraints:
     energy_function.add_restraint(r)
-
 for r in tautomer.hybrid_ligand_restraints:
     energy_function.add_restraint(r)
 
 if env == 'droplet':
-
     tautomer.add_COM_for_hybrid_ligand(np.array([diameter_in_angstrom/2, diameter_in_angstrom/2, diameter_in_angstrom/2]) * unit.angstrom)
-
     for r in tautomer.solvent_restraints:
         energy_function.add_restraint(r)
-
     for r in tautomer.com_restraints:
         energy_function.add_restraint(r)
-
 
 # get steps inclusive endpoints
 # and lambda values in list
@@ -114,6 +109,7 @@ for dcd_filename in dcds:
     lam = parse_lambda_from_dcd_filename(dcd_filename, env)
     lambdas.append(lam)
     traj = md.load_dcd(dcd_filename, top=top)
+    print(f"Nr of frames in trajectory: {len(traj)}")
     ani_trajs.append(traj)  
     f = open(f"{base_path}/{name}/{name}_lambda_{lam:0.4f}_energy_in_{env}_{mode}.csv", 'r')  
     energies.append(np.array([float(e) for e in f]))
@@ -133,6 +129,7 @@ fec = FreeEnergyCalculator(ani_model=energy_function,
                             n_atoms=len(atoms),
                             max_snapshots_per_window=100,
                             per_atom_stddev_treshold=0.5)
+                            
 DeltaF_ji, dDeltaF_ji = fec.end_state_free_energy_difference
 print(fec.end_state_free_energy_difference)
 f = open(f"{base_path}/energies_filtered.csv", 'a+')
