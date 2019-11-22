@@ -80,7 +80,7 @@ alchemical_atoms=[tautomer.hybrid_hydrogen_idx_at_lambda_1, tautomer.hybrid_hydr
 # extract hydrogen donor idx and hydrogen idx for from_mol
 model = neutromeratio.ani.LinearAlchemicalDualTopologyANI(alchemical_atoms=alchemical_atoms, 
                                                         adventure_mode=True)
-                                                        
+
 model = model.to(device)
 torch.set_num_threads(2)
 
@@ -116,8 +116,8 @@ for dcd_filename in dcds:
     lam = parse_lambda_from_dcd_filename(dcd_filename, env)
     lambdas.append(lam)
     traj = md.load_dcd(dcd_filename, top=top)
-    print(f"Nr of frames in trajectory: {len(traj)}")
-    ani_trajs.append(traj)  
+    print(f"Nr of frames in trajectory: {len(traj[::2])}")
+    ani_trajs.append(traj[::2])  
     f = open(f"{base_path}/{name}/{name}_lambda_{lam:0.4f}_energy_in_{env}_{mode}.csv", 'r')  
     energies.append(np.array([float(e) for e in f]))
     f.close()

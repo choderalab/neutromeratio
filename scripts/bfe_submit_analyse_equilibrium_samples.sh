@@ -14,10 +14,10 @@ diameter_in_angstrom=18 #Angstrom
 base_path="/data/chodera/wiederm/equilibrium_sampling/waterbox-${diameter_in_angstrom}A/"
 env='droplet'
 
-echo ${idx}
-echo ${per_atom_stddev_treshold}
-echo ${diameter_in_angstrom}
-echo ${base_path}
+echo 'Idx: '${idx}
+echo 'Per atom stddev treshold: '${per_atom_stddev_treshold}
+echo 'Diameter in Angstrom: '${diameter_in_angstrom}
+echo 'Base path: '${base_path}
 
 . /home/wiederm/anaconda3/etc/profile.d/conda.sh
 conda activate ani36
