@@ -11,6 +11,12 @@ import matplotlib.pyplot as plt
 import random, sys
 from neutromeratio.constants import platform, device, exclude_set
 
+
+entropy_correction = True
+if entropy_correction:
+    ending = '_with_entropy_correction'
+else:
+    ending = ''
 # job idx
 idx = int(sys.argv[1])
 
@@ -65,9 +71,11 @@ for coords in tautomer.initial_state_ligand_coords:
         print('Imaginary frequencies present - found transition state.')
         continue
 
-    g = neutromeratio.reduced_pot(e) + \
-    neutromeratio.reduced_pot(thermochemistry_correction) + \
-    neutromeratio.reduced_pot(tautomer.initial_state_entropy_correction)
+    g = neutromeratio.reduced_pot(e) + neutromeratio.reduced_pot(thermochemistry_correction)
+    if entropy_correction:
+        g += neutromeratio.reduced_pot(tautomer.initial_state_entropy_correction)
+
+    
     
     e = neutromeratio.reduced_pot(e)
 
@@ -96,9 +104,9 @@ for coords in tautomer.final_state_ligand_coords:
         print('Imaginary frequencies present - found transition state.')
         continue
 
-    g = neutromeratio.reduced_pot(e) + \
-        neutromeratio.reduced_pot(thermochemistry_correction) + \
-        neutromeratio.reduced_pot(tautomer.final_state_entropy_correction)
+    g = neutromeratio.reduced_pot(e) + neutromeratio.reduced_pot(thermochemistry_correction)
+    if entropy_correction:
+        g += neutromeratio.reduced_pot(tautomer.final_state_entropy_correction)
     
     e = neutromeratio.reduced_pot(e)
 
@@ -109,11 +117,11 @@ for coords in tautomer.final_state_ligand_coords:
 e_diff = t2_e[0] - t1_e[0]
 g_diff = t2_g[0] - t1_g[0]
 # write dE
-f = open('/home/mwieder/Work/Projects/neutromeratio/data/results/ANI1ccx_vacuum_random_minimum_dE.csv', 'a+')
+f = open(f"/home/mwieder/Work/Projects/neutromeratio/data/results/ANI1ccx_vacuum_random_minimum_dE{ending}.csv", 'a+')
 f.write(f"{name}, {e_diff}\n")
 f.close()
 # write dG
-f = open('/home/mwieder/Work/Projects/neutromeratio/data/results/ANI1ccx_vacuum_random_minimum_dG.csv', 'a+')
+f = open(f"/home/mwieder/Work/Projects/neutromeratio/data/results/ANI1ccx_vacuum_random_minimum_dG{ending}.csv", 'a+')
 f.write(f"{name}, {g_diff}\n")
 f.close()
 
@@ -123,10 +131,10 @@ f.close()
 e_diff = min(t2_e) - min(t1_e)
 g_diff = min(t2_g) - min(t1_g)
 # write dE
-f = open('/home/mwieder/Work/Projects/neutromeratio/data/results/ANI1ccx_vacuum_global_minimum_dE.csv', 'a+')
+f = open(f"/home/mwieder/Work/Projects/neutromeratio/data/results/ANI1ccx_vacuum_global_minimum_dE{ending}.csv", 'a+')
 f.write(f"{name}, {e_diff}\n")
 f.close()
 # write dG
-f = open('/home/mwieder/Work/Projects/neutromeratio/data/results/ANI1ccx_vacuum_global_minimum_dG.csv', 'a+')
+f = open(f"/home/mwieder/Work/Projects/neutromeratio/data/results/ANI1ccx_vacuum_global_minimum_dG{ending}.csv", 'a+')
 f.write(f"{name}, {g_diff}\n")
 f.close()
