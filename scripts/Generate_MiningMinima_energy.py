@@ -1,5 +1,6 @@
 import neutromeratio
-from openmmtools.constants import kB, exclude_set
+from openmmtools.constants import kB
+from neutromeratio.constants import exclude_set
 from simtk import unit
 import numpy as np
 import pickle

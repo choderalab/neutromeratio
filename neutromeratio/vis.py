@@ -38,13 +38,8 @@ def generate_nglview_object(traj:md.Trajectory, radius:int=0.0, donor_hydrogen_i
         print('Hydrogen in GREEN  is real at lambda: 0.')
         print('Hydrogen in YELLOW is real at lambda: 1.')
         view.add_representation('point', selection=[donor_hydrogen_idx], color='green', pointSize=3.5)
-        view.add_representation('point', selection=[acceptor_hydrogen_idx], color='yellow', pointSize=3.5)
-    
-
-
+        view.add_representation('point', selection=[acceptor_hydrogen_idx], color='yellow', pointSize=3.5)   
     return view 
-
-
 
 def display_mol(mol:Chem.Mol):
     """

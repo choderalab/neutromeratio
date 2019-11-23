@@ -57,7 +57,7 @@ for coords in tautomer.initial_state_ligand_coords:
     # minimize
     minimized_coords, _ = energy_function.minimize(coords)
     # calculate electronic single point energy
-    e = energy_function.calculate_energy(minimized_coords)
+    e, _, __ = energy_function.calculate_energy(minimized_coords)
     # calculate Gibb's free energy
     try:
         thermochemistry_correction = energy_function.get_thermo_correction(minimized_coords)  
@@ -69,6 +69,8 @@ for coords in tautomer.initial_state_ligand_coords:
     neutromeratio.reduced_pot(thermochemistry_correction) + \
     neutromeratio.reduced_pot(tautomer.initial_state_entropy_correction)
     
+    e = neutromeratio.reduced_pot(e)
+
     t1_e.append(e)
     t1_g.append(g)
 
@@ -86,7 +88,7 @@ for coords in tautomer.final_state_ligand_coords:
     # minimize
     minimized_coords, _ = energy_function.minimize(coords)
     # calculate electronic single point energy
-    e = energy_function.calculate_energy(minimized_coords)
+    e, _, __ = energy_function.calculate_energy(minimized_coords)
     # calculate Gibb's free energy
     try:
         thermochemistry_correction = energy_function.get_thermo_correction(minimized_coords)  
@@ -98,6 +100,8 @@ for coords in tautomer.final_state_ligand_coords:
         neutromeratio.reduced_pot(thermochemistry_correction) + \
         neutromeratio.reduced_pot(tautomer.final_state_entropy_correction)
     
+    e = neutromeratio.reduced_pot(e)
+
     t2_e.append(e)
     t2_g.append(g)
        
