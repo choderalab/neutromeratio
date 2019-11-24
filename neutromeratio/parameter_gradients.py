@@ -94,7 +94,7 @@ class FreeEnergyCalculator():
             lambda0_stddev, lambda1_stddev = calculate_stddev(ani_trajs[lam])
             current_stddev = (1 - lam) * lambda0_stddev + lam * lambda1_stddev
             if per_atom_thresh < 0.0:
-                last_valid_ind = -1
+                last_valid_ind = -1 # all can be used
             else:
                 linear_penalty = compute_linear_penalty(current_stddev)
                 last_valid_ind = compute_last_valid_ind(linear_penalty)

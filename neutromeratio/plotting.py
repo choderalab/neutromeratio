@@ -13,9 +13,6 @@ def plot_correlation_analysis(
     title:str,
     x_label:str,
     y_label:str,
-    color: str,
-    marker: str,
-    error_color="black",
     nsamples=5000,
     mark_tautomer_names:list=[],
 ):
@@ -24,13 +21,9 @@ def plot_correlation_analysis(
     Parameters
     ----------
     df : pd.Dataframe
-        the df contains columns with colum names 'names', 'x', 'y'
+        the df contains columns with colum names 'names', 'x', 'y', 'y-error'
     title : str
         to put above plot. use '' (empty string) for no title.
-    color : str
-        edge color of the markers. This plot uses open markers.
-    error_color : str
-        color of the error bars
     nsamples : int
         number of samples to draw for bootstrap
     mark_tautomer_names : list of str
