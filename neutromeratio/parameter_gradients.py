@@ -19,12 +19,32 @@ class FreeEnergyCalculator():
                  ani_model: AlchemicalANI,
                  ani_trajs: list,
                  potential_energy_trajs: list,
-                 lambdas,
+                 lambdas:list,
                  n_atoms:int,
                  per_atom_stddev_treshold:float=0.5,
                  max_snapshots_per_window=50,
                  ):
         
+        """
+        Uses mbar to calculate the free energy difference between trajectories.
+        Parameters
+        ----------
+        ani_model : AlchemicalANI
+            model used for energy calculation
+        ani_trajs : list
+            trajectories 
+        potential_energy_trajs : list
+            energy trace of trajectories
+        lambdas : list
+            all lambda states
+        n_atoms : int
+            number of atoms
+        per_atom_stddev_treshold : float
+            per atom 
+
+        """
+
+
         K = len(lambdas)
         assert (len(ani_trajs) == K)
         assert (len(potential_energy_trajs) == K)
@@ -56,28 +76,52 @@ class FreeEnergyCalculator():
         
         self.mbar = MBAR(u_kn, N_k)
 
-    def remove_confs_with_high_stddev(self, max_snapshots_per_window:int, per_atom_thresh):
+    def remove_confs_with_high_stddev(self, max_snapshots_per_window:int, per_atom_thresh:float):
         
+        """
+        Removes conformations with ensemble energy stddev per atom above a given treshold.
+        Parameters
+        ----------
+        max_snapshots_per_window : int
+            maximum number of conformations per lambda window
+        per_atom_thresh : float
+            per atom stddev threshold - by default this is set to 0.5 kJ/mol/atom
+        """
+
         def calculate_stddev(snapshots):
+            # calculate energy, bias and stddev for endstates
             lambda0_e_b_stddev = [self.ani_model.calculate_energy(x, lambda_value=0.0) for x in tqdm(snapshots)]
             lambda1_e_b_stddev = [self.ani_model.calculate_energy(x, lambda_value=1.0) for x in tqdm(snapshots)]
 
-            # extract endpoint stddev
+            # extract endpoint stddev and return
             lambda0_stddev = [stddev/kT for stddev in [e_b_stddev[2] for e_b_stddev in lambda0_e_b_stddev]]
             lambda1_stddev = [stddev/kT for stddev in [e_b_stddev[2] for e_b_stddev in lambda1_e_b_stddev]]
             return np.array(lambda0_stddev), np.array(lambda1_stddev)
 
         def compute_linear_penalty(current_stddev):
+            # calculate the total energy stddev treshold based on the provided per_atom_tresh 
+            # and the number of atoms
             total_thresh = (per_atom_thresh * self.n_atoms) * unit.kilojoule_per_mole
+            # if stddev for a given conformation < total_tresh => 0.0
+            # if stddev for a given conformation > total_tresh => stddev - total_treshold
             linear_penalty = np.maximum(0, current_stddev - (total_thresh/kT))
             return linear_penalty
 
         def compute_last_valid_ind(linear_penalty):
-            return np.argmax(np.cumsum(linear_penalty) > 0) -1
-            
+            # return the idx of the first entry that is above 0.0
+            if np.cumsum(linear_penalty) < 0.1: # means all can be used
+                return -1
+            elif np.argmax(np.cumsum(linear_penalty) > 0) == 0: # means nothing can be used
+                return 0
+            else:
+                return np.argmax(np.cumsum(linear_penalty) > 0) -1 # means up to idx can be used
+
+
         ani_trajs = {}
         for lam, traj, potential_energy in zip(self.lambdas, self.ani_trajs, self.potential_energy_trajs):
+            # detect equilibrium
             equil, g = detectEquilibration(potential_energy)[:2]
+            # thinn snapshots and return max_snapshots_per_window confs
             snapshots = list(traj[equil:].xyz * unit.nanometer)[:max_snapshots_per_window] 
             if len(snapshots) == 0: # otherwise we will get problems down the line
                 middle_of_traj = int(len(traj)/2)
@@ -91,13 +135,12 @@ class FreeEnergyCalculator():
         logging.info(f"Max snapshots per lambda: {max_snapshots_per_window}")
         
         for lam in ani_trajs:
+            # calculate endstate stddev for given confs
             lambda0_stddev, lambda1_stddev = calculate_stddev(ani_trajs[lam])
+            # scale for current lam
             current_stddev = (1 - lam) * lambda0_stddev + lam * lambda1_stddev
-            if per_atom_thresh < 0.0:
-                last_valid_ind = -1 # all can be used
-            else:
-                linear_penalty = compute_linear_penalty(current_stddev)
-                last_valid_ind = compute_last_valid_ind(linear_penalty)
+            linear_penalty = compute_linear_penalty(current_stddev)
+            last_valid_ind = compute_last_valid_ind(linear_penalty)
             last_valid_inds[lam] = last_valid_ind
 
         lambdas_with_usable_samples = []
@@ -109,6 +152,7 @@ class FreeEnergyCalculator():
         N_k = []
         max_n_snapshots_per_state = 10
 
+        # lambbdas with usable samples applied to usable conformations
         for lam in lambdas_with_usable_samples:
             traj = ani_trajs[lam][0:last_valid_inds[lam]]
             further_thinning = 1
