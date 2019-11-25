@@ -40,7 +40,7 @@ class FreeEnergyCalculator():
         n_atoms : int
             number of atoms
         per_atom_stddev_treshold : float
-            per atom 
+            exclude snapshots where ensemble stddev in energy / n_atoms exceeds this threshold, in kJ/mol
 
         """
 
