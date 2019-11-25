@@ -354,7 +354,7 @@ class Ensemble(torch.nn.ModuleList):
         stddev : torch.Tensor in Hartree
         """
         outputs_tensor = torch.cat([x(species_input)[1].double() for x in self])       
-        stddev = torch.std(outputs_tensor, unbiased=False)
+        stddev = torch.std(outputs_tensor, unbiased=False) # to match np.std default ddof=0
         energy_mean = torch.mean(outputs_tensor)
         return energy_mean, stddev
       
