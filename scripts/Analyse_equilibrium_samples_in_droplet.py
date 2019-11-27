@@ -24,8 +24,11 @@ assert(env == 'droplet' or env == 'vacuum')
 # diameter
 if env == 'droplet':
    diameter_in_angstrom = int(sys.argv[5])
-#######################
 
+
+thinning = 4
+#######################
+#######################
 mode = 'forward'
 
 # read in exp results, smiles and names
@@ -115,11 +118,11 @@ energies = []
 for dcd_filename in dcds:
     lam = parse_lambda_from_dcd_filename(dcd_filename, env)
     lambdas.append(lam)
-    traj = md.load_dcd(dcd_filename, top=top)
-    print(f"Nr of frames in trajectory: {len(traj[::2])}")
-    ani_trajs.append(traj[::2])  
+    traj = md.load_dcd(dcd_filename, top=top)[::thinning]
+    print(f"Nr of frames in trajectory: {len(traj)}")
+    ani_trajs.append(traj)  
     f = open(f"{base_path}/{name}/{name}_lambda_{lam:0.4f}_energy_in_{env}_{mode}.csv", 'r')  
-    energies.append(np.array([float(e) for e in f]))
+    energies.append(np.array([float(e) for e in f][::thinning]))
     f.close()
 
 # plotting the energies for all equilibrium runs
