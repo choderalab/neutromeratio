@@ -43,8 +43,6 @@ class FreeEnergyCalculator():
             exclude snapshots where ensemble stddev in energy / n_atoms exceeds this threshold, in kJ/mol
 
         """
-
-
         K = len(lambdas)
         assert (len(ani_trajs) == K)
         assert (len(potential_energy_trajs) == K)
@@ -68,7 +66,7 @@ class FreeEnergyCalculator():
         def get_mix(lambda0, lambda1, lam=0.0):
             return (1 - lam) * np.array(lambda0) + lam * np.array(lambda1)
 
-        print('Nr of atoms: {}'.format(n_atoms))
+        logger.info('Nr of atoms: {}'.format(n_atoms))
         
         u_kn = np.stack(
             [get_mix(lambda0_e, lambda1_e, lam) for lam in sorted(used_lambdas)]
@@ -90,6 +88,7 @@ class FreeEnergyCalculator():
 
         def calculate_stddev(snapshots):
             # calculate energy, bias and stddev for endstates
+            logger.info('Calculating stddev')
             lambda0_e_b_stddev = [self.ani_model.calculate_energy(x, lambda_value=0.0) for x in tqdm(snapshots)]
             lambda1_e_b_stddev = [self.ani_model.calculate_energy(x, lambda_value=1.0) for x in tqdm(snapshots)]
 
@@ -102,30 +101,37 @@ class FreeEnergyCalculator():
             # calculate the total energy stddev threshold based on the provided per_atom_thresh 
             # and the number of atoms
             total_thresh = (per_atom_thresh * self.n_atoms)
+            logger.info(f"Per system treshold: {total_thresh}")
             # if stddev for a given conformation < total_thresh => 0.0
             # if stddev for a given conformation > total_thresh => stddev - total_threshold
             linear_penalty = np.maximum(0, current_stddev - (total_thresh/kT))
+            print(linear_penalty)
             return linear_penalty
 
         def compute_last_valid_ind(linear_penalty):
             # return the idx of the first entry that is above 0.0
-            if np.cumsum(linear_penalty) < 0.1: # means all can be used
+            if np.sum(linear_penalty) < 0.01: # means all can be used
+                logger.info('Last valid ind: -1')
                 return -1
             elif np.argmax(np.cumsum(linear_penalty) > 0) == 0: # means nothing can be used
+                logger.info('Last valid ind: 0')
                 return 0
             else:
-                return np.argmax(np.cumsum(linear_penalty) > 0) -1 # means up to idx can be used
+                idx = np.argmax(np.cumsum(linear_penalty) > 0) -1
+                logger.info(f"Last valid ind: {idx}")
+                return idx # means up to idx can be used
 
         ani_trajs = {}
+        further_thinning = 4
         for lam, traj, potential_energy in zip(self.lambdas, self.ani_trajs, self.potential_energy_trajs):
             # detect equilibrium
             #equil, g = detectEquilibration(potential_energy)[:2]
             # thinn snapshots and return max_snapshots_per_window confs
-            snapshots = list(traj[int(len(traj)/2):].xyz * unit.nanometer)[::4] 
+            #snapshots = list(traj[int(len(traj)/2):].xyz * unit.nanometer)[::further_thinning]
+            snapshots = list(traj[100:-200].xyz * unit.nanometer)[::further_thinning] 
             ani_trajs[lam] = snapshots
 
         last_valid_inds = {}
-        logging.info(f"Per atom threshold used for filtering: {per_atom_thresh}")
         logging.info(f"Max snapshots per lambda: {max_snapshots_per_window}")
         
         for lam in ani_trajs:

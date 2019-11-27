@@ -19,7 +19,7 @@ idx = int(sys.argv[1])
 # where to write the results
 base_path = str(sys.argv[2])
 env = str(sys.argv[3])
-per_atom_stddev_treshold = float(sys.argv[4])
+per_atom_stddev_threshold = float(sys.argv[4]) # in kJ/mol
 assert(env == 'droplet' or env == 'vacuum')
 # diameter
 if env == 'droplet':
@@ -140,7 +140,7 @@ fec = FreeEnergyCalculator(ani_model=energy_function,
                             lambdas=lambdas,
                             n_atoms=len(atoms),
                             max_snapshots_per_window=100,
-                            per_atom_thresh=0.5 * unit.kilojoule_per_mole)
+                            per_atom_thresh=per_atom_stddev_threshold * unit.kilojoule_per_mole)
 
 DeltaF_ji, dDeltaF_ji = fec.end_state_free_energy_difference
 print(fec.end_state_free_energy_difference)
