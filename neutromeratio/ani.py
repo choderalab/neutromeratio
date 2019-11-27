@@ -348,12 +348,12 @@ class Ensemble(torch.nn.ModuleList):
         assert(type(self.per_atom_thresh) == unit.Quantity)
     
     def _compute_linear_penalty(self, current_stddev):
-        # calculate the total energy stddev treshold based on the provided per_atom_tresh 
+        # calculate the total energy stddev threshold based on the provided per_atom_thresh 
         # and the number of atoms
         total_thresh = (self.per_atom_thresh.value_in_unit(unit.kilojoule_per_mole) * self.nr_of_atoms)
         current_stddev *= hartree_to_kJ_mol
-        # if stddev for a given conformation < total_tresh => 0.0
-        # if stddev for a given conformation > total_tresh => stddev - total_treshold
+        # if stddev for a given conformation < total_thresh => 0.0
+        # if stddev for a given conformation > total_thresh => stddev - total_threshold
         if current_stddev < total_thresh:
             linear_penalty = torch.tensor(0.0, device=self.device, dtype=torch.float64)
         else:
