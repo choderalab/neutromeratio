@@ -21,7 +21,7 @@ class FreeEnergyCalculator():
                  potential_energy_trajs: list,
                  lambdas:list,
                  n_atoms:int,
-                 per_atom_stddev_treshold:float=0.5,
+                 per_atom_thresh:unit.Quantity=0.5*unit.kilojoule_per_mole,
                  max_snapshots_per_window=50,
                  ):
         
@@ -39,7 +39,7 @@ class FreeEnergyCalculator():
             all lambda states
         n_atoms : int
             number of atoms
-        per_atom_stddev_treshold : float
+        per_atom_tresh : float
             exclude snapshots where ensemble stddev in energy / n_atoms exceeds this threshold, in kJ/mol
 
         """
@@ -48,14 +48,14 @@ class FreeEnergyCalculator():
         K = len(lambdas)
         assert (len(ani_trajs) == K)
         assert (len(potential_energy_trajs) == K)
-        logging.info(f"Per atom treshold used for filtering: {per_atom_stddev_treshold}")
+        logging.info(f"Per atom treshold used for filtering: {per_atom_tresh}")
         self.ani_model = ani_model
         self.potential_energy_trajs = potential_energy_trajs # for detecting equilibrium
         self.lambdas = lambdas
         self.ani_trajs = ani_trajs
         self.n_atoms = n_atoms
 
-        N_k, snapshots, used_lambdas = self.remove_confs_with_high_stddev(max_snapshots_per_window, per_atom_stddev_treshold)
+        N_k, snapshots, used_lambdas = self.remove_confs_with_high_stddev(max_snapshots_per_window, per_atom_tresh)
 
         # end-point energies, bias, stddev
         lambda0_e_b_stddev = [self.ani_model.calculate_energy(x, lambda_value=0.0) for x in tqdm(snapshots)]
@@ -101,7 +101,7 @@ class FreeEnergyCalculator():
         def compute_linear_penalty(current_stddev):
             # calculate the total energy stddev treshold based on the provided per_atom_tresh 
             # and the number of atoms
-            total_thresh = (per_atom_thresh * self.n_atoms) * unit.kilojoule_per_mole
+            total_thresh = (per_atom_thresh * self.n_atoms)
             # if stddev for a given conformation < total_tresh => 0.0
             # if stddev for a given conformation > total_tresh => stddev - total_treshold
             linear_penalty = np.maximum(0, current_stddev - (total_thresh/kT))

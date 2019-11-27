@@ -82,7 +82,9 @@ alchemical_atoms=[tautomer.hybrid_hydrogen_idx_at_lambda_1, tautomer.hybrid_hydr
 
 # extract hydrogen donor idx and hydrogen idx for from_mol
 model = neutromeratio.ani.LinearAlchemicalDualTopologyANI(alchemical_atoms=alchemical_atoms, 
-                                                        adventure_mode=True)
+                                                        adventure_mode=True,
+                                                        per_atom_thresh=0.5 * unit.kilojoule_per_mole
+                                                        )
 
 model = model.to(device)
 torch.set_num_threads(2)
@@ -138,7 +140,7 @@ fec = FreeEnergyCalculator(ani_model=energy_function,
                             lambdas=lambdas,
                             n_atoms=len(atoms),
                             max_snapshots_per_window=100,
-                            per_atom_stddev_treshold=per_atom_stddev_treshold)
+                            per_atom_thresh=0.5 * unit.kilojoule_per_mole)
 
 DeltaF_ji, dDeltaF_ji = fec.end_state_free_energy_difference
 print(fec.end_state_free_energy_difference)
