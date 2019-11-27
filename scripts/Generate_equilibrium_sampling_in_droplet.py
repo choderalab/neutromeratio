@@ -65,7 +65,9 @@ print('Nr of atoms: {}'.format(len(tautomer.ligand_in_water_atoms)))
 
 # extract hydrogen donor idx and hydrogen idx for from_mol
 model = neutromeratio.ani.LinearAlchemicalDualTopologyANI(alchemical_atoms=alchemical_atoms,
-                                                            adventure_mode=True)
+                                                            adventure_mode=True,
+                                                            per_atom_thresh=0.5 * unit.kilojoule_per_mole
+)
 model = model.to(device)
 torch.set_num_threads(2)
 
