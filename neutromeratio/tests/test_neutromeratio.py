@@ -207,7 +207,8 @@ def test_neutromeratio_energy_calculations_with_LinearAlchemicalANI_model():
 
     # overwrite the coordinates that rdkit generated with the first frame in the traj
     x0 = traj[0]
-    model = neutromeratio.ani.LinearAlchemicalANI(alchemical_atoms=[hydrogen_idx])
+    model = neutromeratio.ani.LinearAlchemicalANI(alchemical_atoms=[hydrogen_idx], 
+                                                    per_atom_thresh=0.5 * unit.kilojoule_per_mole)
     torch.set_num_threads(1)
 
     energy_function = neutromeratio.ANI1_force_and_energy(
@@ -242,7 +243,10 @@ def test_neutromeratio_energy_calculations_with_LinearAlchemicalDualTopologyANI_
     dummy_atoms = [t.hybrid_hydrogen_idx_at_lambda_1, t.hybrid_hydrogen_idx_at_lambda_0]
     atoms = t.hybrid_atoms
     # overwrite the coordinates that rdkit generated with the first frame in the traj
-    model = neutromeratio.ani.LinearAlchemicalDualTopologyANI(alchemical_atoms=dummy_atoms, adventure_mode=False)
+    model = neutromeratio.ani.LinearAlchemicalDualTopologyANI(alchemical_atoms=dummy_atoms, 
+                                                                adventure_mode=False,
+                                                                per_atom_thresh=0.5 * unit.kilojoule_per_mole
+                                                                )
     torch.set_num_threads(1)
 
     energy_function = neutromeratio.ANI1_force_and_energy(
@@ -308,7 +312,9 @@ def test_restraint_with_alchemicalANI():
     # overwrite the coordinates that rdkit generated with the first frame in the traj
     x0 = traj[0]
 
-    model = neutromeratio.ani.LinearAlchemicalANI(alchemical_atoms=[hydrogen_idx])
+    model = neutromeratio.ani.LinearAlchemicalANI(alchemical_atoms=[hydrogen_idx],
+                                                    per_atom_thresh=0.5 * unit.kilojoule_per_mole
+                                                    )
     
     energy_function = neutromeratio.ANI1_force_and_energy(
                                                 model = model,
@@ -388,7 +394,9 @@ def test_restraint_with_LinearAlchemicalDualTopologyANI():
     dummy_atoms = [tautomer.hybrid_hydrogen_idx_at_lambda_1, tautomer.hybrid_hydrogen_idx_at_lambda_0]
     atoms = tautomer.hybrid_atoms
 
-    model = neutromeratio.ani.LinearAlchemicalDualTopologyANI(alchemical_atoms=dummy_atoms, adventure_mode=False)
+    model = neutromeratio.ani.LinearAlchemicalDualTopologyANI(alchemical_atoms=dummy_atoms, 
+                                                            adventure_mode=False,
+                                                            per_atom_thresh=0.5 * unit.kilojoule_per_mole)
     
     energy_function = neutromeratio.ANI1_force_and_energy(
                                                 model = model,
@@ -443,7 +451,9 @@ def test_thermochemistry():
     t2_smiles = exp_results[name]['t2-smiles']
 
     # generate both rdkit mol
-    t = neutromeratio.Tautomer(name=name, initial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles))
+    t = neutromeratio.Tautomer(name=name, 
+                                initial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), 
+                                final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles))
     t.perform_tautomer_transformation_forward()
 
     # set model
@@ -486,7 +496,10 @@ def test_euqilibrium():
     alchemical_atoms=[tautomer.hybrid_hydrogen_idx_at_lambda_1, tautomer.hybrid_hydrogen_idx_at_lambda_0]
 
     # extract hydrogen donor idx and hydrogen idx for from_mol
-    model = neutromeratio.ani.LinearAlchemicalDualTopologyANI(alchemical_atoms=alchemical_atoms, adventure_mode=False)
+    model = neutromeratio.ani.LinearAlchemicalDualTopologyANI(alchemical_atoms=alchemical_atoms, 
+                                                            adventure_mode=False,
+                                                            per_atom_thresh=0.5 * unit.kilojoule_per_mole
+)
     model = model.to(device)
     torch.set_num_threads(2)
 
@@ -631,7 +644,10 @@ def test_generating_droplet():
     alchemical_atoms=[tautomer.hybrid_hydrogen_idx_at_lambda_1, tautomer.hybrid_hydrogen_idx_at_lambda_0]
 
     # extract hydrogen donor idx and hydrogen idx for from_mol
-    model = neutromeratio.ani.LinearAlchemicalDualTopologyANI(alchemical_atoms=alchemical_atoms, adventure_mode=False)
+    model = neutromeratio.ani.LinearAlchemicalDualTopologyANI(alchemical_atoms=alchemical_atoms, 
+                                                            adventure_mode=False,
+                                                            per_atom_thresh=0.5 * unit.kilojoule_per_mole
+)
     model = model.to(device)
 
     # perform initial sampling

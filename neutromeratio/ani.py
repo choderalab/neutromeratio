@@ -341,10 +341,25 @@ class AEVScalingAlchemicalANI(AlchemicalANI):
 
 class Ensemble(torch.nn.ModuleList):
     """Compute the average output of an ensemble of modules."""
-    def __init__(self, models, nr_of_atoms:int):
+    def __init__(self, models, nr_of_atoms:int, per_atom_thresh:unit.Quantity):
         super().__init__(models)
         self.nr_of_atoms = nr_of_atoms
+        self.per_atom_thresh = per_atom_thresh * unit.kilojoule_per_mole
+        assert(type(self.per_atom_thresh) == unit.Quantity)
     
+    def _compute_linear_penalty(self, current_stddev):
+        # calculate the total energy stddev treshold based on the provided per_atom_tresh 
+        # and the number of atoms
+        total_thresh = (self.per_atom_thresh.value_in_unit(unit.kilojoule_per_mole) * self.nr_of_atoms)
+        current_stddev *= hartree_to_kJ_mol
+        # if stddev for a given conformation < total_tresh => 0.0
+        # if stddev for a given conformation > total_tresh => stddev - total_treshold
+        if current_stddev < total_thresh:
+            linear_penalty = torch.tensor(0.0, device=self.device, dtype=torch.float64)
+        else:
+            linear_penalty = torch.tensor(0.0, device=self.device, dtype=torch.float64)
+        return linear_penalty
+
     def forward(self, species_input)->(torch.Tensor, torch.Tensor):
         """
         Returns the averager and mean of the NN ensemble energy prediction
@@ -355,11 +370,13 @@ class Ensemble(torch.nn.ModuleList):
         """
         outputs_tensor = torch.cat([x(species_input)[1].double() for x in self])       
         stddev = torch.std(outputs_tensor, unbiased=False) # to match np.std default ddof=0
+        
+        
         energy_mean = torch.mean(outputs_tensor)
         return energy_mean, stddev
       
 
-def load_model_ensemble(species, prefix, count):
+def load_model_ensemble(species, prefix, count, per_atom_thresh:float):
     """Returns an instance of :class:`torchani.Ensemble` loaded from
     NeuroChem's network directories beginning with the given prefix.
     Arguments:
@@ -373,20 +390,23 @@ def load_model_ensemble(species, prefix, count):
     for i in range(count):
         network_dir = os.path.join('{}{}'.format(prefix, i), 'networks')
         models.append(torchani.neurochem.load_model(species, network_dir))
-    return Ensemble(models, len(species))
+    return Ensemble(models, len(species), per_atom_thresh)
 
 
 class LinearAlchemicalANI(AlchemicalANI):
 
-    def __init__(self, alchemical_atoms:list):
+    def __init__(self, alchemical_atoms:list, per_atom_thresh:float):
         """Scale the indirect contributions of alchemical atoms to the energy sum by
         linearly interpolating, for other atom i, between the energy E_i^0 it would compute
         in the _complete absence_ of the alchemical atoms, and the energy E_i^1 it would compute
         in the _presence_ of the alchemical atoms.
         (Also scale direct contributions, as in DirectAlchemicalANI)
         """
-        super().__init__(alchemical_atoms)      
-        self.neural_networks = load_model_ensemble(self.species, self.ensemble_prefix, self.ensemble_size)
+        super().__init__(alchemical_atoms)  
+        self.neural_networks = load_model_ensemble(self.species, 
+                                                    self.ensemble_prefix, 
+                                                    self.ensemble_size, 
+                                                    per_atom_thresh)
         self.device = device
             
 
@@ -428,7 +448,7 @@ class LinearAlchemicalANI(AlchemicalANI):
 
 class LinearAlchemicalDualTopologyANI(LinearAlchemicalANI):
    
-    def __init__(self, alchemical_atoms:list, adventure_mode:bool):
+    def __init__(self, alchemical_atoms:list, adventure_mode:bool, per_atom_thresh:float):
         """Scale the indirect contributions of alchemical atoms to the energy sum by
         linearly interpolating, for other atom i, between the energy E_i^0 it would compute
         in the _complete absence_ of the alchemical atoms, and the energy E_i^1 it would compute
@@ -444,7 +464,7 @@ class LinearAlchemicalDualTopologyANI(LinearAlchemicalANI):
 
         self.adventure_mode = adventure_mode
         assert(len(alchemical_atoms) == 2)
-        super().__init__(alchemical_atoms)      
+        super().__init__(alchemical_atoms, per_atom_thresh)      
 
 
     def forward(self, species_coordinates):
