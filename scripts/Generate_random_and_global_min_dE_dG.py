@@ -72,12 +72,14 @@ for coords in tautomer.initial_state_ligand_coords:
         continue
 
     g = neutromeratio.reduced_pot(e) + neutromeratio.reduced_pot(thermochemistry_correction)
+    e = neutromeratio.reduced_pot(e)
+
     if entropy_correction:
         g += neutromeratio.reduced_pot(tautomer.initial_state_entropy_correction)
+        e += neutromeratio.reduced_pot(tautomer.final_state_entropy_correction)
 
     
-    
-    e = neutromeratio.reduced_pot(e)
+  
 
     t1_e.append(e)
     t1_g.append(g)
@@ -104,12 +106,12 @@ for coords in tautomer.final_state_ligand_coords:
         print('Imaginary frequencies present - found transition state.')
         continue
 
+    e = neutromeratio.reduced_pot(e)
     g = neutromeratio.reduced_pot(e) + neutromeratio.reduced_pot(thermochemistry_correction)
     if entropy_correction:
         g += neutromeratio.reduced_pot(tautomer.final_state_entropy_correction)
-    
-    e = neutromeratio.reduced_pot(e)
-
+        e += neutromeratio.reduced_pot(tautomer.final_state_entropy_correction)
+   
     t2_e.append(e)
     t2_g.append(g)
        

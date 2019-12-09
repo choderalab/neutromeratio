@@ -100,7 +100,7 @@ langevin = neutromeratio.LangevinDynamics(atoms = tautomer.ligand_in_water_atoms
 x0 = tautomer.ligand_in_water_coordinates
 x0, e_history = energy_function.minimize(x0, maxiter=1000, lambda_value=lambda_value) 
 
-n_steps_junk = n_steps/10
+n_steps_junk = int(n_steps/10)
 
 equilibrium_samples_global = []
 energies_global = []
