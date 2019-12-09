@@ -105,7 +105,6 @@ class FreeEnergyCalculator():
             # if stddev for a given conformation < total_thresh => 0.0
             # if stddev for a given conformation > total_thresh => stddev - total_threshold
             linear_penalty = np.maximum(0, current_stddev - (total_thresh/kT))
-            print(linear_penalty)
             return linear_penalty
 
         def compute_last_valid_ind(linear_penalty):
@@ -128,13 +127,14 @@ class FreeEnergyCalculator():
             #equil, g = detectEquilibration(potential_energy)[:2]
             # thinn snapshots and return max_snapshots_per_window confs
             #snapshots = list(traj[int(len(traj)/2):].xyz * unit.nanometer)[::further_thinning]
-            snapshots = list(traj[100:-200].xyz * unit.nanometer)[::further_thinning] 
+            snapshots = list(traj[100:-200].xyz * unit.nanometer)[::further_thinning][:max_snapshots_per_window]
             ani_trajs[lam] = snapshots
+            logger.info(f"Snapshots per lambda: {len(snapshots)}")
 
-        last_valid_inds = {}
-        logging.info(f"Max snapshots per lambda: {max_snapshots_per_window}")
-        
-        for lam in ani_trajs:
+        last_valid_inds = {}       
+        logger.info(f"Looking through {len(ani_trajs)} lambda windows")
+        for lam in sorted(ani_trajs.keys()):
+            logger.info(f"Calculating stddev and penarly for lambda: {lam}")
             # calculate endstate stddev for given confs
             lambda0_stddev, lambda1_stddev = calculate_stddev(ani_trajs[lam])
             # scale for current lam
@@ -143,25 +143,21 @@ class FreeEnergyCalculator():
             last_valid_ind = compute_last_valid_ind(linear_penalty)
             last_valid_inds[lam] = last_valid_ind
 
-        lambdas_with_usable_samples = []
-        for lam in sorted(list(last_valid_inds.keys())):
-            if last_valid_inds[lam] > 5 or last_valid_inds[lam] == -1: # -1 means all can be used
-                lambdas_with_usable_samples.append(lam)
-
         snapshots = []
         N_k = []
-        max_n_snapshots_per_state = 10
-
+        lambdas_with_usable_samples = []
         # lambbdas with usable samples applied to usable conformations
-        for lam in lambdas_with_usable_samples:
-            traj = ani_trajs[lam][0:last_valid_inds[lam]]
-            further_thinning = 1
-            if len(traj) > max_n_snapshots_per_state:
-                further_thinning = int(len(traj) / max_n_snapshots_per_state)
-            new_snapshots = traj[::further_thinning]
-            snapshots.extend(new_snapshots)
-            N_k.append(len(new_snapshots))
-
+        for lam in sorted(list(last_valid_inds.keys())):
+            logger.info(f"lam: {lam}")
+            if last_valid_inds[lam] > 5 or last_valid_inds[lam] == -1: # -1 means all can be used
+                lambdas_with_usable_samples.append(lam)
+                new_snapshots = ani_trajs[lam][0:last_valid_inds[lam]]
+                logger.info(f"For lambda {lam}: {len(new_snapshots)} snaphosts below treshold out of {len(ani_trajs[lam])}")
+                snapshots.extend(new_snapshots)
+                N_k.append(len(new_snapshots))
+            else:
+                logger.info(f"For lambda {lam}: ZERO snaphosts below treshold out of {len(ani_trajs[lam])}")
+        logger.info(f"Nr of snapshots considered for postprocessing: {len(snapshots)}")
         return N_k, snapshots, lambdas_with_usable_samples
 
 

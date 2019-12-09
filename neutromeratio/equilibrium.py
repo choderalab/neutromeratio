@@ -22,6 +22,7 @@ class LangevinDynamics(object):
                     collision_rate:unit.quantity.Quantity = 10/unit.picoseconds,
                     progress_bar:bool = False
             )->(list, list, list):
+            
         """Unadjusted Langevin dynamics.
 
         Parameters
@@ -68,11 +69,15 @@ class LangevinDynamics(object):
         b = np.sqrt(1 - np.exp(-2 * collision_rate * stepsize))
 
         # compute force on initial configuration
-        F, E, B = self.energy_and_force(x0)
+        F, E, B, S, P = self.energy_and_force(x0)
         # energy is saved as a list
         energy = [E]
         # bias is saved as a list
         bias = [B]
+        # stddev is saved
+        stddev = [S]
+        # penerlty is saved
+        penalty = [P]
 
         trange = range(n_steps)
         if progress_bar:
@@ -86,9 +91,11 @@ class LangevinDynamics(object):
             v = (a * v) + (b * sigma_v[:,None] * np.random.randn(*x.shape))
             # r
             x += (stepsize * 0.5) * v
-            F, E, B = self.energy_and_force(x)
+            F, E, B, S, P = self.energy_and_force(x)
             energy.append(E)
             bias.append(B)
+            stddev.append(S)
+            penalty.append(P)
             # v
             v += (stepsize * 0.5) * F / masses[:,None]
 
@@ -101,7 +108,7 @@ class LangevinDynamics(object):
                 print("Numerical instability encountered!")
                 return traj, energy
             traj.append(x)
-        return traj, energy, bias
+        return traj, energy, bias, stddev, penalty
 
 
         

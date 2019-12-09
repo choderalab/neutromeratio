@@ -15,6 +15,7 @@ import logging
 from scipy.optimize import minimize
 from collections import namedtuple
 from functools import partial
+import matplotlib.pyplot as plt
 
 
 logger = logging.getLogger(__name__)
@@ -25,6 +26,8 @@ class ANI1_force_and_energy(object):
                 model:torchani.models.ANI1ccx, 
                 atoms:str,
                 mol:Atoms,
+                adventure_mode:bool=True, 
+                per_atom_thresh:unit.Quantity = 0.5 * unit.kilojoule_per_mole,
                 use_pure_ani1ccx:bool=False
                 ):
         """
@@ -48,6 +51,14 @@ class ANI1_force_and_energy(object):
         self.platform = platform
         self.use_pure_ani1ccx = use_pure_ani1ccx       
         self.list_of_restraints = []
+        assert(type(per_atom_thresh) == unit.Quantity)
+        self.per_atom_thresh = per_atom_thresh.value_in_unit(unit.kilojoule_per_mole)
+        self.adventure_mode = adventure_mode
+        self.per_mol_tresh = float(self.per_atom_thresh * len(self.atoms))
+
+
+
+
         # TODO: check availablity of platform
 
     def add_restraint(self, restraint:BaseRestraint):
@@ -155,6 +166,7 @@ class ANI1_force_and_energy(object):
 
         x = coords.value_in_unit(unit.angstrom)
         self.memory_of_energy = []
+        self.memory_of_stddev = []
         print("Begin minimizing...")
         f = optimize.minimize(self._traget_energy_function, x, method='BFGS', 
                       jac=True, args=(lambda_value),
@@ -162,8 +174,28 @@ class ANI1_force_and_energy(object):
 
         logger.critical(f"Minimization status: {f.success}")
         memory_of_energy = copy.deepcopy(self.memory_of_energy)
+        memory_of_stddev = copy.deepcopy(self.memory_of_stddev)
         self.memory_of_energy = []
-        #plt.plot([e.value_in_unit(unit.kilojoule_per_mole) for e in e_history],)
+        self.memory_of_stddev = []
+
+        fig, ax1 = plt.subplots()
+        plt.title('Energy/Ensemble stddev vs minimization step')
+
+        color = 'tab:red'
+        ax1.set_xlabel('minimization step')
+        ax1.set_ylabel('energy [kT]', color=color)
+        plt.plot([e / kT for e in memory_of_energy],label='energy', color=color)
+        ax1.tick_params(axis='y', labelcolor=color)
+
+        ax2 = ax1.twinx()  # instantiate a second axes that shares the same x-axis
+        color = 'tab:blue'
+        ax2.set_ylabel('ensemble stddev [kT]', color=color)  # we already handled the x-label with ax1
+        plt.plot([e / kT for e in memory_of_stddev],label='stddev', color=color)
+        ax2.tick_params(axis='y', labelcolor=color)
+        plt.xlabel('minimization step')
+        plt.legend()
+        fig.tight_layout()  # otherwise the right y-label is slightly clipped
+        plt.show()
 
         return f.x.reshape(-1,3) * unit.angstrom, memory_of_energy 
 
@@ -188,7 +220,7 @@ class ANI1_force_and_energy(object):
         coordinates = torch.tensor([x.value_in_unit(unit.nanometer)],
                                 requires_grad=True, device=self.device, dtype=torch.float32)
 
-        energy_in_kJ_mol, bias_in_kJ_mol, stddev_in_kJ_mol = self._calculate_energy(coordinates, lambda_value)
+        energy_in_kJ_mol, bias_in_kJ_mol, stddev_in_kJ_mol, linear_penalty = self._calculate_energy(coordinates, lambda_value)
 
         # derivative of E (in kJ/mol) w.r.t. coordinates (in nm)
         derivative = torch.autograd.grad((energy_in_kJ_mol).sum(), coordinates)[0]
@@ -200,7 +232,11 @@ class ANI1_force_and_energy(object):
         else:
             raise RuntimeError('Platform needs to be specified. Either CPU or CUDA.')
 
-        return F * (unit.kilojoule_per_mole / unit.nanometer), energy_in_kJ_mol.item() * unit.kilojoule_per_mole, bias_in_kJ_mol.item() * unit.kilojoule_per_mole 
+        return (F * (unit.kilojoule_per_mole / unit.nanometer), 
+                energy_in_kJ_mol.item() * unit.kilojoule_per_mole, 
+                bias_in_kJ_mol.item() * unit.kilojoule_per_mole,
+                stddev_in_kJ_mol.item() * unit.kilojoule_per_mole,
+                linear_penalty.item() * unit.kilojoule_per_mole)
 
     
     def _calculate_energy(self, coordinates:torch.tensor, lambda_value:float)->(torch.tensor, torch.tensor, torch.tensor):
@@ -230,6 +266,9 @@ class ANI1_force_and_energy(object):
         bias_in_kJ_mol = torch.tensor(0.0,
                                 device=self.device, dtype=torch.float64)
 
+        linear_penalty_in_kJ_mol = torch.tensor(0.0,
+                                device=self.device, dtype=torch.float64)
+
         assert(float(lambda_value) <= 1.0 and float(lambda_value) >= 0.0)
 
         # coordinates in nm!
@@ -244,20 +283,38 @@ class ANI1_force_and_energy(object):
         stddev_in_kJ_mol = stddev_in_hartree * hartree_to_kJ_mol
 
         for restraint in self.list_of_restraints:
-            e = restraint.restraint(coordinates * nm_to_angstroms)
+            bias = restraint.restraint(coordinates * nm_to_angstroms)
             if restraint.active_at_lambda == 1:
-                e *= lambda_value
+                bias *= lambda_value
             elif restraint.active_at_lambda == 0:
-                e *= (1 - lambda_value)
+                bias *= (1 - lambda_value)
             else:
                 # always on - active_at_lambda == -1
                 pass 
-            bias_in_kJ_mol += e
+            bias_in_kJ_mol += bias
         
         energy_in_kJ_mol += bias_in_kJ_mol
-
-        return energy_in_kJ_mol, bias_in_kJ_mol, stddev_in_kJ_mol
         
+        if self.adventure_mode == False:
+            if stddev_in_kJ_mol > self.per_mol_tresh: 
+                #logger.info(f"Per atom tresh: {self.per_atom_thresh}")
+                #logger.info(f"Nr of atoms: {species.size()[1]}")
+                logger.warning(f"Stddev: {stddev_in_kJ_mol} kJ/mol")
+                logger.warning(f"Energy: {energy_in_kJ_mol} kJ/mol")
+                linear_penalty_in_kJ_mol = self._linear_penalty(stddev_in_kJ_mol)
+            energy_in_kJ_mol += linear_penalty_in_kJ_mol
+
+          
+
+        return energy_in_kJ_mol, bias_in_kJ_mol, stddev_in_kJ_mol, linear_penalty_in_kJ_mol
+        
+
+    def _linear_penalty(self, stddev):
+        penalty_in_kJ_mol = torch.tensor(abs(stddev.item() - self.per_mol_tresh)**2,
+                        device=self.device, dtype=torch.float64, requires_grad=True)
+        logger.warning(f"Applying penalty: {penalty_in_kJ_mol.item()} kJ/mol")
+        return penalty_in_kJ_mol
+
     def _traget_energy_function(self, x, lambda_value:float=0.0) -> float:
         """
         Given a coordinate set (x) the energy is calculated in kJ/mol.
@@ -274,9 +331,10 @@ class ANI1_force_and_energy(object):
         E : float, unit'd 
         """
         x = x.reshape(-1,3) * unit.angstrom
-        F, E, _ = self.calculate_force(x, lambda_value)
+        F, E, _, S, __ = self.calculate_force(x, lambda_value)
         F_flat = -np.array(F.value_in_unit(unit.kilojoule_per_mole/unit.angstrom).flatten(), dtype=np.float64)
         self.memory_of_energy.append(E)
+        self.memory_of_stddev.append(S)
         return E.value_in_unit(unit.kilojoule_per_mole), F_flat
 
     def calculate_energy(self, x:simtk.unit.quantity.Quantity, lambda_value:float=0.0) -> (simtk.unit.quantity.Quantity, simtk.unit.quantity.Quantity, simtk.unit.quantity.Quantity):
@@ -304,11 +362,12 @@ class ANI1_force_and_energy(object):
         coordinates = torch.tensor([x.value_in_unit(unit.nanometer)],
                                 requires_grad=True, device=self.device, dtype=torch.float32)
 
-        energy_in_kJ_mol, bias_in_kJ_mol, stddev_in_kJ_mol = self._calculate_energy(coordinates, lambda_value)
+        energy_in_kJ_mol, bias_in_kJ_mol, stddev_in_kJ_mol, linear_penalty_in_kJ_mol = self._calculate_energy(coordinates, lambda_value)
         energy = energy_in_kJ_mol.item() * unit.kilojoule_per_mole
         bias = bias_in_kJ_mol.item() * unit.kilojoule_per_mole
         stddev = stddev_in_kJ_mol.item() * unit.kilojoule_per_mole
-        return energy, bias, stddev
+        linear_penalty = linear_penalty_in_kJ_mol.item() * unit.kilojoule_per_mole
+        return energy, bias, stddev, linear_penalty
 
 class AlchemicalANI(torchani.models.ANI1ccx):
     
@@ -341,25 +400,9 @@ class AEVScalingAlchemicalANI(AlchemicalANI):
 
 class Ensemble(torch.nn.ModuleList):
     """Compute the average output of an ensemble of modules."""
-    def __init__(self, models, nr_of_atoms:int, per_atom_thresh:unit.Quantity):
+    def __init__(self, models):
         super().__init__(models)
-        self.nr_of_atoms = nr_of_atoms
-        self.per_atom_thresh = per_atom_thresh * unit.kilojoule_per_mole
-        assert(type(self.per_atom_thresh) == unit.Quantity)
     
-    def _compute_linear_penalty(self, current_stddev):
-        # calculate the total energy stddev threshold based on the provided per_atom_thresh 
-        # and the number of atoms
-        total_thresh = (self.per_atom_thresh.value_in_unit(unit.kilojoule_per_mole) * self.nr_of_atoms)
-        current_stddev *= hartree_to_kJ_mol
-        # if stddev for a given conformation < total_thresh => 0.0
-        # if stddev for a given conformation > total_thresh => stddev - total_threshold
-        if current_stddev < total_thresh:
-            linear_penalty = torch.tensor(0.0, device=self.device, dtype=torch.float64)
-        else:
-            linear_penalty = torch.tensor(0.0, device=self.device, dtype=torch.float64)
-        return linear_penalty
-
     def forward(self, species_input)->(torch.Tensor, torch.Tensor):
         """
         Returns the averager and mean of the NN ensemble energy prediction
@@ -370,13 +413,11 @@ class Ensemble(torch.nn.ModuleList):
         """
         outputs_tensor = torch.cat([x(species_input)[1].double() for x in self])       
         stddev = torch.std(outputs_tensor, unbiased=False) # to match np.std default ddof=0
-        
-        
         energy_mean = torch.mean(outputs_tensor)
         return energy_mean, stddev
       
 
-def load_model_ensemble(species, prefix, count, per_atom_thresh:float):
+def load_model_ensemble(species, prefix, count):
     """Returns an instance of :class:`torchani.Ensemble` loaded from
     NeuroChem's network directories beginning with the given prefix.
     Arguments:
@@ -390,12 +431,12 @@ def load_model_ensemble(species, prefix, count, per_atom_thresh:float):
     for i in range(count):
         network_dir = os.path.join('{}{}'.format(prefix, i), 'networks')
         models.append(torchani.neurochem.load_model(species, network_dir))
-    return Ensemble(models, len(species), per_atom_thresh)
+    return Ensemble(models)
 
 
 class LinearAlchemicalANI(AlchemicalANI):
 
-    def __init__(self, alchemical_atoms:list, per_atom_thresh:float):
+    def __init__(self, alchemical_atoms:list):
         """Scale the indirect contributions of alchemical atoms to the energy sum by
         linearly interpolating, for other atom i, between the energy E_i^0 it would compute
         in the _complete absence_ of the alchemical atoms, and the energy E_i^1 it would compute
@@ -405,10 +446,9 @@ class LinearAlchemicalANI(AlchemicalANI):
         super().__init__(alchemical_atoms)  
         self.neural_networks = load_model_ensemble(self.species, 
                                                     self.ensemble_prefix, 
-                                                    self.ensemble_size, 
-                                                    per_atom_thresh)
+                                                    self.ensemble_size
+                )
         self.device = device
-            
 
     def forward(self, species_coordinates):
 
@@ -418,14 +458,12 @@ class LinearAlchemicalANI(AlchemicalANI):
         # LAMBDA = 1: fully interacting
         # species, AEVs of fully interacting system
         species, coordinates, lam = species_coordinates
-        print(lam)
         aevs = (species, coordinates)
         species, aevs = self.aev_computer(aevs)
 
         # neural net output given these AEVs
         E_1_unshifted, E_1_stddev = self.neural_networks((species, aevs))
         _, E_1 = self.energy_shifter((species, E_1_unshifted))
-        print(E_1)
         
         # LAMBDA == 1: fully interacting
         if float(lam) == 1.0:
@@ -448,7 +486,7 @@ class LinearAlchemicalANI(AlchemicalANI):
 
 class LinearAlchemicalDualTopologyANI(LinearAlchemicalANI):
    
-    def __init__(self, alchemical_atoms:list, adventure_mode:bool, per_atom_thresh:float):
+    def __init__(self, alchemical_atoms:list):
         """Scale the indirect contributions of alchemical atoms to the energy sum by
         linearly interpolating, for other atom i, between the energy E_i^0 it would compute
         in the _complete absence_ of the alchemical atoms, and the energy E_i^1 it would compute
@@ -462,9 +500,9 @@ class LinearAlchemicalDualTopologyANI(LinearAlchemicalANI):
             “Fortune and glory, kid. Fortune and glory.” - Indiana Jones
         """
 
-        self.adventure_mode = adventure_mode
         assert(len(alchemical_atoms) == 2)
-        super().__init__(alchemical_atoms, per_atom_thresh)      
+
+        super().__init__(alchemical_atoms)      
 
 
     def forward(self, species_coordinates):
@@ -509,8 +547,4 @@ class LinearAlchemicalDualTopologyANI(LinearAlchemicalANI):
 
         E = (lam * E_1) + ((1 - lam) * E_0)
         stddev = (lam * E_1_stddev) + ((1-lam) * E_0_stddev)
-        if self.adventure_mode == False:
-            if stddev > 5.0: 
-                logger.warning(stddev)
-
         return species, E, stddev

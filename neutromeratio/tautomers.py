@@ -513,7 +513,7 @@ class Tautomer(object):
 
         for _ in range(100):
             hybrid_coord = hydrogen_mover._move_hydrogen_to_acceptor_idx(ligand_coords, override=False)
-            e, _, __ = energy_function.calculate_energy(hybrid_coord, lambda_value=1.0)
+            e, _, __, ___ = energy_function.calculate_energy(hybrid_coord, lambda_value=1.0)
             if e < min_e:
                 min_e = e
                 min_coordinates = hybrid_coord 

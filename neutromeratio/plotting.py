@@ -30,7 +30,7 @@ def plot_correlation_analysis(
         mark specific tautomers with labels in the plot
     """
 
-    fig = plt.figure(figsize=[8,8], dpi=300)
+    plt.figure(figsize=[8,8], dpi=300)
     fontsize=15
     ax = plt.gca()
     ax.set_title(title, fontsize=fontsize)
