@@ -157,7 +157,7 @@ def test_neutromeratio_energy_calculations_with_torchANI_model():
                                                 mol = t.initial_state_ase_mol)
 
     energy_function.use_pure_ani1ccx = True
-    energy, bias, stddev = energy_function.calculate_energy(x0,)
+    energy, bias, stddev, penalty = energy_function.calculate_energy(x0,)
     assert(is_quantity_close(energy, -216736.6903680688 * unit.kilocalorie_per_mole, rtol=1e-9))
 
 
@@ -179,7 +179,7 @@ def test_neutromeratio_energy_calculations_with_torchANI_model():
                                                 mol = t.final_state_ase_mol)
 
     energy_function.use_pure_ani1ccx = True
-    energy, bias, stddev = energy_function.calculate_energy(x0,)
+    energy, bias, stddev, penalty = energy_function.calculate_energy(x0,)
     assert(is_quantity_close(energy, -216736.6903680688 * unit.kilocalorie_per_mole, rtol=1e-9))
 
 
@@ -207,8 +207,7 @@ def test_neutromeratio_energy_calculations_with_LinearAlchemicalANI_model():
 
     # overwrite the coordinates that rdkit generated with the first frame in the traj
     x0 = traj[0]
-    model = neutromeratio.ani.LinearAlchemicalANI(alchemical_atoms=[hydrogen_idx], 
-                                                    per_atom_thresh=0.5 * unit.kilojoule_per_mole)
+    model = neutromeratio.ani.LinearAlchemicalANI(alchemical_atoms=[hydrogen_idx])    
     torch.set_num_threads(1)
 
     energy_function = neutromeratio.ANI1_force_and_energy(
@@ -216,9 +215,9 @@ def test_neutromeratio_energy_calculations_with_LinearAlchemicalANI_model():
                                                 atoms = atoms,
                                                 mol = t.initial_state_ase_mol)
 
-    energy, bias, stddev = energy_function.calculate_energy(x0, lambda_value=1.0)
+    energy, bias, stddev, penalty = energy_function.calculate_energy(x0, lambda_value=1.0)
     assert(is_quantity_close(energy, -216736.6857518717* unit.kilocalorie_per_mole, rtol=1e-9))
-    energy, bias, stddev = energy_function.calculate_energy(x0, lambda_value=0.0)
+    energy, bias, stddev, penalty = energy_function.calculate_energy(x0, lambda_value=0.0)
     assert(is_quantity_close(energy, -216698.911373172* unit.kilocalorie_per_mole, rtol=1e-9))
 
 
@@ -243,10 +242,7 @@ def test_neutromeratio_energy_calculations_with_LinearAlchemicalDualTopologyANI_
     dummy_atoms = [t.hybrid_hydrogen_idx_at_lambda_1, t.hybrid_hydrogen_idx_at_lambda_0]
     atoms = t.hybrid_atoms
     # overwrite the coordinates that rdkit generated with the first frame in the traj
-    model = neutromeratio.ani.LinearAlchemicalDualTopologyANI(alchemical_atoms=dummy_atoms, 
-                                                                adventure_mode=False,
-                                                                per_atom_thresh=0.5 * unit.kilojoule_per_mole
-                                                                )
+    model = neutromeratio.ani.LinearAlchemicalDualTopologyANI(alchemical_atoms=dummy_atoms)
     torch.set_num_threads(1)
 
     energy_function = neutromeratio.ANI1_force_and_energy(
@@ -258,9 +254,9 @@ def test_neutromeratio_energy_calculations_with_LinearAlchemicalDualTopologyANI_
 
     x0 = traj[0]
 
-    energy, bias, stddev = energy_function.calculate_energy(x0, lambda_value=1.0)
+    energy, bias, stddev, penalty = energy_function.calculate_energy(x0, lambda_value=1.0)
     assert(is_quantity_close(energy, -216707.18481400612* unit.kilocalorie_per_mole, rtol=1e-9))
-    energy, bias, stddev = energy_function.calculate_energy(x0, lambda_value=0.0)
+    energy, bias, stddev, penalty = energy_function.calculate_energy(x0, lambda_value=0.0)
     assert(is_quantity_close(energy, -216763.81517969485* unit.kilocalorie_per_mole, rtol=1e-9))
 
 
@@ -312,18 +308,16 @@ def test_restraint_with_alchemicalANI():
     # overwrite the coordinates that rdkit generated with the first frame in the traj
     x0 = traj[0]
 
-    model = neutromeratio.ani.LinearAlchemicalANI(alchemical_atoms=[hydrogen_idx],
-                                                    per_atom_thresh=0.5 * unit.kilojoule_per_mole
-                                                    )
+    model = neutromeratio.ani.LinearAlchemicalANI(alchemical_atoms=[hydrogen_idx])
     
     energy_function = neutromeratio.ANI1_force_and_energy(
                                                 model = model,
                                                 atoms = atoms,
                                                 mol = tautomer.initial_state_ase_mol)
 
-    energy, bias, stddev = energy_function.calculate_energy(x0, lambda_value=1.0)
+    energy, bias, stddev, penalty = energy_function.calculate_energy(x0, lambda_value=1.0)
     assert(is_quantity_close(energy, -216736.6857518717* unit.kilocalorie_per_mole, rtol=1e-9))
-    energy, bias, stddev = energy_function.calculate_energy(x0, lambda_value=0.0)
+    energy, bias, stddev, penalty = energy_function.calculate_energy(x0, lambda_value=0.0)
     assert(is_quantity_close(energy, -216698.911373172* unit.kilocalorie_per_mole, rtol=1e-9))
 
 
@@ -335,7 +329,7 @@ def test_restraint_with_alchemicalANI():
     for r in [restrain1, restrain2, restrain3]:
         energy_function.add_restraint(r)
 
-    energy, bias, stddev = energy_function.calculate_energy(x0, lambda_value=0.0)
+    energy, bias, stddev, penalty = energy_function.calculate_energy(x0, lambda_value=0.0)
     assert(is_quantity_close(energy, -216527.22548065928* unit.kilocalorie_per_mole, rtol=1e-9))
 
     # test harmonic_restraint for lambda = 0.0 
@@ -347,11 +341,11 @@ def test_restraint_with_alchemicalANI():
     for r in [restrain1, restrain2, restrain3]:
         energy_function.add_restraint(r)
 
-    energy, bias, stddev = energy_function.calculate_energy(x0, lambda_value=0.0)
+    energy, bias, stddev, penalty = energy_function.calculate_energy(x0, lambda_value=0.0)
     assert(is_quantity_close(energy, -216484.37304754654* unit.kilocalorie_per_mole, rtol=1e-9))
 
     # test harmonic_restraint for lambda = 1.0 
-    energy, bias, stddev = energy_function.calculate_energy(x0, lambda_value=1.0)
+    energy, bias, stddev, penalty = energy_function.calculate_energy(x0, lambda_value=1.0)
     assert(is_quantity_close(energy, -216522.14742624626* unit.kilocalorie_per_mole, rtol=1e-9))
 
     # test harmonic_restraint and flat_bottom_restraint for lambda = 1.0 
@@ -366,7 +360,7 @@ def test_restraint_with_alchemicalANI():
     for r in [restrain1, restrain2, restrain3, restrain4, restrain5, restrain6]:
         energy_function.add_restraint(r)
 
-    energy, bias, stddev = energy_function.calculate_energy(x0, lambda_value=1.0)
+    energy, bias, stddev, penalty = energy_function.calculate_energy(x0, lambda_value=1.0)
     assert(is_quantity_close(energy, -216350.46153373353* unit.kilocalorie_per_mole, rtol=1e-9))
 
 
@@ -394,10 +388,8 @@ def test_restraint_with_LinearAlchemicalDualTopologyANI():
     dummy_atoms = [tautomer.hybrid_hydrogen_idx_at_lambda_1, tautomer.hybrid_hydrogen_idx_at_lambda_0]
     atoms = tautomer.hybrid_atoms
 
-    model = neutromeratio.ani.LinearAlchemicalDualTopologyANI(alchemical_atoms=dummy_atoms, 
-                                                            adventure_mode=False,
-                                                            per_atom_thresh=0.5 * unit.kilojoule_per_mole)
-    
+    model = neutromeratio.ani.LinearAlchemicalDualTopologyANI(alchemical_atoms=dummy_atoms)
+
     energy_function = neutromeratio.ANI1_force_and_energy(
                                                 model = model,
                                                 atoms = atoms,
@@ -405,7 +397,7 @@ def test_restraint_with_LinearAlchemicalDualTopologyANI():
 
     energy_function.list_of_restraints = tautomer.ligand_restraints
 
-    energy, bias, stddev = energy_function.calculate_energy(x0, lambda_value=0.0)
+    energy, bias, stddev, penalty = energy_function.calculate_energy(x0, lambda_value=0.0)
     assert(is_quantity_close(energy, -216763.81517969485* unit.kilocalorie_per_mole, rtol=1e-9))
 
 def test_min_and_single_point_energy():
@@ -496,10 +488,7 @@ def test_euqilibrium():
     alchemical_atoms=[tautomer.hybrid_hydrogen_idx_at_lambda_1, tautomer.hybrid_hydrogen_idx_at_lambda_0]
 
     # extract hydrogen donor idx and hydrogen idx for from_mol
-    model = neutromeratio.ani.LinearAlchemicalDualTopologyANI(alchemical_atoms=alchemical_atoms, 
-                                                            adventure_mode=False,
-                                                            per_atom_thresh=0.5 * unit.kilojoule_per_mole
-)
+    model = neutromeratio.ani.LinearAlchemicalDualTopologyANI(alchemical_atoms=alchemical_atoms)
     model = model.to(device)
     torch.set_num_threads(2)
 
@@ -523,7 +512,10 @@ def test_euqilibrium():
                                 energy_and_force = energy_and_force,
                                 )
     
-    equilibrium_samples, energies, _ = langevin.run_dynamics(x0, n_steps=n_steps, stepsize=1.0 * unit.femtosecond, progress_bar=True)
+    equilibrium_samples, energies, bias, stddev, penalty = langevin.run_dynamics(x0, 
+                                                            n_steps=n_steps, 
+                                                            stepsize=1.0 * unit.femtosecond, 
+                                                            progress_bar=True)
 
     lambda_value = 0.0
     energy_and_force = lambda x : energy_function.calculate_force(x, lambda_value)
@@ -531,7 +523,10 @@ def test_euqilibrium():
     langevin = neutromeratio.LangevinDynamics(atoms = tautomer.hybrid_atoms,
                                 energy_and_force = energy_and_force)
 
-    equilibrium_samples, energies, _ = langevin.run_dynamics(x0, n_steps=n_steps, stepsize=1.0 * unit.femtosecond, progress_bar=True)
+    equilibrium_samples, energies, bias, stddev, penalty = langevin.run_dynamics(x0, 
+                                                    n_steps=n_steps, 
+                                                    stepsize=1.0 * unit.femtosecond, 
+                                                    progress_bar=True)
 
 
 
@@ -545,7 +540,10 @@ def test_tautomer_conformation():
     t1_smiles = exp_results[name]['t1-smiles']
     t2_smiles = exp_results[name]['t2-smiles']
 
-    tautomer = neutromeratio.Tautomer(name=name, initial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles), nr_of_conformations=50)
+    tautomer = neutromeratio.Tautomer(name=name, 
+    initial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), 
+    final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles), 
+    nr_of_conformations=50)
     
     print(f"Nr of initial conformations: {tautomer.initial_state_ligand_coords}")
     print(f"Nr of final conformations: {tautomer.final_state_ligand_coords}")
@@ -574,9 +572,10 @@ def test_tautomer_conformation():
             # minimize
             print(f"Conf: {n_conf}")
             x, e_min_history = energy_function.minimize(coords)
-            energy, bias, stddev = energy_function.calculate_energy(x)
+            energy, bias, stddev, penalty = energy_function.calculate_energy(x)
             e_correction = energy_function.get_thermo_correction(x)
             print(f"Energy: {energy}")
+            print(f"Energy ensemble stddev: {stddev}")
             print(f"Energy correction: {e_correction}")
     
 
@@ -644,10 +643,7 @@ def test_generating_droplet():
     alchemical_atoms=[tautomer.hybrid_hydrogen_idx_at_lambda_1, tautomer.hybrid_hydrogen_idx_at_lambda_0]
 
     # extract hydrogen donor idx and hydrogen idx for from_mol
-    model = neutromeratio.ani.LinearAlchemicalDualTopologyANI(alchemical_atoms=alchemical_atoms, 
-                                                            adventure_mode=False,
-                                                            per_atom_thresh=0.5 * unit.kilojoule_per_mole
-)
+    model = neutromeratio.ani.LinearAlchemicalDualTopologyANI(alchemical_atoms=alchemical_atoms)
     model = model.to(device)
 
     # perform initial sampling

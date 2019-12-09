@@ -659,7 +659,7 @@ class Tautomer(object):
                 # minimize
                 print(f"Conf: {n_conf}")
                 minimized_coords, _ = energy_function.minimize(coords)
-                single_point_energy, _, __ = energy_function.calculate_energy(minimized_coords)
+                single_point_energy, bias, stddev, penalty = energy_function.calculate_energy(minimized_coords)
                 try:
                     thermochemistry_correction = energy_function.get_thermo_correction(minimized_coords)  
                 except ValueError:

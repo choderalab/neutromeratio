@@ -147,7 +147,7 @@ class ANI1_force_and_energy(object):
         return (G * conversion_factor_eV_to_kJ_mol) * unit.kilojoule_per_mole # eV * conversion_factor(eV to kJ/mol)
 
 
-    def minimize(self, coords:simtk.unit.quantity.Quantity, maxiter:int = 1000, lambda_value:float = 0.0):
+    def minimize(self, coords:simtk.unit.quantity.Quantity, maxiter:int = 1000, lambda_value:float = 0.0, show_plot:bool=False):
         """
         Minimizes the molecule.
         Parameters
@@ -178,24 +178,25 @@ class ANI1_force_and_energy(object):
         self.memory_of_energy = []
         self.memory_of_stddev = []
 
-        fig, ax1 = plt.subplots()
-        plt.title('Energy/Ensemble stddev vs minimization step')
+        if show_plot:
+            fig, ax1 = plt.subplots()
+            plt.title('Energy/Ensemble stddev vs minimization step')
 
-        color = 'tab:red'
-        ax1.set_xlabel('minimization step')
-        ax1.set_ylabel('energy [kT]', color=color)
-        plt.plot([e / kT for e in memory_of_energy],label='energy', color=color)
-        ax1.tick_params(axis='y', labelcolor=color)
+            color = 'tab:red'
+            ax1.set_xlabel('minimization step')
+            ax1.set_ylabel('energy [kT]', color=color)
+            plt.plot([e / kT for e in memory_of_energy],label='energy', color=color)
+            ax1.tick_params(axis='y', labelcolor=color)
 
-        ax2 = ax1.twinx()  # instantiate a second axes that shares the same x-axis
-        color = 'tab:blue'
-        ax2.set_ylabel('ensemble stddev [kT]', color=color)  # we already handled the x-label with ax1
-        plt.plot([e / kT for e in memory_of_stddev],label='stddev', color=color)
-        ax2.tick_params(axis='y', labelcolor=color)
-        plt.xlabel('minimization step')
-        plt.legend()
-        fig.tight_layout()  # otherwise the right y-label is slightly clipped
-        plt.show()
+            ax2 = ax1.twinx()  # instantiate a second axes that shares the same x-axis
+            color = 'tab:blue'
+            ax2.set_ylabel('ensemble stddev [kT]', color=color)  # we already handled the x-label with ax1
+            plt.plot([e / kT for e in memory_of_stddev],label='stddev', color=color)
+            ax2.tick_params(axis='y', labelcolor=color)
+            plt.xlabel('minimization step')
+            plt.legend()
+            fig.tight_layout()  # otherwise the right y-label is slightly clipped
+            plt.show()
 
         return f.x.reshape(-1,3) * unit.angstrom, memory_of_energy 
 
@@ -220,7 +221,7 @@ class ANI1_force_and_energy(object):
         coordinates = torch.tensor([x.value_in_unit(unit.nanometer)],
                                 requires_grad=True, device=self.device, dtype=torch.float32)
 
-        energy_in_kJ_mol, bias_in_kJ_mol, stddev_in_kJ_mol, linear_penalty = self._calculate_energy(coordinates, lambda_value)
+        energy_in_kJ_mol, bias_in_kJ_mol, stddev_in_kJ_mol, penalty = self._calculate_energy(coordinates, lambda_value)
 
         # derivative of E (in kJ/mol) w.r.t. coordinates (in nm)
         derivative = torch.autograd.grad((energy_in_kJ_mol).sum(), coordinates)[0]
@@ -236,10 +237,10 @@ class ANI1_force_and_energy(object):
                 energy_in_kJ_mol.item() * unit.kilojoule_per_mole, 
                 bias_in_kJ_mol.item() * unit.kilojoule_per_mole,
                 stddev_in_kJ_mol.item() * unit.kilojoule_per_mole,
-                linear_penalty.item() * unit.kilojoule_per_mole)
+                penalty.item() * unit.kilojoule_per_mole)
 
     
-    def _calculate_energy(self, coordinates:torch.tensor, lambda_value:float)->(torch.tensor, torch.tensor, torch.tensor):
+    def _calculate_energy(self, coordinates:torch.tensor, lambda_value:float)->(torch.tensor, torch.tensor, torch.tensor, torch.tensor):
         """
         Helpter function to return energies as tensor.
         Given a coordinate set the energy is calculated.
@@ -258,6 +259,8 @@ class ANI1_force_and_energy(object):
             return the energy of the added restraints
         stddev_in_kJ_mol : torch.tensor
             return the stddev of the energy (without added restraints)
+        penalty_in_kJ_mol : torch.tensor
+            return the penalty added to the energy
         """
 
         stddev_in_hartree = torch.tensor(0.0,
@@ -266,7 +269,7 @@ class ANI1_force_and_energy(object):
         bias_in_kJ_mol = torch.tensor(0.0,
                                 device=self.device, dtype=torch.float64)
 
-        linear_penalty_in_kJ_mol = torch.tensor(0.0,
+        penalty_in_kJ_mol = torch.tensor(0.0,
                                 device=self.device, dtype=torch.float64)
 
         assert(float(lambda_value) <= 1.0 and float(lambda_value) >= 0.0)
@@ -299,18 +302,24 @@ class ANI1_force_and_energy(object):
             if stddev_in_kJ_mol > self.per_mol_tresh: 
                 #logger.info(f"Per atom tresh: {self.per_atom_thresh}")
                 #logger.info(f"Nr of atoms: {species.size()[1]}")
-                logger.warning(f"Stddev: {stddev_in_kJ_mol} kJ/mol")
-                logger.warning(f"Energy: {energy_in_kJ_mol} kJ/mol")
-                linear_penalty_in_kJ_mol = self._linear_penalty(stddev_in_kJ_mol)
-            energy_in_kJ_mol += linear_penalty_in_kJ_mol
+                #logger.warning(f"Stddev: {stddev_in_kJ_mol} kJ/mol")
+                #logger.warning(f"Energy: {energy_in_kJ_mol} kJ/mol")
+                penalty_in_kJ_mol = self._linear_penalty(stddev_in_kJ_mol)
+            energy_in_kJ_mol -= penalty_in_kJ_mol
 
           
 
-        return energy_in_kJ_mol, bias_in_kJ_mol, stddev_in_kJ_mol, linear_penalty_in_kJ_mol
-        
+        return energy_in_kJ_mol, bias_in_kJ_mol, stddev_in_kJ_mol, penalty_in_kJ_mol
+
+    def _quadratic_penalty(self, stddev):
+        penalty_in_kJ_mol = torch.tensor(abs(stddev.item() - self.per_mol_tresh)**2,
+                        device=self.device, dtype=torch.float64, requires_grad=True)
+        logger.warning(f"Applying penalty: {penalty_in_kJ_mol.item()} kJ/mol")
+        return penalty_in_kJ_mol
+
 
     def _linear_penalty(self, stddev):
-        penalty_in_kJ_mol = torch.tensor(abs(stddev.item() - self.per_mol_tresh)**2,
+        penalty_in_kJ_mol = torch.tensor(abs(stddev.item() - self.per_mol_tresh),
                         device=self.device, dtype=torch.float64, requires_grad=True)
         logger.warning(f"Applying penalty: {penalty_in_kJ_mol.item()} kJ/mol")
         return penalty_in_kJ_mol
@@ -337,7 +346,7 @@ class ANI1_force_and_energy(object):
         self.memory_of_stddev.append(S)
         return E.value_in_unit(unit.kilojoule_per_mole), F_flat
 
-    def calculate_energy(self, x:simtk.unit.quantity.Quantity, lambda_value:float=0.0) -> (simtk.unit.quantity.Quantity, simtk.unit.quantity.Quantity, simtk.unit.quantity.Quantity):
+    def calculate_energy(self, x:simtk.unit.quantity.Quantity, lambda_value:float=0.0) -> (simtk.unit.quantity.Quantity, simtk.unit.quantity.Quantity, simtk.unit.quantity.Quantity, simtk.unit.quantity.Quantity):
         """
         Given a coordinate set (x) the energy is calculated in kJ/mol.
 
@@ -353,6 +362,7 @@ class ANI1_force_and_energy(object):
         energy : float, unit'd
         bias : float, unit'd
         stddev : float, unit'd
+        penalty : float, unit'd
         """
 
         try:
@@ -362,12 +372,12 @@ class ANI1_force_and_energy(object):
         coordinates = torch.tensor([x.value_in_unit(unit.nanometer)],
                                 requires_grad=True, device=self.device, dtype=torch.float32)
 
-        energy_in_kJ_mol, bias_in_kJ_mol, stddev_in_kJ_mol, linear_penalty_in_kJ_mol = self._calculate_energy(coordinates, lambda_value)
+        energy_in_kJ_mol, bias_in_kJ_mol, stddev_in_kJ_mol, penalty_in_kJ_mol = self._calculate_energy(coordinates, lambda_value)
         energy = energy_in_kJ_mol.item() * unit.kilojoule_per_mole
         bias = bias_in_kJ_mol.item() * unit.kilojoule_per_mole
         stddev = stddev_in_kJ_mol.item() * unit.kilojoule_per_mole
-        linear_penalty = linear_penalty_in_kJ_mol.item() * unit.kilojoule_per_mole
-        return energy, bias, stddev, linear_penalty
+        penalty = penalty_in_kJ_mol.item() * unit.kilojoule_per_mole
+        return energy, bias, stddev, penalty
 
 class AlchemicalANI(torchani.models.ANI1ccx):
     
