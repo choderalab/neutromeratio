@@ -304,7 +304,7 @@ class ANI1_force_and_energy(object):
                 #logger.info(f"Nr of atoms: {species.size()[1]}")
                 #logger.warning(f"Stddev: {stddev_in_kJ_mol} kJ/mol")
                 #logger.warning(f"Energy: {energy_in_kJ_mol} kJ/mol")
-                penalty_in_kJ_mol = self._linear_penalty(stddev_in_kJ_mol)
+                penalty_in_kJ_mol = self._quadratic_penalty(stddev_in_kJ_mol)
             energy_in_kJ_mol -= penalty_in_kJ_mol
 
           
@@ -312,7 +312,7 @@ class ANI1_force_and_energy(object):
         return energy_in_kJ_mol, bias_in_kJ_mol, stddev_in_kJ_mol, penalty_in_kJ_mol
 
     def _quadratic_penalty(self, stddev):
-        penalty_in_kJ_mol = torch.tensor(abs(stddev.item() - self.per_mol_tresh)**2,
+        penalty_in_kJ_mol = torch.tensor((stddev.item() - self.per_mol_tresh)**2,
                         device=self.device, dtype=torch.float64, requires_grad=True)
         logger.warning(f"Applying penalty: {penalty_in_kJ_mol.item()} kJ/mol")
         return penalty_in_kJ_mol
