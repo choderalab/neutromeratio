@@ -164,9 +164,33 @@ class ANI1_force_and_energy(object):
         from scipy import optimize
         assert(type(coords) == unit.Quantity)
 
+        def plotting(y1, y2, y1_axis_label, y1_label, y2_axis_label, y2_label, title):
+            fig, ax1 = plt.subplots()
+            plt.title(title)
+
+            color = 'tab:red'
+            ax1.set_xlabel('timestep (10 fs)')
+            ax1.set_ylabel(y1_axis_label, color=color)
+            plt.plot([e / kT for e in y1],label=y1_label, color=color)
+            ax1.tick_params(axis='y', labelcolor=color)
+
+            ax2 = ax1.twinx()  # instantiate a second axes that shares the same x-axis
+            color = 'tab:blue'
+            ax2.set_ylabel(y2_axis_label, color=color)  # we already handled the x-label with ax1
+            plt.plot([e / kT for e in y2],label=y2_label, color=color)
+            ax2.tick_params(axis='y', labelcolor=color)
+            ax2.set_xlabel('timestep')
+            plt.legend()
+            fig.tight_layout()  # otherwise the right y-label is slightly clipped
+            plt.show()
+            plt.close()
+
+
+
         x = coords.value_in_unit(unit.angstrom)
         self.memory_of_energy = []
         self.memory_of_stddev = []
+        self.memory_of_penalty = []
         print("Begin minimizing...")
         f = optimize.minimize(self._traget_energy_function, x, method='BFGS', 
                       jac=True, args=(lambda_value),
@@ -175,28 +199,18 @@ class ANI1_force_and_energy(object):
         logger.critical(f"Minimization status: {f.success}")
         memory_of_energy = copy.deepcopy(self.memory_of_energy)
         memory_of_stddev = copy.deepcopy(self.memory_of_stddev)
+        memory_of_penalty = copy.deepcopy(self.memory_of_penalty)
         self.memory_of_energy = []
         self.memory_of_stddev = []
+        self.memory_of_penalty = []
 
         if show_plot:
-            fig, ax1 = plt.subplots()
-            plt.title('Energy/Ensemble stddev vs minimization step')
-
-            color = 'tab:red'
-            ax1.set_xlabel('minimization step')
-            ax1.set_ylabel('energy [kT]', color=color)
-            plt.plot([e / kT for e in memory_of_energy],label='energy', color=color)
-            ax1.tick_params(axis='y', labelcolor=color)
-
-            ax2 = ax1.twinx()  # instantiate a second axes that shares the same x-axis
-            color = 'tab:blue'
-            ax2.set_ylabel('ensemble stddev [kT]', color=color)  # we already handled the x-label with ax1
-            plt.plot([e / kT for e in memory_of_stddev],label='stddev', color=color)
-            ax2.tick_params(axis='y', labelcolor=color)
-            plt.xlabel('minimization step')
-            plt.legend()
-            fig.tight_layout()  # otherwise the right y-label is slightly clipped
-            plt.show()
+            # plot 1
+            plotting(memory_of_energy, memory_of_stddev, 'energy [kT]', 'energy', 'stddev', 'ensemble stddev [kT]', 'Energy/Ensemble stddev vs minimization step')
+            # plot 2
+            plotting(memory_of_penalty, memory_of_stddev, 'penelty [kT]', 'penalty', 'stddev', 'ensemble stddev [kT]', 'Penalty/Ensemble stddev vs minimization step')
+            # plot 3
+            plotting(memory_of_energy, memory_of_penalty, 'energy [kT]', 'energy', 'penalty [kT]', 'penalty', 'Penalty/Energy vs minimization step')
 
         return f.x.reshape(-1,3) * unit.angstrom, memory_of_energy 
 
@@ -304,8 +318,8 @@ class ANI1_force_and_energy(object):
                 #logger.info(f"Nr of atoms: {species.size()[1]}")
                 #logger.warning(f"Stddev: {stddev_in_kJ_mol} kJ/mol")
                 #logger.warning(f"Energy: {energy_in_kJ_mol} kJ/mol")
-                penalty_in_kJ_mol = self._quadratic_penalty(stddev_in_kJ_mol)
-            energy_in_kJ_mol -= penalty_in_kJ_mol
+                penalty_in_kJ_mol = self._linear_penalty(stddev_in_kJ_mol)
+            energy_in_kJ_mol += penalty_in_kJ_mol
 
           
 
@@ -319,7 +333,7 @@ class ANI1_force_and_energy(object):
 
 
     def _linear_penalty(self, stddev):
-        penalty_in_kJ_mol = torch.tensor(abs(stddev.item() - self.per_mol_tresh),
+        penalty_in_kJ_mol = torch.tensor(abs(stddev.item() - self.per_mol_tresh)*2,
                         device=self.device, dtype=torch.float64, requires_grad=True)
         logger.warning(f"Applying penalty: {penalty_in_kJ_mol.item()} kJ/mol")
         return penalty_in_kJ_mol
@@ -340,10 +354,11 @@ class ANI1_force_and_energy(object):
         E : float, unit'd 
         """
         x = x.reshape(-1,3) * unit.angstrom
-        F, E, _, S, __ = self.calculate_force(x, lambda_value)
+        F, E, B, S, P = self.calculate_force(x, lambda_value)
         F_flat = -np.array(F.value_in_unit(unit.kilojoule_per_mole/unit.angstrom).flatten(), dtype=np.float64)
         self.memory_of_energy.append(E)
         self.memory_of_stddev.append(S)
+        self.memory_of_penalty.append(P)
         return E.value_in_unit(unit.kilojoule_per_mole), F_flat
 
     def calculate_energy(self, x:simtk.unit.quantity.Quantity, lambda_value:float=0.0) -> (simtk.unit.quantity.Quantity, simtk.unit.quantity.Quantity, simtk.unit.quantity.Quantity, simtk.unit.quantity.Quantity):

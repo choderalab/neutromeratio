@@ -4,24 +4,44 @@ from simtk import unit
 from tqdm import tqdm
 from .ani import ANI1_force_and_energy
 import mdtraj as md
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class LangevinDynamics(object):
 
     def __init__(self, atoms:str, energy_and_force:ANI1_force_and_energy.calculate_force):
 
-        
         self.energy_and_force = energy_and_force
         self.temperature = temperature
         self.atoms = atoms
+
+    def check_for_restart_condition(self, penalty, n_steps):
+        total_length = n_steps -1 #zero based
+        
+        penalty = np.array([e.value_in_unit(unit.kilocalories_per_mole) for e in penalty])
+        nr_of_snapshots_with_penalty = np.count_nonzero(penalty)
+        if nr_of_snapshots_with_penalty > total_length/5:
+            logger.warning(f"################################################")
+            logger.warning(f"Nr of snapshots with penalty: {nr_of_snapshots_with_penalty}")
+            logger.warning(f"Resetting simulation.")
+            logger.warning(f"If this happens repeatedly the simulation might not be possible without adventure mode.")
+            logger.warning(f"################################################")
+            return True # restart
+        elif np.count_nonzero(penalty[-5:]) > 0:
+            return True # restart
+        else:
+            return False # continue
 
     def run_dynamics(self, 
                     x0:np.ndarray,
                     n_steps:int = 100,
                     stepsize:unit.quantity.Quantity = 1.0*unit.femtosecond,
                     collision_rate:unit.quantity.Quantity = 10/unit.picoseconds,
-                    progress_bar:bool = False
-            )->(list, list, list):
+                    progress_bar:bool = False,
+                    save_checkpoints=True
+            )->(list, list, list, list, list):
             
         """Unadjusted Langevin dynamics.
 
@@ -61,6 +81,8 @@ class LangevinDynamics(object):
         # generate mass arrays
         masses = np.array([mass_dict_in_daltons[a] for a in self.atoms]) * unit.daltons
         sigma_v = np.array([unit.sqrt(kB * self.temperature / m) / speed_unit for m in masses]) * speed_unit
+        
+        
         v0 = np.random.randn(len(sigma_v),3) * sigma_v[:,None]
         # convert initial state numpy arrays with correct attached units
         x = np.array(x0.value_in_unit(distance_unit)) * distance_unit
@@ -87,6 +109,8 @@ class LangevinDynamics(object):
         trange = range(n_steps)
         if progress_bar:
             trange = tqdm(trange)
+        
+        # main loop
         for _ in trange:
             # v
             v += (stepsize * 0.5) * F / masses[:,None]
@@ -101,6 +125,7 @@ class LangevinDynamics(object):
             bias.append(B)
             stddev.append(S)
             penalty.append(P)
+
             # v
             v += (stepsize * 0.5) * F / masses[:,None]
 
@@ -114,7 +139,6 @@ class LangevinDynamics(object):
                 return traj, energy
             traj.append(x)
         return traj, energy, bias, stddev, penalty
-
 
         
         
