@@ -333,7 +333,7 @@ class ANI1_force_and_energy(object):
 
 
     def _linear_penalty(self, stddev):
-        penalty_in_kJ_mol = torch.tensor(abs(stddev.item() - self.per_mol_tresh)*2,
+        penalty_in_kJ_mol = torch.tensor(abs(stddev.item() - self.per_mol_tresh),
                         device=self.device, dtype=torch.float64, requires_grad=True)
         logger.warning(f"Applying penalty: {penalty_in_kJ_mol.item()} kJ/mol")
         return penalty_in_kJ_mol

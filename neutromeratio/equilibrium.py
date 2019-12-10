@@ -23,14 +23,17 @@ class LangevinDynamics(object):
         penalty = np.array([e.value_in_unit(unit.kilocalories_per_mole) for e in penalty])
         nr_of_snapshots_with_penalty = np.count_nonzero(penalty)
         if nr_of_snapshots_with_penalty > total_length/5:
-            logger.warning(f"################################################")
-            logger.warning(f"Nr of snapshots with penalty: {nr_of_snapshots_with_penalty}")
-            logger.warning(f"Resetting simulation.")
-            logger.warning(f"If this happens repeatedly the simulation might not be possible without adventure mode.")
-            logger.warning(f"################################################")
-            return True # restart
+            if np.count_nonzero(penalty[-10:]) == 0: 
+                return False # seems to be recovered
+            else:
+                logger.warning(f"################################################")
+                logger.warning(f"Nr of snapshots with penalty: {nr_of_snapshots_with_penalty}")
+                logger.warning(f"Resetting simulation.")
+                logger.warning(f"If this happens repeatedly the simulation might not be possible without adventure mode.")
+                logger.warning(f"################################################")               
+                return True # restart
         elif np.count_nonzero(penalty[-5:]) > 0:
-            return True # restart
+            return True # restart -- we need to be careful with the last frames, otherwise we might not be able to recover 
         else:
             return False # continue
 

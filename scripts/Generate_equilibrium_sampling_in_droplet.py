@@ -99,39 +99,47 @@ langevin = neutromeratio.LangevinDynamics(atoms = tautomer.ligand_in_water_atoms
 
 x0 = tautomer.ligand_in_water_coordinates
 x0, e_history = energy_function.minimize(x0, maxiter=1000, lambda_value=lambda_value) 
-
 n_steps_junk = int(n_steps/10)
 
 equilibrium_samples_global = []
 energies_global = []
 bias_global = []
+stddev_global = []
+penalty_global = []
 
-for n_steps in [n_steps_junk] *10:
-    equilibrium_samples, energies, bias = langevin.run_dynamics(x0, n_steps=round(n_steps), stepsize=0.5 * unit.femtosecond, progress_bar=False)
+simulation_time = 0
+
+while simulation_time < n_steps:
+    equilibrium_samples, energies, bias, stddev, penalty = langevin.run_dynamics(x0, 
+                                                                n_steps=round(n_steps_junk), 
+                                                                stepsize=0.5 * unit.femtosecond, 
+                                                                progress_bar=True)
     
-    # set new x0
-    x0 = equilibrium_samples[-1]
-
     # add to global list
-    equilibrium_samples_global += equilibrium_samples
-    energies_global += energies
-    bias_global += bias
+    if langevin.check_for_restart_condition(penalty, n_steps_junk):
+        print('Restarting simulation ...')
+        print(f"{simulation_time}/{n_steps}")
+        continue
+    else:
+        # set new x0
+        x0 = equilibrium_samples[-1]
+        simulation_time += round(n_steps_junk)
+        
+        equilibrium_samples_global += equilibrium_samples
+        energies_global += energies
+        bias_global += bias
+        stddev_global += stddev
+        penalty_global += penalty
 
-    # save equilibrium energy values 
-    f = open(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_energy_in_droplet_{mode}.csv", 'w+')
-    for e in energies_global[::20]:
-        e_unitless = e / kT
-        f.write('{}\n'.format(e_unitless))
-    f.close()
+    # save equilibrium energy values
+    for global_list, poperty_name in zip([energies_global, stddev_global, bias_global, penalty_global], ['energy', 'stddev', 'bias', 'penalty']):
+        f = open(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_{poperty_name}_in_droplet_{mode}.csv", 'w+')
+        for e in global_list[::20]:
+            e_unitless = e / kT
+            f.write('{}\n'.format(e_unitless))
+        f.close()   
 
-    f = open(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_bias_in_droplet_{mode}.csv", 'w+')
-    for e in bias_global[::20]:
-        e_unitless = e / kT
-        f.write('{}\n'.format(e_unitless))
-    f.close()
-
-
+    
     equilibrium_samples_in_nm = [x.value_in_unit(unit.nanometer) for x in equilibrium_samples_global]
     ani_traj = md.Trajectory(equilibrium_samples_in_nm[::20], tautomer.ligand_in_water_topology)
     ani_traj.save(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_in_droplet_{mode}.dcd", force_overwrite=True)
-
