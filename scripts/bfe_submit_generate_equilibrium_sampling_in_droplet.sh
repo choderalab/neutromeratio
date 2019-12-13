@@ -1,11 +1,10 @@
 #! /bin/bash
 
-#BSUB -W 48:00
-#BSUB -n 2
-#BSUB -R span[ptile=2]
+#BSUB -W 28:00
+#BSUB -n 1
 #BSUB -o /home/wiederm/LOG/equ_droplet_job%J.log
 #BSUB -L /bin/bash
-#BSUB -R rusage[mem=3]
+#BSUB -R rusage[mem=1]
 
 idx=$LSB_JOBINDEX 
 n_steps=50000 

@@ -64,18 +64,17 @@ print('Nr of atoms: {}'.format(len(tautomer.ligand_in_water_atoms)))
 
 
 # extract hydrogen donor idx and hydrogen idx for from_mol
-model = neutromeratio.ani.LinearAlchemicalDualTopologyANI(alchemical_atoms=alchemical_atoms,
-                                                            adventure_mode=True,
-                                                            per_atom_thresh=0.5 * unit.kilojoule_per_mole
-)
+model = neutromeratio.ani.LinearAlchemicalDualTopologyANI(alchemical_atoms=alchemical_atoms)
 model = model.to(device)
-torch.set_num_threads(2)
+torch.set_num_threads(1)
 
 # perform initial sampling
 energy_function = neutromeratio.ANI1_force_and_energy(
                                         model = model,
                                         atoms = tautomer.ligand_in_water_atoms,
                                         mol = None,
+                                        per_atom_thresh=0.4 * unit.kilojoule_per_mole,
+                                        adventure_mode=True
                                         )
 
 tautomer.add_COM_for_hybrid_ligand(np.array([diameter_in_angstrom/2, diameter_in_angstrom/2, diameter_in_angstrom/2]) * unit.angstrom)
@@ -98,7 +97,7 @@ langevin = neutromeratio.LangevinDynamics(atoms = tautomer.ligand_in_water_atoms
                             energy_and_force = energy_and_force)
 
 x0 = tautomer.ligand_in_water_coordinates
-x0, e_history = energy_function.minimize(x0, maxiter=1000, lambda_value=lambda_value) 
+x0, e_history = energy_function.minimize(x0, maxiter=100, lambda_value=lambda_value) 
 n_steps_junk = int(n_steps/10)
 
 equilibrium_samples_global = []
@@ -107,31 +106,23 @@ bias_global = []
 stddev_global = []
 penalty_global = []
 
-simulation_time = 0
-
-while simulation_time < n_steps:
+for n_steps in [n_steps_junk] *10:
     equilibrium_samples, energies, bias, stddev, penalty = langevin.run_dynamics(x0, 
-                                                                n_steps=round(n_steps_junk), 
+                                                                n_steps=round(n_steps), 
                                                                 stepsize=0.5 * unit.femtosecond, 
-                                                                progress_bar=True)
+                                                                progress_bar=False)
     
-    # add to global list
-    if langevin.check_for_restart_condition(penalty, n_steps_junk):
-        print('Restarting simulation ...')
-        print(f"{simulation_time}/{n_steps}")
-        continue
-    else:
-        # set new x0
-        x0 = equilibrium_samples[-1]
-        simulation_time += round(n_steps_junk)
-        
-        equilibrium_samples_global += equilibrium_samples
-        energies_global += energies
-        bias_global += bias
-        stddev_global += stddev
-        penalty_global += penalty
+    # set new x0
+    x0 = equilibrium_samples[-1]
 
-    # save equilibrium energy values
+    # add to global list
+    equilibrium_samples_global += equilibrium_samples
+    energies_global += energies
+    bias_global += bias
+    stddev_global += stddev
+    penalty_global += penalty
+
+    # save equilibrium energy values 
     for global_list, poperty_name in zip([energies_global, stddev_global, bias_global, penalty_global], ['energy', 'stddev', 'bias', 'penalty']):
         f = open(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_{poperty_name}_in_droplet_{mode}.csv", 'w+')
         for e in global_list[::20]:
@@ -139,7 +130,6 @@ while simulation_time < n_steps:
             f.write('{}\n'.format(e_unitless))
         f.close()   
 
-    
     equilibrium_samples_in_nm = [x.value_in_unit(unit.nanometer) for x in equilibrium_samples_global]
     ani_traj = md.Trajectory(equilibrium_samples_in_nm[::20], tautomer.ligand_in_water_topology)
     ani_traj.save(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_in_droplet_{mode}.dcd", force_overwrite=True)

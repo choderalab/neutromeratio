@@ -321,8 +321,6 @@ class ANI1_force_and_energy(object):
                 penalty_in_kJ_mol = self._linear_penalty(stddev_in_kJ_mol)
             energy_in_kJ_mol += penalty_in_kJ_mol
 
-          
-
         return energy_in_kJ_mol, bias_in_kJ_mol, stddev_in_kJ_mol, penalty_in_kJ_mol
 
     def _quadratic_penalty(self, stddev):
