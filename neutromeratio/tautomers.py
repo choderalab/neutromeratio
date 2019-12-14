@@ -5,7 +5,7 @@ from rdkit import Chem, Geometry
 from rdkit.Chem import AllChem
 from rdkit.Chem import rdFMCS
 from .vis import display_mol
-from .restraints import FlatBottomRestraint, FlatBottomRestraintToCenter, CenterOfMassRestraint
+from .restraints import BondFlatBottomRestraint, CenterFlatBottomRestraint, CenterOfMassRestraint, AngleHarmonicRestraint
 from .ani import ANI1_force_and_energy
 from simtk import unit
 from .utils import write_pdb
@@ -139,7 +139,8 @@ class Tautomer(object):
     def add_droplet(self, topology:md.Topology, 
                     coordinates:unit.quantity.Quantity, 
                     diameter:unit.quantity.Quantity=(30.0 * unit.angstrom),
-                    restrain_hydrogens=True, 
+                    restrain_hydrogens=True,
+
                     file=None)->md.Trajectory:
         """
         Adding a droplet with a given diameter around a small molecule.
@@ -176,7 +177,6 @@ class Tautomer(object):
             pdb_filepath=f"tmp{random.randint(1,10000000)}.pdb"
         
         if not os.path.exists(pdb_filepath):
-
             # mdtraj works with nanomter
             md.Trajectory(coordinates.value_in_unit(unit.nanometer), topology).save_pdb(pdb_filepath)
             pdb = PDBFixer(filename=pdb_filepath)
@@ -238,14 +238,14 @@ class Tautomer(object):
         # set mdtraj topology
         self.ligand_in_water_topology = traj.topology
 
-        # set FlattBottomRestraintToCenter restraints
+        # set FlattBottomRestraintToCenter on each oxygen
         self.solvent_restraints = []
         for residue in traj.topology.residues:   
             if residue.is_water:
                 for atom in residue.atoms:
                     if str(atom.element.symbol) == 'O':
                         self.solvent_restraints.append(
-                            FlatBottomRestraintToCenter(sigma=0.1 * unit.angstrom, 
+                            CenterFlatBottomRestraint(sigma=0.1 * unit.angstrom, 
                                                         point=center * unit.angstrom, 
                                                         radius=(diameter/2),  
                                                         atom_idx = atom.index, 
@@ -264,9 +264,9 @@ class Tautomer(object):
                             hydrogen_idxs.append(atom.index)
                         else:
                             raise RuntimeError('Water should only consist of O and H atoms.')
-                    self.solvent_restraints.append(FlatBottomRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=oxygen_idx, atom_j_idx=hydrogen_idxs[0], atoms=self.ligand_in_water_atoms))
-                    self.solvent_restraints.append(FlatBottomRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=oxygen_idx, atom_j_idx=hydrogen_idxs[1], atoms=self.ligand_in_water_atoms))
-            
+                    self.solvent_restraints.append(BondFlatBottomRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=oxygen_idx, atom_j_idx=hydrogen_idxs[0], atoms=self.ligand_in_water_atoms))
+                    self.solvent_restraints.append(BondFlatBottomRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=oxygen_idx, atom_j_idx=hydrogen_idxs[1], atoms=self.ligand_in_water_atoms))
+                    self.solvent_restraints.append(AngleHarmonicRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=hydrogen_idxs[0], atom_j_idx=oxygen_idx, atom_k_idx=hydrogen_idxs[1]))
         # return a mdtraj object for visual check
         return md.Trajectory(self.ligand_in_water_coordinates.value_in_unit(unit.nanometer), 
                                 self.ligand_in_water_topology)
@@ -435,7 +435,7 @@ class Tautomer(object):
         for b in ligand_bonds:
             a1 =  b[0]
             a2 =  b[1]
-            self.ligand_restraints.append(FlatBottomRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=a1, atom_j_idx=a2, atoms=atoms))       
+            self.ligand_restraints.append(BondFlatBottomRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=a1, atom_j_idx=a2, atoms=atoms))       
 
         # get idx of connected heavy atom which is the donor atom
         # there can only be one neighbor, therefor it is valid to take the first neighbor of the hydrogen
@@ -467,8 +467,8 @@ class Tautomer(object):
         display_mol(m1)
         
         # add NCMC restraints
-        r1 = FlatBottomRestraint( sigma=0.1 * unit.angstrom, atom_i_idx=donor, atom_j_idx=hydrogen_idx_that_moves, atoms=atoms, active_at_lambda=1)
-        r2 = FlatBottomRestraint( sigma=0.1 * unit.angstrom, atom_i_idx=acceptor, atom_j_idx=hydrogen_idx_that_moves, atoms=atoms, active_at_lambda=0)
+        r1 = BondFlatBottomRestraint( sigma=0.1 * unit.angstrom, atom_i_idx=donor, atom_j_idx=hydrogen_idx_that_moves, atoms=atoms, active_at_lambda=1)
+        r2 = BondFlatBottomRestraint( sigma=0.1 * unit.angstrom, atom_i_idx=acceptor, atom_j_idx=hydrogen_idx_that_moves, atoms=atoms, active_at_lambda=0)
 
         self.heavy_atom_hydrogen_donor_idx = donor
         self.hydrogen_idx = hydrogen_idx_that_moves
@@ -522,7 +522,7 @@ class Tautomer(object):
         self.hybrid_coords = min_coordinates
 
         # add restraint between dummy atom and heavy atom
-        self.hybrid_ligand_restraints.append(FlatBottomRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=self.hybrid_hydrogen_idx_at_lambda_1, atom_j_idx=self.heavy_atom_hydrogen_acceptor_idx, atoms=hybrid_atoms))
+        self.hybrid_ligand_restraints.append(BondFlatBottomRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=self.hybrid_hydrogen_idx_at_lambda_1, atom_j_idx=self.heavy_atom_hydrogen_acceptor_idx, atoms=hybrid_atoms))
 
         # add to mdtraj ligand topology a new hydrogen
         hybrid_topology = copy.deepcopy(ligand_topology)

@@ -16,6 +16,8 @@ from scipy.optimize import minimize
 from collections import namedtuple
 from functools import partial
 import matplotlib.pyplot as plt
+from torch import Tensor
+from typing import Tuple, Optional, NamedTuple
 
 
 logger = logging.getLogger(__name__)
@@ -125,7 +127,7 @@ class ANI1_force_and_energy(object):
             atom.y = c[1].value_in_unit(unit.angstrom)
             atom.z = c[2].value_in_unit(unit.angstrom)
 
-        calculator = self.model.ase(dtype=torch.float64)
+        calculator = self.model.ase()
         ase_mol.set_calculator(calculator)
 
         vib = Vibrations(ase_mol, name=f"/tmp/vib{random.randint(1,10000000)}")
@@ -288,8 +290,7 @@ class ANI1_force_and_energy(object):
 
         assert(float(lambda_value) <= 1.0 and float(lambda_value) >= 0.0)
 
-        # coordinates in nm!
-        
+      
         if self.use_pure_ani1ccx:
             _, energy_in_hartree = self.model((self.species, coordinates * nm_to_angstroms))
         else:
@@ -378,10 +379,8 @@ class ANI1_force_and_energy(object):
         penalty : float, unit'd
         """
 
-        try:
-            assert(type(x) == unit.Quantity)
-        except AssertionError:
-            raise AssertionError(x)
+        assert(type(x) == unit.Quantity)
+
         coordinates = torch.tensor([x.value_in_unit(unit.nanometer)],
                                 requires_grad=True, device=self.device, dtype=torch.float32)
 
@@ -402,31 +401,21 @@ class AlchemicalANI(torchani.models.ANI1ccx):
     def forward(self, species_coordinates, lam=1.0):
         raise (NotImplementedError)
 
-
-class DirectAlchemicalANI(AlchemicalANI):
-    def __init__(self, alchemical_atoms=[]):
-        """Scale the direct contributions of alchemical atoms to the energy sum,
-        ignoring indirect contributions
-        """
-        super().__init__(alchemical_atoms)
-
-
-class AEVScalingAlchemicalANI(AlchemicalANI):
-    def __init__(self, alchemical_atoms=[]):
-        """Scale indirect contributions of alchemical atoms to the energy sum by
-        interpolating neighbors' Atomic Environment Vectors.
-
-        (Also scale direct contributions, as in DirectAlchemicalANI)
-        """
-        super().__init__(alchemical_atoms)
+class SpeciesEnergies(NamedTuple):
+    species: Tensor
+    energies: Tensor
+    stddev : Tensor
 
 
 class Ensemble(torch.nn.ModuleList):
     """Compute the average output of an ensemble of modules."""
-    def __init__(self, models):
-        super().__init__(models)
+    def __init__(self, modules):
+        super().__init__(modules)
+        self.size = len(modules)
     
-    def forward(self, species_input)->(torch.Tensor, torch.Tensor):
+    def forward(self, species_input: Tuple[Tensor, Tensor],
+                cell: Optional[Tensor] = None,
+                pbc: Optional[Tensor] = None)->(torch.Tensor, torch.Tensor):
         """
         Returns the averager and mean of the NN ensemble energy prediction
         Returns
@@ -434,11 +423,12 @@ class Ensemble(torch.nn.ModuleList):
         energy_mean : torch.Tensor in Hartree
         stddev : torch.Tensor in Hartree
         """
+
         outputs_tensor = torch.cat([x(species_input)[1].double() for x in self])       
         stddev = torch.std(outputs_tensor, unbiased=False) # to match np.std default ddof=0
         energy_mean = torch.mean(outputs_tensor)
-        return energy_mean, stddev
-      
+        species, _ = species_input
+        return SpeciesEnergies(species, energy_mean, stddev)     
 
 def load_model_ensemble(species, prefix, count):
     """Returns an instance of :class:`torchani.Ensemble` loaded from
@@ -485,13 +475,13 @@ class LinearAlchemicalANI(AlchemicalANI):
         species, aevs = self.aev_computer(aevs)
 
         # neural net output given these AEVs
-        E_1_unshifted, E_1_stddev = self.neural_networks((species, aevs))
-        _, E_1 = self.energy_shifter((species, E_1_unshifted))
+        state_1 = self.neural_networks((species, aevs))
+        _, E_1 = self.energy_shifter((species, state_1.energies))
         
         # LAMBDA == 1: fully interacting
         if float(lam) == 1.0:
             E = E_1
-            stddev = E_1_stddev
+            stddev = state_1.stddev
         else:
             # LAMBDA == 0: fully removed
             # species, AEVs of all other atoms, in absence of alchemical atoms
@@ -499,10 +489,10 @@ class LinearAlchemicalANI(AlchemicalANI):
             mod_coordinates = torch.cat((coordinates[:, :alchemical_atom],  coordinates[:, alchemical_atom+1:]), dim=1) 
             _, mod_aevs = self.aev_computer((mod_species, mod_coordinates))
             # neural net output given these modified AEVs
-            E_0_unshifted, E_0_stddev = self.neural_networks((mod_species, mod_aevs))
-            _, E_0 = self.energy_shifter((species, E_0_unshifted))
+            state_0 = self.neural_networks((mod_species, mod_aevs))
+            _, E_0 = self.energy_shifter((species, state_0.energies))
             E = (lam * E_1) + ((1 - lam) * E_0)
-            stddev = (lam * E_1_stddev) + ((1-lam) * E_0_stddev)
+            stddev = (lam * state_1.stddev) + ((1-lam) * state_0.stddev)
 
         return species, E, stddev
 
@@ -557,17 +547,17 @@ class LinearAlchemicalDualTopologyANI(LinearAlchemicalANI):
         mod_coordinates_0 = torch.cat((coordinates[:, :dummy_atom_0],  coordinates[:, dummy_atom_0+1:]), dim=1) 
         _, mod_aevs_0 = self.aev_computer((mod_species_0, mod_coordinates_0))
         # neural net output given these modified AEVs
-        E_0_unshifted, E_0_stddev = self.neural_networks((mod_species_0, mod_aevs_0))
-        _, E_0 = self.energy_shifter((mod_species_0, E_0_unshifted))
+        state_0 = self.neural_networks((mod_species_0, mod_aevs_0))
+        _, E_0 = self.energy_shifter((mod_species_0, state_0.energies))
         
         # neural net output given these AEVs
         mod_species_1 = torch.cat((species[:, :dummy_atom_1],  species[:, dummy_atom_1+1:]), dim=1)
         mod_coordinates_1 = torch.cat((coordinates[:, :dummy_atom_1],  coordinates[:, dummy_atom_1+1:]), dim=1) 
         _, mod_aevs_1 = self.aev_computer((mod_species_1, mod_coordinates_1))
         # neural net output given these modified AEVs
-        E_1_unshifted, E_1_stddev= self.neural_networks((mod_species_1, mod_aevs_1))
-        _, E_1 = self.energy_shifter((mod_species_1, E_1_unshifted))
+        state_1 = self.neural_networks((mod_species_1, mod_aevs_1))
+        _, E_1 = self.energy_shifter((mod_species_1, state_1.energies))
 
         E = (lam * E_1) + ((1 - lam) * E_0)
-        stddev = (lam * E_1_stddev) + ((1-lam) * E_0_stddev)
+        stddev = (lam * state_1.stddev) + ((1-lam) * state_0.stddev)
         return species, E, stddev
