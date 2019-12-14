@@ -10,11 +10,11 @@ import torch
 
 logger = logging.getLogger(__name__)
 
-class BaseRestraint(object):
+class BaseDistanceRestraint(object):
 
     def __init__(self, sigma:unit.Quantity, active_at_lambda:int):
         """
-        Defines a restraint base class
+        Defines a distance restraint base class
         Parameters
         ----------
         sigma : in angstrom
@@ -29,7 +29,34 @@ class BaseRestraint(object):
         self.active_at_lambda = active_at_lambda
         self.k = torch.tensor(k.value_in_unit((unit.kilo * unit.joule) / ((unit.angstrom **2) * unit.mole)), dtype=torch.double, device=self.device, requires_grad=True)
 
-class PointAtomRestraint(BaseRestraint):
+
+class BaseAngleRestraint(object):
+
+    def __init__(self, sigma:unit.Quantity, active_at_lambda:int):
+        """
+        Defines an angle restraint base class
+        'Typically for bond angle A–B–C, if A and C are both hydrogen atoms, the force 
+        constant is roughly 30 –35 kcal/mol*rad**2.' Development and Testing of a General Amber Force Field.
+        Parameters
+        ----------
+        sigma : in angstrom
+        active_at_lambda : int
+            Integer to indicccate at which state the restraint is fully active. Either 0 (for 
+            lambda 0), or 1 (for lambda 1) or -1 (always active)
+        """
+
+        assert(type(sigma) == unit.Quantity)
+        k = (kB * temperature) / (sigma**2) # k = 27.7149 kcal/mol*rad**2
+        self.device = device
+        self.active_at_lambda = active_at_lambda
+        self.k = torch.tensor(k.value_in_unit((unit.kilo * unit.joule) / ((unit.radian **2) * unit.mole)), 
+                            dtype=torch.double, 
+                            device=self.device, 
+                            requires_grad=True)
+        print(self.k)
+
+
+class PointAtomRestraint(BaseDistanceRestraint):
 
     def __init__(self, sigma:unit.Quantity, point:np.array, active_at_lambda:int):
         """
@@ -56,7 +83,7 @@ class PointAtomRestraint(BaseRestraint):
                                 requires_grad=True) 
 
 
-class BondRestraint(BaseRestraint):
+class BondRestraint(BaseDistanceRestraint):
 
     def __init__(self, sigma:unit.Quantity, 
                         atom_i_idx:int, 
@@ -95,7 +122,7 @@ class BondRestraint(BaseRestraint):
         self.lower_bound = self.mean_bond_length - 0.2
 
 
-class AngleHarmonicRestraint(BaseRestraint):
+class AngleHarmonicRestraint(BaseAngleRestraint):
     
     def __init__(self, 
                 sigma:unit.Quantity, 
