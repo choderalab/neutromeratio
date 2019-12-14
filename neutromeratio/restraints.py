@@ -34,10 +34,11 @@ class BaseAngleRestraint(object):
 
     def __init__(self, sigma:unit.Quantity, active_at_lambda:int):
         """
-        Defines an angle restraint base class
+        Defines an angle restraint base class.
+        Force constant taken from here:
         'Typically for bond angle A–B–C, if A and C are both hydrogen atoms, the force 
         constant is roughly 30 –35 kcal/mol*rad**2.' Development and Testing of a General Amber Force Field.
-        Parameters
+        Parameters (http://ambermd.org/antechamber/gaff.pdf)
         ----------
         sigma : in angstrom
         active_at_lambda : int
@@ -221,15 +222,6 @@ class BondHarmonicRestraint(BondRestraint):
                 atom_j_idx:int, 
                 atoms:str, 
                 active_at_lambda:int=-1):
-
-        # get mean bond length
-        try:
-            self.mean_bond_length = (bond_length_dict[frozenset([self.atom_i_element, self.atom_j_element])]).value_in_unit(unit.angstrom)
-        except KeyError:
-            logger.critical('Bond between: {} - {}'.format(self.atom_i_element, self.atom_j_element))
-            raise KeyError('Element not implemented.')
-        self.upper_bound = self.mean_bond_length + 0.2
-        self.lower_bound = self.mean_bond_length - 0.2
 
         super().__init__(sigma, atom_i_idx, atom_j_idx, atoms, active_at_lambda)
 
