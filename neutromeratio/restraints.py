@@ -47,7 +47,7 @@ class BaseAngleRestraint(object):
         """
 
         assert(type(sigma) == unit.Quantity)
-        k = (kB * temperature) / (sigma**2) # k = 27.7149 kcal/mol*rad**2
+        k = (kB * temperature) / (sigma**2) # k = 34.2159 kcal/mol*rad**2
         self.device = device
         self.active_at_lambda = active_at_lambda
         self.k = torch.tensor(k.value_in_unit((unit.kilo * unit.joule) / ((unit.radian **2) * unit.mole)), 

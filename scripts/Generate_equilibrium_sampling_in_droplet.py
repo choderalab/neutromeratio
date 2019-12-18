@@ -54,7 +54,8 @@ os.makedirs(f"{base_path}/{name}", exist_ok=True)
 m = tautomer.add_droplet(tautomer.hybrid_topology, 
                             tautomer.hybrid_coords, 
                             diameter=diameter_in_angstrom * unit.angstrom,
-                            restrain_hydrogens=True,
+                            restrain_hydrogen_bonds=True,
+                            restrain_hydrogen_angles=False,
                             file=f"{base_path}/{name}/{name}_in_droplet_{mode}.pdb")
 
 # define the alchemical atoms
@@ -97,7 +98,7 @@ langevin = neutromeratio.LangevinDynamics(atoms = tautomer.ligand_in_water_atoms
                             energy_and_force = energy_and_force)
 
 x0 = tautomer.ligand_in_water_coordinates
-x0, e_history = energy_function.minimize(x0, maxiter=100, lambda_value=lambda_value) 
+x0, e_history = energy_function.minimize(x0, maxiter=200, lambda_value=lambda_value) 
 n_steps_junk = int(n_steps/10)
 
 equilibrium_samples_global = []

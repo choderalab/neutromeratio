@@ -139,8 +139,8 @@ class Tautomer(object):
     def add_droplet(self, topology:md.Topology, 
                     coordinates:unit.quantity.Quantity, 
                     diameter:unit.quantity.Quantity=(30.0 * unit.angstrom),
-                    restrain_hydrogens=True,
-
+                    restrain_hydrogen_bonds=True,
+                    restrain_hydrogen_angles=True,
                     file=None)->md.Trajectory:
         """
         Adding a droplet with a given diameter around a small molecule.
@@ -162,6 +162,12 @@ class Tautomer(object):
         assert(type(diameter) == unit.Quantity)
         assert(type(topology) == md.Topology)
         assert(type(coordinates) == unit.Quantity)
+
+        if restrain_hydrogen_bonds:
+            logger.warning('Hydrogen bonds are restraint.')
+        
+        if restrain_hydrogen_angles:
+            logger.warning('HOH angles are restraint.')
         
         logger.info('Adding droplet ...')
         # get topology from mdtraj to PDBfixer via pdb file 
@@ -252,7 +258,7 @@ class Tautomer(object):
                                                         active_at_lambda=-1))
                         print('Adding restraint to center to {}'.format(atom.index))
         
-        if restrain_hydrogens:
+        if restrain_hydrogen_bonds or restrain_hydrogen_angles:
             for residue in traj.topology.residues:   
                 if residue.is_water:
                     oxygen_idx = None
@@ -264,9 +270,11 @@ class Tautomer(object):
                             hydrogen_idxs.append(atom.index)
                         else:
                             raise RuntimeError('Water should only consist of O and H atoms.')
-                    self.solvent_restraints.append(BondFlatBottomRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=oxygen_idx, atom_j_idx=hydrogen_idxs[0], atoms=self.ligand_in_water_atoms))
-                    self.solvent_restraints.append(BondFlatBottomRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=oxygen_idx, atom_j_idx=hydrogen_idxs[1], atoms=self.ligand_in_water_atoms))
-                    self.solvent_restraints.append(AngleHarmonicRestraint(sigma=0.3 * unit.radian, atom_i_idx=hydrogen_idxs[0], atom_j_idx=oxygen_idx, atom_k_idx=hydrogen_idxs[1]))
+                    if restrain_hydrogen_bonds:
+                        self.solvent_restraints.append(BondFlatBottomRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=oxygen_idx, atom_j_idx=hydrogen_idxs[0], atoms=self.ligand_in_water_atoms))
+                        self.solvent_restraints.append(BondFlatBottomRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=oxygen_idx, atom_j_idx=hydrogen_idxs[1], atoms=self.ligand_in_water_atoms))
+                    if restrain_hydrogen_angles:
+                        self.solvent_restraints.append(AngleHarmonicRestraint(sigma=0.27 * unit.radian, atom_i_idx=hydrogen_idxs[0], atom_j_idx=oxygen_idx, atom_k_idx=hydrogen_idxs[1]))
         # return a mdtraj object for visual check
         return md.Trajectory(self.ligand_in_water_coordinates.value_in_unit(unit.nanometer), 
                                 self.ligand_in_water_topology)
