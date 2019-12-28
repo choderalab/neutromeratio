@@ -1,7 +1,8 @@
+import sys
+
+import torch
 from openmmtools.constants import kB
 from simtk import unit
-import sys
-import torch
 
 platform = 'cpu'
 temperature = 300 * unit.kelvin

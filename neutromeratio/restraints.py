@@ -1,12 +1,14 @@
-from simtk import unit
-from .constants import nm_to_angstroms, bond_length_dict, temperature, device, mass_dict_in_daltons, water_hoh_angle
+import logging
+
 import numpy as np
 import torch
-import logging
-from scipy.stats import norm
-from torch.distributions.normal import Normal
 from openmmtools.constants import kB
-import torch
+from scipy.stats import norm
+from simtk import unit
+from torch.distributions.normal import Normal
+
+from .constants import (bond_length_dict, device, mass_dict_in_daltons,
+                        nm_to_angstroms, temperature, water_hoh_angle)
 
 logger = logging.getLogger(__name__)
 

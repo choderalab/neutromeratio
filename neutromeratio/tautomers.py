@@ -1,24 +1,29 @@
-import logging, copy, os, random
+import copy
+import logging
+import os
+import random
+
 import mdtraj as md
-import parmed as pm
-from rdkit import Chem, Geometry
-from rdkit.Chem import AllChem
-from rdkit.Chem import rdFMCS
-from .vis import display_mol
-from .restraints import BondFlatBottomRestraint, CenterFlatBottomRestraint, CenterOfMassRestraint, AngleHarmonicRestraint
-from .ani import ANI1_force_and_energy
-from simtk import unit
-from .utils import write_pdb
-import numpy as np
-from ase import Atom, Atoms
-from .constants import device, platform
-from .mcmc import MC_Mover
-import torch, torchani
-from .constants import temperature, gas_constant, kT
-from scipy.special import logsumexp
-from pdbfixer import PDBFixer
-from simtk.openmm import Vec3
 import networkx as nx
+import numpy as np
+import parmed as pm
+import torch
+import torchani
+from ase import Atom, Atoms
+from pdbfixer import PDBFixer
+from rdkit import Chem, Geometry
+from rdkit.Chem import AllChem, rdFMCS
+from scipy.special import logsumexp
+from simtk import unit
+from simtk.openmm import Vec3
+
+from .ani import ANI1_force_and_energy
+from .constants import device, gas_constant, kT, platform, temperature
+from .mcmc import MC_Mover
+from .restraints import (AngleHarmonicRestraint, BondFlatBottomRestraint,
+                         CenterFlatBottomRestraint, CenterOfMassRestraint)
+from .utils import write_pdb
+from .vis import display_mol
 
 logger = logging.getLogger(__name__)
 
@@ -274,7 +279,7 @@ class Tautomer(object):
                         self.solvent_restraints.append(BondFlatBottomRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=oxygen_idx, atom_j_idx=hydrogen_idxs[0], atoms=self.ligand_in_water_atoms))
                         self.solvent_restraints.append(BondFlatBottomRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=oxygen_idx, atom_j_idx=hydrogen_idxs[1], atoms=self.ligand_in_water_atoms))
                     if restrain_hydrogen_angles:
-                        self.solvent_restraints.append(AngleHarmonicRestraint(sigma=0.27 * unit.radian, atom_i_idx=hydrogen_idxs[0], atom_j_idx=oxygen_idx, atom_k_idx=hydrogen_idxs[1]))
+                        self.solvent_restraints.append(AngleHarmonicRestraint(sigma=0.1 * unit.radian, atom_i_idx=hydrogen_idxs[0], atom_j_idx=oxygen_idx, atom_k_idx=hydrogen_idxs[1]))
         # return a mdtraj object for visual check
         return md.Trajectory(self.ligand_in_water_coordinates.value_in_unit(unit.nanometer), 
                                 self.ligand_in_water_topology)

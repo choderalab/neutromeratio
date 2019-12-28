@@ -1,14 +1,14 @@
-# Add imports here
-from simtk import unit
+import logging
+import os
+
+import mdtraj as md
+import nglview
+import numpy as np
+from IPython.core.display import display
 from rdkit import Chem
 from rdkit.Chem import AllChem
-import os
-import mdtraj as md
-import numpy as np
-import nglview
-import logging
 from rdkit.Chem.Draw import IPythonConsole
-from IPython.core.display import display
+from simtk import unit
 
 logger = logging.getLogger(__name__)
 

@@ -1,23 +1,27 @@
-import os, random
-import torchani
-import torch
-import numpy as np
-from .constants import nm_to_angstroms, kT, hartree_to_kJ_mol, device, platform, conversion_factor_eV_to_kJ_mol, temperature, pressure
-from simtk import unit
-import simtk
-from ase.optimize import BFGS
-from ase import Atoms
 import copy
-from ase.vibrations import Vibrations
-from ase.thermochemistry import IdealGasThermo
 import logging
-from scipy.optimize import minimize
+import os
+import random
 from collections import namedtuple
 from functools import partial
-import matplotlib.pyplot as plt
-from torch import Tensor
-from typing import Tuple, Optional, NamedTuple
+from typing import NamedTuple, Optional, Tuple
 
+import matplotlib.pyplot as plt
+import numpy as np
+import simtk
+import torch
+import torchani
+from ase import Atoms
+from ase.optimize import BFGS
+from ase.thermochemistry import IdealGasThermo
+from ase.vibrations import Vibrations
+from scipy.optimize import minimize
+from simtk import unit
+from torch import Tensor
+
+from .constants import (conversion_factor_eV_to_kJ_mol, device,
+                        hartree_to_kJ_mol, kT, nm_to_angstroms, platform,
+                        pressure, temperature)
 
 logger = logging.getLogger(__name__)
 
@@ -318,13 +322,15 @@ class ANI1_force_and_energy(object):
                 #logger.info(f"Nr of atoms: {species.size()[1]}")
                 #logger.warning(f"Stddev: {stddev_in_kJ_mol} kJ/mol")
                 #logger.warning(f"Energy: {energy_in_kJ_mol} kJ/mol")
-                penalty_in_kJ_mol = self._linear_penalty(stddev_in_kJ_mol)
+                #penalty_in_kJ_mol = self._linear_penalty(stddev_in_kJ_mol)
+                penalty_in_kJ_mol = self._quadratic_penalty(stddev_in_kJ_mol)
+
             energy_in_kJ_mol += penalty_in_kJ_mol
 
         return energy_in_kJ_mol, bias_in_kJ_mol, stddev_in_kJ_mol, penalty_in_kJ_mol
 
     def _quadratic_penalty(self, stddev):
-        penalty_in_kJ_mol = torch.tensor((stddev.item() - self.per_mol_tresh)**2,
+        penalty_in_kJ_mol = torch.tensor(0.1 * ((stddev.item() - self.per_mol_tresh)**2),
                         device=self.device, dtype=torch.float64, requires_grad=True)
         logger.warning(f"Applying penalty: {penalty_in_kJ_mol.item()} kJ/mol")
         return penalty_in_kJ_mol

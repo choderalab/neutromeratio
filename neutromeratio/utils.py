@@ -1,14 +1,15 @@
-# Add imports here
-from simtk import unit
+import logging
+import os
+import random
+
+import mdtraj as md
+import nglview
+import numpy as np
 from rdkit import Chem
 from rdkit.Chem import AllChem
-import os
-import mdtraj as md
-import numpy as np
+from simtk import unit
+
 from .constants import kT
-import nglview
-import logging
-import random
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +54,3 @@ def reduced_pot(E:float) -> float:
         u(x) = U(x) / kBT
     """
     return E / kT
-
-
-

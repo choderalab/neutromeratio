@@ -1,15 +1,16 @@
 # TODO: gradient of MBAR_estimated free energy difference w.r.t. model parameters
 
+import logging
+
 import numpy as np
 import torch
 from pymbar import MBAR
-import logging
 from pymbar.timeseries import detectEquilibration
 from simtk import unit
 from tqdm import tqdm
 
 from neutromeratio.ani import AlchemicalANI
-from neutromeratio.constants import kT, hartree_to_kJ_mol
+from neutromeratio.constants import hartree_to_kJ_mol, kT
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +42,7 @@ class FreeEnergyCalculator():
             number of atoms
         per_atom_thresh : float
             exclude snapshots where ensemble stddev in energy / n_atoms exceeds this threshold, in kJ/mol
+            if per_atom_tresh == -1 ignores ensemble stddev
 
         """
         K = len(lambdas)
@@ -134,28 +136,42 @@ class FreeEnergyCalculator():
         last_valid_inds = {}       
         logger.info(f"Looking through {len(ani_trajs)} lambda windows")
         for lam in sorted(ani_trajs.keys()):
-            logger.info(f"Calculating stddev and penarly for lambda: {lam}")
-            # calculate endstate stddev for given confs
-            lambda0_stddev, lambda1_stddev = calculate_stddev(ani_trajs[lam])
-            # scale for current lam
-            current_stddev = (1 - lam) * lambda0_stddev + lam * lambda1_stddev
-            linear_penalty = compute_linear_penalty(current_stddev)
-            last_valid_ind = compute_last_valid_ind(linear_penalty)
+            if per_atom_thresh/kT < 0:
+                last_valid_ind = -1
+            else:
+                logger.info(f"Calculating stddev and penarly for lambda: {lam}")
+                # calculate endstate stddev for given confs
+                lambda0_stddev, lambda1_stddev = calculate_stddev(ani_trajs[lam])
+                # scale for current lam
+                current_stddev = (1 - lam) * lambda0_stddev + lam * lambda1_stddev
+                linear_penalty = compute_linear_penalty(current_stddev)
+                last_valid_ind = compute_last_valid_ind(linear_penalty)
             last_valid_inds[lam] = last_valid_ind
 
         snapshots = []
+        self.snapshot_mask = []
         N_k = []
         lambdas_with_usable_samples = []
         # lambbdas with usable samples applied to usable conformations
         for lam in sorted(list(last_valid_inds.keys())):
             logger.info(f"lam: {lam}")
-            if last_valid_inds[lam] > 5 or last_valid_inds[lam] == -1: # -1 means all can be used
+            if last_valid_inds[lam] > 5: 
                 lambdas_with_usable_samples.append(lam)
                 new_snapshots = ani_trajs[lam][0:last_valid_inds[lam]]
                 logger.info(f"For lambda {lam}: {len(new_snapshots)} snaphosts below treshold out of {len(ani_trajs[lam])}")
                 snapshots.extend(new_snapshots)
                 N_k.append(len(new_snapshots))
+                self.snapshot_mask.append(len(new_snapshots))
+            elif last_valid_inds[lam] == -1: # -1 means all can be used
+                lambdas_with_usable_samples.append(lam)
+                new_snapshots = ani_trajs[lam][:]
+                logger.info(f"For lambda {lam}: {len(new_snapshots)} snaphosts below treshold out of {len(ani_trajs[lam])}")
+                snapshots.extend(new_snapshots)
+                N_k.append(len(new_snapshots))
+                self.snapshot_mask.append(len(new_snapshots))
+
             else:
+                self.snapshot_mask.append(0)
                 logger.info(f"For lambda {lam}: ZERO snaphosts below treshold out of {len(ani_trajs[lam])}")
         logger.info(f"Nr of snapshots considered for postprocessing: {len(snapshots)}")
         return N_k, snapshots, lambdas_with_usable_samples
@@ -164,19 +180,18 @@ class FreeEnergyCalculator():
     @property
     def free_energy_differences(self):
         """matrix of free energy differences"""
-        return self.mbar.getFreeEnergyDifferences()[0]
+        return self.mbar.getFreeEnergyDifferences(return_dict=True)['Delta_f']
     
     @property
     def free_energy_difference_uncertainties(self):
         """matrix of asymptotic uncertainty-estimates accompanying free energy differences"""
-        return self.mbar.getFreeEnergyDifferences()[1]
+        return self.mbar.getFreeEnergyDifferences(return_dict=True)['dDelta_f']
     
     @property
     def end_state_free_energy_difference(self):
         """DeltaF[lambda=1 --> lambda=0]"""
-        DeltaF_ij, dDeltaF_ij, _ = self.mbar.getFreeEnergyDifferences()
-        K = len(DeltaF_ij)
-        return DeltaF_ij[0, K-1], dDeltaF_ij[0, K-1]
+        results = self.mbar.getFreeEnergyDifferences(return_dict=True)
+        return results['Delta_f'][0, -1], results['Delta_f'][0, -1]
 
 
 

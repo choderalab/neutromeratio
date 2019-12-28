@@ -1,9 +1,10 @@
-import random
-import matplotlib.pyplot as plt
-from collections import OrderedDict
 import logging
-import pandas as pd
+import random
+from collections import OrderedDict
+
+import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import scipy.stats as scs
 
 logger = logging.getLogger(__name__)

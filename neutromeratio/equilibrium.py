@@ -1,10 +1,13 @@
+import logging
+
+import mdtraj as md
 import numpy as np
-from .constants import speed_unit, distance_unit, kB, mass_dict_in_daltons, temperature
 from simtk import unit
 from tqdm import tqdm
+
 from .ani import ANI1_force_and_energy
-import mdtraj as md
-import logging
+from .constants import (distance_unit, kB, mass_dict_in_daltons, speed_unit,
+                        temperature)
 
 logger = logging.getLogger(__name__)
 
