@@ -637,7 +637,11 @@ def test_generating_droplet():
     # generate both rdkit mol
     tautomer = neutromeratio.Tautomer(name=name, initial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles), nr_of_conformations=20)
     tautomer.perform_tautomer_transformation_forward()
-    tautomer.add_droplet(tautomer.hybrid_topology, tautomer.hybrid_coords)
+    m = tautomer.add_droplet(tautomer.hybrid_topology, 
+                            tautomer.hybrid_coords, 
+                            diameter=16 * unit.angstrom,
+                            restrain_hydrogen_bonds=True,
+                            file=f"data/{name}_in_droplet.pdb")
 
     # define the alchemical atoms
     alchemical_atoms=[tautomer.hybrid_hydrogen_idx_at_lambda_1, tautomer.hybrid_hydrogen_idx_at_lambda_0]
@@ -658,4 +662,6 @@ def test_generating_droplet():
 
     for r in tautomer.hybrid_ligand_restraints:
         energy_function.add_restraint(r)
-        
+    
+    e, _, __, ___ = energy_function.calculate_energy(tautomer.ligand_in_water_coordinates)
+    assert(is_quantity_close(e, -15547955.412089575 * unit.kilojoule_per_mole, rtol=1e-5))
