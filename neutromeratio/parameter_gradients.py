@@ -57,7 +57,7 @@ class FreeEnergyCalculator():
 
         N_k, snapshots, used_lambdas = self.remove_confs_with_high_stddev(max_snapshots_per_window, per_atom_thresh)
 
-        # end-point energies, bias, stddev
+        # end-point energies, restraint_bias, stddev
         lambda0_e_b_stddev = [self.ani_model.calculate_energy(x, lambda_value=0.0) for x in tqdm(snapshots)]
         lambda1_e_b_stddev = [self.ani_model.calculate_energy(x, lambda_value=1.0) for x in tqdm(snapshots)]
 
@@ -89,7 +89,7 @@ class FreeEnergyCalculator():
         """
 
         def calculate_stddev(snapshots):
-            # calculate energy, bias and stddev for endstates
+            # calculate energy, restraint_bias and stddev for endstates
             logger.info('Calculating stddev')
             lambda0_e_b_stddev = [self.ani_model.calculate_energy(x, lambda_value=0.0) for x in tqdm(snapshots)]
             lambda1_e_b_stddev = [self.ani_model.calculate_energy(x, lambda_value=1.0) for x in tqdm(snapshots)]
@@ -99,26 +99,26 @@ class FreeEnergyCalculator():
             lambda1_stddev = [stddev/kT for stddev in [e_b_stddev[2] for e_b_stddev in lambda1_e_b_stddev]]
             return np.array(lambda0_stddev), np.array(lambda1_stddev)
 
-        def compute_linear_penalty(current_stddev):
+        def compute_linear_ensemble_bias(current_stddev):
             # calculate the total energy stddev threshold based on the provided per_atom_thresh 
             # and the number of atoms
             total_thresh = (per_atom_thresh * self.n_atoms)
             logger.info(f"Per system treshold: {total_thresh}")
             # if stddev for a given conformation < total_thresh => 0.0
             # if stddev for a given conformation > total_thresh => stddev - total_threshold
-            linear_penalty = np.maximum(0, current_stddev - (total_thresh/kT))
-            return linear_penalty
+            linear_ensemble_bias = np.maximum(0, current_stddev - (total_thresh/kT))
+            return linear_ensemble_bias
 
-        def compute_last_valid_ind(linear_penalty):
+        def compute_last_valid_ind(linear_ensemble_bias):
             # return the idx of the first entry that is above 0.0
-            if np.sum(linear_penalty) < 0.01: # means all can be used
+            if np.sum(linear_ensemble_bias) < 0.01: # means all can be used
                 logger.info('Last valid ind: -1')
                 return -1
-            elif np.argmax(np.cumsum(linear_penalty) > 0) == 0: # means nothing can be used
+            elif np.argmax(np.cumsum(linear_ensemble_bias) > 0) == 0: # means nothing can be used
                 logger.info('Last valid ind: 0')
                 return 0
             else:
-                idx = np.argmax(np.cumsum(linear_penalty) > 0) -1
+                idx = np.argmax(np.cumsum(linear_ensemble_bias) > 0) -1
                 logger.info(f"Last valid ind: {idx}")
                 return idx # means up to idx can be used
 
@@ -144,8 +144,8 @@ class FreeEnergyCalculator():
                 lambda0_stddev, lambda1_stddev = calculate_stddev(ani_trajs[lam])
                 # scale for current lam
                 current_stddev = (1 - lam) * lambda0_stddev + lam * lambda1_stddev
-                linear_penalty = compute_linear_penalty(current_stddev)
-                last_valid_ind = compute_last_valid_ind(linear_penalty)
+                linear_ensemble_bias = compute_linear_ensemble_bias(current_stddev)
+                last_valid_ind = compute_last_valid_ind(linear_ensemble_bias)
             last_valid_inds[lam] = last_valid_ind
 
         snapshots = []

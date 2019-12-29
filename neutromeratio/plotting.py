@@ -7,6 +7,8 @@ import numpy as np
 import pandas as pd
 import scipy.stats as scs
 
+# TODO: adding estimate uncertanty to scatter plot
+
 logger = logging.getLogger(__name__)
 
 def plot_correlation_analysis(
@@ -145,7 +147,7 @@ class BootstrapDistribution:
         Uses the approximation that the variation around the center of the 
         bootstrap distribution is the same as the variation around the 
         center of the true distribution. E.g. not sensitive to a bootstrap
-        distribution is biased in the median.
+        distribution is restraint_biased in the median.
 
         Note
         ----

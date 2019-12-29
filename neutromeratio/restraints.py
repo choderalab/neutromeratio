@@ -75,7 +75,7 @@ class PointAtomRestraint(BaseDistanceRestraint):
         Returns
         -------
         e : float
-            bias
+            restraint_bia
         """
 
         super().__init__(sigma, active_at_lambda)
@@ -179,7 +179,7 @@ class AngleHarmonicRestraint(BaseAngleRestraint):
 
         # x in angstrom
         e = (self.k/2) * (self.water_angle - current_angle.double())**2
-        logging.debug('Angle harmonic restraint bias introduced: {:0.4f}'.format(e.item()))
+        logging.debug('Angle harmonic restraint restraint_bia introduced: {:0.4f}'.format(e.item()))
         return e.to(device=self.device)
 
 
@@ -212,7 +212,7 @@ class BondFlatBottomRestraint(BondRestraint):
             e = (self.k/2) * (distance.double() - self.upper_bound)**2 
         else:
             e = torch.tensor(0.0, dtype=torch.double, device=self.device)
-        logging.debug('Flat bottom bias introduced: {:0.4f}'.format(e.item()))
+        logging.debug('Flat bottom restraint_bia introduced: {:0.4f}'.format(e.item()))
         return e.to(device=self.device)
     
 
@@ -241,7 +241,7 @@ class BondHarmonicRestraint(BondRestraint):
         # x in angstrom
         distance = torch.norm(x[0][self.atom_i_idx] - x[0][self.atom_j_idx]) 
         e = (self.k/2) *(distance.double() - self.mean_bond_length)**2
-        logging.debug('Harmonic bias introduced: {:0.4f}'.format(e.item()))
+        logging.debug('Harmonic restraint_bia introduced: {:0.4f}'.format(e.item()))
         return e.to(device=self.device)
 
 
@@ -290,7 +290,7 @@ class CenterFlatBottomRestraint(PointAtomRestraint):
             e = (self.k/2) * (distance.double() - self.cutoff_radius)**2 
         else:
             e = torch.tensor(0.0, dtype=torch.double, device=self.device)
-        logging.debug('Flat center bottom bias introduced: {:0.4f}'.format(e.item()))
+        logging.debug('Flat center bottom restraint_bia introduced: {:0.4f}'.format(e.item()))
         return e.to(device=self.device)
 
 class CenterOfMassRestraint(PointAtomRestraint):

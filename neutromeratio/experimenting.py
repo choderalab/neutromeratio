@@ -1,17 +1,20 @@
 #%%
-import neutromeratio
+import pickle
+import sys
+from glob import glob
+
+import matplotlib.pyplot as plt
+import mdtraj as md
+import numpy as np
+import torch
 from openmmtools.constants import kB
 from simtk import unit
-import numpy as np
-import pickle
-import mdtraj as md
-import matplotlib.pyplot as plt
-import sys
 from tqdm import tqdm
-import torch
+
+import neutromeratio
+from neutromeratio.constants import device, exclude_set, kT
 from neutromeratio.parameter_gradients import FreeEnergyCalculator
-from neutromeratio.constants import kT, device, exclude_set
-from glob import glob
+
 
 def parse_lambda_from_dcd_filename(dcd_filename, env):
     return float(dcd_filename[:dcd_filename.find(f"_in_{env}")].split('_')[-1])
@@ -73,7 +76,7 @@ alchemical_atoms=[tautomer.hybrid_hydrogen_idx_at_lambda_1, tautomer.hybrid_hydr
 
 
 # extract hydrogen donor idx and hydrogen idx for from_mol
-model = neutromeratio.ani.LinearAlchemicalDualTopologyANI(alchemical_atoms=alchemical_atoms, adventure_mode=True)
+model = neutromeratio.ani.LinearAlchemicalSingleTopologyANI(alchemical_atoms=alchemical_atoms, adventure_mode=True)
 model = model.to(device)
 torch.set_num_threads(2)
 
@@ -132,17 +135,17 @@ def calculate_stddev(snapshots):
     lambda1_stddev = [stddev/kT for stddev in [e_b_stddev[2] for e_b_stddev in lambda1_e_b_stddev]]
     return np.array(lambda0_stddev), np.array(lambda1_stddev)
 
-def compute_linear_penalty(current_stddev, n_atoms):
+def compute_linear_ensemble_bias(current_stddev, n_atoms):
     per_atom_thresh = 0.5 * unit.kilojoule_per_mole
     total_thresh = per_atom_thresh * n_atoms
-    linear_penalty = np.maximum(0, current_stddev - (total_thresh/kT))
-    return linear_penalty
+    linear_ensemble_bias = np.maximum(0, current_stddev - (total_thresh/kT))
+    return linear_ensemble_bias
 
-def compute_last_valid_ind(linear_penalty):
-    if linear_penalty.sum() > 0:
-        last_valid_ind = np.argmax(np.cumsum(linear_penalty) > 0) -1
+def compute_last_valid_ind(linear_ensemble_bias):
+    if linear_ensemble_bias.sum() > 0:
+        last_valid_ind = np.argmax(np.cumsum(linear_ensemble_bias) > 0) -1
     else:
-        last_valid_ind = len(linear_penalty) -1
+        last_valid_ind = len(linear_ensemble_bias) -1
     return last_valid_ind
 
 # %%
@@ -152,8 +155,8 @@ for lam in ani_trajs:
     lambda0_stddev, lambda1_stddev = calculate_stddev(ani_trajs[lam])
     current_stddev = (1 - lam) * lambda0_stddev + lam * lambda1_stddev
     print(current_stddev)
-    linear_penalty = compute_linear_penalty(current_stddev, n_atoms)
-    last_valid_ind = compute_last_valid_ind(linear_penalty)
+    linear_ensemble_bias = compute_linear_ensemble_bias(current_stddev, n_atoms)
+    last_valid_ind = compute_last_valid_ind(linear_ensemble_bias)
     print(last_valid_ind)
     last_valid_inds[lam] = last_valid_ind
 

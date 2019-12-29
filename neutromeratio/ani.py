@@ -74,11 +74,11 @@ class ANI1_force_and_energy(object):
         self.list_of_restraints = []
 
 
-    def _compute_bias(self, x, lambda_value=0.05):
-        # use correct bias in between the end-points...
+    def _compute_restraint_bias(self, x, lambda_value=0.05):
+        # use correct restraint_bias in between the end-points...
         coordinates = torch.Tensor([x/unit.nanometer], device=device)
         
-        bias_in_kJ_mol = torch.tensor(0.0,
+        restraint_bias_in_kJ_mol = torch.tensor(0.0,
                                     device=self.device, dtype=torch.float64)
 
         for restraint in self.list_of_restraints:
@@ -90,23 +90,23 @@ class ANI1_force_and_energy(object):
             else:
                 # always on - active_at_lambda == -1
                 pass 
-            bias_in_kJ_mol += e
-        return bias_in_kJ_mol
+            restraint_bias_in_kJ_mol += e
+        return restraint_bias_in_kJ_mol
 
 
-    def compute_bias_on_snapshots(self, snapshots, lambda_value=0.0)->float:
+    def compute_restraint_bias_on_snapshots(self, snapshots, lambda_value=0.0)->float:
         """
-        Calculates the energy of all bias activate at lambda_value on a given snapshot.
+        Calculates the energy of all restraint_bias activate at lambda_value on a given snapshot.
         Returns
         -------
-        reduced_bias : float
-            the bias in kT
+        reduced_restraint_bias : float
+            the restraint_bias in kT
         """
-        bias_in_kJ_mol = list(map(partial(self._compute_bias, lambda_value=lambda_value), snapshots))
-        unitted_bias = np.array(list(map(float, bias_in_kJ_mol))) * unit.kilojoules_per_mole
-        reduced_bias = unitted_bias / kT
+        restraint_bias_in_kJ_mol = list(map(partial(self._compute_restraint_bias, lambda_value=lambda_value), snapshots))
+        unitted_restraint_bias = np.array(list(map(float, restraint_bias_in_kJ_mol))) * unit.kilojoules_per_mole
+        reduced_restraint_bias = unitted_restraint_bias / kT
         
-        return reduced_bias
+        return reduced_restraint_bias
 
 
 
@@ -195,7 +195,7 @@ class ANI1_force_and_energy(object):
         x = coords.value_in_unit(unit.angstrom)
         self.memory_of_energy = []
         self.memory_of_stddev = []
-        self.memory_of_penalty = []
+        self.memory_of_ensemble_bias = []
         print("Begin minimizing...")
         f = optimize.minimize(self._traget_energy_function, x, method='BFGS', 
                       jac=True, args=(lambda_value),
@@ -204,18 +204,18 @@ class ANI1_force_and_energy(object):
         logger.critical(f"Minimization status: {f.success}")
         memory_of_energy = copy.deepcopy(self.memory_of_energy)
         memory_of_stddev = copy.deepcopy(self.memory_of_stddev)
-        memory_of_penalty = copy.deepcopy(self.memory_of_penalty)
+        memory_of_ensemble_bias = copy.deepcopy(self.memory_of_ensemble_bias)
         self.memory_of_energy = []
         self.memory_of_stddev = []
-        self.memory_of_penalty = []
+        self.memory_of_ensemble_bias = []
 
         if show_plot:
             # plot 1
             plotting(memory_of_energy, memory_of_stddev, 'energy [kT]', 'energy', 'stddev', 'ensemble stddev [kT]', 'Energy/Ensemble stddev vs minimization step')
             # plot 2
-            plotting(memory_of_penalty, memory_of_stddev, 'penelty [kT]', 'penalty', 'stddev', 'ensemble stddev [kT]', 'Penalty/Ensemble stddev vs minimization step')
+            plotting(memory_of_ensemble_bias, memory_of_stddev, 'penelty [kT]', 'ensemble_bias', 'stddev', 'ensemble stddev [kT]', 'Penalty/Ensemble stddev vs minimization step')
             # plot 3
-            plotting(memory_of_energy, memory_of_penalty, 'energy [kT]', 'energy', 'penalty [kT]', 'penalty', 'Penalty/Energy vs minimization step')
+            plotting(memory_of_energy, memory_of_ensemble_bias, 'energy [kT]', 'energy', 'ensemble_bias [kT]', 'ensemble_bias', 'Penalty/Energy vs minimization step')
 
         return f.x.reshape(-1,3) * unit.angstrom, memory_of_energy 
 
@@ -240,7 +240,7 @@ class ANI1_force_and_energy(object):
         coordinates = torch.tensor([x.value_in_unit(unit.nanometer)],
                                 requires_grad=True, device=self.device, dtype=torch.float32)
 
-        energy_in_kJ_mol, bias_in_kJ_mol, stddev_in_kJ_mol, penalty = self._calculate_energy(coordinates, lambda_value)
+        energy_in_kJ_mol, restraint_bias_in_kJ_mol, stddev_in_kJ_mol, ensemble_bias = self._calculate_energy(coordinates, lambda_value)
 
         # derivative of E (in kJ/mol) w.r.t. coordinates (in nm)
         derivative = torch.autograd.grad((energy_in_kJ_mol).sum(), coordinates)[0]
@@ -254,9 +254,9 @@ class ANI1_force_and_energy(object):
 
         return (F * (unit.kilojoule_per_mole / unit.nanometer), 
                 energy_in_kJ_mol.item() * unit.kilojoule_per_mole, 
-                bias_in_kJ_mol.item() * unit.kilojoule_per_mole,
+                restraint_bias_in_kJ_mol.item() * unit.kilojoule_per_mole,
                 stddev_in_kJ_mol.item() * unit.kilojoule_per_mole,
-                penalty.item() * unit.kilojoule_per_mole)
+                ensemble_bias.item() * unit.kilojoule_per_mole)
 
     
     def _calculate_energy(self, coordinates:torch.tensor, lambda_value:float)->(torch.tensor, torch.tensor, torch.tensor, torch.tensor):
@@ -274,21 +274,21 @@ class ANI1_force_and_energy(object):
         -------
         energy_in_kJ_mol : torch.tensor
             return the energy with restraints added
-        bias_in_kJ_mol : torch.tensor
+        restraint_bias_in_kJ_mol : torch.tensor
             return the energy of the added restraints
         stddev_in_kJ_mol : torch.tensor
             return the stddev of the energy (without added restraints)
-        penalty_in_kJ_mol : torch.tensor
-            return the penalty added to the energy
+        ensemble_bias_in_kJ_mol : torch.tensor
+            return the ensemble_bias added to the energy
         """
 
         stddev_in_hartree = torch.tensor(0.0,
                                 device=self.device, dtype=torch.float64)
 
-        bias_in_kJ_mol = torch.tensor(0.0,
+        restraint_bias_in_kJ_mol = torch.tensor(0.0,
                                 device=self.device, dtype=torch.float64)
 
-        penalty_in_kJ_mol = torch.tensor(0.0,
+        ensemble_bias_in_kJ_mol = torch.tensor(0.0,
                                 device=self.device, dtype=torch.float64)
 
         assert(float(lambda_value) <= 1.0 and float(lambda_value) >= 0.0)
@@ -304,17 +304,17 @@ class ANI1_force_and_energy(object):
         stddev_in_kJ_mol = stddev_in_hartree * hartree_to_kJ_mol
 
         for restraint in self.list_of_restraints:
-            bias = restraint.restraint(coordinates * nm_to_angstroms)
+            restraint_bias = restraint.restraint(coordinates * nm_to_angstroms)
             if restraint.active_at_lambda == 1:
-                bias *= lambda_value
+                restraint_bias *= lambda_value
             elif restraint.active_at_lambda == 0:
-                bias *= (1 - lambda_value)
+                restraint_bias *= (1 - lambda_value)
             else:
                 # always on - active_at_lambda == -1
                 pass 
-            bias_in_kJ_mol += bias
+            restraint_bias_in_kJ_mol += restraint_bias
         
-        energy_in_kJ_mol += bias_in_kJ_mol
+        energy_in_kJ_mol += restraint_bias_in_kJ_mol
         
         if self.adventure_mode == False:
             if stddev_in_kJ_mol > self.per_mol_tresh: 
@@ -322,25 +322,25 @@ class ANI1_force_and_energy(object):
                 #logger.info(f"Nr of atoms: {species.size()[1]}")
                 #logger.warning(f"Stddev: {stddev_in_kJ_mol} kJ/mol")
                 #logger.warning(f"Energy: {energy_in_kJ_mol} kJ/mol")
-                #penalty_in_kJ_mol = self._linear_penalty(stddev_in_kJ_mol)
-                penalty_in_kJ_mol = self._quadratic_penalty(stddev_in_kJ_mol)
+                #ensemble_bias_in_kJ_mol = self._linear_ensemble_bias(stddev_in_kJ_mol)
+                ensemble_bias_in_kJ_mol = self._quadratic_ensemble_bias(stddev_in_kJ_mol)
 
-            energy_in_kJ_mol += penalty_in_kJ_mol
+            energy_in_kJ_mol += ensemble_bias_in_kJ_mol
 
-        return energy_in_kJ_mol, bias_in_kJ_mol, stddev_in_kJ_mol, penalty_in_kJ_mol
+        return energy_in_kJ_mol, restraint_bias_in_kJ_mol, stddev_in_kJ_mol, ensemble_bias_in_kJ_mol
 
-    def _quadratic_penalty(self, stddev):
-        penalty_in_kJ_mol = torch.tensor(0.1 * ((stddev.item() - self.per_mol_tresh)**2),
+    def _quadratic_ensemble_bias(self, stddev):
+        ensemble_bias_in_kJ_mol = torch.tensor(0.1 * ((stddev.item() - self.per_mol_tresh)**2),
                         device=self.device, dtype=torch.float64, requires_grad=True)
-        logger.warning(f"Applying penalty: {penalty_in_kJ_mol.item()} kJ/mol")
-        return penalty_in_kJ_mol
+        logger.warning(f"Applying ensemble_bias: {ensemble_bias_in_kJ_mol.item()} kJ/mol")
+        return ensemble_bias_in_kJ_mol
 
 
-    def _linear_penalty(self, stddev):
-        penalty_in_kJ_mol = torch.tensor(abs(stddev.item() - self.per_mol_tresh),
+    def _linear_ensemble_bias(self, stddev):
+        ensemble_bias_in_kJ_mol = torch.tensor(abs(stddev.item() - self.per_mol_tresh),
                         device=self.device, dtype=torch.float64, requires_grad=True)
-        logger.warning(f"Applying penalty: {penalty_in_kJ_mol.item()} kJ/mol")
-        return penalty_in_kJ_mol
+        logger.warning(f"Applying ensemble_bias: {ensemble_bias_in_kJ_mol.item()} kJ/mol")
+        return ensemble_bias_in_kJ_mol
 
     def _traget_energy_function(self, x, lambda_value:float=0.0) -> float:
         """
@@ -362,7 +362,7 @@ class ANI1_force_and_energy(object):
         F_flat = -np.array(F.value_in_unit(unit.kilojoule_per_mole/unit.angstrom).flatten(), dtype=np.float64)
         self.memory_of_energy.append(E)
         self.memory_of_stddev.append(S)
-        self.memory_of_penalty.append(P)
+        self.memory_of_ensemble_bias.append(P)
         return E.value_in_unit(unit.kilojoule_per_mole), F_flat
 
     def calculate_energy(self, x:simtk.unit.quantity.Quantity, lambda_value:float=0.0) -> (simtk.unit.quantity.Quantity, simtk.unit.quantity.Quantity, simtk.unit.quantity.Quantity, simtk.unit.quantity.Quantity):
@@ -379,9 +379,9 @@ class ANI1_force_and_energy(object):
         Returns
         -------
         energy : float, unit'd
-        bias : float, unit'd
+        restraint_bias : float, unit'd
         stddev : float, unit'd
-        penalty : float, unit'd
+        ensemble_bias : float, unit'd
         """
 
         assert(type(x) == unit.Quantity)
@@ -389,12 +389,12 @@ class ANI1_force_and_energy(object):
         coordinates = torch.tensor([x.value_in_unit(unit.nanometer)],
                                 requires_grad=True, device=self.device, dtype=torch.float32)
 
-        energy_in_kJ_mol, bias_in_kJ_mol, stddev_in_kJ_mol, penalty_in_kJ_mol = self._calculate_energy(coordinates, lambda_value)
+        energy_in_kJ_mol, restraint_bias_in_kJ_mol, stddev_in_kJ_mol, ensemble_bias_in_kJ_mol = self._calculate_energy(coordinates, lambda_value)
         energy = energy_in_kJ_mol.item() * unit.kilojoule_per_mole
-        bias = bias_in_kJ_mol.item() * unit.kilojoule_per_mole
+        restraint_bias = restraint_bias_in_kJ_mol.item() * unit.kilojoule_per_mole
         stddev = stddev_in_kJ_mol.item() * unit.kilojoule_per_mole
-        penalty = penalty_in_kJ_mol.item() * unit.kilojoule_per_mole
-        return energy, bias, stddev, penalty
+        ensemble_bias = ensemble_bias_in_kJ_mol.item() * unit.kilojoule_per_mole
+        return energy, restraint_bias, stddev, ensemble_bias
 
 class AlchemicalANI(torchani.models.ANI1ccx):
     
@@ -502,7 +502,7 @@ class LinearAlchemicalANI(AlchemicalANI):
         return species, E, stddev
 
 
-class LinearAlchemicalDualTopologyANI(LinearAlchemicalANI):
+class LinearAlchemicalSingleTopologyANI(LinearAlchemicalANI):
    
     def __init__(self, alchemical_atoms:list):
         """Scale the indirect contributions of alchemical atoms to the energy sum by
