@@ -10,14 +10,10 @@ import matplotlib.pyplot as plt
 import pickle
 import torchani
 import torch
-from neutromeratio.constants import device, platform
+from neutromeratio.constants import device, platform, kT, exclude_set
 import sys, os
+from tqdm import tqdm
 
-exclude = ['molDWRow_1004', 'molDWRow_1110', 'molDWRow_1184', 'molDWRow_1185', 'molDWRow_1189', 'molDWRow_1262', 'molDWRow_1263',
-'molDWRow_1267', 'molDWRow_1275', 'molDWRow_1279', 'molDWRow_1280', 'molDWRow_1282', 'molDWRow_1283', 'molDWRow_553',
-'molDWRow_557', 'molDWRow_580', 'molDWRow_581', 'molDWRow_582', 'molDWRow_615', 'molDWRow_616', 'molDWRow_617',
-'molDWRow_618', 'molDWRow_643', 'molDWRow_758', 'molDWRow_82', 'molDWRow_83', 'molDWRow_952', 'molDWRow_953',
-'molDWRow_955', 'molDWRow_988', 'molDWRow_989', 'molDWRow_990', 'molDWRow_991', 'molDWRow_992']
 
 # name of the system
 idx = int(sys.argv[1])
@@ -32,10 +28,10 @@ mode = 'forward'
 
 protocol = []
 exp_results = pickle.load(open('../data/exp_results.pickle', 'rb'))
-for name in exp_results:
-    if name in exclude:
+for name in sorted(exp_results):
+    if name in exclude_set:
         continue
-    for lambda_value in np.linspace(0,1, 21):
+    for lambda_value in np.linspace(0,1,21):
         protocol.append((name, np.round(lambda_value, 2)))
 
 name, lambda_value = protocol[idx-1]
@@ -46,7 +42,7 @@ t1_smiles = exp_results[name]['t1-smiles']
 t2_smiles = exp_results[name]['t2-smiles']
 
 # generate both rdkit mol
-tautomer = neutromeratio.Tautomer(name=name, intial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles), nr_of_conformations=20)
+tautomer = neutromeratio.Tautomer(name=name, initial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles), nr_of_conformations=20)
 if mode == 'forward':
     tautomer.perform_tautomer_transformation_forward()
 elif mode == 'reverse':
@@ -57,25 +53,29 @@ else:
 os.makedirs(f"{base_path}/{name}", exist_ok=True)
 m = tautomer.add_droplet(tautomer.hybrid_topology, 
                             tautomer.hybrid_coords, 
-                            diameter=diameter_in_angstrom * unit.angstrom, 
-                            file=f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_in_droplet_{mode}.pdb")
+                            diameter=diameter_in_angstrom * unit.angstrom,
+                            restrain_hydrogen_bonds=True,
+                            restrain_hydrogen_angles=False,
+                            file=f"{base_path}/{name}/{name}_in_droplet_{mode}.pdb")
 
 # define the alchemical atoms
-alchemical_atoms=[tautomer.hybrid_dummy_hydrogen, tautomer.hydrogen_idx]
+alchemical_atoms=[tautomer.hybrid_hydrogen_idx_at_lambda_1, tautomer.hybrid_hydrogen_idx_at_lambda_0]
 
 print('Nr of atoms: {}'.format(len(tautomer.ligand_in_water_atoms)))
 
 
 # extract hydrogen donor idx and hydrogen idx for from_mol
-model = neutromeratio.ani.LinearAlchemicalDualTopologyANI(alchemical_atoms=alchemical_atoms)
+model = neutromeratio.ani.LinearAlchemicalSingleTopologyANI(alchemical_atoms=alchemical_atoms)
 model = model.to(device)
-torch.set_num_threads(2)
+torch.set_num_threads(1)
 
 # perform initial sampling
 energy_function = neutromeratio.ANI1_force_and_energy(
                                         model = model,
                                         atoms = tautomer.ligand_in_water_atoms,
-                                        mol = tautomer.ligand_in_water_ase_mol,
+                                        mol = None,
+                                        per_atom_thresh=0.4 * unit.kilojoule_per_mole,
+                                        adventure_mode=True
                                         )
 
 tautomer.add_COM_for_hybrid_ligand(np.array([diameter_in_angstrom/2, diameter_in_angstrom/2, diameter_in_angstrom/2]) * unit.angstrom)
@@ -98,23 +98,39 @@ langevin = neutromeratio.LangevinDynamics(atoms = tautomer.ligand_in_water_atoms
                             energy_and_force = energy_and_force)
 
 x0 = tautomer.ligand_in_water_coordinates
-x0 = energy_function.minimize(x0, maxiter=5000, lambda_value=lambda_value) 
+x0, e_history = energy_function.minimize(x0, maxiter=200, lambda_value=lambda_value) 
+n_steps_junk = int(n_steps/10)
 
-equilibrium_samples, energies, bias = langevin.run_dynamics(x0, n_steps=n_steps, stepsize=0.5 * unit.femtosecond, progress_bar=False)
-   
+equilibrium_samples_global = []
+energies_global = []
+restraint_bi_global = []
+stddev_global = []
+ensemble_bias_global = []
 
-# save equilibrium energy values 
-f = open(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_energy_in_droplet_{mode}.csv", 'w+')
-for e in energies[::20]:
-    f.write('{}\n'.format(e))
-f.close()
+for n_steps in [n_steps_junk] *10:
+    equilibrium_samples, energies, ensemble_bias, stddev, ensemble_bias = langevin.run_dynamics(x0, 
+                                                                n_steps=round(n_steps), 
+                                                                stepsize=0.5 * unit.femtosecond, 
+                                                                progress_bar=False)
+    
+    # set new x0
+    x0 = equilibrium_samples[-1]
 
-f = open(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_bias_in_droplet_{mode}.csv", 'w+')
-for e in bias[::20]:
-    f.write('{}\n'.format(e))
-f.close()
+    # add to global list
+    equilibrium_samples_global += equilibrium_samples
+    energies_global += energies
+    restraint_bi_global += ensemble_bias
+    stddev_global += stddev
+    ensemble_bias_global += ensemble_bias
 
+    # save equilibrium energy values 
+    for global_list, poperty_name in zip([energies_global, stddev_global, restraint_bi_global, ensemble_bias_global], ['energy', 'stddev', 'ensemble_bias', 'ensemble_bias']):
+        f = open(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_{poperty_name}_in_droplet_{mode}.csv", 'w+')
+        for e in global_list[::20]:
+            e_unitless = e / kT
+            f.write('{}\n'.format(e_unitless))
+        f.close()   
 
-equilibrium_samples = [x.value_in_unit(unit.nanometer) for x in equilibrium_samples]
-ani_traj = md.Trajectory(equilibrium_samples[::20], tautomer.ligand_in_water_topology)
-ani_traj.save(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_in_droplet_{mode}.dcd", force_overwrite=True)
+    equilibrium_samples_in_nm = [x.value_in_unit(unit.nanometer) for x in equilibrium_samples_global]
+    ani_traj = md.Trajectory(equilibrium_samples_in_nm[::20], tautomer.ligand_in_water_topology)
+    ani_traj.save(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_in_droplet_{mode}.dcd", force_overwrite=True)

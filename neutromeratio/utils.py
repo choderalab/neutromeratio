@@ -1,14 +1,15 @@
-# Add imports here
-from simtk import unit
+import logging
+import os
+import random
+
+import mdtraj as md
+import nglview
+import numpy as np
 from rdkit import Chem
 from rdkit.Chem import AllChem
-import os
-import mdtraj as md
-import numpy as np
+from simtk import unit
+
 from .constants import kT
-import nglview
-import logging
-import random
 
 logger = logging.getLogger(__name__)
 
@@ -41,8 +42,6 @@ def generate_rdkit_mol(smiles:str) -> Chem.Mol:
     """
     m = Chem.MolFromSmiles(smiles)
     m = Chem.AddHs(m)
-    # NOTE: here we enforce the chirality given in the SMILES string!
-    # but this will be overwritten when we add conformations
     AllChem.EmbedMolecule(m)
     return m
 
@@ -55,6 +54,3 @@ def reduced_pot(E:float) -> float:
         u(x) = U(x) / kBT
     """
     return E / kT
-
-
-

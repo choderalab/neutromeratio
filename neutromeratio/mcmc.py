@@ -1,14 +1,16 @@
-from scipy.stats import norm
-import random
-import numpy as np
-from simtk import unit
 import copy
-from .utils import reduced_pot
-import math
 import logging
+import math
+import random
+
+import numpy as np
+from scipy.stats import norm
+from simtk import unit
 from tqdm import tqdm
-from .equilibrium import LangevinDynamics
+
 from .constants import bond_length_dict
+from .equilibrium import LangevinDynamics
+from .utils import reduced_pot
 
 logger = logging.getLogger(__name__)
 

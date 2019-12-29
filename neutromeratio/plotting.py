@@ -1,10 +1,13 @@
-import random
-import matplotlib.pyplot as plt
-from collections import OrderedDict
 import logging
-import pandas as pd
+import random
+from collections import OrderedDict
+
+import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import scipy.stats as scs
+
+# TODO: adding estimate uncertanty to scatter plot
 
 logger = logging.getLogger(__name__)
 
@@ -13,9 +16,6 @@ def plot_correlation_analysis(
     title:str,
     x_label:str,
     y_label:str,
-    color: str,
-    marker: str,
-    error_color="black",
     nsamples=5000,
     mark_tautomer_names:list=[],
 ):
@@ -24,20 +24,16 @@ def plot_correlation_analysis(
     Parameters
     ----------
     df : pd.Dataframe
-        the df contains columns with colum names 'names', 'x', 'y'
+        the df contains columns with colum names 'names', 'x', 'y', 'y-error'
     title : str
         to put above plot. use '' (empty string) for no title.
-    color : str
-        edge color of the markers. This plot uses open markers.
-    error_color : str
-        color of the error bars
     nsamples : int
         number of samples to draw for bootstrap
     mark_tautomer_names : list of str
         mark specific tautomers with labels in the plot
     """
 
-    fig = plt.figure(figsize=[8,8], dpi=300)
+    plt.figure(figsize=[8,8], dpi=300)
     fontsize=15
     ax = plt.gca()
     ax.set_title(title, fontsize=fontsize)
@@ -151,7 +147,7 @@ class BootstrapDistribution:
         Uses the approximation that the variation around the center of the 
         bootstrap distribution is the same as the variation around the 
         center of the true distribution. E.g. not sensitive to a bootstrap
-        distribution is biased in the median.
+        distribution is restraint_biased in the median.
 
         Note
         ----

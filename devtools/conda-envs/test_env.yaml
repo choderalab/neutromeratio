@@ -17,6 +17,7 @@ dependencies:
   - bson
   - mdtraj
   - nglview
+  - networkx
   - numpy
   - openmm=7.3.1
   - openmmtools
