@@ -59,7 +59,7 @@ alchemical_atoms=[tautomer.hybrid_hydrogen_idx_at_lambda_1, tautomer.hybrid_hydr
 print('Nr of atoms: {}'.format(len(tautomer.ligand_in_water_atoms)))
 
 # extract hydrogen donor idx and hydrogen idx for from_mol
-model = neutromeratio.ani.LinearAlchemicalDualTopologyANI(alchemical_atoms=alchemical_atoms)
+model = neutromeratio.ani.LinearAlchemicalSingleTopologyANI(alchemical_atoms=alchemical_atoms)
 model = model.to(device)
 torch.set_num_threads(2)
 
@@ -83,7 +83,7 @@ langevin = neutromeratio.LangevinDynamics(atoms = tautomer_atoms,
 
 x0, e_history = energy_function.minimize(x0, maxiter=5000, lambda_value=lambda_value) 
 
-equilibrium_samples, energies, bias = langevin.run_dynamics(x0, n_steps=n_steps, 
+equilibrium_samples, energies, ensemble_bias = langevin.run_dynamics(x0, n_steps=n_steps, 
 stepsize=0.5 * unit.femtosecond, progress_bar=False)
    
 
@@ -94,8 +94,8 @@ for e in energies[::20]:
     f.write('{}\n'.format(e_unitless))
 f.close()
 
-f = open(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_bias_in_vacuum_{mode}.csv", 'w+')
-for e in bias[::20]:
+f = open(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_restraint_bi_in_vacuum_{mode}.csv", 'w+')
+for e in ensemble_bias[::20]:
     e_unitless = e / kT
     f.write('{}\n'.format(e_unitless))
 f.close()

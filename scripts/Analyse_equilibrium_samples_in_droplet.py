@@ -81,7 +81,7 @@ alchemical_atoms=[tautomer.hybrid_hydrogen_idx_at_lambda_1, tautomer.hybrid_hydr
 
 
 # extract hydrogen donor idx and hydrogen idx for from_mol
-model = neutromeratio.ani.LinearAlchemicalDualTopologyANI(alchemical_atoms=alchemical_atoms, 
+model = neutromeratio.ani.LinearAlchemicalSingleTopologyANI(alchemical_atoms=alchemical_atoms, 
                                                         adventure_mode=True,
                                                         per_atom_thresh=0.5 * unit.kilojoule_per_mole
                                                         )

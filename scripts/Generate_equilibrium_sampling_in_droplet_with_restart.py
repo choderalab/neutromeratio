@@ -54,8 +54,7 @@ os.makedirs(f"{base_path}/{name}", exist_ok=True)
 m = tautomer.add_droplet(tautomer.hybrid_topology, 
                             tautomer.hybrid_coords, 
                             diameter=diameter_in_angstrom * unit.angstrom,
-                            restrain_hydrogen_bonds=True,
-                            restrain_hydrogen_angles=False,
+                            restrain_hydrogens=True,
                             file=f"{base_path}/{name}/{name}_in_droplet_{mode}.pdb")
 
 # define the alchemical atoms
@@ -67,7 +66,7 @@ print('Nr of atoms: {}'.format(len(tautomer.ligand_in_water_atoms)))
 # extract hydrogen donor idx and hydrogen idx for from_mol
 model = neutromeratio.ani.LinearAlchemicalSingleTopologyANI(alchemical_atoms=alchemical_atoms)
 model = model.to(device)
-torch.set_num_threads(1)
+torch.set_num_threads(2)
 
 # perform initial sampling
 energy_function = neutromeratio.ANI1_force_and_energy(
@@ -98,39 +97,61 @@ langevin = neutromeratio.LangevinDynamics(atoms = tautomer.ligand_in_water_atoms
                             energy_and_force = energy_and_force)
 
 x0 = tautomer.ligand_in_water_coordinates
-x0, e_history = energy_function.minimize(x0, maxiter=200, lambda_value=lambda_value) 
+x0, e_history = energy_function.minimize(x0, maxiter=1000, lambda_value=lambda_value) 
 n_steps_junk = int(n_steps/10)
 
 equilibrium_samples_global = []
 energies_global = []
-restraint_bi_global = []
+restraint_bia_global = []
 stddev_global = []
 ensemble_bias_global = []
 
-for n_steps in [n_steps_junk] *10:
-    equilibrium_samples, energies, ensemble_bias, stddev, ensemble_bias = langevin.run_dynamics(x0, 
-                                                                n_steps=round(n_steps), 
+simulation_time = 0
+restart = 0
+restart_limit = 10
+while simulation_time < n_steps:
+    equilibrium_samples, energies, restraint_bias, stddev, ensemble_bias = langevin.run_dynamics(x0, 
+                                                                n_steps=round(n_steps_junk), 
                                                                 stepsize=0.5 * unit.femtosecond, 
-                                                                progress_bar=False)
+                                                                progress_bar=True)
     
-    # set new x0
-    x0 = equilibrium_samples[-1]
-
     # add to global list
-    equilibrium_samples_global += equilibrium_samples
-    energies_global += energies
-    restraint_bi_global += ensemble_bias
-    stddev_global += stddev
-    ensemble_bias_global += ensemble_bias
+    if langevin.check_for_restart_condition(ensemble_bias, n_steps_junk):
+        print('Restarting simulation ...')
+        print(f"Simualtion time: {simulation_time}/{n_steps}")
+        print(f"Restarts: {restart}/{restart_limit}")
+        restart += 1
+        if restart > restart_limit:
+            print('Restarting limit reached ...')
+            print('Resetting simulation further back.')
+            if len(equilibrium_samples_global) > 100:
+                x0 = equilibrium_samples_global[-101]
+            else:
+                print('There seems to be a bigger problem here.')
+                raise RuntimeError('Stopping after 10 restarts from the begging.')
 
-    # save equilibrium energy values 
-    for global_list, poperty_name in zip([energies_global, stddev_global, restraint_bi_global, ensemble_bias_global], ['energy', 'stddev', 'ensemble_bias', 'ensemble_bias']):
+        continue
+    else:
+        restart = 0
+        # set new x0
+        x0 = equilibrium_samples[-1]
+        simulation_time += round(n_steps_junk)
+        
+        equilibrium_samples_global += equilibrium_samples
+        energies_global += energies
+        restraint_bia_global += restraint_bias
+        stddev_global += stddev
+        ensemble_bias_global += ensemble_bias
+
+    # save equilibrium energy values
+    for global_list, poperty_name in zip([energies_global, stddev_global, restraint_bia_global, ensemble_bias_global], ['energy', 'stddev', 'restraint_bias', 'ensemble_bias']):
         f = open(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_{poperty_name}_in_droplet_{mode}.csv", 'w+')
         for e in global_list[::20]:
             e_unitless = e / kT
             f.write('{}\n'.format(e_unitless))
         f.close()   
 
+    
     equilibrium_samples_in_nm = [x.value_in_unit(unit.nanometer) for x in equilibrium_samples_global]
     ani_traj = md.Trajectory(equilibrium_samples_in_nm[::20], tautomer.ligand_in_water_topology)
     ani_traj.save(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_in_droplet_{mode}.dcd", force_overwrite=True)
