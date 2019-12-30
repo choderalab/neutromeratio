@@ -4,6 +4,8 @@ channels:
   - omnia/label/dev
   - omnia
   - defaults
+  - psi4/label/dev 
+  - psi4
 
 dependencies:
     # Base depends
@@ -28,6 +30,8 @@ dependencies:
   - rdkit
   - scipy
   - pytest-cov
+  - psi4
+  - psi4-rt
   - pip:
     - lark-parser
     - six

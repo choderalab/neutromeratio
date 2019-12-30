@@ -17,6 +17,7 @@ from .vis import display_mol, generate_nglview_object
 from .mcmc import Instantaneous_MC_Mover, NonequilibriumMC
 from .equilibrium import LangevinDynamics, use_precalculated_md_and_performe_mc
 from .ani import ANI1_force_and_energy, LinearAlchemicalANI, LinearAlchemicalSingleTopologyANI
+from .psi4 import  calculate_energy, mol2psi4, optimize
 
 # Handle versioneer
 from ._version import get_versions

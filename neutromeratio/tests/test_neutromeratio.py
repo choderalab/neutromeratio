@@ -665,3 +665,24 @@ def test_generating_droplet():
     
     e, _, __, ___ = energy_function.calculate_energy(tautomer.ligand_in_water_coordinates)
     assert(is_quantity_close(e, -15547955.412089575 * unit.kilojoule_per_mole, rtol=1e-5))
+
+
+def test_psi4():
+    exp_results = pickle.load(open('data/exp_results.pickle', 'rb'))
+
+    name = 'molDWRow_298'
+
+    t1_smiles = exp_results[name]['t1-smiles']
+    t2_smiles = exp_results[name]['t2-smiles']
+
+    # generate both rdkit mol
+    tautomer = neutromeratio.Tautomer(name=name, 
+    initial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), 
+    final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles), 
+    nr_of_conformations=5)
+    tautomer.perform_tautomer_transformation_forward()
+
+    mol = tautomer.initial_state_mol
+
+    psi4_mol = neutromeratio.mol2psi4(mol, 1)
+    neutromeratio.calculate_energy(psi4_mol)
