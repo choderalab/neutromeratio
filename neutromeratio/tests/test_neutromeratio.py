@@ -686,3 +686,23 @@ def test_psi4():
 
     psi4_mol = neutromeratio.mol2psi4(mol, 1)
     neutromeratio.calculate_energy(psi4_mol)
+
+def test_torsion_scan():
+
+    exp_results = pickle.load(open('data/exp_results.pickle', 'rb'))
+
+    name = 'molDWRow_298'
+
+    t1_smiles = exp_results[name]['t1-smiles']
+    t2_smiles = exp_results[name]['t2-smiles']
+
+    # generate both rdkit mol
+    tautomer = neutromeratio.Tautomer(name=name, 
+    initial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), 
+    final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles), 
+    nr_of_conformations=5)
+    tautomer.perform_tautomer_transformation_forward()
+    tautomer.performe_torsion_scan_initial_state([1, 2, 3, 4], 'test-mol-keto')
+    
+    tautomer.perform_tautomer_transformation_reverse()
+    tautomer.performe_torsion_scan_initial_state([1,2,3,4], 'test-mol-enol')
