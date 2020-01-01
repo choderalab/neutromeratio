@@ -20,12 +20,11 @@ class FreeEnergyCalculator():
                  ani_model: AlchemicalANI,
                  ani_trajs: list,
                  potential_energy_trajs: list,
-                 lambdas:list,
-                 n_atoms:int,
-                 per_atom_thresh:unit.Quantity=0.5*unit.kilojoule_per_mole,
+                 lambdas: list,
+                 n_atoms: int,
+                 per_atom_thresh: unit.Quantity = 0.5*unit.kilojoule_per_mole,
                  max_snapshots_per_window=50,
                  ):
-        
         """
         Uses mbar to calculate the free energy difference between trajectories.
         Parameters
@@ -50,7 +49,7 @@ class FreeEnergyCalculator():
         assert (len(potential_energy_trajs) == K)
         logging.info(f"Per atom threshold used for filtering: {per_atom_thresh}")
         self.ani_model = ani_model
-        self.potential_energy_trajs = potential_energy_trajs # for detecting equilibrium
+        self.potential_energy_trajs = potential_energy_trajs  # for detecting equilibrium
         self.lambdas = lambdas
         self.ani_trajs = ani_trajs
         self.n_atoms = n_atoms
@@ -69,15 +68,14 @@ class FreeEnergyCalculator():
             return (1 - lam) * np.array(lambda0) + lam * np.array(lambda1)
 
         logger.info('Nr of atoms: {}'.format(n_atoms))
-        
+
         u_kn = np.stack(
             [get_mix(lambda0_e, lambda1_e, lam) for lam in sorted(used_lambdas)]
-            )
-        
+        )
+
         self.mbar = MBAR(u_kn, N_k)
 
-    def remove_confs_with_high_stddev(self, max_snapshots_per_window:int, per_atom_thresh:float):
-        
+    def remove_confs_with_high_stddev(self, max_snapshots_per_window: int, per_atom_thresh: float):
         """
         Removes conformations with ensemble energy stddev per atom above a given threshold.
         Parameters
@@ -100,7 +98,7 @@ class FreeEnergyCalculator():
             return np.array(lambda0_stddev), np.array(lambda1_stddev)
 
         def compute_linear_ensemble_bias(current_stddev):
-            # calculate the total energy stddev threshold based on the provided per_atom_thresh 
+            # calculate the total energy stddev threshold based on the provided per_atom_thresh
             # and the number of atoms
             total_thresh = (per_atom_thresh * self.n_atoms)
             logger.info(f"Per system treshold: {total_thresh}")
@@ -111,16 +109,16 @@ class FreeEnergyCalculator():
 
         def compute_last_valid_ind(linear_ensemble_bias):
             # return the idx of the first entry that is above 0.0
-            if np.sum(linear_ensemble_bias) < 0.01: # means all can be used
+            if np.sum(linear_ensemble_bias) < 0.01:  # means all can be used
                 logger.info('Last valid ind: -1')
                 return -1
-            elif np.argmax(np.cumsum(linear_ensemble_bias) > 0) == 0: # means nothing can be used
+            elif np.argmax(np.cumsum(linear_ensemble_bias) > 0) == 0:  # means nothing can be used
                 logger.info('Last valid ind: 0')
                 return 0
             else:
-                idx = np.argmax(np.cumsum(linear_ensemble_bias) > 0) -1
+                idx = np.argmax(np.cumsum(linear_ensemble_bias) > 0) - 1
                 logger.info(f"Last valid ind: {idx}")
-                return idx # means up to idx can be used
+                return idx  # means up to idx can be used
 
         ani_trajs = {}
         further_thinning = 4
@@ -133,7 +131,7 @@ class FreeEnergyCalculator():
             ani_trajs[lam] = snapshots
             logger.info(f"Snapshots per lambda: {len(snapshots)}")
 
-        last_valid_inds = {}       
+        last_valid_inds = {}
         logger.info(f"Looking through {len(ani_trajs)} lambda windows")
         for lam in sorted(ani_trajs.keys()):
             if per_atom_thresh/kT < 0:
@@ -155,17 +153,19 @@ class FreeEnergyCalculator():
         # lambbdas with usable samples applied to usable conformations
         for lam in sorted(list(last_valid_inds.keys())):
             logger.info(f"lam: {lam}")
-            if last_valid_inds[lam] > 5: 
+            if last_valid_inds[lam] > 5:
                 lambdas_with_usable_samples.append(lam)
                 new_snapshots = ani_trajs[lam][0:last_valid_inds[lam]]
-                logger.info(f"For lambda {lam}: {len(new_snapshots)} snaphosts below treshold out of {len(ani_trajs[lam])}")
+                logger.info(
+                    f"For lambda {lam}: {len(new_snapshots)} snaphosts below treshold out of {len(ani_trajs[lam])}")
                 snapshots.extend(new_snapshots)
                 N_k.append(len(new_snapshots))
                 self.snapshot_mask.append(len(new_snapshots))
-            elif last_valid_inds[lam] == -1: # -1 means all can be used
+            elif last_valid_inds[lam] == -1:  # -1 means all can be used
                 lambdas_with_usable_samples.append(lam)
                 new_snapshots = ani_trajs[lam][:]
-                logger.info(f"For lambda {lam}: {len(new_snapshots)} snaphosts below treshold out of {len(ani_trajs[lam])}")
+                logger.info(
+                    f"For lambda {lam}: {len(new_snapshots)} snaphosts below treshold out of {len(ani_trajs[lam])}")
                 snapshots.extend(new_snapshots)
                 N_k.append(len(new_snapshots))
                 self.snapshot_mask.append(len(new_snapshots))
@@ -176,24 +176,21 @@ class FreeEnergyCalculator():
         logger.info(f"Nr of snapshots considered for postprocessing: {len(snapshots)}")
         return N_k, snapshots, lambdas_with_usable_samples
 
-
     @property
     def free_energy_differences(self):
         """matrix of free energy differences"""
         return self.mbar.getFreeEnergyDifferences(return_dict=True)['Delta_f']
-    
+
     @property
     def free_energy_difference_uncertainties(self):
         """matrix of asymptotic uncertainty-estimates accompanying free energy differences"""
         return self.mbar.getFreeEnergyDifferences(return_dict=True)['dDelta_f']
-    
+
     @property
     def end_state_free_energy_difference(self):
         """DeltaF[lambda=1 --> lambda=0]"""
         results = self.mbar.getFreeEnergyDifferences(return_dict=True)
         return results['Delta_f'][0, -1], results['Delta_f'][0, -1]
-
-
 
     def compute_perturbed_free_energies(self, u_ln, u0_stddev, u1_stddev):
         """compute perturbed free energies at new thermodynamic states l"""
@@ -216,17 +213,17 @@ class FreeEnergyCalculator():
         return - torch.logsumexp(B, dim=1)
 
     def form_u_ln(self):
-        
+
         # TODO: vectorize!
-        e0_e_b_stddev = [self.ani_model.calculate_energy(s, lambda_value = 0) for s in self.snapshots]
-        u0_stddev = [e_b_stddev[2] / kT for e_b_stddev in e0_e_b_stddev] 
+        e0_e_b_stddev = [self.ani_model.calculate_energy(s, lambda_value=0) for s in self.snapshots]
+        u0_stddev = [e_b_stddev[2] / kT for e_b_stddev in e0_e_b_stddev]
         u_0 = torch.tensor(
             [e_b_stddev[0] / kT for e_b_stddev in e0_e_b_stddev],
             dtype=torch.double, requires_grad=True,
         )
         # TODO: vectorize!
-        e1_e_b_stddev = [self.ani_model.calculate_energy(s, lambda_value = 1) for s in self.snapshots]
-        u1_stddev = [e_b_stddev[2] / kT for e_b_stddev in e1_e_b_stddev] 
+        e1_e_b_stddev = [self.ani_model.calculate_energy(s, lambda_value=1) for s in self.snapshots]
+        u1_stddev = [e_b_stddev[2] / kT for e_b_stddev in e1_e_b_stddev]
         u_1 = torch.tensor(
             [e_b_stddev[0] / kT for e_b_stddev in e1_e_b_stddev],
             dtype=torch.double, requires_grad=True,
@@ -268,8 +265,10 @@ if __name__ == '__main__':
     ani_input = neutromeratio.from_mol_to_ani_input(from_mol)
 
     tautomer_transformation = neutromeratio.get_tautomer_transformation(from_mol, to_mol)
-    neutromeratio.generate_hybrid_structure(ani_input, tautomer_transformation, neutromeratio.ani.ANI1_force_and_energy)
-    alchemical_atoms = [tautomer_transformation['acceptor_hydrogen_idx'], tautomer_transformation['donor_hydrogen_idx']]
+    neutromeratio.generate_hybrid_structure(ani_input, tautomer_transformation,
+                                            neutromeratio.ani.ANI1_force_and_energy)
+    alchemical_atoms = [tautomer_transformation['acceptor_hydrogen_idx'],
+                        tautomer_transformation['donor_hydrogen_idx']]
 
     # extract hydrogen donor idx and hydrogen idx for from_mol
     platform = 'cpu'

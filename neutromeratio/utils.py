@@ -13,14 +13,15 @@ from .constants import kT
 
 logger = logging.getLogger(__name__)
 
-def write_pdb(mol:Chem.Mol, filepath:str, confId:int=-1)->str:
+
+def write_pdb(mol: Chem.Mol, filepath: str, confId: int = -1) -> str:
     """
     Writes pdb file in path directory. If directory does not exist it is created.
     Parameters
     ----------
     mol: the mol that should be saved.
     filepath
-    
+
     Returns
     ----------
     PDBfile as string
@@ -29,13 +30,14 @@ def write_pdb(mol:Chem.Mol, filepath:str, confId:int=-1)->str:
     Chem.MolToPDBFile(mol, filepath, confId)
     return Chem.MolToPDBBlock(mol)
 
-def generate_rdkit_mol(smiles:str) -> Chem.Mol:
+
+def generate_rdkit_mol(smiles: str) -> Chem.Mol:
     """
     Generates a rdkit mol object with 3D coordinates from smiles
     Parameters
     ----------
     smiles: smiles string
-    
+
     Returns
     ----------
     rdkit mol
@@ -46,7 +48,7 @@ def generate_rdkit_mol(smiles:str) -> Chem.Mol:
     return m
 
 
-def reduced_pot(E:float) -> float:
+def reduced_pot(E: float) -> float:
     """
     Convert unit'd energy into a unitless reduced potential energy.
 
