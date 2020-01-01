@@ -139,12 +139,18 @@ class Tautomer(object):
         degeneracy = sum([1 for isomorphism in graph_matcher.match()])
         return degeneracy
 
-    def performe_torsion_scan_initial_state(self, torsion_idx=[]):
+    def performe_torsion_scan_initial_state(self, torsion_idx=[], name='mol'):
         mol = self.initial_state_mol
         ligand_atoms = self.initial_state_ligand_atoms
-        self._perform_tautomer_transformation(mol, ligand_atoms, torsion_idx)
+        self._performe_torsion_scan(mol, ligand_atoms, torsion_idx, name)
 
-    def _performe_torsion_scan(self, mol, ligand_atoms, torsion_idx):
+    def performe_torsion_scan_final_state(self, torsion_idx=[], name='mol'):
+        mol = self.final_state_mol
+        ligand_atoms = self.final_state_ligand_atoms
+        self._performe_torsion_scan(mol, ligand_atoms, torsion_idx, name)
+
+
+    def _performe_torsion_scan(self, mol, ligand_atoms, torsion_idx, name):
 
         from rdkit.Chem import rdMolTransforms
         import matplotlib.pyplot as plt
@@ -176,15 +182,15 @@ class Tautomer(object):
             torsion_e.append((e/kT, i))
 
         e, i = (zip(*torsion_e))
-
         plt.plot(i, list(np.array(e) - min(e)), label='ANIccx')
 
         # torsion drive with psi4
         from neutromeratio.psi4 import calculate_energy, mol2psi4
-        # torsion profile 1,2,3,5
+        # torsion profile
         torsion_e = []
         for i in np.linspace(0, 360, 20):
-            rdMolTransforms.SetDihedralDeg(mol.GetConformer(0), *torsion_idx, i)
+            rdMolTransforms.SetDihedralDeg(mol.GetConformer(0), torsion_idx[0], torsion_idx[1],
+                                           torsion_idx[2], torsion_idx[3], i)
             psi4_mol = mol2psi4(mol, 0)
             e = calculate_energy(psi4_mol)
             print(f"{i}:{e}")
@@ -193,7 +199,7 @@ class Tautomer(object):
         e, i = (zip(*torsion_e))
 
         plt.plot(i, list(np.array(e) - min(e)), label='wB97X/6-31g*')
-        plt.title(f"Torsion angle for {*torsion_idx} for Acetylaceton in keto form")
+        plt.title(f"Torsion angle for {torsion_idx} for {name}")
         plt.xlabel('torsion angle in degree')
         plt.ylabel('energy [kT]')
         plt.legend()
