@@ -666,7 +666,9 @@ def test_generating_droplet():
     e, _, __, ___ = energy_function.calculate_energy(tautomer.ligand_in_water_coordinates)
     assert(is_quantity_close(e, -15547955.412089575 * unit.kilojoule_per_mole, rtol=1e-5))
 
-
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Skip slow test on travis."
+)
 def test_psi4():
     exp_results = pickle.load(open('data/exp_results.pickle', 'rb'))
 
@@ -687,6 +689,9 @@ def test_psi4():
     psi4_mol = neutromeratio.mol2psi4(mol, 1)
     neutromeratio.calculate_energy(psi4_mol)
 
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Skip slow test on travis."
+)
 def test_torsion_scan():
 
     exp_results = pickle.load(open('data/exp_results.pickle', 'rb'))
