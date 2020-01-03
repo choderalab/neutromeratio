@@ -34,7 +34,6 @@ class ANI1_force_and_energy(object):
                  mol: Atoms,
                  adventure_mode: bool = True,
                  per_atom_thresh: unit.Quantity = 0.5 * unit.kilojoule_per_mole,
-                 use_pure_ani1ccx: bool = False
                  ):
         """
         Performs energy and force calculations.
@@ -46,8 +45,6 @@ class ANI1_force_and_energy(object):
             a string of atoms in the indexed order
         mol: ase.Atoms
             a ASE Atoms object with the atoms
-        use_pure_ani1ccx : bool
-            a boolian that controlls if a pure ani1ccx model is used
         """
         self.device = device
         self.model = model
@@ -55,7 +52,6 @@ class ANI1_force_and_energy(object):
         self.ase_mol = mol
         self.species = self.model.species_to_tensor(atoms).to(device).unsqueeze(0)
         self.platform = platform
-        self.use_pure_ani1ccx = use_pure_ani1ccx
         self.list_of_restraints = []
         assert(type(per_atom_thresh) == unit.Quantity)
         self.per_atom_thresh = per_atom_thresh.value_in_unit(unit.kilojoule_per_mole)
@@ -289,11 +285,8 @@ class ANI1_force_and_energy(object):
 
         assert(float(lambda_value) <= 1.0 and float(lambda_value) >= 0.0)
 
-        if self.use_pure_ani1ccx:
-            _, energy_in_hartree = self.model((self.species, coordinates * nm_to_angstroms))
-        else:
-            _, energy_in_hartree, stddev_in_hartree = self.model(
-                (self.species, coordinates * nm_to_angstroms, lambda_value))
+        _, energy_in_hartree, stddev_in_hartree = self.model(
+            (self.species, coordinates * nm_to_angstroms, lambda_value))
 
         # convert energy from hartrees to kJ/mol
         energy_in_kJ_mol = energy_in_hartree * hartree_to_kJ_mol
@@ -318,8 +311,8 @@ class ANI1_force_and_energy(object):
                 #logger.info(f"Nr of atoms: {species.size()[1]}")
                 #logger.warning(f"Stddev: {stddev_in_kJ_mol} kJ/mol")
                 #logger.warning(f"Energy: {energy_in_kJ_mol} kJ/mol")
-                #ensemble_bias_in_kJ_mol = self._linear_ensemble_bias(stddev_in_kJ_mol)
-                ensemble_bias_in_kJ_mol = self._quadratic_ensemble_bias(stddev_in_kJ_mol)
+                ensemble_bias_in_kJ_mol = self._linear_ensemble_bias(stddev_in_kJ_mol)
+                #ensemble_bias_in_kJ_mol = self._quadratic_ensemble_bias(stddev_in_kJ_mol)
 
             energy_in_kJ_mol += ensemble_bias_in_kJ_mol
 
@@ -373,10 +366,14 @@ class ANI1_force_and_energy(object):
 
         Returns
         -------
-        energy : float, unit'd
-        restraint_bias : float, unit'd
-        stddev : float, unit'd
-        ensemble_bias : float, unit'd
+        energy : unit.Quantity
+            energy in kJ/mol
+        restraint_bias : unit.Quantity
+            restraint_bias in kJ/mol
+        stddev : unit.Quantity
+            stddev in kJ/mol
+        ensemble_bias : unit.Quantity
+            ensemble_bias in kJ/mol
         """
 
         assert(type(x) == unit.Quantity)
@@ -392,7 +389,7 @@ class ANI1_force_and_energy(object):
         ensemble_bias = ensemble_bias_in_kJ_mol.item() * unit.kilojoule_per_mole
         return energy, restraint_bias, stddev, ensemble_bias
 
-
+  
 class AlchemicalANI(torchani.models.ANI1ccx):
 
     def __init__(self, alchemical_atoms=[]):
@@ -403,6 +400,56 @@ class AlchemicalANI(torchani.models.ANI1ccx):
     def forward(self, species_coordinates, lam=1.0):
         raise (NotImplementedError)
 
+class PureANI1ccx(torchani.models.ANI1ccx):
+    def __init__(self):
+        """
+        Pure ANI1ccx model with ensemble stddev
+        """
+        super().__init__()
+        self.neural_networks = load_model_ensemble(self.species,
+                                                    self.ensemble_prefix,
+                                                    self.ensemble_size
+                                                    )
+        self.device = device
+
+    def forward(self, species_coordinates):
+
+        # species, AEVs of fully interacting system
+        species, coordinates, _ = species_coordinates
+        aevs = (species, coordinates)
+        species, aevs = self.aev_computer(aevs)
+
+        # neural net output given these AEVs
+        state = self.neural_networks((species, aevs))
+        _, E = self.energy_shifter((species, state.energies))
+
+        return species, E, state.stddev
+
+
+class PureANI1x(torchani.models.ANI1x):
+    def __init__(self):
+        """
+        Pure ANI1x model with ensemble stddev
+        """
+        super().__init__()
+        self.neural_networks = load_model_ensemble(self.species,
+                                                    self.ensemble_prefix,
+                                                    self.ensemble_size
+                                                    )
+        self.device = device
+
+    def forward(self, species_coordinates):
+
+        # species, AEVs of fully interacting system
+        species, coordinates, _ = species_coordinates
+        aevs = (species, coordinates)
+        species, aevs = self.aev_computer(aevs)
+
+        # neural net output given these AEVs
+        state = self.neural_networks((species, aevs))
+        _, E = self.energy_shifter((species, state.energies))
+
+        return species, E, state.stddev
 
 class SpeciesEnergies(NamedTuple):
     species: Tensor
@@ -450,6 +497,8 @@ def load_model_ensemble(species, prefix, count):
         network_dir = os.path.join('{}{}'.format(prefix, i), 'networks')
         models.append(torchani.neurochem.load_model(species, network_dir))
     return Ensemble(models)
+
+
 
 
 class LinearAlchemicalANI(AlchemicalANI):
