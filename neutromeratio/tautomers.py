@@ -140,12 +140,18 @@ class Tautomer(object):
         return degeneracy
 
     def performe_torsion_scan_initial_state(self, torsion_idx=[], name='mol'):
-        mol = self.initial_state_mol
+        """
+        Performes torsion scan around specified atoms using wB97X/6-31g* and ANIccx 
+        """
+        mol = copy.deepcopy(self.initial_state_mol)
         ligand_atoms = self.initial_state_ligand_atoms
         self._performe_torsion_scan(mol, ligand_atoms, torsion_idx, name)
 
     def performe_torsion_scan_final_state(self, torsion_idx=[], name='mol'):
-        mol = self.final_state_mol
+        """
+        Performes torsion scan around specified atoms using wB97X/6-31g* and ANIccx 
+        """
+        mol = copy.deepcopy(self.final_state_mol)
         ligand_atoms = self.final_state_ligand_atoms
         self._performe_torsion_scan(mol, ligand_atoms, torsion_idx, name)
 
@@ -154,8 +160,41 @@ class Tautomer(object):
 
         from rdkit.Chem import rdMolTransforms
         import matplotlib.pyplot as plt
+        from .ani import PureANI1x
+        from .ani import PureANI1ccx
+        
 
-        model = torchani.models.ANI1ccx()
+        model = PureANI1x()
+        model = model.to(device)
+        torch.set_num_threads(1)
+
+        # calculate energy using pure ANI1x
+        energy_function = ANI1_force_and_energy(
+            model=model,
+            mol=None,
+            atoms=ligand_atoms)
+
+        # torsion profile
+        torsion_e = []
+        for i in np.linspace(0, 360, 200):
+            rdMolTransforms.SetDihedralDeg(mol.GetConformer(0), torsion_idx[0], torsion_idx[1],
+                                           torsion_idx[2], torsion_idx[3], i)
+            #Chem.MolToPDBFile(mol, f"test_ANI_{round(i)}.pdb")
+            tmp_coord_list = []
+            coord_list = []
+            for a in mol.GetAtoms():
+                pos = mol.GetConformer(0).GetAtomPosition(a.GetIdx())
+                tmp_coord_list.append([pos.x, pos.y, pos.z])
+            coord_list = np.array(tmp_coord_list) * unit.angstrom
+            e, _, stddev, ___ = energy_function.calculate_energy(coord_list)
+            print(f"{i}:{e} +- {stddev}")
+            torsion_e.append((e/kT, stddev/kT, i))
+
+        e, stddev, i = (zip(*torsion_e))
+        plt.errorbar(i, list(np.array(e) - min(e)), yerr=list(np.array(stddev) - min(stddev)),
+        label='ANIx')
+
+        model = PureANI1ccx()
         model = model.to(device)
         torch.set_num_threads(1)
 
@@ -163,26 +202,29 @@ class Tautomer(object):
         energy_function = ANI1_force_and_energy(
             model=model,
             mol=None,
-            atoms=ligand_atoms,
-            use_pure_ani1ccx=True)
+            atoms=ligand_atoms)
 
         # torsion profile
         torsion_e = []
-        for i in np.linspace(0, 360, 180):
+        for i in np.linspace(0, 360, 200):
             rdMolTransforms.SetDihedralDeg(mol.GetConformer(0), torsion_idx[0], torsion_idx[1],
                                            torsion_idx[2], torsion_idx[3], i)
-
+            #Chem.MolToPDBFile(mol, f"test_ANI_{round(i)}.pdb")
             tmp_coord_list = []
             coord_list = []
             for a in mol.GetAtoms():
                 pos = mol.GetConformer(0).GetAtomPosition(a.GetIdx())
                 tmp_coord_list.append([pos.x, pos.y, pos.z])
             coord_list = np.array(tmp_coord_list) * unit.angstrom
-            e, _, __, ___ = energy_function.calculate_energy(coord_list)
-            torsion_e.append((e/kT, i))
+            e, _, stddev, ___ = energy_function.calculate_energy(coord_list)
+            print(f"{i}:{e} +- {stddev}")
+            torsion_e.append((e/kT, stddev/kT, i))
 
-        e, i = (zip(*torsion_e))
-        plt.plot(i, list(np.array(e) - min(e)), label='ANIccx')
+        e, stddev, i = (zip(*torsion_e))
+        plt.errorbar(i, list(np.array(e) - min(e)), yerr=list(np.array(stddev) - min(stddev)),
+        label='ANIccx')
+
+
 
         # torsion drive with psi4
         from neutromeratio.psi4 import calculate_energy, mol2psi4
@@ -191,7 +233,9 @@ class Tautomer(object):
         for i in np.linspace(0, 360, 20):
             rdMolTransforms.SetDihedralDeg(mol.GetConformer(0), torsion_idx[0], torsion_idx[1],
                                            torsion_idx[2], torsion_idx[3], i)
-            psi4_mol = mol2psi4(mol, 0)
+            #Chem.MolToPDBFile(mol, f"test_psi4_{round(i)}.pdb")
+
+            psi4_mol = mol2psi4(mol, conformer_id=0)
             e = calculate_energy(psi4_mol)
             print(f"{i}:{e}")
             torsion_e.append((e/kT, i))
@@ -563,12 +607,12 @@ class Tautomer(object):
         Generates a hybrid structure between two tautomers. The heavy atom frame is kept but a
         hydrogen is added to the tautomer acceptor heavy atom. 
         """
-
+        from .ani import PureANI1ccx
         # add hybrid atoms
         hybrid_atoms = ligand_atoms + 'H'
 
         # generate 3D coordinates for hybrid atom
-        model = torchani.models.ANI1ccx()
+        model = PureANI1ccx()
         model = model.to(device)
 
         energy_function = ANI1_force_and_energy(
