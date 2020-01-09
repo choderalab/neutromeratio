@@ -415,7 +415,11 @@ class PureANI1ccx(torchani.models.ANI1ccx):
     def forward(self, species_coordinates):
 
         # species, AEVs of fully interacting system
-        species, coordinates, _ = species_coordinates
+        try:
+            species, coordinates, _ = species_coordinates
+        except ValueError:
+             species, coordinates = species_coordinates
+
         aevs = (species, coordinates)
         species, aevs = self.aev_computer(aevs)
 
@@ -423,7 +427,7 @@ class PureANI1ccx(torchani.models.ANI1ccx):
         state = self.neural_networks((species, aevs))
         _, E = self.energy_shifter((species, state.energies))
 
-        return species, E, state.stddev
+        return SpeciesEnergies(species, E, state.stddev)
 
 
 class PureANI1x(torchani.models.ANI1x):
@@ -441,7 +445,10 @@ class PureANI1x(torchani.models.ANI1x):
     def forward(self, species_coordinates):
 
         # species, AEVs of fully interacting system
-        species, coordinates, _ = species_coordinates
+        try:
+            species, coordinates, _ = species_coordinates
+        except ValueError:
+             species, coordinates = species_coordinates
         aevs = (species, coordinates)
         species, aevs = self.aev_computer(aevs)
 
@@ -449,7 +456,7 @@ class PureANI1x(torchani.models.ANI1x):
         state = self.neural_networks((species, aevs))
         _, E = self.energy_shifter((species, state.energies))
 
-        return species, E, state.stddev
+        return SpeciesEnergies(species, E, state.stddev)
 
 class SpeciesEnergies(NamedTuple):
     species: Tensor
