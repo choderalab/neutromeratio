@@ -672,6 +672,8 @@ class Tautomer(object):
             list of energies for the different minimum conformations
         """
 
+        from .ani import PureANI1ccx
+
         def prune_conformers(mol: Chem.Mol, energies: list, rmsd_threshold: float) -> (Chem.Mol, list):
             """
             Adopted from: https://github.com/skearnes/rdkit-utils/blob/master/rdkit_utils/conformers.py
@@ -764,14 +766,13 @@ class Tautomer(object):
                 [self.initial_state_entropy_correction, self.final_state_entropy_correction]):
 
             print('Mining Minima starting ...')
-            model = torchani.models.ANI1ccx()
+            model = PureANI1ccx()
             model = model.to(device)
 
             energy_function = ANI1_force_and_energy(
                 model=model,
                 atoms=ligand_atoms,
-                mol=ase_mol,
-                use_pure_ani1ccx=True
+                mol=ase_mol
             )
             traj = []
             energies = []
