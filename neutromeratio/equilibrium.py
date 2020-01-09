@@ -46,7 +46,8 @@ class LangevinDynamics(object):
                      stepsize: unit.quantity.Quantity = 1.0*unit.femtosecond,
                      collision_rate: unit.quantity.Quantity = 10/unit.picoseconds,
                      progress_bar: bool = False,
-                     save_checkpoints=True
+                     save_checkpoints=True,
+                     temperature = None
                      ) -> (list, list, list, list, list):
         """Unadjusted Langevin dynamics.
 
@@ -79,12 +80,16 @@ class LangevinDynamics(object):
         """
         assert(type(x0) == unit.Quantity)
         assert(type(stepsize) == unit.Quantity)
-        assert(type(collision_rate) == unit.Quantity)
-        assert(type(self.temperature) == unit.Quantity)
+        assert (type(collision_rate) == unit.Quantity)
+        
+        if temperature == None:
+            temperature = self.temperature
+        
+        assert(type(temperature) == unit.Quantity)
 
         # generate mass arrays
         masses = np.array([mass_dict_in_daltons[a] for a in self.atoms]) * unit.daltons
-        sigma_v = np.array([unit.sqrt(kB * self.temperature / m) / speed_unit for m in masses]) * speed_unit
+        sigma_v = np.array([unit.sqrt(kB * temperature / m) / speed_unit for m in masses]) * speed_unit
 
         v0 = np.random.randn(len(sigma_v), 3) * sigma_v[:, None]
         # convert initial state numpy arrays with correct attached units
