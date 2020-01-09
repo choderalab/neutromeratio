@@ -667,7 +667,7 @@ def test_generating_droplet():
     assert(is_quantity_close(e, -15547955.412089575 * unit.kilojoule_per_mole, rtol=1e-5))
 
 @pytest.mark.skipif(
-    os.environ.get("TRAVIS", None) == "true", reason="Skip slow test on travis."
+    os.environ.get("TRAVIS", None) == "true", reason="Psi4 import fails on travis."
 )
 def test_psi4():
     exp_results = pickle.load(open('data/exp_results.pickle', 'rb'))
@@ -686,11 +686,11 @@ def test_psi4():
 
     mol = tautomer.initial_state_mol
 
-    psi4_mol = neutromeratio.mol2psi4(mol, 1)
-    neutromeratio.calculate_energy(psi4_mol)
+    psi4_mol = neutromeratio.psi4.mol2psi4(mol, 1)
+    neutromeratio.psi4.calculate_energy(psi4_mol)
 
 @pytest.mark.skipif(
-    os.environ.get("TRAVIS", None) == "true", reason="Skip slow test on travis."
+    os.environ.get("TRAVIS", None) == "true", reason="Psi4 import fails on travis."
 )
 def test_torsion_scan():
 

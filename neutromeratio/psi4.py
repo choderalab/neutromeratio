@@ -7,8 +7,8 @@ from simtk import unit
 from .constants import hartree_to_kJ_mol
 
 psi4.core.set_output_file("output1.dat", True)
-psi4.set_memory('1 GB')
-psi4.set_num_threads(1)
+psi4.set_memory('4 GB')
+psi4.set_num_threads(4)
 
 
 def mol2psi4(mol: Chem.Mol, conformer_id: int = 0) -> psi4.core.Molecule:
