@@ -155,14 +155,12 @@ class Tautomer(object):
         ligand_atoms = self.final_state_ligand_atoms
         self._performe_torsion_scan(mol, ligand_atoms, torsion_idx, name)
 
-
     def _performe_torsion_scan(self, mol, ligand_atoms, torsion_idx, name):
 
         from rdkit.Chem import rdMolTransforms
         import matplotlib.pyplot as plt
         from .ani import PureANI1x
         from .ani import PureANI1ccx
-        
 
         model = PureANI1x()
         model = model.to(device)
@@ -185,14 +183,14 @@ class Tautomer(object):
             for a in mol.GetAtoms():
                 pos = mol.GetConformer(0).GetAtomPosition(a.GetIdx())
                 tmp_coord_list.append([pos.x, pos.y, pos.z])
-            coord_list = np.array(tmp_coord_list) * unit.angstrom
-            e, _, stddev, ___ = energy_function.calculate_energy(coord_list)
+            x = np.array(tmp_coord_list) * unit.angstrom
+            e, _, stddev, ___ = energy_function.calculate_energy(x)
             print(f"{i}:{e} +- {stddev}")
-            torsion_e.append((e/kT, stddev/kT, i))
+            torsion_e.append((e / kT, stddev / kT, i))
 
         e, stddev, i = (zip(*torsion_e))
         plt.errorbar(i, list(np.array(e) - min(e)), yerr=list(np.array(stddev) - min(stddev)),
-        label='ANIx')
+                     label='ANIx')
 
         model = PureANI1ccx()
         model = model.to(device)
@@ -222,9 +220,7 @@ class Tautomer(object):
 
         e, stddev, i = (zip(*torsion_e))
         plt.errorbar(i, list(np.array(e) - min(e)), yerr=list(np.array(stddev) - min(stddev)),
-        label='ANIccx')
-
-
+                     label='ANIccx')
 
         # torsion drive with psi4
         from neutromeratio.psi4 import calculate_energy, mol2psi4
