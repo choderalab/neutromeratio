@@ -517,7 +517,7 @@ def test_euqilibrium():
     )
 
     for e in tautomer.ligand_restraints + tautomer.hybrid_ligand_restraints:
-        energy_function.add_restraint(e)
+        energy_function.add_restraint_to_lambda_protocol(e)
 
     x0 = np.array(tautomer.hybrid_coords) * unit.angstrom
     x0, hist_e = energy_function.minimize(x0)
@@ -673,10 +673,10 @@ def test_generating_droplet():
     )
 
     for r in tautomer.ligand_restraints:
-        energy_function.add_restraint(r)
+        energy_function.add_restraint_to_lambda_protocol(r)
 
     for r in tautomer.hybrid_ligand_restraints:
-        energy_function.add_restraint(r)
+        energy_function.add_restraint_to_lambda_protocol(r)
 
     e, _, __, ___ = energy_function.calculate_energy(tautomer.ligand_in_water_coordinates)
     assert(is_quantity_close(e, -15547955.412089575 * unit.kilojoule_per_mole, rtol=1e-5))
