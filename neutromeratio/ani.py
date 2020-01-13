@@ -75,15 +75,15 @@ class ANI1_force_and_energy(object):
                                                 device=self.device, dtype=torch.float64)
 
         for restraint in self.list_of_restraints:
-            e = restraint.restraint(coordinates * nm_to_angstroms)
+            restraint_bias = restraint.restraint(coordinates * nm_to_angstroms)
             if restraint.active_at_lambda == 1:
-                e *= lambda_value
+                restraint_bias *= lambda_value
             elif restraint.active_at_lambda == 0:
-                e *= (1 - lambda_value)
+                restraint_bias *= (1 - lambda_value)
             else:
                 # always on - active_at_lambda == -1
                 pass
-            restraint_bias_in_kJ_mol += e
+            restraint_bias_in_kJ_mol += restraint_bias
         return restraint_bias_in_kJ_mol
 
     def compute_restraint_bias_on_snapshots(self, snapshots, lambda_value=0.0) -> float:
@@ -283,7 +283,7 @@ class ANI1_force_and_energy(object):
         ensemble_bias_in_kJ_mol = torch.tensor(0.0,
                                                device=self.device, dtype=torch.float64)
 
-        assert(float(lambda_value) <= 1.0 and float(lambda_value) >= 0.0)
+        assert(0.0 <= float(lambda_value) <= 1.0)
 
         _, energy_in_hartree, stddev_in_hartree = self.model(
             (self.species, coordinates * nm_to_angstroms, lambda_value))
@@ -291,20 +291,10 @@ class ANI1_force_and_energy(object):
         # convert energy from hartrees to kJ/mol
         energy_in_kJ_mol = energy_in_hartree * hartree_to_kJ_mol
         stddev_in_kJ_mol = stddev_in_hartree * hartree_to_kJ_mol
-
-        for restraint in self.list_of_restraints:
-            restraint_bias = restraint.restraint(coordinates * nm_to_angstroms)
-            if restraint.active_at_lambda == 1:
-                restraint_bias *= lambda_value
-            elif restraint.active_at_lambda == 0:
-                restraint_bias *= (1 - lambda_value)
-            else:
-                # always on - active_at_lambda == -1
-                pass
-            restraint_bias_in_kJ_mol += restraint_bias
-
+        
+        restraint_bias_in_kJ_mol = self._compute_restraint_bias(coordinates, lambda_value=lambda_value)
         energy_in_kJ_mol += restraint_bias_in_kJ_mol
-
+        
         if self.adventure_mode == False:
             if stddev_in_kJ_mol > self.per_mol_tresh:
                 #logger.info(f"Per atom tresh: {self.per_atom_thresh}")
