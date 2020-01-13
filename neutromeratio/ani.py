@@ -18,6 +18,7 @@ from ase.vibrations import Vibrations
 from scipy.optimize import minimize
 from simtk import unit
 from torch import Tensor
+from enum import Enum
 
 from .constants import (conversion_factor_eV_to_kJ_mol, device,
                         hartree_to_kJ_mol, kT, nm_to_angstroms, platform,
@@ -52,39 +53,70 @@ class ANI1_force_and_energy(object):
         self.ase_mol = mol
         self.species = self.model.species_to_tensor(atoms).to(device).unsqueeze(0)
         self.platform = platform
-        self.list_of_restraints = []
-        assert(type(per_atom_thresh) == unit.Quantity)
+        self.list_of_lambda_restraints = []
+        self.list_of_kappa_restraints = []
         self.per_atom_thresh = per_atom_thresh.value_in_unit(unit.kilojoule_per_mole)
         self.adventure_mode = adventure_mode
         self.per_mol_tresh = float(self.per_atom_thresh * len(self.atoms))
 
+        assert(type(per_atom_thresh) == unit.Quantity)
+
         # TODO: check availablity of platform
 
-    def add_restraint(self, restraint):
+    def add_restraint_to_lambda_protocol(self, restraint):
         # add a single restraint
-        self.list_of_restraints.append(restraint)
+        self.list_of_lambda_restraints.append(restraint)
 
-    def reset_restraints(self):
-        self.list_of_restraints = []
+    def add_restraint_to_kappa_protocol(self, restraint):
+        # add a single restraint
+        self.list_of_kappa_restraints.append(restraint)
 
-    def _compute_restraint_bias(self, x, lambda_value=0.05):
+    def reset_lambda_restraints(self):
+        self.list_of_lambda_restraints = []
+
+    def reset_kappa_restraints(self):
+        self.list_of_kappa_restraints = []
+
+    def _compute_restraint_bias(self, x, lambda_value=0.05, kappa_value=0.05):
         # use correct restraint_bias in between the end-points...
-        coordinates = torch.Tensor([x/unit.nanometer], device=device)
 
-        restraint_bias_in_kJ_mol = torch.tensor(0.0,
-                                                device=self.device, dtype=torch.float64)
+        #coordinates = torch.Tensor([x/unit.nanometer], device=device)
 
-        for restraint in self.list_of_restraints:
-            restraint_bias = restraint.restraint(coordinates * nm_to_angstroms)
+        lambda_restraint_bias_in_kJ_mol = torch.tensor(0.0,
+                                                       device=self.device, dtype=torch.float64)
+
+        for restraint in self.list_of_lambda_restraints:
+
+            restraint_bias = restraint.restraint(x * nm_to_angstroms)
+
             if restraint.active_at_lambda == 1:
                 restraint_bias *= lambda_value
             elif restraint.active_at_lambda == 0:
                 restraint_bias *= (1 - lambda_value)
-            else:
-                # always on - active_at_lambda == -1
+            elif restraint.active_at_lambda == -1:  # always on
                 pass
-            restraint_bias_in_kJ_mol += restraint_bias
-        return restraint_bias_in_kJ_mol
+            else:
+                raise RuntimeError('Something went wrong with restraints.')
+            lambda_restraint_bias_in_kJ_mol += restraint_bias
+
+        kappa_restraint_bias_in_kJ_mol = torch.tensor(0.0,
+                                                      device=self.device, dtype=torch.float64)
+
+        for restraint in self.list_of_kappa_restraints:
+
+            restraint_bias = restraint.restraint(x * nm_to_angstroms)
+
+            if restraint.active_at_lambda == 1:
+                restraint_bias *= lambda_value
+            elif restraint.active_at_lambda == 0:
+                restraint_bias *= (1 - lambda_value)
+            elif restraint.active_at_lambda == -1:  # always on
+                pass
+            else:
+                raise RuntimeError('Something went wrong with restraints.')
+            kappa_restraint_bias_in_kJ_mol += restraint_bias
+
+        return lambda_restraint_bias_in_kJ_mol + kappa_restraint_bias_in_kJ_mol
 
     def compute_restraint_bias_on_snapshots(self, snapshots, lambda_value=0.0) -> float:
         """
@@ -211,7 +243,7 @@ class ANI1_force_and_energy(object):
 
         return f.x.reshape(-1, 3) * unit.angstrom, memory_of_energy
 
-    def calculate_force(self, x: simtk.unit.quantity.Quantity, lambda_value: float = 0.0) -> simtk.unit.quantity.Quantity:
+    def calculate_force(self, x: simtk.unit.quantity.Quantity, lambda_value: float = 0.0, kappa_value: float = 0.0) -> simtk.unit.quantity.Quantity:
         """
         Given a coordinate set the forces with respect to the coordinates are calculated.
 
@@ -233,7 +265,7 @@ class ANI1_force_and_energy(object):
                                    requires_grad=True, device=self.device, dtype=torch.float32)
 
         energy_in_kJ_mol, restraint_bias_in_kJ_mol, stddev_in_kJ_mol, ensemble_bias = self._calculate_energy(
-            coordinates, lambda_value)
+            coordinates, lambda_value, kappa_value)
 
         # derivative of E (in kJ/mol) w.r.t. coordinates (in nm)
         derivative = torch.autograd.grad((energy_in_kJ_mol).sum(), coordinates)[0]
@@ -251,7 +283,7 @@ class ANI1_force_and_energy(object):
                 stddev_in_kJ_mol.item() * unit.kilojoule_per_mole,
                 ensemble_bias.item() * unit.kilojoule_per_mole)
 
-    def _calculate_energy(self, coordinates: torch.tensor, lambda_value: float) -> (torch.tensor, torch.tensor, torch.tensor, torch.tensor):
+    def _calculate_energy(self, coordinates: torch.tensor, lambda_value: float, kappa_value: float) -> (torch.tensor, torch.tensor, torch.tensor, torch.tensor):
         """
         Helpter function to return energies as tensor.
         Given a coordinate set the energy is calculated.
@@ -291,10 +323,11 @@ class ANI1_force_and_energy(object):
         # convert energy from hartrees to kJ/mol
         energy_in_kJ_mol = energy_in_hartree * hartree_to_kJ_mol
         stddev_in_kJ_mol = stddev_in_hartree * hartree_to_kJ_mol
-        
-        restraint_bias_in_kJ_mol = self._compute_restraint_bias(coordinates, lambda_value=lambda_value)
+
+        restraint_bias_in_kJ_mol = self._compute_restraint_bias(
+            coordinates, lambda_value=lambda_value, kappa_value=kappa_value)
         energy_in_kJ_mol += restraint_bias_in_kJ_mol
-        
+
         if self.adventure_mode == False:
             if stddev_in_kJ_mol > self.per_mol_tresh:
                 #logger.info(f"Per atom tresh: {self.per_atom_thresh}")
@@ -343,7 +376,7 @@ class ANI1_force_and_energy(object):
         self.memory_of_ensemble_bias.append(P)
         return E.value_in_unit(unit.kilojoule_per_mole), F_flat
 
-    def calculate_energy(self, x: simtk.unit.quantity.Quantity, lambda_value: float = 0.0) -> (simtk.unit.quantity.Quantity, simtk.unit.quantity.Quantity, simtk.unit.quantity.Quantity, simtk.unit.quantity.Quantity):
+    def calculate_energy(self, x: simtk.unit.quantity.Quantity, lambda_value: float = 0.0, kappa_value: float = 0.0) -> (simtk.unit.quantity.Quantity, simtk.unit.quantity.Quantity, simtk.unit.quantity.Quantity, simtk.unit.quantity.Quantity):
         """
         Given a coordinate set (x) the energy is calculated in kJ/mol.
 
@@ -372,14 +405,14 @@ class ANI1_force_and_energy(object):
                                    requires_grad=True, device=self.device, dtype=torch.float32)
 
         energy_in_kJ_mol, restraint_bias_in_kJ_mol, stddev_in_kJ_mol, ensemble_bias_in_kJ_mol = self._calculate_energy(
-            coordinates, lambda_value)
+            coordinates, lambda_value, kappa_value)
         energy = energy_in_kJ_mol.item() * unit.kilojoule_per_mole
         restraint_bias = restraint_bias_in_kJ_mol.item() * unit.kilojoule_per_mole
         stddev = stddev_in_kJ_mol.item() * unit.kilojoule_per_mole
         ensemble_bias = ensemble_bias_in_kJ_mol.item() * unit.kilojoule_per_mole
         return energy, restraint_bias, stddev, ensemble_bias
 
-  
+
 class AlchemicalANI(torchani.models.ANI1ccx):
 
     def __init__(self, alchemical_atoms=[]):
@@ -390,6 +423,7 @@ class AlchemicalANI(torchani.models.ANI1ccx):
     def forward(self, species_coordinates, lam=1.0):
         raise (NotImplementedError)
 
+
 class PureANI1ccx(torchani.models.ANI1ccx):
     def __init__(self):
         """
@@ -397,9 +431,9 @@ class PureANI1ccx(torchani.models.ANI1ccx):
         """
         super().__init__()
         self.neural_networks = load_model_ensemble(self.species,
-                                                    self.ensemble_prefix,
-                                                    self.ensemble_size
-                                                    )
+                                                   self.ensemble_prefix,
+                                                   self.ensemble_size
+                                                   )
         self.device = device
 
     def forward(self, species_coordinates):
@@ -408,7 +442,7 @@ class PureANI1ccx(torchani.models.ANI1ccx):
         try:
             species, coordinates, _ = species_coordinates
         except ValueError:
-             species, coordinates = species_coordinates
+            species, coordinates = species_coordinates
 
         aevs = (species, coordinates)
         species, aevs = self.aev_computer(aevs)
@@ -427,9 +461,9 @@ class PureANI1x(torchani.models.ANI1x):
         """
         super().__init__()
         self.neural_networks = load_model_ensemble(self.species,
-                                                    self.ensemble_prefix,
-                                                    self.ensemble_size
-                                                    )
+                                                   self.ensemble_prefix,
+                                                   self.ensemble_size
+                                                   )
         self.device = device
 
     def forward(self, species_coordinates):
@@ -438,7 +472,7 @@ class PureANI1x(torchani.models.ANI1x):
         try:
             species, coordinates, _ = species_coordinates
         except ValueError:
-             species, coordinates = species_coordinates
+            species, coordinates = species_coordinates
         aevs = (species, coordinates)
         species, aevs = self.aev_computer(aevs)
 
@@ -447,6 +481,7 @@ class PureANI1x(torchani.models.ANI1x):
         _, E = self.energy_shifter((species, state.energies))
 
         return SpeciesEnergies(species, E, state.stddev)
+
 
 class SpeciesEnergies(NamedTuple):
     species: Tensor
@@ -494,8 +529,6 @@ def load_model_ensemble(species, prefix, count):
         network_dir = os.path.join('{}{}'.format(prefix, i), 'networks')
         models.append(torchani.neurochem.load_model(species, network_dir))
     return Ensemble(models)
-
-
 
 
 class LinearAlchemicalANI(AlchemicalANI):
