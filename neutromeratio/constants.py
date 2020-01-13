@@ -33,6 +33,7 @@ bond_length_dict = {frozenset(['C', 'H']): 1.09 * unit.angstrom,
                     }
 
 conversion_factor_eV_to_kJ_mol = 96.485
+conversion_factor_radian_to_degree = 57.2958
 pressure = 101325.0 * unit.pascal
 gas_constant = 0.0019872036 * (unit.kilocalorie_per_mole / unit.kelvin)
 water_hoh_angle = 104.5 * unit.degree
