@@ -336,13 +336,13 @@ def test_restraint_with_alchemicalANI():
     restrain3 = neutromeratio.restraints.BondFlatBottomRestraint(
         sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=-1)
     for r in [restrain1, restrain2, restrain3]:
-        energy_function.add_restraint(r)
+        energy_function.add_restraint_to_lambda_protocol(r)
 
     energy, restraint_bias, stddev, ensemble_bias = energy_function.calculate_energy(x0, lambda_value=0.0)
     assert(is_quantity_close(energy, -216527.22548065928 * unit.kilocalorie_per_mole, rtol=1e-9))
 
     # test harmonic_restraint for lambda = 0.0
-    energy_function.reset_restraints()
+    energy_function.reset_lambda_restraints()
     r = []
     restrain1 = neutromeratio.restraints.BondHarmonicRestraint(
         sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=0)
@@ -351,7 +351,7 @@ def test_restraint_with_alchemicalANI():
     restrain3 = neutromeratio.restraints.BondHarmonicRestraint(
         sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=-1)
     for r in [restrain1, restrain2, restrain3]:
-        energy_function.add_restraint(r)
+        energy_function.add_restraint_to_lambda_protocol(r)
 
     energy, restraint_bias, stddev, ensemble_bias = energy_function.calculate_energy(x0, lambda_value=0.0)
     assert(is_quantity_close(energy, -216484.37304754654 * unit.kilocalorie_per_mole, rtol=1e-9))
@@ -362,7 +362,7 @@ def test_restraint_with_alchemicalANI():
 
     # test harmonic_restraint and flat_bottom_restraint for lambda = 1.0
     r = []
-    energy_function.reset_restraints()
+    energy_function.reset_lambda_restraints()
     restrain1 = neutromeratio.restraints.BondFlatBottomRestraint(
         sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=0)
     restrain2 = neutromeratio.restraints.BondFlatBottomRestraint(
@@ -376,7 +376,7 @@ def test_restraint_with_alchemicalANI():
     restrain6 = neutromeratio.restraints.BondHarmonicRestraint(
         sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=-1)
     for r in [restrain1, restrain2, restrain3, restrain4, restrain5, restrain6]:
-        energy_function.add_restraint(r)
+        energy_function.add_restraint_to_lambda_protocol(r)
 
     energy, restraint_bias, stddev, ensemble_bias = energy_function.calculate_energy(x0, lambda_value=1.0)
     assert(is_quantity_close(energy, -216350.46153373353 * unit.kilocalorie_per_mole, rtol=1e-9))
@@ -522,8 +522,7 @@ def test_euqilibrium():
     x0 = np.array(tautomer.hybrid_coords) * unit.angstrom
     x0, hist_e = energy_function.minimize(x0)
 
-    lambda_value = 1.0
-    def energy_and_force(x): return energy_function.calculate_force(x, lambda_value)
+    energy_and_force = lambda x : energy_function.calculate_force(x, 1.0)
 
     langevin = neutromeratio.LangevinDynamics(atoms=tautomer.hybrid_atoms,
                                               energy_and_force=energy_and_force,
@@ -534,8 +533,7 @@ def test_euqilibrium():
                                                                                                  stepsize=1.0 * unit.femtosecond,
                                                                                                  progress_bar=True)
 
-    lambda_value = 0.0
-    def energy_and_force(x): return energy_function.calculate_force(x, lambda_value)
+    energy_and_force = lambda x : energy_function.calculate_force(x, 0.0)
 
     langevin = neutromeratio.LangevinDynamics(atoms=tautomer.hybrid_atoms,
                                               energy_and_force=energy_and_force)
