@@ -8,7 +8,8 @@ from simtk import unit
 from torch.distributions.normal import Normal
 
 from .constants import (bond_length_dict, device, mass_dict_in_daltons,
-                        nm_to_angstroms, temperature, water_hoh_angle)
+                        nm_to_angstroms, temperature, water_hoh_angle,
+                        conversion_factor_radian_to_degree)
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,7 @@ class BaseDistanceRestraint(object):
         assert(type(sigma) == unit.Quantity)
         k = (kB * temperature) / (sigma**2)
         self.device = device
+        assert(active_at_lambda ==1 or active_at_lambda == 0 or active_at_lambda ==-1)
         self.active_at_lambda = active_at_lambda
         self.k = torch.tensor(k.value_in_unit((unit.kilo * unit.joule) / ((unit.angstrom ** 2) *
                                                                           unit.mole)), dtype=torch.double, device=self.device, requires_grad=True)
@@ -46,19 +48,94 @@ class BaseAngleRestraint(object):
         ----------
         sigma : in angstrom
         active_at_lambda : int
-            Integer to indicccate at which state the restraint is fully active. Either 0 (for 
+            Integer to indicate at which state the restraint is fully active. Either 0 (for 
             lambda 0), or 1 (for lambda 1) or -1 (always active)
         """
 
         assert(type(sigma) == unit.Quantity)
         k = (kB * temperature) / (sigma**2)  # k = 34.2159 kcal/mol*rad**2
         self.device = device
+        assert(active_at_lambda ==1 or active_at_lambda == 0 or active_at_lambda ==-1)
         self.active_at_lambda = active_at_lambda
         self.k = torch.tensor(k.value_in_unit((unit.kilo * unit.joule) / ((unit.radian ** 2) * unit.mole)),
                               dtype=torch.double,
                               device=self.device,
                               requires_grad=True)
         print(self.k)
+
+
+class TorsionBias():
+
+    def __init__(self, sigma: unit.Quantity, atom_idx :list, active_at_lambda: int=-1):
+
+        assert (0 <= active_at_lambda <= 1 or active_at_lambda == -1)
+        self.device = device
+        self.atom_idx = atom_idx
+        self.active_at_lambda = active_at_lambda
+        self.atom_i = atom_idx[0]
+        self.atom_j = atom_idx[1]
+        self.atom_k = atom_idx[2]
+        self.atom_l = atom_idx[3]
+        
+    def _calculate_torsion(self, x):
+        # calculating torsion -- taken from here: https://github.com/mdtraj/mdtraj/blob/master/mdtraj/geometry/dihedral.py
+
+
+        dxij = (x[0][self.atom_j] - x[0][self.atom_i])
+        dxjk = (x[0][self.atom_k] - x[0][self.atom_j])
+        dxkl = (x[0][self.atom_l] - x[0][self.atom_k])
+
+        c1 = torch.cross(-dxjk, -dxkl)
+        c2 = torch.cross(dxij, -dxjk)
+
+        p1 = torch.sum(dxij * c1)
+        p1 *= torch.norm(dxjk)
+        p2 = torch.sum(c1 * c2)
+
+        torsion = torch.atan2(p1,p2)
+        return torsion * conversion_factor_radian_to_degree
+
+
+    def restraint(self, x):
+        """       
+        
+        Parameters
+        -------
+        x : torch.Tensor
+            coordinates
+        Returns
+        -------
+        e : torch.Tensor
+        """
+
+        try:
+            assert (type(x) == torch.Tensor)
+        except AssertionError:
+            assert (type(x) == unit.Quantity)
+            x = torch.tensor([x.value_in_unit(unit.nanometer)],
+                            requires_grad=True, device=self.device, dtype=torch.float32)
+            
+
+        torsion_in_degree = self._calculate_torsion(x)
+        print(torsion_in_degree)
+        # x in angstrom
+        #e = (self.k/2) * (90 - torsion_in_degree.double())**2
+        e = (0.0) * (90 - torsion_in_degree)**2
+        
+        logging.debug('Torsion harmonic restraint restraint_bias introduced: {:0.4f}'.format(e.item()))
+        return e.to(device=self.device)
+
+
+        # 
+        # 
+        #logging.debug('Angle harmonic restraint restraint_bias introduced: {:0.4f}'.format(e.item()))
+        #return e.to(device=self.device)
+
+
+
+
+
+
 
 
 class PointAtomRestraint(BaseDistanceRestraint):
