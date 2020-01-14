@@ -16,13 +16,13 @@ logger = logging.getLogger(__name__)
 
 class BaseDistanceRestraint(object):
 
-    def __init__(self, sigma: unit.Quantity, active_at_lambda: int):
+    def __init__(self, sigma: unit.Quantity, active_at: int):
         """
         Defines a distance restraint base class
         Parameters
         ----------
         sigma : in angstrom
-        active_at_lambda : int
+        active_at : int
             Integer to indicccate at which state the restraint is fully active. Either 0 (for 
             lambda 0), or 1 (for lambda 1) or -1 (always active)
         """
@@ -30,15 +30,15 @@ class BaseDistanceRestraint(object):
         assert(type(sigma) == unit.Quantity)
         k = (kB * temperature) / (sigma**2)
         self.device = device
-        assert(active_at_lambda ==1 or active_at_lambda == 0 or active_at_lambda ==-1)
-        self.active_at_lambda = active_at_lambda
+        assert(active_at ==1 or active_at == 0 or active_at ==-1 or active_at == -2)
+        self.active_at = active_at
         self.k = torch.tensor(k.value_in_unit((unit.kilo * unit.joule) / ((unit.angstrom ** 2) *
                                                                           unit.mole)), dtype=torch.double, device=self.device, requires_grad=True)
 
 
 class BaseAngleRestraint(object):
 
-    def __init__(self, sigma: unit.Quantity, active_at_lambda: int):
+    def __init__(self, sigma: unit.Quantity, active_at: int):
         """
         Defines an angle restraint base class.
         Force constant taken from here:
@@ -47,7 +47,7 @@ class BaseAngleRestraint(object):
         Parameters (http://ambermd.org/antechamber/gaff.pdf)
         ----------
         sigma : in angstrom
-        active_at_lambda : int
+        active_at : int
             Integer to indicate at which state the restraint is fully active. Either 0 (for 
             lambda 0), or 1 (for lambda 1) or -1 (always active)
         """
@@ -55,8 +55,8 @@ class BaseAngleRestraint(object):
         assert(type(sigma) == unit.Quantity)
         k = (kB * temperature) / (sigma**2)  # k = 34.2159 kcal/mol*rad**2
         self.device = device
-        assert(active_at_lambda ==1 or active_at_lambda == 0 or active_at_lambda ==-1)
-        self.active_at_lambda = active_at_lambda
+        assert(active_at ==1 or active_at == 0 or active_at ==-1 or active_at == -2)
+        self.active_at = active_at
         self.k = torch.tensor(k.value_in_unit((unit.kilo * unit.joule) / ((unit.radian ** 2) * unit.mole)),
                               dtype=torch.double,
                               device=self.device,
@@ -64,14 +64,45 @@ class BaseAngleRestraint(object):
         print(self.k)
 
 
-class TorsionBias():
 
-    def __init__(self, sigma: unit.Quantity, atom_idx :list, active_at_lambda: int=-1):
+class BaseTorsionRestraint(object):
 
-        assert (0 <= active_at_lambda <= 1 or active_at_lambda == -1)
+    def __init__(self, sigma: unit.Quantity, torsion_angle: unit.Quantity, active_at: int):
+        """
+        Defines an torsion restraint base class.
+        ----------
+        sigma : in angstrom
+        active_at : int
+            Integer to indicate at which state the restraint is fully active. Either 0 (for 
+            lambda 0), or 1 (for lambda 1) or -1 (always active)
+        """
+
+        assert(type(sigma) == unit.Quantity)
+        assert(type(torsion_angle) == unit.Quantity)
+
+        k = (kB * temperature) / (sigma**2) # 
+        self.device = device
+        assert(active_at ==1 or active_at == 0 or active_at ==-1 or active_at == -2)
+        self.active_at = active_at
+        self.target_torsion_angle_in_degree = torsion_angle.value_in_unit(unit.degree)
+        self.k = torch.tensor(k.value_in_unit((unit.kilo * unit.joule) / ((unit.degree ** 2) * unit.mole)),
+                              dtype=torch.double,
+                              device=self.device,
+                              requires_grad=True)
+
+
+
+
+class TorsionRestraint(BaseTorsionRestraint):
+
+    def __init__(self, sigma: unit.Quantity, torsion_angle: unit.Quantity, atom_idx :list, active_at: int=-1):
+
+        assert (0 <= active_at <= 1 or active_at == -1 or active_at == -2)
+        super().__init__(sigma, torsion_angle, active_at)
+
         self.device = device
         self.atom_idx = atom_idx
-        self.active_at_lambda = active_at_lambda
+        self.active_at = active_at
         self.atom_i = atom_idx[0]
         self.atom_j = atom_idx[1]
         self.atom_k = atom_idx[2]
@@ -117,30 +148,16 @@ class TorsionBias():
             
 
         torsion_in_degree = self._calculate_torsion(x)
-        print(torsion_in_degree)
-        # x in angstrom
-        #e = (self.k/2) * (90 - torsion_in_degree.double())**2
-        e = (0.0) * (90 - torsion_in_degree)**2
+        e = (0.5 * self.k) * (self.target_torsion_angle_in_degree - torsion_in_degree)**2
         
         logging.debug('Torsion harmonic restraint restraint_bias introduced: {:0.4f}'.format(e.item()))
         return e.to(device=self.device)
 
 
-        # 
-        # 
-        #logging.debug('Angle harmonic restraint restraint_bias introduced: {:0.4f}'.format(e.item()))
-        #return e.to(device=self.device)
-
-
-
-
-
-
-
 
 class PointAtomRestraint(BaseDistanceRestraint):
 
-    def __init__(self, sigma: unit.Quantity, point: np.array, active_at_lambda: int):
+    def __init__(self, sigma: unit.Quantity, point: np.array, active_at: int):
         """
         Defines a Point to Atom restraint base class. 
 
@@ -148,7 +165,7 @@ class PointAtomRestraint(BaseDistanceRestraint):
         ----------
         sigma : in angstrom
         point : np.array 3D, value in angstrom
-        active_at_lambda : int
+        active_at : int
             Integer to indicccate at which state the restraint is fully active. Either 0 (for 
             lambda 0), or 1 (for lambda 1) or -1 (always active)
         Returns
@@ -157,7 +174,7 @@ class PointAtomRestraint(BaseDistanceRestraint):
             restraint_bias
         """
 
-        super().__init__(sigma, active_at_lambda)
+        super().__init__(sigma, active_at)
         assert(type(point) == np.ndarray)
         self.point = torch.tensor(point,
                                   dtype=torch.double,
@@ -171,7 +188,7 @@ class BondRestraint(BaseDistanceRestraint):
                  atom_i_idx: int,
                  atom_j_idx: int,
                  atoms: str,
-                 active_at_lambda: int = -1):
+                 active_at: int = -1):
         """
         Defines a Atom to Atom restraint base class. 
 
@@ -184,11 +201,11 @@ class BondRestraint(BaseDistanceRestraint):
             Atom j to restraint
         atoms: str
             Str of atoms to retrieve element information
-        active_at_lambda : int
+        active_at : int
             Integer to indicccate at which state the restraint is fully active. Either 0 (for 
             lambda 0), or 1 (for lambda 1) or -1 (always active)
         """
-        super().__init__(sigma, active_at_lambda)
+        super().__init__(sigma, active_at)
         self.atom_i_element = atoms[atom_i_idx]
         self.atom_j_element = atoms[atom_j_idx]
         self.atom_i_idx = atom_i_idx
@@ -212,11 +229,11 @@ class AngleHarmonicRestraint(BaseAngleRestraint):
                  atom_i_idx: int,
                  atom_j_idx: int,
                  atom_k_idx: int,
-                 active_at_lambda: int = -1):
+                 active_at: int = -1):
         """
         Restraints the angle between bond i-j and bond k-j
         """
-        super().__init__(sigma, active_at_lambda)
+        super().__init__(sigma, active_at)
         self.atom_i_idx = atom_i_idx
         self.atom_j_idx = atom_j_idx
         self.atom_k_idx = atom_k_idx
@@ -268,8 +285,8 @@ class BondFlatBottomRestraint(BondRestraint):
                  atom_i_idx: int,
                  atom_j_idx: int,
                  atoms: str,
-                 active_at_lambda: int = -1):
-        super().__init__(sigma, atom_i_idx, atom_j_idx, atoms, active_at_lambda)
+                 active_at: int = -1):
+        super().__init__(sigma, atom_i_idx, atom_j_idx, atoms, active_at)
 
     def restraint(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -301,9 +318,9 @@ class BondHarmonicRestraint(BondRestraint):
                  atom_i_idx: int,
                  atom_j_idx: int,
                  atoms: str,
-                 active_at_lambda: int = -1):
+                 active_at: int = -1):
 
-        super().__init__(sigma, atom_i_idx, atom_j_idx, atoms, active_at_lambda)
+        super().__init__(sigma, atom_i_idx, atom_j_idx, atoms, active_at)
 
     def restraint(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -329,7 +346,7 @@ class CenterFlatBottomRestraint(PointAtomRestraint):
                  point: unit.Quantity,
                  radius: unit.Quantity,
                  atom_idx: int,
-                 active_at_lambda: int = -1):
+                 active_at: int = -1):
         """
         Flat well restraint that becomes active when atom moves outside of radius.
         Parameters
@@ -339,14 +356,14 @@ class CenterFlatBottomRestraint(PointAtomRestraint):
         radius : float, unit'd
         atom_idx : list
             list of atoms idxs
-        active_at_lambda : int
+        active_at : int
             Integer to indicccate at which state the restraint is fully active. Either 0 (for 
             lambda 0), or 1 (for lambda 1) or -1 (always active)
         """
 
         assert(type(sigma) == unit.Quantity)
         assert(type(point) == unit.Quantity)
-        super().__init__(sigma, point.value_in_unit(unit.angstrom), active_at_lambda)
+        super().__init__(sigma, point.value_in_unit(unit.angstrom), active_at)
 
         self.atom_idx = atom_idx
         self.cutoff_radius = radius.value_in_unit(unit.angstrom)
@@ -378,7 +395,7 @@ class CenterOfMassRestraint(PointAtomRestraint):
                  point: unit.Quantity,
                  atom_idx: list,
                  atoms: str,
-                 active_at_lambda: int = -1):
+                 active_at: int = -1):
         """
         Center of mass restraint.
 
@@ -393,7 +410,7 @@ class CenterOfMassRestraint(PointAtomRestraint):
         """
         assert(type(sigma) == unit.Quantity)
         assert(type(point) == unit.Quantity)
-        super().__init__(sigma, point.value_in_unit(unit.angstrom), active_at_lambda)
+        super().__init__(sigma, point.value_in_unit(unit.angstrom), active_at)
         self.atom_idx = atom_idx
         logger.info('Center Of Mass restraint added.')
 

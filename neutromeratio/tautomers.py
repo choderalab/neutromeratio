@@ -139,23 +139,23 @@ class Tautomer(object):
         degeneracy = sum([1 for isomorphism in graph_matcher.match()])
         return degeneracy
 
-    def performe_torsion_scan_initial_state(self, torsion_idx=[], name='mol'):
+    def performe_torsion_scan_initial_state(self, torsion_idx=[], name='mol', onlyANI=False):
         """
         Performes torsion scan around specified atoms using wB97X/6-31g* and ANIccx 
         """
         mol = copy.deepcopy(self.initial_state_mol)
         ligand_atoms = self.initial_state_ligand_atoms
-        self._performe_torsion_scan(mol, ligand_atoms, torsion_idx, name)
+        self._performe_torsion_scan(mol, ligand_atoms, torsion_idx, name, onlyANI)
 
-    def performe_torsion_scan_final_state(self, torsion_idx=[], name='mol'):
+    def performe_torsion_scan_final_state(self, torsion_idx=[], name='mol', onlyANI=False):
         """
         Performes torsion scan around specified atoms using wB97X/6-31g* and ANIccx 
         """
         mol = copy.deepcopy(self.final_state_mol)
         ligand_atoms = self.final_state_ligand_atoms
-        self._performe_torsion_scan(mol, ligand_atoms, torsion_idx, name)
+        self._performe_torsion_scan(mol, ligand_atoms, torsion_idx, name, onlyANI)
 
-    def _performe_torsion_scan(self, mol, ligand_atoms, torsion_idx, name):
+    def _performe_torsion_scan(self, mol, ligand_atoms, torsion_idx, name, onlyANI):
 
         from rdkit.Chem import rdMolTransforms
         import matplotlib.pyplot as plt
@@ -185,7 +185,7 @@ class Tautomer(object):
                 tmp_coord_list.append([pos.x, pos.y, pos.z])
             x = np.array(tmp_coord_list) * unit.angstrom
             e, _, stddev, ___ = energy_function.calculate_energy(x)
-            print(f"{i}:{e} +- {stddev}")
+            #print(f"{i}:{e} +- {stddev}")
             torsion_e.append((e / kT, stddev / kT, i))
 
         e, stddev, i = (zip(*torsion_e))
@@ -215,30 +215,32 @@ class Tautomer(object):
                 tmp_coord_list.append([pos.x, pos.y, pos.z])
             coord_list = np.array(tmp_coord_list) * unit.angstrom
             e, _, stddev, ___ = energy_function.calculate_energy(coord_list)
-            print(f"{i}:{e} +- {stddev}")
+            #print(f"{i}:{e} +- {stddev}")
             torsion_e.append((e/kT, stddev/kT, i))
 
         e, stddev, i = (zip(*torsion_e))
         plt.errorbar(i, list(np.array(e) - min(e)), yerr=list(np.array(stddev) - min(stddev)),
                      label='ANIccx')
 
-        # torsion drive with psi4
-        from neutromeratio.psi4 import calculate_energy, mol2psi4
-        # torsion profile
-        torsion_e = []
-        for i in np.linspace(0, 360, 20):
-            rdMolTransforms.SetDihedralDeg(mol.GetConformer(0), torsion_idx[0], torsion_idx[1],
-                                           torsion_idx[2], torsion_idx[3], i)
-            #Chem.MolToPDBFile(mol, f"test_psi4_{round(i)}.pdb")
+        if not onlyANI:
+            # torsion drive with psi4
+            from neutromeratio.psi4 import calculate_energy, mol2psi4
+            # torsion profile
+            torsion_e = []
+            for i in np.linspace(0, 360, 20):
+                rdMolTransforms.SetDihedralDeg(mol.GetConformer(0), torsion_idx[0], torsion_idx[1],
+                                            torsion_idx[2], torsion_idx[3], i)
+                #Chem.MolToPDBFile(mol, f"test_psi4_{round(i)}.pdb")
 
-            psi4_mol = mol2psi4(mol, conformer_id=0)
-            e = calculate_energy(psi4_mol)
-            print(f"{i}:{e}")
-            torsion_e.append((e/kT, i))
+                psi4_mol = mol2psi4(mol, conformer_id=0)
+                e = calculate_energy(psi4_mol)
+                #print(f"{i}:{e}")
+                torsion_e.append((e/kT, i))
 
-        e, i = (zip(*torsion_e))
+            e, i = (zip(*torsion_e))
 
-        plt.plot(i, list(np.array(e) - min(e)), label='wB97X/6-31g*')
+            plt.plot(i, list(np.array(e) - min(e)), label='wB97X/6-31g*')
+
         plt.title(f"Torsion angle for {torsion_idx} for {name}")
         plt.xlabel('torsion angle in degree')
         plt.ylabel('energy [kT]')
@@ -363,7 +365,7 @@ class Tautomer(object):
                                                       point=center * unit.angstrom,
                                                       radius=(diameter/2),
                                                       atom_idx=atom.index,
-                                                      active_at_lambda=-1))
+                                                      active_at=-1))
                         print('Adding restraint to center to {}'.format(atom.index))
 
         if restrain_hydrogen_bonds or restrain_hydrogen_angles:
@@ -587,9 +589,9 @@ class Tautomer(object):
 
         # add NCMC restraints
         r1 = BondFlatBottomRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=donor,
-                                     atom_j_idx=hydrogen_idx_that_moves, atoms=atoms, active_at_lambda=1)
+                                     atom_j_idx=hydrogen_idx_that_moves, atoms=atoms, active_at=1)
         r2 = BondFlatBottomRestraint(sigma=0.1 * unit.angstrom, atom_i_idx=acceptor,
-                                     atom_j_idx=hydrogen_idx_that_moves, atoms=atoms, active_at_lambda=0)
+                                     atom_j_idx=hydrogen_idx_that_moves, atoms=atoms, active_at=0)
 
         self.heavy_atom_hydrogen_donor_idx = donor
         self.hydrogen_idx = hydrogen_idx_that_moves

@@ -77,45 +77,40 @@ class ANI1_force_and_energy(object):
     def reset_kappa_restraints(self):
         self.list_of_kappa_restraints = []
 
-    def _compute_restraint_bias(self, x, lambda_value=0.05, kappa_value=0.05):
+    def _compute_restraint_bias(self, x, lambda_value, kappa_value):
         # use correct restraint_bias in between the end-points...
 
-        #coordinates = torch.Tensor([x/unit.nanometer], device=device)
-
+        #lambda
         lambda_restraint_bias_in_kJ_mol = torch.tensor(0.0,
                                                        device=self.device, dtype=torch.float64)
 
         for restraint in self.list_of_lambda_restraints:
-
             restraint_bias = restraint.restraint(x * nm_to_angstroms)
-
-            if restraint.active_at_lambda == 1:
+            if restraint.active_at == 1:
                 restraint_bias *= lambda_value
-            elif restraint.active_at_lambda == 0:
+            elif restraint.active_at == 0:
                 restraint_bias *= (1 - lambda_value)
-            elif restraint.active_at_lambda == -1:  # always on
+            elif restraint.active_at == -1:  # always on
                 pass
             else:
                 raise RuntimeError('Something went wrong with restraints.')
             lambda_restraint_bias_in_kJ_mol += restraint_bias
 
+        # kappa
         kappa_restraint_bias_in_kJ_mol = torch.tensor(0.0,
                                                       device=self.device, dtype=torch.float64)
 
         for restraint in self.list_of_kappa_restraints:
-
             restraint_bias = restraint.restraint(x * nm_to_angstroms)
-
-            if restraint.active_at_lambda == 1:
-                restraint_bias *= lambda_value
-            elif restraint.active_at_lambda == 0:
-                restraint_bias *= (1 - lambda_value)
-            elif restraint.active_at_lambda == -1:  # always on
+            if restraint.active_at == 1:
+                restraint_bias *= kappa_value
+            elif restraint.active_at == 0:
+                restraint_bias *= (1 - kappa_value)
+            elif restraint.active_at == -1:  # always on
                 pass
             else:
                 raise RuntimeError('Something went wrong with restraints.')
             kappa_restraint_bias_in_kJ_mol += restraint_bias
-
         return lambda_restraint_bias_in_kJ_mol + kappa_restraint_bias_in_kJ_mol
 
     def compute_restraint_bias_on_snapshots(self, snapshots, lambda_value=0.0) -> float:
@@ -316,6 +311,7 @@ class ANI1_force_and_energy(object):
                                                device=self.device, dtype=torch.float64)
 
         assert(0.0 <= float(lambda_value) <= 1.0)
+        assert(0.0 <= float(kappa_value) <= 1.0)
 
         _, energy_in_hartree, stddev_in_hartree = self.model(
             (self.species, coordinates * nm_to_angstroms, lambda_value))

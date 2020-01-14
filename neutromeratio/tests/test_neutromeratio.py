@@ -330,11 +330,11 @@ def test_restraint_with_alchemicalANI():
     # test flat_bottom_restraint for lambda = 0.0
     r = []
     restrain1 = neutromeratio.restraints.BondFlatBottomRestraint(
-        sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=0)
+        sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at=0)
     restrain2 = neutromeratio.restraints.BondFlatBottomRestraint(
-        sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=1)
+        sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at=1)
     restrain3 = neutromeratio.restraints.BondFlatBottomRestraint(
-        sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=-1)
+        sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at=-1)
     for r in [restrain1, restrain2, restrain3]:
         energy_function.add_restraint_to_lambda_protocol(r)
 
@@ -345,11 +345,11 @@ def test_restraint_with_alchemicalANI():
     energy_function.reset_lambda_restraints()
     r = []
     restrain1 = neutromeratio.restraints.BondHarmonicRestraint(
-        sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=0)
+        sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at=0)
     restrain2 = neutromeratio.restraints.BondHarmonicRestraint(
-        sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=1)
+        sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at=1)
     restrain3 = neutromeratio.restraints.BondHarmonicRestraint(
-        sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=-1)
+        sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at=-1)
     for r in [restrain1, restrain2, restrain3]:
         energy_function.add_restraint_to_lambda_protocol(r)
 
@@ -364,17 +364,17 @@ def test_restraint_with_alchemicalANI():
     r = []
     energy_function.reset_lambda_restraints()
     restrain1 = neutromeratio.restraints.BondFlatBottomRestraint(
-        sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=0)
+        sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at=0)
     restrain2 = neutromeratio.restraints.BondFlatBottomRestraint(
-        sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=1)
+        sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at=1)
     restrain3 = neutromeratio.restraints.BondFlatBottomRestraint(
-        sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=-1)
+        sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at=-1)
     restrain4 = neutromeratio.restraints.BondHarmonicRestraint(
-        sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=0)
+        sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at=0)
     restrain5 = neutromeratio.restraints.BondHarmonicRestraint(
-        sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=1)
+        sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at=1)
     restrain6 = neutromeratio.restraints.BondHarmonicRestraint(
-        sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at_lambda=-1)
+        sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at=-1)
     for r in [restrain1, restrain2, restrain3, restrain4, restrain5, restrain6]:
         energy_function.add_restraint_to_lambda_protocol(r)
 
@@ -416,8 +416,30 @@ def test_restraint_with_LinearAlchemicalDualTopologyANI():
 
     energy_function.list_of_restraints = tautomer.ligand_restraints
 
+    energy, restraint_bias, stddev, ensemble_bias = energy_function.calculate_energy(x0,
+    lambda_value=0.0)
+    assert (is_quantity_close(energy, -216763.81517969485 * unit.kilocalorie_per_mole,
+    rtol=1e-9))
+
+    torsion_b=neutromeratio.restraints.TorsionRestraint(sigma=0.3 * unit.radian,
+    torsion_angle=90* unit.degree,
+    atom_idx=[10, 2, 3, 4],
+    active_at=1.0)
+    energy_function.add_restraint_to_kappa_protocol(torsion_b)    
+
     energy, restraint_bias, stddev, ensemble_bias = energy_function.calculate_energy(x0, lambda_value=0.0)
     assert(is_quantity_close(energy, -216763.81517969485 * unit.kilocalorie_per_mole, rtol=1e-9))
+
+    energy, restraint_bias, stddev, ensemble_bias = energy_function.calculate_energy(x0, lambda_value=0.0, kappa_value=0.0)
+    assert(is_quantity_close(energy, -216763.81517969485 * unit.kilocalorie_per_mole, rtol=1e-9))
+
+    energy, restraint_bias, stddev, ensemble_bias = energy_function.calculate_energy(x0, lambda_value=0.0, kappa_value=0.5)
+    assert(is_quantity_close(restraint_bias.in_units_of(unit.kilocalorie_per_mole), 1.1838950460154185 * unit.kilocalorie_per_mole))
+    assert(is_quantity_close(energy, -906934.8493243129 * unit.kilojoule_per_mole, rtol=1e-9))
+
+    energy, restraint_bias, stddev, ensemble_bias = energy_function.calculate_energy(x0, lambda_value=0.0, kappa_value=1.0)
+    assert(is_quantity_close(restraint_bias.in_units_of(unit.kilocalorie_per_mole), 2.367790092030837 * unit.kilocalorie_per_mole))
+    assert(is_quantity_close(energy, -906929.8959074403 * unit.kilojoule_per_mole, rtol=1e-9))
 
 
 def test_min_and_single_point_energy():
