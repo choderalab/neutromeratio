@@ -80,7 +80,7 @@ class ANI1_force_and_energy(object):
     def _compute_restraint_bias(self, x, lambda_value, kappa_value):
         # use correct restraint_bias in between the end-points...
 
-        #lambda
+        # lambda
         lambda_restraint_bias_in_kJ_mol = torch.tensor(0.0,
                                                        device=self.device, dtype=torch.float64)
 
@@ -170,7 +170,8 @@ class ANI1_force_and_energy(object):
         vib.clean()
         return (G * conversion_factor_eV_to_kJ_mol) * unit.kilojoule_per_mole  # eV * conversion_factor(eV to kJ/mol)
 
-    def minimize(self, coords: simtk.unit.quantity.Quantity, maxiter: int = 1000, lambda_value: float = 0.0, show_plot: bool = False):
+    def minimize(self, coords: simtk.unit.quantity.Quantity, maxiter: int = 1000,
+                lambda_value: float = 0.0, kappa_value: float = 0.0, show_plot: bool = False):
         """
         Minimizes the molecule.
         Parameters
@@ -214,7 +215,7 @@ class ANI1_force_and_energy(object):
         self.memory_of_ensemble_bias = []
         print("Begin minimizing...")
         f = optimize.minimize(self._traget_energy_function, x, method='BFGS',
-                              jac=True, args=(lambda_value),
+                              jac=True, args=(lambda_value, kappa_value),
                               options={'maxiter': maxiter, 'disp': True})
 
         logger.critical(f"Minimization status: {f.success}")
@@ -349,7 +350,7 @@ class ANI1_force_and_energy(object):
         logger.warning(f"Applying ensemble_bias: {ensemble_bias_in_kJ_mol.item()} kJ/mol")
         return ensemble_bias_in_kJ_mol
 
-    def _traget_energy_function(self, x, lambda_value: float = 0.0) -> float:
+    def _traget_energy_function(self, x, lambda_value: float = 0.0, kappa_value: float = 0.0) -> float:
         """
         Given a coordinate set (x) the energy is calculated in kJ/mol.
 
@@ -365,7 +366,7 @@ class ANI1_force_and_energy(object):
         E : float, unit'd 
         """
         x = x.reshape(-1, 3) * unit.angstrom
-        F, E, B, S, P = self.calculate_force(x, lambda_value)
+        F, E, B, S, P = self.calculate_force(x, lambda_value, kappa_value)
         F_flat = -np.array(F.value_in_unit(unit.kilojoule_per_mole/unit.angstrom).flatten(), dtype=np.float64)
         self.memory_of_energy.append(E)
         self.memory_of_stddev.append(S)

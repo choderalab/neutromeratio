@@ -93,7 +93,7 @@ class BaseTorsionRestraint(object):
 
 
 
-class TorsionRestraint(BaseTorsionRestraint):
+class TorsionHarmonicRestraint(BaseTorsionRestraint):
 
     def __init__(self, sigma: unit.Quantity, torsion_angle: unit.Quantity, atom_idx :list, active_at: int=-1):
 
@@ -216,8 +216,9 @@ class BondRestraint(BaseDistanceRestraint):
             self.mean_bond_length = (bond_length_dict[frozenset(
                 [self.atom_i_element, self.atom_j_element])]).value_in_unit(unit.angstrom)
         except KeyError:
-            logger.critical('Bond between: {} - {}'.format(self.atom_i_element, self.atom_j_element))
-            raise KeyError('Element not implemented.')
+            logger.warning('Bond between: {} - {}'.format(self.atom_i_element, self.atom_j_element))
+            logger.warning('Falling back to 1.5 Angstrom.')
+            self.mean_bond_length = 1.5
         self.upper_bound = self.mean_bond_length + 0.2
         self.lower_bound = self.mean_bond_length - 0.2
 

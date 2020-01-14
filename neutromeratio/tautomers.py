@@ -417,8 +417,6 @@ class Tautomer(object):
         and sets parameter and restraints using the indexing of the initial state mol.
         """
 
-        self.ligand_restraints = []
-        self.hybrid_ligand_restraints = []
         m1 = copy.deepcopy(self.initial_state_mol)
         m2 = copy.deepcopy(self.final_state_mol)
         self._perform_tautomer_transformation(m1, m2, self.initial_state_ligand_bonds)
@@ -431,8 +429,6 @@ class Tautomer(object):
         and sets parameter and restraints using the indexing of the final state mol.
         """
 
-        self.ligand_restraints = []
-        self.hybrid_ligand_restraints = []
         m1 = copy.deepcopy(self.final_state_mol)
         m2 = copy.deepcopy(self.initial_state_mol)
         self._perform_tautomer_transformation(m1, m2, self.final_state_ligand_bonds)
@@ -470,9 +466,8 @@ class Tautomer(object):
         for b in mol.GetBonds():
             a1 = (b.GetBeginAtom())
             a2 = (b.GetEndAtom())
-
-            if a1.GetSymbol() == 'H' or a2.GetSymbol() == 'H':
-                bond_list.append((a1.GetIdx(), a2.GetIdx()))
+#            if a1.GetSymbol() == 'H' or a2.GetSymbol() == 'H':
+            bond_list.append((a1.GetIdx(), a2.GetIdx()))
 
         # get mdtraj topology
         n = random.randint(1, 10000000)
