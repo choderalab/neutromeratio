@@ -155,12 +155,14 @@ class Tautomer(object):
         ligand_atoms = self.final_state_ligand_atoms
         self._performe_torsion_scan(mol, ligand_atoms, torsion_idx, name, onlyANI)
 
+
     def _performe_torsion_scan(self, mol, ligand_atoms, torsion_idx, name, onlyANI):
 
         from rdkit.Chem import rdMolTransforms
         import matplotlib.pyplot as plt
         from .ani import PureANI1x
         from .ani import PureANI1ccx
+        from scipy.signal import argrelextrema
 
         model = PureANI1x()
         model = model.to(device)
@@ -174,7 +176,7 @@ class Tautomer(object):
 
         # torsion profile
         torsion_e = []
-        for i in np.linspace(0, 360, 200):
+        for i in np.linspace(-180, 180, 200):
             rdMolTransforms.SetDihedralDeg(mol.GetConformer(0), torsion_idx[0], torsion_idx[1],
                                            torsion_idx[2], torsion_idx[3], i)
             #Chem.MolToPDBFile(mol, f"test_ANI_{round(i)}.pdb")
@@ -189,6 +191,9 @@ class Tautomer(object):
             torsion_e.append((e / kT, stddev / kT, i))
 
         e, stddev, i = (zip(*torsion_e))
+
+        idxs = argrelextrema(np.array(e), np.less)
+        print(f"Minimas with ANI1x : {[int(i[int(idx)]) for idx in idxs[0]]}")
         plt.errorbar(i, list(np.array(e) - min(e)), yerr=list(np.array(stddev) - min(stddev)),
                      label='ANIx')
 
@@ -204,7 +209,7 @@ class Tautomer(object):
 
         # torsion profile
         torsion_e = []
-        for i in np.linspace(0, 360, 200):
+        for i in np.linspace(-180, 180, 200):
             rdMolTransforms.SetDihedralDeg(mol.GetConformer(0), torsion_idx[0], torsion_idx[1],
                                            torsion_idx[2], torsion_idx[3], i)
             #Chem.MolToPDBFile(mol, f"test_ANI_{round(i)}.pdb")
@@ -219,6 +224,7 @@ class Tautomer(object):
             torsion_e.append((e/kT, stddev/kT, i))
 
         e, stddev, i = (zip(*torsion_e))
+        print(f"Minimas with ANI1ccx : {[int(i[int(idx)]) for idx in idxs[0]]}")
         plt.errorbar(i, list(np.array(e) - min(e)), yerr=list(np.array(stddev) - min(stddev)),
                      label='ANIccx')
 
