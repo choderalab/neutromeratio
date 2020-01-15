@@ -213,6 +213,7 @@ class ANI1_force_and_energy(object):
         self.memory_of_energy = []
         self.memory_of_stddev = []
         self.memory_of_ensemble_bias = []
+        self.memory_of_conformation_bias = []
         print("Begin minimizing...")
         f = optimize.minimize(self._traget_energy_function, x, method='BFGS',
                               jac=True, args=(lambda_value, kappa_value),
@@ -222,9 +223,11 @@ class ANI1_force_and_energy(object):
         memory_of_energy = copy.deepcopy(self.memory_of_energy)
         memory_of_stddev = copy.deepcopy(self.memory_of_stddev)
         memory_of_ensemble_bias = copy.deepcopy(self.memory_of_ensemble_bias)
+        memory_of_conformation_bias = copy.deepcopy(self.memory_of_conformation_bias)
         self.memory_of_energy = []
         self.memory_of_stddev = []
         self.memory_of_ensemble_bias = []
+        self.memory_of_conformation_bias = []
 
         if show_plot:
             # plot 1
@@ -235,7 +238,11 @@ class ANI1_force_and_energy(object):
                      'penelty [kT]', 'ensemble_bias', 'stddev', 'ensemble stddev [kT]', 'Penalty/Ensemble stddev vs minimization step')
             # plot 3
             plotting(memory_of_energy, memory_of_ensemble_bias,
-                     'energy [kT]', 'energy', 'ensemble_bias [kT]', 'ensemble_bias', 'Penalty/Energy vs minimization step')
+                     'energy [kT]', 'energy', 'ensemble bias [kT]', 'ensemble bias', 'Penalty/Energy vs minimization step')
+
+            # plot 4
+            plotting(memory_of_energy, memory_of_conformation_bias,
+                     'energy [kT]', 'energy', 'conformation bias [kT]', 'conformation bias', 'Penalty/Energy vs minimization step')
 
         return f.x.reshape(-1, 3) * unit.angstrom, memory_of_energy
 
@@ -370,6 +377,7 @@ class ANI1_force_and_energy(object):
         F_flat = -np.array(F.value_in_unit(unit.kilojoule_per_mole/unit.angstrom).flatten(), dtype=np.float64)
         self.memory_of_energy.append(E)
         self.memory_of_stddev.append(S)
+        self.memory_of_conformation_bias.append(B)
         self.memory_of_ensemble_bias.append(P)
         return E.value_in_unit(unit.kilojoule_per_mole), F_flat
 

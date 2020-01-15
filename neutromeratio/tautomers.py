@@ -233,7 +233,7 @@ class Tautomer(object):
             from neutromeratio.psi4 import calculate_energy, mol2psi4
             # torsion profile
             torsion_e = []
-            for i in np.linspace(0, 360, 20):
+            for i in np.linspace(-180, 180, 20):
                 rdMolTransforms.SetDihedralDeg(mol.GetConformer(0), torsion_idx[0], torsion_idx[1],
                                             torsion_idx[2], torsion_idx[3], i)
                 #Chem.MolToPDBFile(mol, f"test_psi4_{round(i)}.pdb")
