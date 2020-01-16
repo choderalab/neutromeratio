@@ -421,7 +421,7 @@ def test_restraint_with_LinearAlchemicalDualTopologyANI():
     assert (is_quantity_close(energy, -216763.81517969485 * unit.kilocalorie_per_mole,
     rtol=1e-9))
 
-    torsion_b=neutromeratio.restraints.TorsionRestraint(sigma=0.3 * unit.radian,
+    torsion_b=neutromeratio.restraints.TorsionHarmonicRestraint(sigma=0.3 * unit.radian,
     torsion_angle=90* unit.degree,
     atom_idx=[10, 2, 3, 4],
     active_at=1.0)

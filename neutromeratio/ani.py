@@ -235,14 +235,13 @@ class ANI1_force_and_energy(object):
                      'energy [kT]', 'energy', 'stddev', 'ensemble stddev [kT]', 'Energy/Ensemble stddev vs minimization step')
             # plot 2
             plotting(memory_of_ensemble_bias, memory_of_stddev,
-                     'penelty [kT]', 'ensemble_bias', 'stddev', 'ensemble stddev [kT]', 'Penalty/Ensemble stddev vs minimization step')
+                     'penelty [kT]', 'ensemble_bias', 'stddev', 'ensemble stddev [kT]', 'Ensemble bias/Ensemble stddev vs minimization step')
             # plot 3
             plotting(memory_of_energy, memory_of_ensemble_bias,
-                     'energy [kT]', 'energy', 'ensemble bias [kT]', 'ensemble bias', 'Penalty/Energy vs minimization step')
-
+                     'energy [kT]', 'energy', 'ensemble bias [kT]', 'ensemble bias', 'Ensemble bias/Energy vs minimization step')
             # plot 4
             plotting(memory_of_energy, memory_of_conformation_bias,
-                     'energy [kT]', 'energy', 'conformation bias [kT]', 'conformation bias', 'Penalty/Energy vs minimization step')
+                     'energy [kT]', 'energy', 'restraint bias [kT]', 'restraint bias', 'Restraint bias/Energy vs minimization step')
 
         return f.x.reshape(-1, 3) * unit.angstrom, memory_of_energy
 

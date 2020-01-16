@@ -44,7 +44,12 @@ class Tautomer(object):
         nr of conformations that are calculated
     """
 
-    def __init__(self, name: str, initial_state_mol: Chem.Mol, final_state_mol: Chem.Mol, nr_of_conformations: int = 1, enforceChirality: bool = True):
+    def __init__(self,
+                name: str,
+                initial_state_mol: Chem.Mol,
+                final_state_mol: Chem.Mol,
+                nr_of_conformations: int = 1,
+                enforceChirality: bool = True):
 
         self.name = name
         self.nr_of_conformations = nr_of_conformations
@@ -155,7 +160,6 @@ class Tautomer(object):
         ligand_atoms = self.final_state_ligand_atoms
         self._performe_torsion_scan(mol, ligand_atoms, torsion_idx, name, onlyANI)
 
-
     def _performe_torsion_scan(self, mol, ligand_atoms, torsion_idx, name, onlyANI):
 
         from rdkit.Chem import rdMolTransforms
@@ -235,12 +239,12 @@ class Tautomer(object):
             torsion_e = []
             for i in np.linspace(-180, 180, 20):
                 rdMolTransforms.SetDihedralDeg(mol.GetConformer(0), torsion_idx[0], torsion_idx[1],
-                                            torsion_idx[2], torsion_idx[3], i)
+                                               torsion_idx[2], torsion_idx[3], i)
                 #Chem.MolToPDBFile(mol, f"test_psi4_{round(i)}.pdb")
 
                 psi4_mol = mol2psi4(mol, conformer_id=0)
                 e = calculate_energy(psi4_mol)
-                #print(f"{i}:{e}")
+                # print(f"{i}:{e}")
                 torsion_e.append((e/kT, i))
 
             e, i = (zip(*torsion_e))
@@ -257,7 +261,7 @@ class Tautomer(object):
                     diameter: unit.quantity.Quantity = (30.0 * unit.angstrom),
                     restrain_hydrogen_bonds=True,
                     restrain_hydrogen_angles=True,
-                    file=None) -> md.Trajectory:
+                    top_file=None) -> md.Trajectory:
         """
         Adding a droplet with a given diameter around a small molecule.
 
@@ -267,9 +271,9 @@ class Tautomer(object):
             topology of the molecule
         coordinates: np.array, unit'd
         diameter: float, unit'd
-        file: str
-            if file is provided the final droplet pdb is either kept and can be reused or if 
-            file already exists it will be used to create the same droplet.
+        top_file: str
+            if top_file is provided the final droplet pdb is either kept and can be reused or if 
+            top_file already exists it will be used to create the same droplet.
         Returns
         ----------
         A mdtraj.Trajectory object with the ligand centered in the solvent for inspection. 
@@ -291,9 +295,9 @@ class Tautomer(object):
         center = np.array([radius, radius, radius])
 
         # if no solvated pdb file is provided generate one
-        if file:
+        if top_file:
             # read in the file with the defined droplet
-            pdb_filepath = file
+            pdb_filepath = top_file
         else:
             # generage a one time droplet
             pdb_filepath = f"tmp{random.randint(1,10000000)}.pdb"
@@ -344,7 +348,7 @@ class Tautomer(object):
 
         # load pdb with mdtraj
         traj = md.load(pdb_filepath)
-        if not file:
+        if not top_file:
             os.remove(pdb_filepath)
 
         # set coordinates #NOTE: note the xyz[0]
@@ -411,7 +415,7 @@ class Tautomer(object):
         com_restraint = CenterOfMassRestraint(sigma=sigma, point=point, atom_idx=atom_idx, atoms=atoms)
         self.com_restraints.append(com_restraint)
 
-    def perform_tautomer_transformation_forward(self):
+    def perform_tautomer_transformation(self):
         """
         Performs a tautomer transformation from the initial state to the final state 
         and sets parameter and restraints using the indexing of the initial state mol.
@@ -422,18 +426,6 @@ class Tautomer(object):
         self._perform_tautomer_transformation(m1, m2, self.initial_state_ligand_bonds)
         self._generate_hybrid_structure(self.initial_state_ligand_atoms,
                                         self.initial_state_ligand_coords[0], self.initial_state_ligand_topology)
-
-    def perform_tautomer_transformation_reverse(self):
-        """
-        Performs a tautomer transformation from the final state to the initial state 
-        and sets parameter and restraints using the indexing of the final state mol.
-        """
-
-        m1 = copy.deepcopy(self.final_state_mol)
-        m2 = copy.deepcopy(self.initial_state_mol)
-        self._perform_tautomer_transformation(m1, m2, self.final_state_ligand_bonds)
-        self._generate_hybrid_structure(self.final_state_ligand_atoms,
-                                        self.final_state_ligand_coords[0], self.final_state_ligand_topology)
 
     def _from_mol_to_ani_input(self, mol: Chem.Mol, enforceChirality: bool):
         """
@@ -446,8 +438,8 @@ class Tautomer(object):
         for a in mol.GetAtoms():
             atom_list.append(a.GetSymbol())
 
-        if 'S' in atom_list:
-            raise NotImplementedError('Sulfur not yet included in ANI.')
+        if 'S' in atom_list or 'P' in atom_list or 'Cl' in atom_list or 'Br' in atom_list or 'I' in atom_list:
+            raise NotImplementedError('Atom not yet included in ANI.')
         # generate conformations
         mol = self._generate_conformations_from_mol(mol, self.nr_of_conformations, enforceChirality)
         # generate coord list
