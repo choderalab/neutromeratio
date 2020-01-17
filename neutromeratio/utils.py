@@ -90,8 +90,8 @@ def get_stereotag_of_stereobonds(smiles: str) -> int:
 
 def find_torsion_idx(mol: Chem.Mol) -> list:
 
-    a1_idx, a2_idx, a3_idx, a4_idx = (0,0,0,0)
-    a1, a2, a3, a4 = (None,None,None,None)
+    a1_idx, a2_idx, a3_idx, a4_idx = (0, 0, 0, 0)
+    a1, a2, a3, a4 = (None, None, None, None)
 
     for bond in mol.GetBonds():
         if str(bond.GetStereo()) == 'STEREONONE':
@@ -103,15 +103,12 @@ def find_torsion_idx(mol: Chem.Mol) -> list:
             a2_idx = bond.getEndAtomIdx()
             a2 = bond.GetEndAtom()
             break
-    
+
     if not a1:
         raise RuntimeError(f"It seems as if there is not stereobond in the molecule.")
 
     a1_neighbors = a1.atom.GetNeighbors()
     a2_neighbors = a2.atom.GetNeighbors()
-
-
-
 
 
 def change_only_stereotag(smiles: str) -> str:
@@ -158,7 +155,7 @@ def reduced_pot(E: float) -> float:
     return E / kT
 
 
-def generate_torsion_restraint_from_minimized_conformation(tautomer, lambda_value: float = 0.0):
+def generate_torsion_restraint_from_minimized_conformation(tautomer, idx: list, lambda_value: float = 0.0):
 
     from .ani import LinearAlchemicalSingleTopologyANI, ANI1_force_and_energy
     from .restraints import TorsionHarmonicRestraint
@@ -197,7 +194,7 @@ def generate_torsion_restraint_from_minimized_conformation(tautomer, lambda_valu
 
     x0 = [x0.value_in_unit(unit.nanometer)]
     ani_traj = md.Trajectory(x0, tautomer.hybrid_topology)
-    torsion = md.compute_dihedrals(ani_traj, [[1, 2, 3, 4]]) * unit.radian
+    torsion = md.compute_dihedrals(ani_traj, [idx]) * unit.radian
     torsion = torsion.value_in_unit(unit.degree)
     logger.info(f"Torsion restraint will be around: {torsion}")
 

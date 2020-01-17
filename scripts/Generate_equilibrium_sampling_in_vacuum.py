@@ -94,7 +94,7 @@ for e in energies[::20]:
     f.write('{}\n'.format(e_unitless))
 f.close()
 
-f = open(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_restraint_bi_in_vacuum_{mode}.csv", 'w+')
+f = open(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_restraint_bias_in_vacuum_{mode}.csv", 'w+')
 for e in ensemble_bias[::20]:
     e_unitless = e / kT
     f.write('{}\n'.format(e_unitless))

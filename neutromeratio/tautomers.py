@@ -167,6 +167,16 @@ class Tautomer(object):
         from .ani import PureANI1x
         from .ani import PureANI1ccx
         from scipy.signal import argrelextrema
+        
+        def _return_energy(mol, energy_function):
+            tmp_coord_list = []
+            for a in mol.GetAtoms():
+                pos = mol.GetConformer(0).GetAtomPosition(a.GetIdx())
+                tmp_coord_list.append([pos.x, pos.y, pos.z])
+            x = np.array(tmp_coord_list) * unit.angstrom
+            e, _, stddev, ___ = energy_function.calculate_energy(x)
+            return e, stddev
+
 
         model = PureANI1x()
         model = model.to(device)
@@ -183,14 +193,9 @@ class Tautomer(object):
         for i in np.linspace(-180, 180, 200):
             rdMolTransforms.SetDihedralDeg(mol.GetConformer(0), torsion_idx[0], torsion_idx[1],
                                            torsion_idx[2], torsion_idx[3], i)
+            
+            e, stddev = _return_energy(mol, energy_function)
             #Chem.MolToPDBFile(mol, f"test_ANI_{round(i)}.pdb")
-            tmp_coord_list = []
-            coord_list = []
-            for a in mol.GetAtoms():
-                pos = mol.GetConformer(0).GetAtomPosition(a.GetIdx())
-                tmp_coord_list.append([pos.x, pos.y, pos.z])
-            x = np.array(tmp_coord_list) * unit.angstrom
-            e, _, stddev, ___ = energy_function.calculate_energy(x)
             #print(f"{i}:{e} +- {stddev}")
             torsion_e.append((e / kT, stddev / kT, i))
 
@@ -211,19 +216,19 @@ class Tautomer(object):
             mol=None,
             atoms=ligand_atoms)
 
+        torsion_in_degree = rdMolTransforms.GetDihedralDeg(mol.GetConformer(0), torsion_idx[0], torsion_idx[1],
+                                           torsion_idx[2], torsion_idx[3])
+        e, stddev = _return_energy(mol, energy_function)
+        print(f"Initial, minimized torsion angle: {torsion_in_degree}")
+        print(f"Corresponding energy: {e}")
+
         # torsion profile
         torsion_e = []
         for i in np.linspace(-180, 180, 200):
             rdMolTransforms.SetDihedralDeg(mol.GetConformer(0), torsion_idx[0], torsion_idx[1],
                                            torsion_idx[2], torsion_idx[3], i)
             #Chem.MolToPDBFile(mol, f"test_ANI_{round(i)}.pdb")
-            tmp_coord_list = []
-            coord_list = []
-            for a in mol.GetAtoms():
-                pos = mol.GetConformer(0).GetAtomPosition(a.GetIdx())
-                tmp_coord_list.append([pos.x, pos.y, pos.z])
-            coord_list = np.array(tmp_coord_list) * unit.angstrom
-            e, _, stddev, ___ = energy_function.calculate_energy(coord_list)
+            e, stddev = _return_energy(mol, energy_function)
             #print(f"{i}:{e} +- {stddev}")
             torsion_e.append((e/kT, stddev/kT, i))
 
@@ -241,7 +246,6 @@ class Tautomer(object):
                 rdMolTransforms.SetDihedralDeg(mol.GetConformer(0), torsion_idx[0], torsion_idx[1],
                                                torsion_idx[2], torsion_idx[3], i)
                 #Chem.MolToPDBFile(mol, f"test_psi4_{round(i)}.pdb")
-
                 psi4_mol = mol2psi4(mol, conformer_id=0)
                 e = calculate_energy(psi4_mol)
                 # print(f"{i}:{e}")
@@ -486,7 +490,7 @@ class Tautomer(object):
         ani_input['ase_mol'] = mol
         return ani_input
 
-    def _generate_conformations_from_mol(self, mol: Chem.Mol, nr_of_conformations: int, enforceChirality: bool):
+    def _generate_conformations_from_mol(self, mol: Chem.Mol, nr_of_conformations: int, enforceChirality: bool=True):
         """
         Helper function - does not need to be called directly.
         Generates conformations from a rdkit mol object.        
@@ -510,6 +514,9 @@ class Tautomer(object):
                                                        numConfs=nr_of_conformations,
                                                        enforceChirality=enforceChirality,
                                                        ignoreSmoothingFailures=True)  # NOTE enforceChirality!
+
+        #AllChem.AlignMolConformers(mol)
+        AllChem.MMFFOptimizeMoleculeConfs(mol)
 
         assert(int(mol.GetNumConformers()) != 0)
         assert(int(mol.GetNumConformers()) == nr_of_conformations)
