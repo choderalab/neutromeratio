@@ -70,7 +70,7 @@ for tautomer in tautomers:
         energy_and_force = lambda x : energy_function.calculate_force(x, lambda_value)
         langevin = neutromeratio.LangevinDynamics(atoms=tautomer.hybrid_atoms,
                                                 energy_and_force=energy_and_force)
-
+        x0 = tautomer.hybrid_coords
         x0, e_history = energy_function.minimize(x0, maxiter=5000, lambda_value=lambda_value)
 
         equilibrium_samples, energies, ensemble_bias = langevin.run_dynamics(x0,
