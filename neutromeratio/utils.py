@@ -88,6 +88,84 @@ def get_stereotag_of_stereobonds(smiles: str) -> int:
     return stereo_tag
 
 
+def generate_tautomer_class_stereobond_aware(name: str, t1_smiles: str, t2_smiles: str, nr_of_conformations: int=1) -> list:
+    """
+    If a stereobond is present in the tautomer pair we need to transform from the molecule 
+    with the stereobond (e.g. enol) to the tautomer without the stereobond (e.g. keto). This 
+    function makes sure that this happens and returns a list of tautomers.
+    If there is no stereobond present in either tautomer, the list contains only one tautomer.
+    If there is a stereobond present the list contains two tautomers (one with cis, one with trans configuration).
+    Parameters
+    ----------
+    name: str
+        The name of the tautomer
+    t1_smiles: str
+        a SMILES string
+    t2_smiles: str
+        a SMILES string
+    nr_of_conformations: int
+        nr of conformations
+    Returns
+    ----------
+    tautomers: list
+        a list of tautomer(s)
+    """
+    
+
+    tautomers = []
+    from neutromeratio import Tautomer
+    
+    if get_nr_of_stereobonds(t1_smiles) == get_nr_of_stereobonds(t2_smiles):
+        if get_nr_of_stereobonds(t1_smiles) == 0 and get_nr_of_stereobonds(t2_smiles) == 0:
+            # no stereobond -- normal protocol
+            # generate both rdkit mol
+            logger.info('No stereobonds ...')
+            tautomers.append(Tautomer(name=name, 
+                                            initial_state_mol=generate_rdkit_mol(t1_smiles), 
+                                            final_state_mol=generate_rdkit_mol(t2_smiles), 
+                                            nr_of_conformations=nr_of_conformations))
+        else:
+            # stereobonds on both endstates
+            # we need to add a torsion bias to make sure that the lambda protocol stopp at the correct torsion
+
+            raise RuntimeError()
+    else:
+        if get_nr_of_stereobonds(t1_smiles) > get_nr_of_stereobonds(t2_smiles):
+            
+            t1_smiles_kappa_0 = t1_smiles
+            t1_smiles_kappa_1 = change_only_stereotag(t1_smiles)
+            tautomers.append(Tautomer(name=name, 
+                                            initial_state_mol=generate_rdkit_mol(t1_smiles_kappa_0), 
+                                            final_state_mol=generate_rdkit_mol(t2_smiles), 
+                                            nr_of_conformations=nr_of_conformations))
+            tautomers.append(Tautomer(name=name, 
+                                            initial_state_mol=generate_rdkit_mol(t1_smiles_kappa_1), 
+                                            final_state_mol=generate_rdkit_mol(t2_smiles), 
+                                            nr_of_conformations=nr_of_conformations))
+            
+        elif get_nr_of_stereobonds(t1_smiles) < get_nr_of_stereobonds(t2_smiles):
+            
+            t1_smiles_kappa_0 = t2_smiles
+            t1_smiles_kappa_1 = change_only_stereotag(t2_smiles)
+            t2_smiles = t1_smiles
+            tautomers.append(Tautomer(name=name, 
+                                            initial_state_mol=generate_rdkit_mol(t1_smiles_kappa_0), 
+                                            final_state_mol=generate_rdkit_mol(t2_smiles), 
+                                            nr_of_conformations=nr_of_conformations))
+            tautomers.append(Tautomer(name=name, 
+                                            initial_state_mol=generate_rdkit_mol(t1_smiles_kappa_1), 
+                                            final_state_mol=generate_rdkit_mol(t2_smiles), 
+                                            nr_of_conformations=nr_of_conformations))
+            
+
+        else:
+            raise RuntimeError()
+
+    return tautomers
+ 
+
+
+
 def find_torsion_idx(mol: Chem.Mol) -> list:
 
     a1_idx, a2_idx, a3_idx, a4_idx = (0, 0, 0, 0)

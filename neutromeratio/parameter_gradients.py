@@ -121,13 +121,13 @@ class FreeEnergyCalculator():
                 return idx  # means up to idx can be used
 
         ani_trajs = {}
-        further_thinning = 4
+        further_thinning = 10
         for lam, traj, potential_energy in zip(self.lambdas, self.ani_trajs, self.potential_energy_trajs):
             # detect equilibrium
             #equil, g = detectEquilibration(potential_energy)[:2]
             # thinn snapshots and return max_snapshots_per_window confs
             #snapshots = list(traj[int(len(traj)/2):].xyz * unit.nanometer)[::further_thinning]
-            start = int(len(traj) * 0.1) # remove first 10%
+            start = int(len(traj) * 0.2) # remove first 20%
             snapshots = list(traj[start:].xyz * unit.nanometer)[::further_thinning][:max_snapshots_per_window]
             ani_trajs[lam] = snapshots
             logger.info(f"Snapshots per lambda: {len(snapshots)}")

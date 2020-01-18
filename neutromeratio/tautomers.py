@@ -516,8 +516,6 @@ class Tautomer(object):
                                                        ignoreSmoothingFailures=True)  # NOTE enforceChirality!
 
         #AllChem.AlignMolConformers(mol)
-        AllChem.MMFFOptimizeMoleculeConfs(mol)
-
         assert(int(mol.GetNumConformers()) != 0)
         assert(int(mol.GetNumConformers()) == nr_of_conformations)
 

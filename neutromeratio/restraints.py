@@ -215,12 +215,15 @@ class BondRestraint(BaseDistanceRestraint):
         try:
             self.mean_bond_length = (bond_length_dict[frozenset(
                 [self.atom_i_element, self.atom_j_element])]).value_in_unit(unit.angstrom)
+            self.upper_bound = self.mean_bond_length + 0.4
+            self.lower_bound = self.mean_bond_length - 0.4
+
         except KeyError:
             logger.warning('Bond between: {} - {}'.format(self.atom_i_element, self.atom_j_element))
             logger.warning('Falling back to 1.5 Angstrom.')
             self.mean_bond_length = 1.5
-        self.upper_bound = self.mean_bond_length + 0.2
-        self.lower_bound = self.mean_bond_length - 0.2
+            self.upper_bound = self.mean_bond_length + 0.2
+            self.lower_bound = self.mean_bond_length - 0.2
 
 
 class AngleHarmonicRestraint(BaseAngleRestraint):
