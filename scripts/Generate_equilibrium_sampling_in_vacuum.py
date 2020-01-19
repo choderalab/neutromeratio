@@ -73,7 +73,7 @@ for tautomer in tautomers:
         x0 = tautomer.hybrid_coords
         x0, e_history = energy_function.minimize(x0, maxiter=5000, lambda_value=lambda_value)
 
-        equilibrium_samples, energies, ensemble_bias = langevin.run_dynamics(x0,
+        equilibrium_samples, energies, restraint_bias, stddev, ensemble_bias = langevin.run_dynamics(x0,
                                                                             n_steps=n_steps,
                                                                             stepsize=1.0*unit.femtosecond,
                                                                             progress_bar=False)
