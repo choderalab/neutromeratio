@@ -13,7 +13,7 @@ dependencies:
     # Testing
   - pytest
   - pytest-cov
-  - ase
+  - ase=3.18.1
   - matplotlib
   - bson
   - mdtraj
