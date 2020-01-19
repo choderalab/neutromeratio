@@ -422,7 +422,7 @@ def test_restraint_with_alchemicalANI():
         energy_function.add_restraint_to_lambda_protocol(r)
 
     energy, restraint_bias, stddev, ensemble_bias = energy_function.calculate_energy(x0, lambda_value=0.0)
-    assert(is_quantity_close(energy, -906488.6120450335 * unit.kilojoule_per_mole, rtol=1e-9))
+    assert(is_quantity_close(energy, -906499.6764037954 * unit.kilojoule_per_mole, rtol=1e-9))
 
     # test harmonic_restraint for lambda = 0.0
     energy_function.reset_lambda_restraints()
@@ -437,11 +437,11 @@ def test_restraint_with_alchemicalANI():
         energy_function.add_restraint_to_lambda_protocol(r)
 
     energy, restraint_bias, stddev, ensemble_bias = energy_function.calculate_energy(x0, lambda_value=0.0)
-    assert(is_quantity_close(energy, -906209.5063788403 * unit.kilojoule_per_mole, rtol=1e-9))
+    assert(is_quantity_close(energy, -906229.5741461891 * unit.kilojoule_per_mole, rtol=1e-9))
 
     # test harmonic_restraint for lambda = 1.0
     energy, restraint_bias, stddev, ensemble_bias = energy_function.calculate_energy(x0, lambda_value=1.0)
-    assert(is_quantity_close(energy, -906289.8835636448 * unit.kilojoule_per_mole, rtol=1e-9))
+    assert(is_quantity_close(energy, -906309.9513309937 * unit.kilojoule_per_mole, rtol=1e-9))
 
     # test harmonic_restraint and flat_bottom_restraint for lambda = 1.0
     r = []
@@ -462,7 +462,7 @@ def test_restraint_with_alchemicalANI():
         energy_function.add_restraint_to_lambda_protocol(r)
 
     energy, restraint_bias, stddev, ensemble_bias = energy_function.calculate_energy(x0, lambda_value=1.0)
-    assert(is_quantity_close(energy, -905946.8884420266 * unit.kilojoule_per_mole, rtol=1e-9))
+    assert(is_quantity_close(energy, -905978.0205681373 * unit.kilojoule_per_mole, rtol=1e-9))
 
 
 def test_restraint_with_LinearAlchemicalDualTopologyANI():
@@ -518,12 +518,12 @@ def test_restraint_with_LinearAlchemicalDualTopologyANI():
     assert(is_quantity_close(energy, -906911.9843514563 * unit.kilojoule_per_mole, rtol=1e-9))
 
     energy, restraint_bias, stddev, ensemble_bias = energy_function.calculate_energy(x0, lambda_value=0.0, kappa_value=0.5)
-    assert(is_quantity_close(restraint_bias.in_units_of(unit.kilocalorie_per_mole), 37.99564659628888 * unit.kilocalorie_per_mole))
-    assert(is_quantity_close(energy, -906753.0105660975 * unit.kilojoule_per_mole, rtol=1e-9))
+    assert(is_quantity_close(restraint_bias.in_units_of(unit.kilocalorie_per_mole), 36.76998057705375 * unit.kilocalorie_per_mole))
+    assert(is_quantity_close(energy, -906758.1387527218 * unit.kilojoule_per_mole, rtol=1e-9))
 
     energy, restraint_bias, stddev, ensemble_bias = energy_function.calculate_energy(x0, lambda_value=0.0, kappa_value=1.0)
-    assert(is_quantity_close(restraint_bias.in_units_of(unit.kilocalorie_per_mole), 75.99129319257776 * unit.kilocalorie_per_mole))
-    assert(is_quantity_close(energy, -906594.0367807385 * unit.kilojoule_per_mole, rtol=1e-9))
+    assert(is_quantity_close(restraint_bias.in_units_of(unit.kilocalorie_per_mole), 73.5399611541075 * unit.kilocalorie_per_mole))
+    assert(is_quantity_close(energy, -906604.2931539875 * unit.kilojoule_per_mole, rtol=1e-9))
 
 
 def test_min_and_single_point_energy():
@@ -783,7 +783,7 @@ def test_generating_droplet():
         energy_function.add_restraint_to_lambda_protocol(r)
 
     e, _, __, ___ = energy_function.calculate_energy(tautomer.ligand_in_water_coordinates)
-    assert(is_quantity_close(e, -15547461.878616901 * unit.kilojoule_per_mole, rtol=1e-8))
+    assert(is_quantity_close(e, -15547477.799051505 * unit.kilojoule_per_mole, rtol=1e-8))
 
 
 @pytest.mark.skipif(
