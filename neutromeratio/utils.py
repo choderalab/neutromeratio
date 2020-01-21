@@ -109,11 +109,14 @@ def generate_tautomer_class_stereobond_aware(name: str, t1_smiles: str, t2_smile
     ----------
     tautomers: list
         a list of tautomer(s)
+    flipped: bool
+        to indicate that t1/t2 SMILES have been exchanged
     """
     
 
     tautomers = []
     from neutromeratio import Tautomer
+    flipped = False
     
     if get_nr_of_stereobonds(t1_smiles) == get_nr_of_stereobonds(t2_smiles):
         if get_nr_of_stereobonds(t1_smiles) == 0 and get_nr_of_stereobonds(t2_smiles) == 0:
@@ -131,7 +134,7 @@ def generate_tautomer_class_stereobond_aware(name: str, t1_smiles: str, t2_smile
             raise RuntimeError()
     else:
         if get_nr_of_stereobonds(t1_smiles) > get_nr_of_stereobonds(t2_smiles):
-            
+            flipped = False
             t1_smiles_kappa_0 = t1_smiles
             t1_smiles_kappa_1 = change_only_stereotag(t1_smiles)
             tautomers.append(Tautomer(name=name, 
@@ -144,7 +147,7 @@ def generate_tautomer_class_stereobond_aware(name: str, t1_smiles: str, t2_smile
                                             nr_of_conformations=nr_of_conformations))
             
         elif get_nr_of_stereobonds(t1_smiles) < get_nr_of_stereobonds(t2_smiles):
-            
+            flipped = True
             t1_smiles_kappa_0 = t2_smiles
             t1_smiles_kappa_1 = change_only_stereotag(t2_smiles)
             t2_smiles = t1_smiles
@@ -161,7 +164,7 @@ def generate_tautomer_class_stereobond_aware(name: str, t1_smiles: str, t2_smile
         else:
             raise RuntimeError()
 
-    return tautomers
+    return tautomers, flipped
  
 
 
