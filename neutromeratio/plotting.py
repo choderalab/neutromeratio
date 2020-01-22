@@ -19,6 +19,7 @@ def plot_correlation_analysis(
     y_label: str,
     nsamples=5000,
     mark_tautomer_names: list = [],
+    remove_mols: list = []
 ):
     """Plot correlation between x and y.
 
@@ -44,11 +45,20 @@ def plot_correlation_analysis(
     plt.text(-20.0, 20.0, r"$\rho = {}$".format(r), fontsize=fontsize)
     plt.text(-20.0, 17.0, r"RMSE$ = {}$".format(rmse), fontsize=fontsize)
 
-    for X, Y, name in zip(df.x, df.y, df.names):
-        ax.scatter(X, Y, color='blue', s=15, alpha=0.6)
-        # mark tautomer pairs that behave strangly
-        if name in mark_tautomer_names:
-            ax.annotate(str(name), (X, Y), fontsize=10)
+    try:
+        for X, Y, name, error in zip(df.x, df.y, df.names, df.y-error):
+            ax.errorbar(X, Y, error, color='blue', s=15, alpha=0.6)
+            # mark tautomer pairs that behave strangly
+            if name in mark_tautomer_names:
+                ax.annotate(str(name), (X, Y), fontsize=10)
+            
+
+    except UnboundLocalError:
+        for X, Y, name in zip(df.x, df.y, df.names):
+            ax.scatter(X, Y, color='blue', s=15, alpha=0.6)
+            # mark tautomer pairs that behave strangly
+            if name in mark_tautomer_names:
+                ax.annotate(str(name), (X, Y), fontsize=10)
 
     # draw lines +- 1kcal/mol
     ax.plot((-22.0, 22.0), (-22.0, 22.0), "k--", zorder=-1, linewidth=1., alpha=0.5)
