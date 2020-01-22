@@ -36,8 +36,8 @@ def flag_unspec_stereo(smiles: str):
     m = Chem.AddHs(m)
 
     unspec = False
-    Chem.FindPotentialStereoBonds(mol)
-    for bond in mol.GetBonds():
+    Chem.FindPotentialStereoBonds(m)
+    for bond in m.GetBonds():
         if bond.GetStereo() == Chem.BondStereo.STEREOANY:
             print(bond.GetBeginAtom().GetSymbol(), bond.GetSmarts(), bond.GetEndAtom().GetSymbol())
             unspec = True
@@ -48,8 +48,8 @@ def decide_unspec_stereo(smiles: str) -> str:
     m = Chem.MolFromSmiles(smiles)
     m = Chem.AddHs(m)
 
-    Chem.FindPotentialStereoBonds(mol)
-    for bond in mol.GetBonds():
+    Chem.FindPotentialStereoBonds(m)
+    for bond in m.GetBonds():
         if bond.GetStereo() == Chem.BondStereo.STEREOANY:
             print(bond.GetBeginAtom().GetSymbol(), bond.GetSmarts(), bond.GetEndAtom().GetSymbol())
             bond.SetStereo = Chem.BondStereo.STEREOE
