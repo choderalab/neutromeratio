@@ -228,7 +228,7 @@ def change_stereobond_in_imine_to_trans(mol: Chem.Mol) -> Chem.Mol:
     Chem.FindPotentialStereoBonds(mol)
     for bond in mol.GetBonds():
         if bond.GetStereo() == Chem.BondStereo.STEREOANY:
-            logger.info(bond.GetBeginAtom().GetSymbol(), bond.GetSmarts(), bond.GetEndAtom().GetSymbol())
+            logger.info(f"{bond.GetBeginAtom().GetSymbol()} {bond.GetSmarts()} {bond.GetEndAtom().GetSymbol()}")
             bond.SetStereo(Chem.BondStereo.STEREOE)
 
     return mol
@@ -238,7 +238,7 @@ def change_stereobond_in_imine_to_cis(mol: Chem.Mol) -> Chem.Mol:
     Chem.FindPotentialStereoBonds(mol)
     for bond in mol.GetBonds():
         if bond.GetStereo() == Chem.BondStereo.STEREOANY:
-            logger.info(bond.GetBeginAtom().GetSymbol(), bond.GetSmarts(), bond.GetEndAtom().GetSymbol())
+            logger.info(f"{bond.GetBeginAtom().GetSymbol()} {bond.GetSmarts()} {bond.GetEndAtom().GetSymbol()}")
             bond.SetStereo(Chem.BondStereo.STEREOZ)
 
     return mol
