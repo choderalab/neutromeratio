@@ -24,7 +24,6 @@ base_path = str(sys.argv[3])
 # env
 env = str(sys.argv[4])
 assert(env == 'droplet' or env == 'vacuum')
-
 # diameter
 if env == 'droplet':
     diameter_in_angstrom = int(sys.argv[5])
@@ -59,7 +58,7 @@ for tautomer in tautomers:
                             diameter=diameter_in_angstrom * unit.angstrom,
                             restrain_hydrogen_bonds=True,
                             restrain_hydrogen_angles=False,
-                            file=f"{base_path}/{name}/{name}_in_droplet_{mode}.pdb")
+                            file=f"{base_path}/{name}/{name}_in_droplet.pdb")
     else:
         pdb_filepath = f"{base_path}/{name}/{name}_{kappa_value}.pdb"
         try:
