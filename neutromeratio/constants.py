@@ -153,4 +153,12 @@ exclude_set = ['molDWRow_1004',
                'molDWRow_990',
                'molDWRow_991',
                'molDWRow_992',
-               'molDWRow_993']
+               'molDWRow_993',
+               'molDWRow_1676',  # two hydrogens are swichting place
+               'molDWRow_287', # zwitterion
+               'molDWRow_400', # zwitterion
+               'molDWRow_412', # zwitterion
+               'molDWRow_412',  # zwitterion
+               'molDWRow_651',  # zwitterion
+
+               ]
