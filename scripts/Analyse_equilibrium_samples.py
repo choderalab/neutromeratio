@@ -151,6 +151,6 @@ for tautomer in tautomers:
     
     print(fec.end_state_free_energy_difference)
     f = open(f"{base_path}/energies_filtered.csv", 'a+')
-    f.write(f"{name}, {DeltaF_ji}, {dDeltaF_ji}, {round(kappa)}\n")
+    f.write(f"{name}, {DeltaF_ji}, {dDeltaF_ji}, {round(kappa_value)}\n")
     f.close()
-    kappa += 1.0
+    kappa_value += 1.0
