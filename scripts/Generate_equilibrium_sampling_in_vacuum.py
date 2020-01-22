@@ -28,7 +28,7 @@ for name in sorted(exp_results):
     if name in exclude_set:
         continue
     for lamb in np.linspace(0, 1, 11):
-        protocol.append(name, lamb)
+        protocol.append((name, lamb))
 
 name, lambda_value = protocol[idx-1]
 print(name)
@@ -49,7 +49,7 @@ for tautomer in tautomers:
 
     try:
         traj = md.load(pdb_filepath)
-    except FileNotFoundError:
+    except OSError:
         coordinates = tautomer.hybrid_coords
         traj = md.Trajectory(coordinates.value_in_unit(unit.nanometer), tautomer.hybrid_topology)
         traj.save_pdb(pdb_filepath)
@@ -96,6 +96,14 @@ for tautomer in tautomers:
         f.write('{}\n'.format(e_unitless))
     f.close()
 
+    # save stddev energy values
+    f = open(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_kappa_{kappa_value:0.4f}_stddev_in_vacuum.csv", 'w+')
+    for e in stddev[::20]:
+        e_unitless = e / kT
+        f.write('{}\n'.format(e_unitless))
+    f.close()
+
+    # save restraint bias values
     f = open(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_kappa_{kappa_value:0.4f}_restraint_bias_in_vacuum.csv", 'w+')
     for e in ensemble_bias[::20]:
         e_unitless = e / kT
