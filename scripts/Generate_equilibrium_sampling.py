@@ -120,7 +120,7 @@ for tautomer in tautomers:
     # save equilibrium energy values
     # save equilibrium energy values 
     for global_list, poperty_name in zip([energies, stddev, restraint_bias, ensemble_bias], ['energy', 'stddev', 'restraint_bias', 'ensemble_bias']):
-        f = open(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_{poperty_name}_in_{env}.csv", 'w+')
+        f = open(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_{poperty_name}_kappa_{kappa_value:0.4f}_in_{env}.csv", 'w+')
         for e in global_list[::20]:
             e_unitless = e / kT
             f.write('{}\n'.format(e_unitless))
