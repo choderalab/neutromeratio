@@ -220,10 +220,10 @@ class BondRestraint(BaseDistanceRestraint):
 
         except KeyError:
             logger.warning('Bond between: {} - {}'.format(self.atom_i_element, self.atom_j_element))
-            logger.warning('Falling back to 1.5 Angstrom.')
-            self.mean_bond_length = 1.5
-            self.upper_bound = self.mean_bond_length + 0.2
-            self.lower_bound = self.mean_bond_length - 0.2
+            logger.warning('Falling back to 1.3 +- 0.5 Angstrom.')
+            self.mean_bond_length = 1.3
+            self.upper_bound = self.mean_bond_length + 0.5
+            self.lower_bound = self.mean_bond_length - 0.5
 
 
 class AngleHarmonicRestraint(BaseAngleRestraint):
