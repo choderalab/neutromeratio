@@ -60,7 +60,7 @@ for tautomer in tautomers:
                             restrain_hydrogen_angles=False,
                             file=f"{base_path}/{name}/{name}_in_droplet.pdb")
     else:
-        pdb_filepath = f"{base_path}/{name}/{name}_{kappa_value}.pdb"
+        pdb_filepath = f"{base_path}/{name}/{name}_{round(kappa_value)}.pdb"
         try:
             traj = md.load(pdb_filepath)
         except OSError:
