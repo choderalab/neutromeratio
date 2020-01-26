@@ -175,7 +175,7 @@ def generate_tautomer_class_stereobond_aware(name: str, t1_smiles: str, t2_smile
                                     nr_of_conformations=nr_of_conformations))
 
         else:
-            raise RuntimeError()
+            raise RuntimeError('Stereobonds present in both tautomers ... aborting!')
 
     elif get_nr_of_stereobonds(t1_smiles) == get_nr_of_stereobonds(t2_smiles):
         if get_nr_of_stereobonds(t1_smiles) == 0 and get_nr_of_stereobonds(t2_smiles) == 0:
@@ -218,7 +218,7 @@ def generate_tautomer_class_stereobond_aware(name: str, t1_smiles: str, t2_smile
                                 nr_of_conformations=nr_of_conformations))
 
     else:
-        raise RuntimeError()
+        raise RuntimeError('Stereobonds present in both tautomers ... aborting!')
 
     return tautomers, flipped
 
