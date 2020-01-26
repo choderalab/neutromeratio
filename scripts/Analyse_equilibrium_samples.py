@@ -1,3 +1,4 @@
+import operator
 import neutromeratio
 from openmmtools.constants import kB
 from simtk import unit
@@ -11,8 +12,9 @@ from neutromeratio.parameter_gradients import FreeEnergyCalculator
 from neutromeratio.constants import kT, device, exclude_set
 from glob import glob
 
+
 def parse_lambda_from_dcd_filename(dcd_filename, env):
-    l = dcd_filename[:dcd_filename.find(f"_energy_in_{env}")].split('_')   
+    l = dcd_filename[:dcd_filename.find(f"_energy_in_{env}")].split('_')
     kappa = l[-3]
     lam = l[-5]
     return float(kappa), float(lam)
@@ -28,11 +30,11 @@ idx = int(sys.argv[1])
 # where to write the results
 base_path = str(sys.argv[2])
 env = str(sys.argv[3])
-per_atom_stddev_threshold = float(sys.argv[4]) # in kJ/mol
+per_atom_stddev_threshold = float(sys.argv[4])  # in kJ/mol
 assert(env == 'droplet' or env == 'vacuum')
 # diameter
 if env == 'droplet':
-   diameter_in_angstrom = int(sys.argv[5])
+    diameter_in_angstrom = int(sys.argv[5])
 #######################
 #######################
 # read in exp results, smiles and names
@@ -55,16 +57,18 @@ t2_smiles = exp_results[name]['t2-smiles']
 
 
 tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
-kappa_value = 0.0
-for tautomer in tautomers:
-    
-    tautomer.perform_tautomer_transformation()  
+results = []
+uncertainty = []
+
+for kappa_value, tautomer in enumerate(tautomers):
+    kappa_value = float(kappa_value)
+    tautomer.perform_tautomer_transformation()
     if env == 'droplet':
-        tautomer.add_droplet(tautomer.hybrid_topology, 
-                                    tautomer.hybrid_coords, 
-                                    diameter=diameter_in_angstrom * unit.angstrom,
-                                    restrain_hydrogens=True,
-                                    file=f"{base_path}/{name}/{name}_in_droplet_{mode}.pdb")
+        tautomer.add_droplet(tautomer.hybrid_topology,
+                             tautomer.hybrid_coords,
+                             diameter=diameter_in_angstrom * unit.angstrom,
+                             restrain_hydrogens=True,
+                             file=f"{base_path}/{name}/{name}_in_droplet_{mode}.pdb")
 
         print('Nr of atoms: {}'.format(len(tautomer.ligand_in_water_atoms)))
         atoms = tautomer.ligand_in_water_atoms
@@ -74,8 +78,7 @@ for tautomer in tautomers:
         top = tautomer.hybrid_topology
 
     # define the alchemical atoms
-    alchemical_atoms=[tautomer.hybrid_hydrogen_idx_at_lambda_1, tautomer.hybrid_hydrogen_idx_at_lambda_0]
-
+    alchemical_atoms = [tautomer.hybrid_hydrogen_idx_at_lambda_1, tautomer.hybrid_hydrogen_idx_at_lambda_0]
 
     # extract hydrogen donor idx and hydrogen idx for from_mol
     model = neutromeratio.ani.LinearAlchemicalSingleTopologyANI(alchemical_atoms=alchemical_atoms)
@@ -85,13 +88,12 @@ for tautomer in tautomers:
 
     # perform initial sampling
     energy_function = neutromeratio.ANI1_force_and_energy(
-                                            model = model,
-                                            atoms = atoms,
-                                            mol=None,
-                                            per_atom_thresh=10.4 * unit.kilojoule_per_mole,
-                                            adventure_mode=True
-                                            )
-
+        model=model,
+        atoms=atoms,
+        mol=None,
+        per_atom_thresh=10.4 * unit.kilojoule_per_mole,
+        adventure_mode=True
+    )
 
     for r in tautomer.ligand_restraints:
         energy_function.add_restraint_to_lambda_protocol(r)
@@ -99,15 +101,13 @@ for tautomer in tautomers:
     for r in tautomer.hybrid_ligand_restraints:
         energy_function.add_restraint_to_lambda_protocol(r)
 
-
     if env == 'droplet':
-        tautomer.add_COM_for_hybrid_ligand(np.array([diameter_in_angstrom/2, diameter_in_angstrom/2, diameter_in_angstrom/2]) * unit.angstrom)
+        tautomer.add_COM_for_hybrid_ligand(
+            np.array([diameter_in_angstrom/2, diameter_in_angstrom/2, diameter_in_angstrom/2]) * unit.angstrom)
         for r in tautomer.solvent_restraints:
             energy_function.add_restraint_to_lambda_protocol(r)
         for r in tautomer.com_restraints:
             energy_function.add_restraint_to_lambda_protocol(r)
-
-
 
     # get steps inclusive endpoints
     # and lambda values in list
@@ -124,33 +124,36 @@ for tautomer in tautomers:
         kappas.append(kappa)
         traj = md.load_dcd(dcd_filename, top=tautomer.hybrid_topology)[::thinning]
         print(f"Nr of frames in trajectory: {len(traj)}")
-        ani_trajs.append(traj)  
-        f = open(f"{base_path}/{name}/{name}_lambda_{lam:0.4f}_kappa_{kappa:0.4f}_energy_in_{env}.csv", 'r')  
+        ani_trajs.append(traj)
+        f = open(f"{base_path}/{name}/{name}_lambda_{lam:0.4f}_kappa_{kappa:0.4f}_energy_in_{env}.csv", 'r')
         energies.append(np.array([float(e) for e in f][::thinning]))
         f.close()
 
     # plotting the energies for all equilibrium runs
-    for e in energies: 
+    for e in energies:
         plt.plot(e, alpha=0.5)
     plt.show()
     plt.savefig(f"{base_path}/{name}/{name}_energy.png")
 
     # calculate free energy in kT
-    fec = FreeEnergyCalculator(ani_model=energy_function, 
-                                ani_trajs=ani_trajs, 
-                                potential_energy_trajs=energies, 
-                                lambdas=lambdas,
-                                n_atoms=len(atoms),
-                                max_snapshots_per_window=-1,
-                                per_atom_thresh=per_atom_stddev_threshold * unit.kilojoule_per_mole)
+    fec = FreeEnergyCalculator(ani_model=energy_function,
+                               ani_trajs=ani_trajs,
+                               potential_energy_trajs=energies,
+                               lambdas=lambdas,
+                               n_atoms=len(atoms),
+                               max_snapshots_per_window=-1,
+                               per_atom_thresh=per_atom_stddev_threshold * unit.kilojoule_per_mole)
 
-    
     DeltaF_ji, dDeltaF_ji = fec.end_state_free_energy_difference
     if flipped:
         DeltaF_ji *= -1
-    
+
+    results.append(DeltaF_ji)
+    uncertainty.append(dDeltaF_ji)
     print(fec.end_state_free_energy_difference)
-    f = open(f"{base_path}/energies_filtered.csv", 'a+')
-    f.write(f"{name}, {DeltaF_ji}, {dDeltaF_ji}, {round(kappa_value)}\n")
-    f.close()
-    kappa_value += 1.0
+
+min_index, min_value = min(enumerate(results), key=operator.itemgetter(1))
+
+f = open(f"{base_path}/energies_filtered.csv", 'a+')
+f.write(f"{name}, {results[min_index]}, {uncertainty[min_index]}\n")
+f.close()
