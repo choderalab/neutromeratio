@@ -162,6 +162,7 @@ def generate_tautomer_class_stereobond_aware(name: str, t1_smiles: str, t2_smile
                                     nr_of_conformations=nr_of_conformations))
         
         elif flag_unspec_stereo(t2_smiles):
+            flipped = True
             t2_kappa_0 = change_stereobond_in_imine_to_cis(generate_rdkit_mol(t2_smiles))
             t2_kappa_1 = change_stereobond_in_imine_to_trans(generate_rdkit_mol(t2_smiles))
             tautomers.append(Tautomer(name=name,
@@ -191,7 +192,6 @@ def generate_tautomer_class_stereobond_aware(name: str, t1_smiles: str, t2_smile
 
             raise RuntimeError()
     elif get_nr_of_stereobonds(t1_smiles) > get_nr_of_stereobonds(t2_smiles):
-        flipped = False
         t1_smiles_kappa_0 = t1_smiles
         t1_smiles_kappa_1 = change_only_stereobond(t1_smiles)
         tautomers.append(Tautomer(name=name,
