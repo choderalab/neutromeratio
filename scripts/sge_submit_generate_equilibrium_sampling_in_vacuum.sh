@@ -18,4 +18,4 @@ conda activate ani36v2
 # nr of jobs: 400
 base_path="/data/cluster/projects/neutromeratio/data/equilibrium_sampling/vacuum-stereo/${name}"
 cd /home/mwieder/Work/Projects/neutromeratio/scripts
-python Generate_equilibrium_sampling_in_vacuum.py ${idx} ${n_steps} ${base_path} "vacuum"
+python Generate_equilibrium_sampling.py ${idx} ${n_steps} ${base_path} "vacuum"
