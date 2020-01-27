@@ -833,7 +833,7 @@ def test_generating_droplet():
         energy_function.add_restraint_to_lambda_protocol(r)
 
     e, _, __, ___ = energy_function.calculate_energy(tautomer.ligand_in_water_coordinates)
-    assert(is_quantity_close(e, -15547477.799051505 * unit.kilojoule_per_mole, rtol=1e-8))
+    assert(is_quantity_close(e, -15547479.771537919 * unit.kilojoule_per_mole, rtol=1e-7))
 
 
 @pytest.mark.skipif(
