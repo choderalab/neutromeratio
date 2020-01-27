@@ -160,5 +160,7 @@ exclude_set = ['molDWRow_1004',
                'molDWRow_412', # zwitterion
                'molDWRow_412',  # zwitterion
                'molDWRow_651',  # zwitterion
-
                ]
+
+
+

@@ -219,8 +219,8 @@ class BondRestraint(BaseDistanceRestraint):
             self.lower_bound = self.mean_bond_length - 0.4
 
         except KeyError:
-            logger.warning('Bond between: {} - {}'.format(self.atom_i_element, self.atom_j_element))
-            logger.warning('Falling back to 1.3 +- 0.5 Angstrom.')
+            #logger.degub('Bond between: {} - {}'.format(self.atom_i_element, self.atom_j_element))
+            #logger.degub('Falling back to 1.3 +- 0.5 Angstrom.')
             self.mean_bond_length = 1.3
             self.upper_bound = self.mean_bond_length + 0.5
             self.lower_bound = self.mean_bond_length - 0.5

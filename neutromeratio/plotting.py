@@ -46,19 +46,20 @@ def plot_correlation_analysis(
     plt.text(-20.0, 17.0, r"RMSE$ = {}$".format(rmse), fontsize=fontsize)
 
     try:
-        for X, Y, name, error in zip(df.x, df.y, df.names, df.y-error):
-            ax.errorbar(X, Y, error, color='blue', s=15, alpha=0.6)
+        for X, Y, name, error in zip(df.x, df.y, df.names, df.yerror):
+            ax.errorbar(X, Y, yerr=error, color='blue', fmt='--o', alpha=0.6, ecolor='g', capthick=2)
             # mark tautomer pairs that behave strangly
             if name in mark_tautomer_names:
                 ax.annotate(str(name), (X, Y), fontsize=10)
-            
+        logger.info('Plotting with y-error bars')   
 
-    except UnboundLocalError:
+    except AttributeError:
         for X, Y, name in zip(df.x, df.y, df.names):
             ax.scatter(X, Y, color='blue', s=15, alpha=0.6)
             # mark tautomer pairs that behave strangly
             if name in mark_tautomer_names:
                 ax.annotate(str(name), (X, Y), fontsize=10)
+        logger.info('Plotting without y-error bars')   
 
     # draw lines +- 1kcal/mol
     ax.plot((-22.0, 22.0), (-22.0, 22.0), "k--", zorder=-1, linewidth=1., alpha=0.5)
