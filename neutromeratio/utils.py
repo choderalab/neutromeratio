@@ -145,9 +145,11 @@ def generate_tautomer_class_stereobond_aware(name: str, t1_smiles: str, t2_smile
     tautomers = []
     from neutromeratio import Tautomer
     flipped = False
+    stereobond_type = None
 
     if flag_unspec_stereo(t1_smiles) or flag_unspec_stereo(t2_smiles):
         logger.info("Imines present ... switching to imine generation.")
+        stereobond_type = 'Imine'
 
         if flag_unspec_stereo(t1_smiles):
             t1_kappa_0 = change_stereobond_in_imine_to_cis(generate_rdkit_mol(t1_smiles))
@@ -192,6 +194,7 @@ def generate_tautomer_class_stereobond_aware(name: str, t1_smiles: str, t2_smile
 
             raise RuntimeError()
     elif get_nr_of_stereobonds(t1_smiles) > get_nr_of_stereobonds(t2_smiles):
+        stereobond_type = 'generic'
         t1_smiles_kappa_0 = t1_smiles
         t1_smiles_kappa_1 = change_only_stereobond(t1_smiles)
         tautomers.append(Tautomer(name=name,
@@ -204,6 +207,7 @@ def generate_tautomer_class_stereobond_aware(name: str, t1_smiles: str, t2_smile
                                 nr_of_conformations=nr_of_conformations))
 
     elif get_nr_of_stereobonds(t1_smiles) < get_nr_of_stereobonds(t2_smiles):
+        stereobond_type = 'generic'
         flipped = True
         t1_smiles_kappa_0 = t2_smiles
         t1_smiles_kappa_1 = change_only_stereobond(t2_smiles)
@@ -220,7 +224,7 @@ def generate_tautomer_class_stereobond_aware(name: str, t1_smiles: str, t2_smile
     else:
         raise RuntimeError('Stereobonds present in both tautomers ... aborting!')
 
-    return tautomers, flipped
+    return stereobond_type, tautomers, flipped
 
 
 def change_stereobond_in_imine_to_trans(mol: Chem.Mol) -> Chem.Mol:
