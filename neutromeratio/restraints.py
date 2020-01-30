@@ -76,7 +76,6 @@ class BaseTorsionRestraint(object):
             Integer to indicate at which state the restraint is fully active. Either 0 (for 
             lambda 0), or 1 (for lambda 1) or -1 (always active)
         """
-
         assert(type(sigma) == unit.Quantity)
         assert(type(torsion_angle) == unit.Quantity)
 
@@ -84,12 +83,31 @@ class BaseTorsionRestraint(object):
         self.device = device
         assert(active_at ==1 or active_at == 0 or active_at ==-1 or active_at == -2)
         self.active_at = active_at
-        self.target_torsion_angle_in_degree = torsion_angle.value_in_unit(unit.degree)
+        self.target_torsion_angle_in_degree = torch.tensor(torsion_angle.value_in_unit(unit.degree),
+                              dtype=torch.double,
+                              device=self.device,
+                              requires_grad=True)
+        
         self.k = torch.tensor(k.value_in_unit((unit.kilo * unit.joule) / ((unit.degree ** 2) * unit.mole)),
                               dtype=torch.double,
                               device=self.device,
                               requires_grad=True)
 
+    @staticmethod
+    def _wrap(x):
+        return x - 360 * torch.floor((x + 180)/360)
+    
+    @staticmethod
+    def _torsion(dxij, dxjk, dxkl):
+        c1 = torch.cross(dxjk, dxkl)
+        c2 = torch.cross(dxij, dxjk)
+
+        p1 = torch.sum(dxij * c1)
+        p1 *= torch.sqrt(torch.sum(dxjk * dxjk))
+        p2 = torch.sum(c1 * c2)
+
+        torsion = torch.atan2(p1, p2)
+        return torsion
 
 
 class TorsionFlatBottomRestraint(BaseTorsionRestraint):
@@ -110,13 +128,9 @@ class TorsionFlatBottomRestraint(BaseTorsionRestraint):
         self.allowed_deviation = 60 # degree
 
         logger.info(f"FlatBottomRestraint is set ...")
-        logger.info(f"Equilibrium torsion: {self.target_torsion_angle_in_degree}")
+        logger.info(f"Equilibrium torsion: {self.target_torsion_angle_in_degree.item()}")
         logger.info(f"Allowed deviation : {self.allowed_deviation}")
     
-    @staticmethod
-    def _wrap(x):
-        return x - 360 * np.floor((x + 180)/360)
-
     def _calculate_torsion(self, x):
         # calculating torsion -- taken from here: https://github.com/mdtraj/mdtraj/blob/master/mdtraj/geometry/dihedral.py
 
@@ -124,15 +138,7 @@ class TorsionFlatBottomRestraint(BaseTorsionRestraint):
         dxij = (x[0][self.atom_j] - x[0][self.atom_i])
         dxjk = (x[0][self.atom_k] - x[0][self.atom_j])
         dxkl = (x[0][self.atom_l] - x[0][self.atom_k])
-
-        c1 = torch.cross(dxjk, dxkl)
-        c2 = torch.cross(dxij, dxjk)
-
-        p1 = torch.sum(dxij * c1)
-        p1 *= torch.sqrt(torch.sum(dxjk * dxjk))
-        p2 = torch.sum(c1 * c2)
-
-        torsion = torch.atan2(p1,p2)
+        torsion = self._torsion(dxij, dxjk, dxkl)
         return torsion * conversion_factor_radian_to_degree
 
 
@@ -155,10 +161,11 @@ class TorsionFlatBottomRestraint(BaseTorsionRestraint):
             x = torch.tensor([x.value_in_unit(unit.nanometer)],
                             requires_grad=True, device=self.device, dtype=torch.float32)
             
+
         current_torsion_in_degree = self._calculate_torsion(x)
-        logger.debug('Wrapped diff: {}'.format(abs(self._wrap(current_torsion_in_degree.item() + self.target_torsion_angle_in_degree))))
-        if abs(self._wrap(current_torsion_in_degree.item() + self.target_torsion_angle_in_degree)) > self.allowed_deviation:
-            e = (self.k/2) * (self.target_torsion_angle_in_degree - current_torsion_in_degree)**2
+        logger.debug('Wrapped diff: {}'.format((self._wrap(current_torsion_in_degree + self.target_torsion_angle_in_degree).abs())))
+        if (self._wrap(current_torsion_in_degree + self.target_torsion_angle_in_degree)).abs() > self.allowed_deviation:
+            e = (self.k/2) * self._wrap(self.target_torsion_angle_in_degree - current_torsion_in_degree)**2
         else:
             e = torch.tensor(0.0, dtype=torch.double, device=self.device)
 
@@ -191,15 +198,7 @@ class TorsionHarmonicRestraint(BaseTorsionRestraint):
         dxij = (x[0][self.atom_j] - x[0][self.atom_i])
         dxjk = (x[0][self.atom_k] - x[0][self.atom_j])
         dxkl = (x[0][self.atom_l] - x[0][self.atom_k])
-
-        c1 = torch.cross(-dxjk, -dxkl)
-        c2 = torch.cross(dxij, -dxjk)
-
-        p1 = torch.sum(dxij * c1)
-        p1 *= torch.norm(dxjk)
-        p2 = torch.sum(c1 * c2)
-
-        torsion = torch.atan2(p1,p2)
+        torsion = self._torsion(dxij, dxjk, dxkl)
         return torsion * conversion_factor_radian_to_degree
 
 
@@ -225,7 +224,9 @@ class TorsionHarmonicRestraint(BaseTorsionRestraint):
 
         current_torsion_in_degree = self._calculate_torsion(x)
 
-        e = (0.5 * self.k) * (self.target_torsion_angle_in_degree - current_torsion_in_degree)**2
+        e = (0.5 * self.k) * self._wrap(self.target_torsion_angle_in_degree - current_torsion_in_degree)**2
+        logging.debug('Current torsion: {:0.4f}'.format(current_torsion_in_degree.item()))
+        
         logging.debug('Torsion harmonic restraint restraint_bias introduced: {:0.4f}'.format(e.item()))
         return e.to(device=self.device)
 
@@ -298,8 +299,8 @@ class BondRestraint(BaseDistanceRestraint):
             #logger.degub('Bond between: {} - {}'.format(self.atom_i_element, self.atom_j_element))
             #logger.degub('Falling back to 1.3 +- 0.5 Angstrom.')
             self.mean_bond_length = 1.3
-            self.upper_bound = self.mean_bond_length + 0.5
-            self.lower_bound = self.mean_bond_length - 0.5
+            self.upper_bound = self.mean_bond_length + 0.3
+            self.lower_bound = self.mean_bond_length - 0.3
 
 
 class AngleHarmonicRestraint(BaseAngleRestraint):
