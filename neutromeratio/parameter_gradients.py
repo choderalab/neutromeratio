@@ -22,6 +22,7 @@ class FreeEnergyCalculator():
                  potential_energy_trajs: list,
                  lambdas: list,
                  n_atoms: int,
+                 bias : np.ndarray,
                  per_atom_thresh: unit.Quantity = 0.5*unit.kilojoule_per_mole,
                  max_snapshots_per_window=50,
                  ):
@@ -73,7 +74,10 @@ class FreeEnergyCalculator():
             [get_mix(lambda0_e, lambda1_e, lam) for lam in sorted(used_lambdas)]
         )
 
-        self.mbar = MBAR(u_kn, N_k)
+        bias = np.stack(
+            [[bias[lam].restraint(x).detach().numpy() for x in snapshots] for lam in sorted(used_lambdas)]
+        )
+        self.mbar = MBAR(u_kn + bias, N_k)
 
     def remove_confs_with_high_stddev(self, max_snapshots_per_window: int, per_atom_thresh: float):
         """
@@ -128,7 +132,7 @@ class FreeEnergyCalculator():
             # thinn snapshots and return max_snapshots_per_window confs
             #snapshots = list(traj[int(len(traj)/2):].xyz * unit.nanometer)[::further_thinning]
             start = int(len(traj) * 0.2) # remove first 20%
-            snapshots = list(traj[start:].xyz * unit.nanometer)[::further_thinning][:max_snapshots_per_window]
+            snapshots = list(traj[start:].xyz * unit.nanometer)[:max_snapshots_per_window]
             ani_trajs[lam] = snapshots
             logger.info(f"Snapshots per lambda: {len(snapshots)}")
 

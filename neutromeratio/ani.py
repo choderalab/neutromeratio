@@ -329,6 +329,7 @@ class ANI1_force_and_energy(object):
 
         restraint_bias_in_kJ_mol = self._compute_restraint_bias(
             coordinates, lambda_value=lambda_value, kappa_value=kappa_value)
+        logger.debug(restraint_bias_in_kJ_mol)
         energy_in_kJ_mol += restraint_bias_in_kJ_mol
 
         if self.adventure_mode == False:

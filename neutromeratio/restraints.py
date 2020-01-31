@@ -30,7 +30,7 @@ class BaseDistanceRestraint(object):
         assert(type(sigma) == unit.Quantity)
         k = (kB * temperature) / (sigma**2)
         self.device = device
-        assert(active_at ==1 or active_at == 0 or active_at ==-1 or active_at == -2)
+        assert(active_at == 1 or active_at == 0 or active_at == -1 or active_at == -2)
         self.active_at = active_at
         self.k = torch.tensor(k.value_in_unit((unit.kilo * unit.joule) / ((unit.angstrom ** 2) *
                                                                           unit.mole)), dtype=torch.double, device=self.device, requires_grad=True)
@@ -55,14 +55,13 @@ class BaseAngleRestraint(object):
         assert(type(sigma) == unit.Quantity)
         k = (kB * temperature) / (sigma**2)  # k = 34.2159 kcal/mol*rad**2
         self.device = device
-        assert(active_at ==1 or active_at == 0 or active_at ==-1 or active_at == -2)
+        assert(active_at == 1 or active_at == 0 or active_at == -1 or active_at == -2)
         self.active_at = active_at
         self.k = torch.tensor(k.value_in_unit((unit.kilo * unit.joule) / ((unit.radian ** 2) * unit.mole)),
                               dtype=torch.double,
                               device=self.device,
                               requires_grad=True)
         print(self.k)
-
 
 
 class BaseTorsionRestraint(object):
@@ -79,15 +78,15 @@ class BaseTorsionRestraint(object):
         assert(type(sigma) == unit.Quantity)
         assert(type(torsion_angle) == unit.Quantity)
 
-        k = (kB * temperature) / (sigma**2) # 
+        k = (kB * temperature) / (sigma**2)
         self.device = device
-        assert(active_at ==1 or active_at == 0 or active_at ==-1 or active_at == -2)
+        assert(active_at == 1 or active_at == 0 or active_at == -1 or active_at == -2)
         self.active_at = active_at
         self.target_torsion_angle_in_degree = torch.tensor(torsion_angle.value_in_unit(unit.degree),
-                              dtype=torch.double,
-                              device=self.device,
-                              requires_grad=True)
-        
+                                                           dtype=torch.double,
+                                                           device=self.device,
+                                                           requires_grad=True)
+
         self.k = torch.tensor(k.value_in_unit((unit.kilo * unit.joule) / ((unit.degree ** 2) * unit.mole)),
                               dtype=torch.double,
                               device=self.device,
@@ -96,7 +95,7 @@ class BaseTorsionRestraint(object):
     @staticmethod
     def _wrap(x):
         return x - 360 * torch.floor((x + 180)/360)
-    
+
     @staticmethod
     def _torsion(dxij, dxjk, dxkl):
         c1 = torch.cross(dxjk, dxkl)
@@ -112,7 +111,7 @@ class BaseTorsionRestraint(object):
 
 class TorsionFlatBottomRestraint(BaseTorsionRestraint):
 
-    def __init__(self, sigma: unit.Quantity, torsion_angle: unit.Quantity, atom_idx :list, active_at: int=-1):
+    def __init__(self, sigma: unit.Quantity, torsion_angle: unit.Quantity, atom_idx: list, active_at: int = -1):
 
         assert (0 <= active_at <= 1 or active_at == -1 or active_at == -2)
         super().__init__(sigma, torsion_angle, active_at)
@@ -125,15 +124,14 @@ class TorsionFlatBottomRestraint(BaseTorsionRestraint):
         self.atom_k = atom_idx[2]
         self.atom_l = atom_idx[3]
 
-        self.allowed_deviation = 60 # degree
+        self.allowed_deviation = 90  # degree
 
         logger.info(f"FlatBottomRestraint is set ...")
         logger.info(f"Equilibrium torsion: {self.target_torsion_angle_in_degree.item()}")
         logger.info(f"Allowed deviation : {self.allowed_deviation}")
-    
+
     def _calculate_torsion(self, x):
         # calculating torsion -- taken from here: https://github.com/mdtraj/mdtraj/blob/master/mdtraj/geometry/dihedral.py
-
 
         dxij = (x[0][self.atom_j] - x[0][self.atom_i])
         dxjk = (x[0][self.atom_k] - x[0][self.atom_j])
@@ -141,10 +139,9 @@ class TorsionFlatBottomRestraint(BaseTorsionRestraint):
         torsion = self._torsion(dxij, dxjk, dxkl)
         return torsion * conversion_factor_radian_to_degree
 
-
     def restraint(self, x):
         """       
-        
+
         Parameters
         -------
         x : torch.Tensor
@@ -159,26 +156,24 @@ class TorsionFlatBottomRestraint(BaseTorsionRestraint):
         except AssertionError:
             assert (type(x) == unit.Quantity)
             x = torch.tensor([x.value_in_unit(unit.nanometer)],
-                            requires_grad=True, device=self.device, dtype=torch.float32)
-            
+                             requires_grad=True, device=self.device, dtype=torch.float32)
 
         current_torsion_in_degree = self._calculate_torsion(x)
-        logger.debug('Wrapped diff: {}'.format((self._wrap(current_torsion_in_degree + self.target_torsion_angle_in_degree).abs())))
+        logger.debug('Wrapped diff: {}'.format(
+            (self._wrap(current_torsion_in_degree + self.target_torsion_angle_in_degree).abs())))
         if (self._wrap(current_torsion_in_degree + self.target_torsion_angle_in_degree)).abs() > self.allowed_deviation:
             e = (self.k/2) * self._wrap(self.target_torsion_angle_in_degree - current_torsion_in_degree)**2
         else:
             e = torch.tensor(0.0, dtype=torch.double, device=self.device)
 
-        logging.debug('Torsion flat bottom restraint restraint_bias introduced: {:0.4f}'.format(e.item()))
-        logging.debug('Current torsion: {:0.4f}'.format(current_torsion_in_degree.item()))
+        logger.debug('Torsion flat bottom restraint restraint_bias introduced: {:0.4f}'.format(e.item()))
+        logger.debug('Current torsion: {:0.4f}'.format(current_torsion_in_degree.item()))
         return e.to(device=self.device)
-
-
 
 
 class TorsionHarmonicRestraint(BaseTorsionRestraint):
 
-    def __init__(self, sigma: unit.Quantity, torsion_angle: unit.Quantity, atom_idx :list, active_at: int=-1):
+    def __init__(self, sigma: unit.Quantity, torsion_angle: unit.Quantity, atom_idx: list, active_at: int = -1):
 
         assert (0 <= active_at <= 1 or active_at == -1 or active_at == -2)
         super().__init__(sigma, torsion_angle, active_at)
@@ -190,10 +185,9 @@ class TorsionHarmonicRestraint(BaseTorsionRestraint):
         self.atom_j = atom_idx[1]
         self.atom_k = atom_idx[2]
         self.atom_l = atom_idx[3]
-        
+
     def _calculate_torsion(self, x):
         # calculating torsion -- taken from here: https://github.com/mdtraj/mdtraj/blob/master/mdtraj/geometry/dihedral.py
-
 
         dxij = (x[0][self.atom_j] - x[0][self.atom_i])
         dxjk = (x[0][self.atom_k] - x[0][self.atom_j])
@@ -201,10 +195,9 @@ class TorsionHarmonicRestraint(BaseTorsionRestraint):
         torsion = self._torsion(dxij, dxjk, dxkl)
         return torsion * conversion_factor_radian_to_degree
 
-
     def restraint(self, x):
         """       
-        
+
         Parameters
         -------
         x : torch.Tensor
@@ -219,17 +212,15 @@ class TorsionHarmonicRestraint(BaseTorsionRestraint):
         except AssertionError:
             assert (type(x) == unit.Quantity)
             x = torch.tensor([x.value_in_unit(unit.nanometer)],
-                            requires_grad=True, device=self.device, dtype=torch.float32)
-            
+                             requires_grad=True, device=self.device, dtype=torch.float32)
 
         current_torsion_in_degree = self._calculate_torsion(x)
 
         e = (0.5 * self.k) * self._wrap(self.target_torsion_angle_in_degree - current_torsion_in_degree)**2
-        logging.debug('Current torsion: {:0.4f}'.format(current_torsion_in_degree.item()))
-        
-        logging.debug('Torsion harmonic restraint restraint_bias introduced: {:0.4f}'.format(e.item()))
-        return e.to(device=self.device)
+        logger.debug('Current torsion: {:0.4f}'.format(current_torsion_in_degree.item()))
 
+        logger.debug('Torsion harmonic restraint restraint_bias introduced: {:0.4f}'.format(e.item()))
+        return e.to(device=self.device)
 
 
 class PointAtomRestraint(BaseDistanceRestraint):
@@ -355,7 +346,7 @@ class AngleHarmonicRestraint(BaseAngleRestraint):
 
         # x in angstrom
         e = (self.k/2) * (self.water_angle - current_angle.double())**2
-        logging.debug('Angle harmonic restraint restraint_bias introduced: {:0.4f}'.format(e.item()))
+        logger.debug('Angle harmonic restraint restraint_bias introduced: {:0.4f}'.format(e.item()))
         return e.to(device=self.device)
 
 
@@ -388,7 +379,7 @@ class BondFlatBottomRestraint(BondRestraint):
             e = (self.k/2) * (distance.double() - self.upper_bound)**2
         else:
             e = torch.tensor(0.0, dtype=torch.double, device=self.device)
-        logging.debug('Flat bottom restraint_bias introduced: {:0.4f}'.format(e.item()))
+        logger.debug('Flat bottom restraint_bias introduced: {:0.4f}'.format(e.item()))
         return e.to(device=self.device)
 
 
@@ -417,7 +408,7 @@ class BondHarmonicRestraint(BondRestraint):
         # x in angstrom
         distance = torch.norm(x[0][self.atom_i_idx] - x[0][self.atom_j_idx])
         e = (self.k/2) * (distance.double() - self.mean_bond_length)**2
-        logging.debug('Harmonic restraint_bias introduced: {:0.4f}'.format(e.item()))
+        logger.debug('Harmonic restraint_bias introduced: {:0.4f}'.format(e.item()))
         return e.to(device=self.device)
 
 
@@ -466,7 +457,7 @@ class CenterFlatBottomRestraint(PointAtomRestraint):
             e = (self.k/2) * (distance.double() - self.cutoff_radius)**2
         else:
             e = torch.tensor(0.0, dtype=torch.double, device=self.device)
-        logging.debug('Flat center bottom restraint_bias introduced: {:0.4f}'.format(e.item()))
+        logger.debug('Flat center bottom restraint_bias introduced: {:0.4f}'.format(e.item()))
         return e.to(device=self.device)
 
 
