@@ -46,7 +46,7 @@ t2_smiles = exp_results[name]['t2-smiles']
 
 os.makedirs(f"{base_path}/{name}", exist_ok=True)
 
-tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
+s_type, tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
 for kappa_value, tautomer in enumerate(tautomers):
     kappa_value = float(kappa_value)
     print(kappa_value)
@@ -117,10 +117,9 @@ for kappa_value, tautomer in enumerate(tautomers):
                                                                         stepsize=1.0*unit.femtosecond,
                                                                         progress_bar=False)
 
-    # save equilibrium energy values
     # save equilibrium energy values 
     for global_list, poperty_name in zip([energies, stddev, restraint_bias, ensemble_bias], ['energy', 'stddev', 'restraint_bias', 'ensemble_bias']):
-        f = open(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_{poperty_name}_kappa_{kappa_value:0.4f}_in_{env}.csv", 'w+')
+        f = open(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_{poperty_name}_kappa_{round(kappa_value)}_in_{env}.csv", 'w+')
         for e in global_list[::20]:
             e_unitless = e / kT
             f.write('{}\n'.format(e_unitless))
@@ -128,4 +127,8 @@ for kappa_value, tautomer in enumerate(tautomers):
 
     equilibrium_samples = [x.value_in_unit(unit.nanometer) for x in equilibrium_samples]
     ani_traj = md.Trajectory(equilibrium_samples[::20], tautomer.hybrid_topology)
-    ani_traj.save(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_kappa_{kappa_value:0.4f}_in_{env}.dcd", force_overwrite=True)
+    ani_traj.save(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_kappa_{round(kappa_value)}_in_{env}.dcd", force_overwrite=True)
+    
+    # exit for all molecules with the exception of Imines
+    if s_type != 'Imine':
+        break

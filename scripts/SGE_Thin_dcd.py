@@ -27,7 +27,7 @@ base = '/data/shared/projects/neutromeratio/data/equilibrium_sampling/waterbox-1
 pdb_file = f"{base}/{name}/{name}_in_droplet_forward.pdb"
 lambda_value = 0.0
 for _ in range(21):
-    f_traj = f"{name}/{name}_lambda_{lambda_value:0.4f}.dcd"
+    f_traj = f"{base}/{name}/{name}_lambda_{lambda_value:0.4f}.dcd"
     traj = md.load_dcd(f_traj, top=pdb_file)
     traj[::10].save(f"{base}/{name}/{name}_lambda_{lambda_value:0.4f}_thinned.dcd", force_overwrite=True)
     lambda_value +=0.05

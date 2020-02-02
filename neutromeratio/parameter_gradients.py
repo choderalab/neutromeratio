@@ -22,7 +22,6 @@ class FreeEnergyCalculator():
                  potential_energy_trajs: list,
                  lambdas: list,
                  n_atoms: int,
-                 bias : np.ndarray,
                  per_atom_thresh: unit.Quantity = 0.5*unit.kilojoule_per_mole,
                  max_snapshots_per_window=50,
                  ):
@@ -240,6 +239,71 @@ class FreeEnergyCalculator():
         u_ln, u0_stddev, u1_stddev = self.form_u_ln()
         f_k = self.compute_perturbed_free_energies(u_ln, u0_stddev, u1_stddev)
         return f_k[1] - f_k[0]
+
+
+
+
+
+
+
+
+class FreeEnergyCalculatorKappa(FreeEnergyCalculator):
+        
+    def __init__(self,
+                ani_model: AlchemicalANI,
+                ani_trajs: list,
+                kappas: list,
+                n_atoms: int,
+                added_restraint : list,
+                max_snapshots_per_window=50,
+                ):
+        """
+        Uses mbar to calculate the free energy difference between trajectories.
+        Parameters
+        ----------
+        ani_model : AlchemicalANI
+            model used for energy calculation
+        ani_trajs : list
+            trajectories 
+        potential_energy_trajs : list
+            energy trace of trajectories
+        kappas : list
+            all lambda states
+        n_atoms : int
+            number of atoms
+        per_atom_thresh : float
+            exclude snapshots where ensemble stddev in energy / n_atoms exceeds this threshold, in kJ/mol
+            if per_atom_tresh == -1 ignores ensemble stddev
+
+        """
+        K = len(kappas)
+        assert (len(ani_trajs) == K)
+        assert (len(potential_energy_trajs) == K)
+        
+        self.ani_model = ani_model
+        self.kappas = kappas
+        self.ani_trajs = ani_trajs
+        self.n_atoms = n_atoms
+
+        N_k = []
+        snapshots = []
+        tmp = {}
+
+        for kappa, traj in zip(kappas, ani_trajs):
+            start = int(len(traj) * 0.2) # remove first 20%
+            tmp[kappa] = traj[start:-1].xyz * unit.nanometer
+        for kappa in sorted(kappas):
+            N_k.append(len(tmp[kappa]))
+            snapshots.extend(tmp[kappa])
+
+        e_list = [ani_model.calculate_energy(x, lambda_value=1.0)[0] / kT for x in tqdm(snapshots)]
+        u_kn = np.stack([e_list for _ in range(len(N_k))])
+        bias = np.stack(
+            [[(bias.restraint(x).detach().numpy()) * unit.kilojoule_per_mole / kT for x in snapshots] for bias in added_restraint]
+        )
+        self.mbar = MBAR(u_kn + bias, N_k)
+
+
 
 
 if __name__ == '__main__':
