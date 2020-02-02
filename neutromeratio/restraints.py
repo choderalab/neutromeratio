@@ -61,7 +61,6 @@ class BaseAngleRestraint(object):
                               dtype=torch.double,
                               device=self.device,
                               requires_grad=True)
-        print(self.k)
 
 
 class BaseTorsionRestraint(object):

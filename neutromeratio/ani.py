@@ -54,7 +54,6 @@ class ANI1_force_and_energy(object):
         self.species = self.model.species_to_tensor(atoms).to(device).unsqueeze(0)
         self.platform = platform
         self.list_of_lambda_restraints = []
-        self.list_of_kappa_restraints = []
         self.per_atom_thresh = per_atom_thresh.value_in_unit(unit.kilojoule_per_mole)
         self.adventure_mode = adventure_mode
         self.per_mol_tresh = float(self.per_atom_thresh * len(self.atoms))
@@ -67,17 +66,10 @@ class ANI1_force_and_energy(object):
         # add a single restraint
         self.list_of_lambda_restraints.append(restraint)
 
-    def add_restraint_to_kappa_protocol(self, restraint):
-        # add a single restraint
-        self.list_of_kappa_restraints.append(restraint)
-
     def reset_lambda_restraints(self):
         self.list_of_lambda_restraints = []
 
-    def reset_kappa_restraints(self):
-        self.list_of_kappa_restraints = []
-
-    def _compute_restraint_bias(self, x, lambda_value, kappa_value):
+    def _compute_restraint_bias(self, x, lambda_value):
         # use correct restraint_bias in between the end-points...
 
         # lambda
@@ -96,22 +88,7 @@ class ANI1_force_and_energy(object):
                 raise RuntimeError('Something went wrong with restraints.')
             lambda_restraint_bias_in_kJ_mol += restraint_bias
 
-        # kappa
-        kappa_restraint_bias_in_kJ_mol = torch.tensor(0.0,
-                                                      device=self.device, dtype=torch.float64)
-
-        for restraint in self.list_of_kappa_restraints:
-            restraint_bias = restraint.restraint(x * nm_to_angstroms)
-            if restraint.active_at == 1:
-                restraint_bias *= kappa_value
-            elif restraint.active_at == 0:
-                restraint_bias *= (1 - kappa_value)
-            elif restraint.active_at == -1:  # always on
-                pass
-            else:
-                raise RuntimeError('Something went wrong with restraints.')
-            kappa_restraint_bias_in_kJ_mol += restraint_bias
-        return lambda_restraint_bias_in_kJ_mol + kappa_restraint_bias_in_kJ_mol
+        return lambda_restraint_bias_in_kJ_mol
 
     def compute_restraint_bias_on_snapshots(self, snapshots, lambda_value=0.0) -> float:
         """
@@ -171,7 +148,7 @@ class ANI1_force_and_energy(object):
         return (G * conversion_factor_eV_to_kJ_mol) * unit.kilojoule_per_mole  # eV * conversion_factor(eV to kJ/mol)
 
     def minimize(self, coords: simtk.unit.quantity.Quantity, maxiter: int = 1000,
-                lambda_value: float = 0.0, kappa_value: float = 0.0, show_plot: bool = False):
+                lambda_value: float = 0.0, show_plot: bool = False):
         """
         Minimizes the molecule.
         Parameters
@@ -216,7 +193,7 @@ class ANI1_force_and_energy(object):
         self.memory_of_conformation_bias = []
         print("Begin minimizing...")
         f = optimize.minimize(self._traget_energy_function, x, method='BFGS',
-                              jac=True, args=(lambda_value, kappa_value),
+                              jac=True, args=(lambda_value),
                               options={'maxiter': maxiter, 'disp': True})
 
         logger.critical(f"Minimization status: {f.success}")
@@ -245,7 +222,7 @@ class ANI1_force_and_energy(object):
 
         return f.x.reshape(-1, 3) * unit.angstrom, memory_of_energy
 
-    def calculate_force(self, x: simtk.unit.quantity.Quantity, lambda_value: float = 0.0, kappa_value: float = 0.0) -> simtk.unit.quantity.Quantity:
+    def calculate_force(self, x: simtk.unit.quantity.Quantity, lambda_value: float = 0.0) -> simtk.unit.quantity.Quantity:
         """
         Given a coordinate set the forces with respect to the coordinates are calculated.
 
@@ -267,7 +244,7 @@ class ANI1_force_and_energy(object):
                                    requires_grad=True, device=self.device, dtype=torch.float32)
 
         energy_in_kJ_mol, restraint_bias_in_kJ_mol, stddev_in_kJ_mol, ensemble_bias = self._calculate_energy(
-            coordinates, lambda_value, kappa_value)
+            coordinates, lambda_value)
 
         # derivative of E (in kJ/mol) w.r.t. coordinates (in nm)
         derivative = torch.autograd.grad((energy_in_kJ_mol).sum(), coordinates)[0]
@@ -285,7 +262,7 @@ class ANI1_force_and_energy(object):
                 stddev_in_kJ_mol.item() * unit.kilojoule_per_mole,
                 ensemble_bias.item() * unit.kilojoule_per_mole)
 
-    def _calculate_energy(self, coordinates: torch.tensor, lambda_value: float, kappa_value: float) -> (torch.tensor, torch.tensor, torch.tensor, torch.tensor):
+    def _calculate_energy(self, coordinates: torch.tensor, lambda_value: float) -> (torch.tensor, torch.tensor, torch.tensor, torch.tensor):
         """
         Helpter function to return energies as tensor.
         Given a coordinate set the energy is calculated.
@@ -318,7 +295,6 @@ class ANI1_force_and_energy(object):
                                                device=self.device, dtype=torch.float64)
 
         assert(0.0 <= float(lambda_value) <= 1.0)
-        assert(0.0 <= float(kappa_value) <= 1.0)
 
         _, energy_in_hartree, stddev_in_hartree = self.model(
             (self.species, coordinates * nm_to_angstroms, lambda_value))
@@ -328,7 +304,7 @@ class ANI1_force_and_energy(object):
         stddev_in_kJ_mol = stddev_in_hartree * hartree_to_kJ_mol
 
         restraint_bias_in_kJ_mol = self._compute_restraint_bias(
-            coordinates, lambda_value=lambda_value, kappa_value=kappa_value)
+            coordinates, lambda_value=lambda_value)
         logger.debug(restraint_bias_in_kJ_mol)
         energy_in_kJ_mol += restraint_bias_in_kJ_mol
 
@@ -357,7 +333,7 @@ class ANI1_force_and_energy(object):
         logger.warning(f"Applying ensemble_bias: {ensemble_bias_in_kJ_mol.item()} kJ/mol")
         return ensemble_bias_in_kJ_mol
 
-    def _traget_energy_function(self, x, lambda_value: float = 0.0, kappa_value: float = 0.0) -> float:
+    def _traget_energy_function(self, x, lambda_value: float = 0.0) -> float:
         """
         Given a coordinate set (x) the energy is calculated in kJ/mol.
 
@@ -373,7 +349,7 @@ class ANI1_force_and_energy(object):
         E : float, unit'd 
         """
         x = x.reshape(-1, 3) * unit.angstrom
-        F, E, B, S, P = self.calculate_force(x, lambda_value, kappa_value)
+        F, E, B, S, P = self.calculate_force(x, lambda_value)
         F_flat = -np.array(F.value_in_unit(unit.kilojoule_per_mole/unit.angstrom).flatten(), dtype=np.float64)
         self.memory_of_energy.append(E)
         self.memory_of_stddev.append(S)
@@ -381,7 +357,7 @@ class ANI1_force_and_energy(object):
         self.memory_of_ensemble_bias.append(P)
         return E.value_in_unit(unit.kilojoule_per_mole), F_flat
 
-    def calculate_energy(self, x: simtk.unit.quantity.Quantity, lambda_value: float = 0.0, kappa_value: float = 0.0) -> (simtk.unit.quantity.Quantity, simtk.unit.quantity.Quantity, simtk.unit.quantity.Quantity, simtk.unit.quantity.Quantity):
+    def calculate_energy(self, x: simtk.unit.quantity.Quantity, lambda_value: float = 0.0) -> (simtk.unit.quantity.Quantity, simtk.unit.quantity.Quantity, simtk.unit.quantity.Quantity, simtk.unit.quantity.Quantity):
         """
         Given a coordinate set (x) the energy is calculated in kJ/mol.
 
@@ -410,7 +386,7 @@ class ANI1_force_and_energy(object):
                                    requires_grad=True, device=self.device, dtype=torch.float32)
 
         energy_in_kJ_mol, restraint_bias_in_kJ_mol, stddev_in_kJ_mol, ensemble_bias_in_kJ_mol = self._calculate_energy(
-            coordinates, lambda_value, kappa_value)
+            coordinates, lambda_value)
         energy = energy_in_kJ_mol.item() * unit.kilojoule_per_mole
         restraint_bias = restraint_bias_in_kJ_mol.item() * unit.kilojoule_per_mole
         stddev = stddev_in_kJ_mol.item() * unit.kilojoule_per_mole

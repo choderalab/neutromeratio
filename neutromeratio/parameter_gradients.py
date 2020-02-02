@@ -127,8 +127,7 @@ class FreeEnergyCalculator():
             #equil, g = detectEquilibration(potential_energy)[:2]
             # thinn snapshots and return max_snapshots_per_window confs
             #snapshots = list(traj[int(len(traj)/2):].xyz * unit.nanometer)[::further_thinning]
-            start = int(len(traj) * 0.2) # remove first 20%
-            snapshots = list(traj[start:].xyz * unit.nanometer)[:max_snapshots_per_window]
+            snapshots = list(traj.xyz * unit.nanometer)[:max_snapshots_per_window]
             ani_trajs[lam] = snapshots
             logger.info(f"Snapshots per lambda: {len(snapshots)}")
 
