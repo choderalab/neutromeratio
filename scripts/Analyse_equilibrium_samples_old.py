@@ -18,13 +18,15 @@ def parse_lambda_from_dcd_filename(dcd_filename, env):
 
 
 # job idx
-idx = 10
+idx = int(sys.argv[1])
+# where to write the results
+base_path = str(sys.argv[2])
+env = str(sys.argv[3])
+per_atom_stddev_threshold = float(sys.argv[4])  # in kJ/mol
+diameter_in_angstrom = int(sys.argv[5])
+# job idx
 thinning = 5
 # where to write the results
-base_path = '/data/shared/projects/neutromeratio/data/equilibrium_sampling/waterbox-18A/'
-env = 'droplet'
-per_atom_stddev_threshold = 50.0 # in kJ/mol
-diameter_in_angstrom=18
 mode='forward'
 #######################
 #######################
