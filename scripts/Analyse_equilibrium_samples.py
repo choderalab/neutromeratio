@@ -19,12 +19,9 @@ def parse_lambda_from_dcd_filename(dcd_filename, env):
     lam = l[-5]
     return float(kappa), float(lam)
 
-
 #######################
 thinning = 4
 #######################
-
-
 # job idx
 idx = int(sys.argv[1])
 # where to write the results
@@ -56,7 +53,7 @@ t1_smiles = exp_results[name]['t1-smiles']
 t2_smiles = exp_results[name]['t2-smiles']
 
 
-tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
+t_type, tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
 results = []
 uncertainty = []
 
@@ -68,7 +65,7 @@ for kappa_value, tautomer in enumerate(tautomers):
                              tautomer.hybrid_coords,
                              diameter=diameter_in_angstrom * unit.angstrom,
                              restrain_hydrogens=True,
-                             file=f"{base_path}/{name}/{name}_in_droplet_{mode}.pdb")
+                             file=f"{base_path}/{name}/{name}_in_droplet_{round(kappa_value)}.pdb")
 
         print('Nr of atoms: {}'.format(len(tautomer.ligand_in_water_atoms)))
         atoms = tautomer.ligand_in_water_atoms
@@ -152,8 +149,13 @@ for kappa_value, tautomer in enumerate(tautomers):
     uncertainty.append(dDeltaF_ji)
     print(fec.end_state_free_energy_difference)
 
+    # exit for all molecules with the exception of Imines
+    #if t_type != 'Imine':
+    #    break
+
+
 min_index, min_value = min(enumerate(results), key=operator.itemgetter(1))
 
-f = open(f"{base_path}/energies_filtered.csv", 'a+')
+f = open(f"{base_path}/results_in_kT.csv", 'a+')
 f.write(f"{name}, {results[min_index]}, {uncertainty[min_index]}\n")
 f.close()

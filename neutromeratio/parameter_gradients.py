@@ -73,10 +73,7 @@ class FreeEnergyCalculator():
             [get_mix(lambda0_e, lambda1_e, lam) for lam in sorted(used_lambdas)]
         )
 
-        bias = np.stack(
-            [[bias[lam].restraint(x).detach().numpy() for x in snapshots] for lam in sorted(used_lambdas)]
-        )
-        self.mbar = MBAR(u_kn + bias, N_k)
+        self.mbar = MBAR(u_kn, N_k)
 
     def remove_confs_with_high_stddev(self, max_snapshots_per_window: int, per_atom_thresh: float):
         """

@@ -519,3 +519,6 @@ class CenterOfMassRestraint(PointAtomRestraint):
         com_distance_to_point = torch.norm(com - self.point)
         e = (self.k/2) * (com_distance_to_point.sum() ** 2)
         return e.to(device=self.device)
+
+
+

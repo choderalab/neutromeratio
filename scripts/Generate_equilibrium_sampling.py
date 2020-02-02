@@ -46,7 +46,7 @@ t2_smiles = exp_results[name]['t2-smiles']
 
 os.makedirs(f"{base_path}/{name}", exist_ok=True)
 
-s_type, tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
+t_type, tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
 for kappa_value, tautomer in enumerate(tautomers):
     kappa_value = float(kappa_value)
     print(kappa_value)
@@ -128,7 +128,3 @@ for kappa_value, tautomer in enumerate(tautomers):
     equilibrium_samples = [x.value_in_unit(unit.nanometer) for x in equilibrium_samples]
     ani_traj = md.Trajectory(equilibrium_samples[::20], tautomer.hybrid_topology)
     ani_traj.save(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_kappa_{round(kappa_value)}_in_{env}.dcd", force_overwrite=True)
-    
-    # exit for all molecules with the exception of Imines
-    if s_type != 'Imine':
-        break
