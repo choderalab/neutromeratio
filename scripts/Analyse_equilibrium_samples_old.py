@@ -142,6 +142,6 @@ fec = FreeEnergyCalculator(ani_model=energy_function,
 
 DeltaF_ji, dDeltaF_ji = fec.end_state_free_energy_difference
 print(fec.end_state_free_energy_difference)
-f = open(f"{base_path}/results_in_kT_per_atom_threshold_{round(per_atom_stddev_threshold, 1}.csv", 'a+')
+f = open(f"{base_path}/results_in_kT_per_atom_threshold_{round(per_atom_stddev_threshold, 1)}.csv", 'a+')
 f.write(f"{name}, {DeltaF_ji}, {dDeltaF_ji}\n")
 f.close()

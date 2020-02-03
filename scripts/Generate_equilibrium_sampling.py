@@ -58,7 +58,7 @@ for kappa_value, tautomer in enumerate(tautomers):
                             diameter=diameter_in_angstrom * unit.angstrom,
                             restrain_hydrogen_bonds=True,
                             restrain_hydrogen_angles=False,
-                            file=f"{base_path}/{name}/{name}_in_droplet.pdb")
+                            top_file=f"{base_path}/{name}/{name}_in_droplet.pdb")
     else:
         pdb_filepath = f"{base_path}/{name}/{name}_{round(kappa_value)}.pdb"
         try:
@@ -79,11 +79,19 @@ for kappa_value, tautomer in enumerate(tautomers):
     torch.set_num_threads(1)
 
     # perform initial sampling
-    energy_function = neutromeratio.ANI1_force_and_energy(
-        model=model,
-        atoms=tautomer.hybrid_atoms,
-        mol=None,
-    )
+    if env == 'vacuum':
+        energy_function = neutromeratio.ANI1_force_and_energy(
+            model=model,
+            atoms=tautomer.hybrid_atoms,
+            mol=None,
+        )
+    else:
+        energy_function = neutromeratio.ANI1_force_and_energy(
+            model=model,
+            atoms=tautomer.ligand_in_water,
+            mol=None,
+        )
+
 
     for r in tautomer.ligand_restraints:
         energy_function.add_restraint_to_lambda_protocol(r)
