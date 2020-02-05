@@ -58,7 +58,7 @@ for kappa_value, tautomer in enumerate(tautomers):
                             diameter=diameter_in_angstrom * unit.angstrom,
                             restrain_hydrogen_bonds=True,
                             restrain_hydrogen_angles=False,
-                            top_file=f"{base_path}/{name}/{name}_in_droplet.pdb")
+                            top_file=f"{base_path}/{name}/{name}_kappa_{round(kappa_value)}_in_droplet.pdb")
     else:
         pdb_filepath = f"{base_path}/{name}/{name}_{round(kappa_value)}.pdb"
         try:
@@ -88,7 +88,7 @@ for kappa_value, tautomer in enumerate(tautomers):
     else:
         energy_function = neutromeratio.ANI1_force_and_energy(
             model=model,
-            atoms=tautomer.ligand_in_water,
+            atoms=tautomer.ligand_in_water_atoms,
             mol=None,
         )
 
@@ -134,5 +134,9 @@ for kappa_value, tautomer in enumerate(tautomers):
         f.close()   
 
     equilibrium_samples = [x.value_in_unit(unit.nanometer) for x in equilibrium_samples]
-    ani_traj = md.Trajectory(equilibrium_samples[::20], tautomer.hybrid_topology)
+    if env == 'vacuum':
+        ani_traj = md.Trajectory(equilibrium_samples[::20], tautomer.hybrid_topology)
+    else:
+        ani_traj = md.Trajectory(equilibrium_samples[::20], tautomer.ligand_in_water_topology)
+
     ani_traj.save(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_kappa_{round(kappa_value)}_in_{env}.dcd", force_overwrite=True)
