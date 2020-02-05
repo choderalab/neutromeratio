@@ -42,12 +42,12 @@ def plot_correlation_analysis(
 
     rmse, r = bootstrap_rmse_r(df, 1000)
 
-    plt.text(-20.0, 20.0, r"$\rho = {}$".format(r), fontsize=fontsize)
-    plt.text(-20.0, 17.0, r"RMSE$ = {}$".format(rmse), fontsize=fontsize)
+    plt.text(-27.0, 27.0, r"$\rho = {}$".format(r), fontsize=fontsize)
+    plt.text(-27.0, 24.0, r"RMSE$ = {}$".format(rmse), fontsize=fontsize)
 
     try:
         for X, Y, name, error in zip(df.x, df.y, df.names, df.yerror):
-            ax.errorbar(X, Y, yerr=error, color='blue', fmt='--o', alpha=0.6, ecolor='g', capthick=2)
+            ax.errorbar(X, Y, yerr=error,  mfc='blue', ms=5, fmt='--o', alpha=0.6, ecolor='r', capthick=2)
             # mark tautomer pairs that behave strangly
             if name in mark_tautomer_names:
                 ax.annotate(str(name), (X, Y), fontsize=10)
@@ -55,19 +55,19 @@ def plot_correlation_analysis(
 
     except AttributeError:
         for X, Y, name in zip(df.x, df.y, df.names):
-            ax.scatter(X, Y, color='blue', s=15, alpha=0.6)
+            ax.scatter(X, Y, color='blue', s=13, alpha=0.6)
             # mark tautomer pairs that behave strangly
             if name in mark_tautomer_names:
                 ax.annotate(str(name), (X, Y), fontsize=10)
         logger.info('Plotting without y-error bars')   
 
     # draw lines +- 1kcal/mol
-    ax.plot((-22.0, 22.0), (-22.0, 22.0), "k--", zorder=-1, linewidth=1., alpha=0.5)
-    ax.plot((-21.0, 22.0), (-22.0, 21.0), "gray", zorder=-1, linewidth=1., alpha=0.5)
-    ax.plot((-22.0, 21.0), (-21.0, 22.0), "gray", zorder=-1, linewidth=1., alpha=0.5)
+    ax.plot((-30.0, 30.0), (-30.0, 30.0), "k--", zorder=-1, linewidth=1., alpha=0.5)
+    ax.plot((-29.0, 30.0), (-30.0, 29.0), "gray", zorder=-1, linewidth=1., alpha=0.5)
+    ax.plot((-30.0, 29.0), (-29.0, 30.0), "gray", zorder=-1, linewidth=1., alpha=0.5)
 
-    ax.plot((-22.0, 22.0), (0.0, 0.0), "r--", zorder=-1, linewidth=1., alpha=0.5)
-    ax.plot((0.0, 0.0), (-22.0, 22.0), "r--", zorder=-1, linewidth=1., alpha=0.5)
+    ax.plot((-30.0, 30.0), (0.0, 0.0), "r--", zorder=-1, linewidth=1., alpha=0.5)
+    ax.plot((0.0, 0.0), (-30.0, 30.0), "r--", zorder=-1, linewidth=1., alpha=0.5)
 
     ax.set_ylabel(x_label, fontsize=fontsize)
     ax.set_xlabel(y_label, fontsize=fontsize)
@@ -85,8 +85,8 @@ def plot_correlation_analysis(
     y = 30  # np.arange(0.01,30,0.1)
 
     plt.fill_between(x, y, color='#539ecd', alpha=0.2)
-    ax.set_xlim([-22, 22])
-    ax.set_ylim([-22, 22])
+    ax.set_xlim([-30, 30])
+    ax.set_ylim([-30, 30])
     return plt
 
 
