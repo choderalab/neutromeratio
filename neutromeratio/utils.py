@@ -117,7 +117,11 @@ def get_stereotag_of_stereobonds(smiles: str) -> int:
     return stereo_tag
 
 
-def generate_tautomer_class_stereobond_aware(name: str, t1_smiles: str, t2_smiles: str, nr_of_conformations: int = 1) -> list:
+def generate_tautomer_class_stereobond_aware(name: str,
+                                            t1_smiles: str,
+                                            t2_smiles: str,
+                                            nr_of_conformations: int = 1,
+                                            enforceChirality=True) -> list:
     """
     If a stereobond is present in the tautomer pair we need to transform from the molecule 
     with the stereobond (e.g. enol) to the tautomer without the stereobond (e.g. keto). This 
@@ -157,11 +161,13 @@ def generate_tautomer_class_stereobond_aware(name: str, t1_smiles: str, t2_smile
             tautomers.append(Tautomer(name=name,
                                     initial_state_mol=t1_kappa_0,
                                     final_state_mol=generate_rdkit_mol(t2_smiles),
-                                    nr_of_conformations=nr_of_conformations))
+                                    nr_of_conformations=nr_of_conformations,
+                                    enforceChirality=enforceChirality))
             tautomers.append(Tautomer(name=name,
                                     initial_state_mol=t1_kappa_1,
                                     final_state_mol=generate_rdkit_mol(t2_smiles),
-                                    nr_of_conformations=nr_of_conformations))
+                                    nr_of_conformations=nr_of_conformations,
+                                    enforceChirality=enforceChirality))
         
         elif flag_unspec_stereo(t2_smiles):
             flipped = True
@@ -170,11 +176,13 @@ def generate_tautomer_class_stereobond_aware(name: str, t1_smiles: str, t2_smile
             tautomers.append(Tautomer(name=name,
                                     initial_state_mol=t2_kappa_0,
                                     final_state_mol=generate_rdkit_mol(t1_smiles),
-                                    nr_of_conformations=nr_of_conformations))
+                                    nr_of_conformations=nr_of_conformations,
+                                    enforceChirality=enforceChirality))
             tautomers.append(Tautomer(name=name,
                                     initial_state_mol=t2_kappa_1,
                                     final_state_mol=generate_rdkit_mol(t1_smiles),
-                                    nr_of_conformations=nr_of_conformations))
+                                    nr_of_conformations=nr_of_conformations,
+                                    enforceChirality=enforceChirality))
 
         else:
             raise RuntimeError('Stereobonds present in both tautomers ... aborting!')
@@ -187,7 +195,8 @@ def generate_tautomer_class_stereobond_aware(name: str, t1_smiles: str, t2_smile
             tautomers.append(Tautomer(name=name,
                                     initial_state_mol=generate_rdkit_mol(t1_smiles),
                                     final_state_mol=generate_rdkit_mol(t2_smiles),
-                                    nr_of_conformations=nr_of_conformations))
+                                    nr_of_conformations=nr_of_conformations,
+                                    enforceChirality=enforceChirality))
         else:
             # stereobonds on both endstates
             # we need to add a torsion bias to make sure that the lambda protocol stopp at the correct torsion
@@ -200,11 +209,13 @@ def generate_tautomer_class_stereobond_aware(name: str, t1_smiles: str, t2_smile
         tautomers.append(Tautomer(name=name,
                                 initial_state_mol=generate_rdkit_mol(t1_smiles_kappa_0),
                                 final_state_mol=generate_rdkit_mol(t2_smiles),
-                                nr_of_conformations=nr_of_conformations))
+                                nr_of_conformations=nr_of_conformations,
+                                enforceChirality=enforceChirality))
         tautomers.append(Tautomer(name=name,
                                 initial_state_mol=generate_rdkit_mol(t1_smiles_kappa_1),
                                 final_state_mol=generate_rdkit_mol(t2_smiles),
-                                nr_of_conformations=nr_of_conformations))
+                                nr_of_conformations=nr_of_conformations,
+                                enforceChirality=enforceChirality))
 
     elif get_nr_of_stereobonds(t1_smiles) < get_nr_of_stereobonds(t2_smiles):
         stereobond_type = 'generic'
@@ -215,11 +226,13 @@ def generate_tautomer_class_stereobond_aware(name: str, t1_smiles: str, t2_smile
         tautomers.append(Tautomer(name=name,
                                 initial_state_mol=generate_rdkit_mol(t1_smiles_kappa_0),
                                 final_state_mol=generate_rdkit_mol(t2_smiles),
-                                nr_of_conformations=nr_of_conformations))
+                                nr_of_conformations=nr_of_conformations,
+                                enforceChirality=enforceChirality))
         tautomers.append(Tautomer(name=name,
                                 initial_state_mol=generate_rdkit_mol(t1_smiles_kappa_1),
                                 final_state_mol=generate_rdkit_mol(t2_smiles),
-                                nr_of_conformations=nr_of_conformations))
+                                nr_of_conformations=nr_of_conformations,
+                                enforceChirality=enforceChirality))
 
     else:
         raise RuntimeError('Stereobonds present in both tautomers ... aborting!')

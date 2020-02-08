@@ -69,7 +69,7 @@ def test_tautomer_transformation():
     t1_smiles = exp_results[name]['t1-smiles']
     t2_smiles = exp_results[name]['t2-smiles']
 
-    tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
+    t_type, tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
     t = tautomers[0]
     t.perform_tautomer_transformation()
     assert(len(tautomers) == 2)
@@ -111,7 +111,7 @@ def test_tautomer_transformation():
     t1_smiles = exp_results[name]['t1-smiles']
     t2_smiles = exp_results[name]['t2-smiles']
 
-    tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
+    t_type, tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
     assert(len(tautomers) == 2)
     t = tautomers[0]
     t.perform_tautomer_transformation()
@@ -151,7 +151,7 @@ def test_tautomer_transformation():
     t1_smiles = exp_results[name]['t1-smiles']
     t2_smiles = exp_results[name]['t2-smiles']
 
-    tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
+    t_type, tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
     assert(len(tautomers) == 2)
     t = tautomers[0]
     t.perform_tautomer_transformation()
@@ -203,7 +203,7 @@ def test_neutromeratio_energy_calculations_with_torchANI_model():
     t1_smiles = exp_results[name]['t1-smiles']
     t2_smiles = exp_results[name]['t2-smiles']
 
-    tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
+    t_type, tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
     tautomer = tautomers[0]
     tautomer.perform_tautomer_transformation()
 
@@ -260,7 +260,7 @@ def test_neutromeratio_energy_calculations_with_LinearAlchemicalANI_model():
     t1_smiles = exp_results[name]['t1-smiles']
     t2_smiles = exp_results[name]['t2-smiles']
 
-    tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
+    t_type, tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
     tautomer = tautomers[0]
     tautomer.perform_tautomer_transformation()
 
@@ -327,7 +327,7 @@ def test_neutromeratio_energy_calculations_with_LinearAlchemicalDualTopologyANI_
     t1_smiles = exp_results[name]['t1-smiles']
     t2_smiles = exp_results[name]['t2-smiles']
 
-    tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
+    t_type, tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
     ######################################################################
     ######################################################################
     tautomer = tautomers[0]
@@ -397,7 +397,7 @@ def test_restraint():
     t1_smiles = exp_results[name]['t1-smiles']
     t2_smiles = exp_results[name]['t2-smiles']
 
-    tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
+    t_type, tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
     tautomer = tautomers[0]
     tautomer.perform_tautomer_transformation()
 
@@ -432,7 +432,7 @@ def test_restraint_with_alchemicalANI():
     t2_smiles = exp_results[name]['t2-smiles']
 
 
-    tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
+    t_type, tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
     tautomer = tautomers[0]
     tautomer.perform_tautomer_transformation()
 
@@ -526,7 +526,7 @@ def test_restraint_with_LinearAlchemicalDualTopologyANI():
     t1_smiles = exp_results[name]['t1-smiles']
     t2_smiles = exp_results[name]['t2-smiles']
 
-    tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
+    t_type, tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
     tautomer = tautomers[0]
     tautomer.perform_tautomer_transformation()
 
@@ -568,12 +568,12 @@ def test_restraint_with_LinearAlchemicalDualTopologyANI():
     assert(is_quantity_close(energy, -906911.9843514563 * unit.kilojoule_per_mole, rtol=1e-9))
 
     energy, restraint_bias, stddev, ensemble_bias = energy_function.calculate_energy(x0, lambda_value=0.0, kappa_value=0.5)
-    assert(is_quantity_close(restraint_bias.in_units_of(unit.kilocalorie_per_mole), 36.76998057705375 * unit.kilocalorie_per_mole))
-    assert(is_quantity_close(energy, -906758.1387527218 * unit.kilojoule_per_mole, rtol=1e-9))
+    assert(is_quantity_close(restraint_bias.in_units_of(unit.kilocalorie_per_mole), 4.087466423423118 * unit.kilocalorie_per_mole))
+    assert(is_quantity_close(energy, -906894.8823919407 * unit.kilojoule_per_mole, rtol=1e-9))
 
     energy, restraint_bias, stddev, ensemble_bias = energy_function.calculate_energy(x0, lambda_value=0.0, kappa_value=1.0)
-    assert(is_quantity_close(restraint_bias.in_units_of(unit.kilocalorie_per_mole), 73.5399611541075 * unit.kilocalorie_per_mole))
-    assert(is_quantity_close(energy, -906604.2931539875 * unit.kilojoule_per_mole, rtol=1e-9))
+    assert(is_quantity_close(restraint_bias.in_units_of(unit.kilocalorie_per_mole), 8.174932846846236 * unit.kilocalorie_per_mole))
+    assert(is_quantity_close(energy, -906877.7804324251 * unit.kilojoule_per_mole, rtol=1e-9))
 
 
 def test_min_and_single_point_energy():
@@ -586,7 +586,7 @@ def test_min_and_single_point_energy():
     t1_smiles = exp_results[name]['t1-smiles']
     t2_smiles = exp_results[name]['t2-smiles']
 
-    tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
+    t_type, tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
     tautomer = tautomers[0]
     tautomer.perform_tautomer_transformation()
 
@@ -620,7 +620,7 @@ def test_thermochemistry():
     t1_smiles = exp_results[name]['t1-smiles']
     t2_smiles = exp_results[name]['t2-smiles']
 
-    tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
+    t_type, tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
     tautomer = tautomers[0]
     tautomer.perform_tautomer_transformation()
 
@@ -655,7 +655,7 @@ def test_euqilibrium():
     t1_smiles = exp_results[name]['t1-smiles']
     t2_smiles = exp_results[name]['t2-smiles']
 
-    tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
+    t_type, tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
     tautomer = tautomers[0]
     tautomer.perform_tautomer_transformation()
 
@@ -713,7 +713,7 @@ def test_tautomer_conformation():
     t1_smiles = exp_results[name]['t1-smiles']
     t2_smiles = exp_results[name]['t2-smiles']
 
-    tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles, nr_of_conformations=5)
+    t_type, tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles, nr_of_conformations=5)
     tautomer = tautomers[0]
     tautomer.perform_tautomer_transformation()
 
@@ -757,7 +757,7 @@ def test_mining_minima():
     t1_smiles = exp_results[name]['t1-smiles']
     t2_smiles = exp_results[name]['t2-smiles']
 
-    tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
+    t_type, tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
     tautomer = tautomers[0]
     tautomer.perform_tautomer_transformation()
 
@@ -803,7 +803,7 @@ def test_generating_droplet():
     t2_smiles = exp_results[name]['t2-smiles']
 
     # generate both rdkit mol
-    tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles, nr_of_conformations=5)
+    t_type, tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles, nr_of_conformations=5)
     tautomer = tautomers[0]
     tautomer.perform_tautomer_transformation()
     m = tautomer.add_droplet(tautomer.hybrid_topology,
@@ -840,7 +840,7 @@ def test_generating_droplet():
     os.environ.get("TRAVIS", None) == "true", reason="Psi4 import fails on travis."
 )
 def test_psi4():
-    from neutromeratio import psi4
+    from neutromeratio import qm
     exp_results = pickle.load(open('data/exp_results.pickle', 'rb'))
 
     name = 'molDWRow_298'
@@ -849,20 +849,21 @@ def test_psi4():
     t2_smiles = exp_results[name]['t2-smiles']
 
     # generate both rdkit mol
-    tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles, nr_of_conformations=5)
+    t_type, tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles, nr_of_conformations=5)
     tautomer = tautomers[0]
     tautomer.perform_tautomer_transformation()
 
     mol = tautomer.initial_state_mol
 
-    psi4_mol = psi4.mol2psi4(mol, 1)
-    psi4.calculate_energy(psi4_mol)
+    psi4_mol = qm.mol2psi4(mol, 1)
+    qm.optimize(psi4_mol)
 
 
 @pytest.mark.skipif(
     os.environ.get("TRAVIS", None) == "true", reason="Psi4 import fails on travis."
 )
 def test_torsion_scan():
+    from neutromeratio import qm
 
     exp_results = pickle.load(open('data/exp_results.pickle', 'rb'))
 
@@ -872,7 +873,7 @@ def test_torsion_scan():
     t2_smiles = exp_results[name]['t2-smiles']
 
     # generate both rdkit mol
-    tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles, nr_of_conformations=5)
+    t_type, tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles, nr_of_conformations=5)
     tautomer = tautomers[0]
     tautomer.perform_tautomer_transformation()
     tautomer.performe_torsion_scan_initial_state([1, 2, 3, 4], 'test-mol-enol')

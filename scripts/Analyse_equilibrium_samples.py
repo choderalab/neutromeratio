@@ -64,8 +64,9 @@ for kappa_value, tautomer in enumerate(tautomers):
         tautomer.add_droplet(tautomer.hybrid_topology,
                              tautomer.hybrid_coords,
                              diameter=diameter_in_angstrom * unit.angstrom,
-                             restrain_hydrogens=True,
-                             file=f"{base_path}/{name}/{name}_in_droplet_{round(kappa_value)}.pdb")
+                            restrain_hydrogen_bonds=True,
+                            restrain_hydrogen_angles=False,
+                            top_file=f"{base_path}/{name}/{name}_in_droplet_{round(kappa_value)}.pdb")
 
         print('Nr of atoms: {}'.format(len(tautomer.ligand_in_water_atoms)))
         atoms = tautomer.ligand_in_water_atoms
@@ -108,7 +109,7 @@ for kappa_value, tautomer in enumerate(tautomers):
 
     # get steps inclusive endpoints
     # and lambda values in list
-    dcds = glob(f"{base_path}/{name}/*kappa_{kappa_value:0.4f}*.dcd")
+    dcds = glob(f"{base_path}/{name}/*kappa_{round(kappa_value)}*.dcd")
 
     lambdas = []
     kappas = []
@@ -119,10 +120,10 @@ for kappa_value, tautomer in enumerate(tautomers):
         kappa, lam = parse_lambda_from_dcd_filename(dcd_filename, env)
         lambdas.append(lam)
         kappas.append(kappa)
-        traj = md.load_dcd(dcd_filename, top=tautomer.hybrid_topology)[::thinning]
+        traj = md.load_dcd(dcd_filename, top=top)[::thinning]
         print(f"Nr of frames in trajectory: {len(traj)}")
         ani_trajs.append(traj)
-        f = open(f"{base_path}/{name}/{name}_lambda_{lam:0.4f}_kappa_{kappa:0.4f}_energy_in_{env}.csv", 'r')
+        f = open(f"{base_path}/{name}/{name}_lambda_{lam:0.4f}_energy_in_kappa_{round(kappa)}_{env}.csv", 'r')
         energies.append(np.array([float(e) for e in f][::thinning]))
         f.close()
 

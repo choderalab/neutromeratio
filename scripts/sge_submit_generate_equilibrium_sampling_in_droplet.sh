@@ -16,7 +16,7 @@ echo ${n_steps}
 echo ${env}
 
 . /data/shared/software/python_env/anaconda3/etc/profile.d/conda.sh
-conda activate ani36
+conda activate ani36v2
 # nr of jobs: 10080
 diameter_in_angstrom=18 #Angstrom
 base_path="/data/shared/projects/neutromeratio/data/equilibrium_sampling/waterbox-${diameter_in_angstrom}A-V2/${name}"

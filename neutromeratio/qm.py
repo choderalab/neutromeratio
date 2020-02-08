@@ -8,7 +8,7 @@ from .constants import hartree_to_kJ_mol
 
 psi4.core.set_output_file("output1.dat", True)
 psi4.set_memory('4 GB')
-psi4.set_num_threads(4)
+psi4.set_num_threads(1)
 
 
 def mol2psi4(mol: Chem.Mol, conformer_id: int = 0) -> psi4.core.Molecule:
@@ -39,6 +39,7 @@ def mol2psi4(mol: Chem.Mol, conformer_id: int = 0) -> psi4.core.Molecule:
 
 def optimize(mol: psi4.core.Molecule, method: str = 'wB97X/6-31g*') -> unit.Quantity:
     """Runs a minimization for a psi4 molecule object instance using a specified method (default: wB97X/6-31g*).
+    Note: 6-31g* is equivalente to 6-31g(d) according to http://www.psicode.org/psi4manual/master/basissets_tables.html
 
     Parameters
     ----------
@@ -53,9 +54,8 @@ def optimize(mol: psi4.core.Molecule, method: str = 'wB97X/6-31g*') -> unit.Quan
         energy of optimized geometry
     """
 
-    e = psi4.optimize(method, molecule=mol)
-    return (e * hartree_to_kJ_mol) * unit.kilojoule_per_mole
-
+    e, wfn = psi4.optimize(method, return_wfn=True, molecule=mol)
+    return (e * hartree_to_kJ_mol) * unit.kilojoule_per_mole, wfn
 
 def calculate_energy(mol: str, method: str = 'wB97X/6-31g*') -> unit.Quantity:
     """Calculates the single point energy of a psi4 molecule object instance.

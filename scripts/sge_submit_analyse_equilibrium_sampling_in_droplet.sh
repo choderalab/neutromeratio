@@ -9,8 +9,9 @@
 idx=${1} 
 hostname
 env='droplet'
+diameter=18
 per_atom_stddev_threshold=50.0
-base_path="/data/cluster/projects/neutromeratio/data/equilibrium_sampling/waterbox-18A/${name}"
+base_path="/data/cluster/projects/neutromeratio/data/equilibrium_sampling/waterbox-${diameter}A/${name}"
 
 echo 'Idx: '${idx}
 echo 'Per atom stddev threshold: '${per_atom_stddev_threshold}
@@ -20,4 +21,4 @@ echo 'Base path: '${base_path}
 conda activate ani36v2
 # nr of jobs: 400
 cd /home/mwieder/Work/Projects/neutromeratio/scripts
-python Analyse_equilibrium_samples_old.py ${idx} ${base_path} ${env} ${per_atom_stddev_threshold} 18
+python Analyse_equilibrium_samples.py ${idx} ${base_path} ${env} ${per_atom_stddev_threshold} ${diameter}
