@@ -91,7 +91,7 @@ t2_e_qm = []
 energy_function = neutromeratio.ANI1_force_and_energy(
                                         model = model,
                                         mol = None,
-                                        atoms = tautomer.initial_state_ligand_atoms)
+                                        atoms = tautomer.final_state_ligand_atoms)
 
   
 mol = tautomer.final_state_mol
@@ -105,10 +105,8 @@ for conf_idx in range(mol.GetNumConformers()):
         print(f"Optimization failed for conf: {conf_idx}")
         continue
     
-    conf = np.asarray(wfn.molecule().geometry()) * unit.angstrom
-    print(conf)
+    conf = np.asarray(psi4_mol.geometry()) * unit.bohr #!!! another distance unit was really missing  
     e_ani, _, __, ____ = energy_function.calculate_energy(conf)
-    print(e_ani)
     t2_e_ani.append(e_ani/kT)
     t2_e_qm.append(e_qm/kT)
 
