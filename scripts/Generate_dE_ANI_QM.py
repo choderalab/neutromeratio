@@ -42,7 +42,7 @@ t2_smiles = exp_results[name]['t2-smiles']
 t_type, tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name,
                                                                 t1_smiles,
                                                                 t2_smiles,
-                                                                nr_of_conformations=2,
+                                                                nr_of_conformations=10,
                                                                 enforceChirality=False)
 tautomer = tautomers[0]
 tautomer.perform_tautomer_transformation()
@@ -87,7 +87,14 @@ for conf_idx in range(mol.GetNumConformers()):
 # t2
 t2_e_ani = []
 t2_e_qm = []
-mol = tautomer.initial_state_mol
+# calculate energy using both structures and pure ANI1ccx
+energy_function = neutromeratio.ANI1_force_and_energy(
+                                        model = model,
+                                        mol = None,
+                                        atoms = tautomer.initial_state_ligand_atoms)
+
+  
+mol = tautomer.final_state_mol
 for conf_idx in range(mol.GetNumConformers()):
     print(f"Starting with optimizing conf: {conf_idx}")
     try:

@@ -110,12 +110,14 @@ for kappa_value, tautomer in enumerate(tautomers):
 
 
     energy_and_force = lambda x : energy_function.calculate_force(x, lambda_value)
-    langevin = neutromeratio.LangevinDynamics(atoms=tautomer.hybrid_atoms,
-                                            energy_and_force=energy_and_force)
     if env == 'droplet':
         x0 = tautomer.ligand_in_water_coordinates
+        langevin = neutromeratio.LangevinDynamics(atoms=tautomer.ligand_in_water_atoms,
+                                            energy_and_force=energy_and_force)
     elif env == 'vacuum':
         x0 = tautomer.hybrid_coords
+        langevin = neutromeratio.LangevinDynamics(atoms=tautomer.hybrid_atoms,
+                                            energy_and_force=energy_and_force)
     else:
         raise RuntimeError()
     x0, e_history = energy_function.minimize(x0, maxiter=5000, lambda_value=lambda_value)
