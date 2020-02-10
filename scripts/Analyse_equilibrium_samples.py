@@ -66,7 +66,7 @@ for kappa_value, tautomer in enumerate(tautomers):
                              diameter=diameter_in_angstrom * unit.angstrom,
                             restrain_hydrogen_bonds=True,
                             restrain_hydrogen_angles=False,
-                            top_file=f"{base_path}/{name}/{name}_in_droplet_{round(kappa_value)}.pdb")
+                            top_file=f"{base_path}/{name}/{name}_kappa_{round(kappa_value)}_in_droplet.pdb")
 
         print('Nr of atoms: {}'.format(len(tautomer.ligand_in_water_atoms)))
         atoms = tautomer.ligand_in_water_atoms
@@ -157,6 +157,6 @@ for kappa_value, tautomer in enumerate(tautomers):
 
 min_index, min_value = min(enumerate(results), key=operator.itemgetter(1))
 
-f = open(f"{base_path}/results_in_kT.csv", 'a+')
+f = open(f"{base_path}/results_in_kT_threshold_{per_atom_stddev_threshold}.csv", 'a+')
 f.write(f"{name}, {results[min_index]}, {uncertainty[min_index]}\n")
 f.close()
