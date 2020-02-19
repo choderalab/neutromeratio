@@ -57,6 +57,11 @@ def optimize(mol: psi4.core.Molecule, method: str = 'wB97X/6-31g*') -> unit.Quan
     e, wfn = psi4.optimize(method, return_wfn=True, molecule=mol)
     return (e * hartree_to_kJ_mol) * unit.kilojoule_per_mole, wfn
 
+def frequency(mol: psi4.core.Molecule, method: str = 'wB97X/6-31g*'):
+    e, wfn = psi4.frequency(method, molecule=mol, return_wfn=True)
+    return (e * hartree_to_kJ_mol) * unit.kilojoule_per_mole, wfn
+
+
 def calculate_energy(mol: str, method: str = 'wB97X/6-31g*') -> unit.Quantity:
     """Calculates the single point energy of a psi4 molecule object instance.
 
