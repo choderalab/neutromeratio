@@ -63,6 +63,7 @@ class Tautomer(object):
         self.initial_state_mol_nx: nx.Graph = self._mol_to_nx(initial_state_mol)
 
         self.final_state_mol: Chem.Mol = final_state_mol
+        self.final_state_mol_nx:nx.Graph = self._mol_to_nx(final_state_mol)
 
         initial_state_ani_input = self._from_mol_to_ani_input(self.initial_state_mol, enforceChirality)
         self.initial_state_ligand_atoms = initial_state_ani_input['ligand_atoms']

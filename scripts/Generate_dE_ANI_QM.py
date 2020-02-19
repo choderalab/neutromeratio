@@ -75,7 +75,7 @@ for conf_idx in range(mol.GetNumConformers()):
         print(f"Optimization failed for conf: {conf_idx}")
         continue
     
-    conf = np.asarray(wfn.molecule().geometry()) * unit.angstrom
+    conf = np.asarray(wfn.molecule().geometry()) * unit.bohr #!!! BOHR!
     print(conf)
     e_ani, _, __, ____ = energy_function.calculate_energy(conf)
     print(e_ani)
@@ -105,7 +105,7 @@ for conf_idx in range(mol.GetNumConformers()):
         print(f"Optimization failed for conf: {conf_idx}")
         continue
     
-    conf = np.asarray(psi4_mol.geometry()) * unit.bohr #!!! another distance unit was really missing  
+    conf = np.asarray(wfn.molecule().geometry()) * unit.bohr #!!! another distance unit was really missing  
     e_ani, _, __, ____ = energy_function.calculate_energy(conf)
     t2_e_ani.append(e_ani/kT)
     t2_e_qm.append(e_qm/kT)
