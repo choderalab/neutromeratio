@@ -39,10 +39,33 @@ pressure = 101325.0 * unit.pascal
 gas_constant = 0.0019872036 * (unit.kilocalorie_per_mole / unit.kelvin)
 water_hoh_angle = 104.5 * unit.degree
 
+mols_with_charge = ['molDWRow_400',
+ 'molDWRow_369',
+ 'molDWRow_651',
+ 'molDWRow_283',
+ 'molDWRow_626',
+ 'molDWRow_111',
+ 'molDWRow_286',
+ 'molDWRow_589',
+ 'molDWRow_284',
+ 'molDWRow_1004',
+ 'molDWRow_287',
+ 'molDWRow_282',
+ 'molDWRow_556',
+ 'molDWRow_955',
+ 'molDWRow_915',
+ 'molDWRow_412',
+ 'molDWRow_413',
+ 'molDWRow_914',
+ 'molDWRow_625',
+ 'molDWRow_1564',
+ 'molDWRow_285',
+ 'molDWRow_951',
+ 'molDWRow_994']
 
 
 
-exclude_set_ANI = ['molDWRow_1004', # charge
+exclude_set_ANI = [
                'molDWRow_1088', # sulfur
                'molDWRow_1109', #sulfur
                'molDWRow_1110', #sulfur, Cl
@@ -170,7 +193,7 @@ exclude_set_ANI = ['molDWRow_1004', # charge
 
 
 
-exclude_set_B3LYP = ['molDWRow_1004', # charge
+exclude_set_B3LYP = [
                'molDWRow_576', #I
                'molDWRow_577', #I
                'molDWRow_611', #I
