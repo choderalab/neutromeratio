@@ -39,129 +39,133 @@ pressure = 101325.0 * unit.pascal
 gas_constant = 0.0019872036 * (unit.kilocalorie_per_mole / unit.kelvin)
 water_hoh_angle = 104.5 * unit.degree
 
-exclude_set = ['molDWRow_1004',
-               'molDWRow_1088',
-               'molDWRow_1109',
-               'molDWRow_1110',
-               'molDWRow_1114',
-               'molDWRow_1115',
-               'molDWRow_1116',
-               'molDWRow_1117',
-               'molDWRow_1118',
-               'molDWRow_1119',
-               'molDWRow_112',
-               'molDWRow_1120',
-               'molDWRow_1123',
-               'molDWRow_1124',
-               'molDWRow_1125',
-               'molDWRow_1149',
-               'molDWRow_1150',
-               'molDWRow_1152',
-               'molDWRow_1184',
-               'molDWRow_1185',
-               'molDWRow_1186',
-               'molDWRow_1187',
-               'molDWRow_1189',
-               'molDWRow_1221',
-               'molDWRow_1222',
-               'molDWRow_1223',
-               'molDWRow_1224',
-               'molDWRow_1226',
-               'molDWRow_1227',
-               'molDWRow_1236',
-               'molDWRow_1237',
-               'molDWRow_1238',
-               'molDWRow_1260'
-               'molDWRow_1262',
-               'molDWRow_1263',
-               'molDWRow_1264',
-               'molDWRow_1265',
-               'molDWRow_1266',
-               'molDWRow_1267',
-               'molDWRow_1275',
-               'molDWRow_1279',
-               'molDWRow_1280',
-               'molDWRow_1282',
-               'molDWRow_1283',
-               'molDWRow_1323',
-               'molDWRow_1429',
-               'molDWRow_1486',
-               'molDWRow_1533',
-               'molDWRow_1553',
-               'molDWRow_1555',
-               'molDWRow_1557',
-               'molDWRow_1558',
-               'molDWRow_1565',
-               'molDWRow_1571',
-               'molDWRow_1593',
-               'molDWRow_1665',
-               'molDWRow_1668',
-               'molDWRow_1671',
-               'molDWRow_178',
-               'molDWRow_182',
-               'molDWRow_201',
-               'molDWRow_204',
-               'molDWRow_508',
-               'molDWRow_553',
-               'molDWRow_557',
-               'molDWRow_568',
-               'molDWRow_569',
-               'molDWRow_570',
-               'molDWRow_571',
-               'molDWRow_576',
-               'molDWRow_577',
-               'molDWRow_580',
-               'molDWRow_581',
-               'molDWRow_582',
-               'molDWRow_585',
-               'molDWRow_586',
-               'molDWRow_587',
-               'molDWRow_588',
-               'molDWRow_603',
-               'molDWRow_604',
-               'molDWRow_605',
-               'molDWRow_606',
-               'molDWRow_611',
-               'molDWRow_612',
-               'molDWRow_615',
-               'molDWRow_616',
-               'molDWRow_617',
-               'molDWRow_618',
-               'molDWRow_621',
-               'molDWRow_622',
-               'molDWRow_623',
-               'molDWRow_624',
-               'molDWRow_636',
-               'molDWRow_643',
-               'molDWRow_648',
-               'molDWRow_675',
-               'molDWRow_73',
-               'molDWRow_74',
-               'molDWRow_758',
-               'molDWRow_767',
-               'molDWRow_768',
-               'molDWRow_784',
-               'molDWRow_82',
-               'molDWRow_83',
-               'molDWRow_836',
-               'molDWRow_837',
-               'molDWRow_839',
-               'molDWRow_840',
-               'molDWRow_952',
-               'molDWRow_953',
-               'molDWRow_955',
-               'molDWRow_988',
-               'molDWRow_989',
-               'molDWRow_990',
-               'molDWRow_991',
-               'molDWRow_992',
-               'molDWRow_993',
+
+
+
+exclude_set_ANI = ['molDWRow_1004', # charge
+               'molDWRow_1088', # sulfur
+               'molDWRow_1109', #sulfur
+               'molDWRow_1110', #sulfur, Cl
+               'molDWRow_1114', # S, Cl
+               'molDWRow_1115', # S, Cl
+               'molDWRow_1116', #S
+               'molDWRow_1117', #S
+               'molDWRow_1118', #S
+               'molDWRow_1119', #S 
+               'molDWRow_112', #S
+               'molDWRow_1120', #S
+               'molDWRow_1123', #S
+               'molDWRow_1124', #S
+               'molDWRow_1125', #S
+               'molDWRow_1149', #S
+               'molDWRow_1150', #S
+               'molDWRow_1152', #S
+               'molDWRow_1184', #Cl
+               'molDWRow_1185', #Cl
+               'molDWRow_1186', #S
+               'molDWRow_1187', #S
+               'molDWRow_1189', #Cl
+               'molDWRow_1221', #S
+               'molDWRow_1222', #S
+               'molDWRow_1223', #S
+               'molDWRow_1224', #S
+               'molDWRow_1226', #S
+               'molDWRow_1227', #S
+               'molDWRow_1236', #S
+               'molDWRow_1237', #S
+               'molDWRow_1238', #S
+               'molDWRow_1260', #??????
+               'molDWRow_1262', #Cl
+               'molDWRow_1263', #Cl
+               'molDWRow_1264', #F
+               'molDWRow_1265', #S
+               'molDWRow_1266', #F
+               'molDWRow_1267', #Cl, S
+               'molDWRow_1275', #Cl, S
+               'molDWRow_1279', #Cl, S
+               'molDWRow_1280', #Cl, S
+               'molDWRow_1282', #Cl, S
+               'molDWRow_1283', #Cl
+               'molDWRow_1323', #S
+               'molDWRow_1429', #S
+               'molDWRow_1486', #S
+               'molDWRow_1533', #S
+               'molDWRow_1553', #S
+               'molDWRow_1555', #F
+               'molDWRow_1557', #S
+               'molDWRow_1558', #S, F
+               'molDWRow_1565', #S
+               'molDWRow_1571', #S
+               'molDWRow_1593', #S
+               'molDWRow_1665', #S
+               'molDWRow_1668', #S
+               'molDWRow_1671', #S
+               'molDWRow_178', #S
+               'molDWRow_182', #S
+               'molDWRow_201', #S
+               'molDWRow_204', #S
+               'molDWRow_508', #S
+               'molDWRow_553', #Cl
+               'molDWRow_557', #Cl
+               'molDWRow_568', #S
+               'molDWRow_569', #S
+               'molDWRow_570', #F
+               'molDWRow_571', #F
+               'molDWRow_576', #I
+               'molDWRow_577', #I
+               'molDWRow_580', #Cl
+               'molDWRow_581', #Br
+               'molDWRow_582', #Br
+               'molDWRow_585', #S
+               'molDWRow_586', #S
+               'molDWRow_587', #F
+               'molDWRow_588', #F
+               'molDWRow_603', #S
+               'molDWRow_604', #S
+               'molDWRow_605', #F
+               'molDWRow_606', #F
+               'molDWRow_611', #I
+               'molDWRow_612', #I
+               'molDWRow_615', #Cl
+               'molDWRow_616', #Cl
+               'molDWRow_617', #Br
+               'molDWRow_618', #Br
+               'molDWRow_621', #S
+               'molDWRow_622', #S
+               'molDWRow_623', #F
+               'molDWRow_624', #F
+               'molDWRow_636', #S
+               'molDWRow_643', #Cl
+               'molDWRow_648', #S
+               'molDWRow_675', #S
+               'molDWRow_73', #S
+               'molDWRow_74', #S
+               'molDWRow_758', #Cl
+               'molDWRow_767', #S
+               'molDWRow_768', #S
+               'molDWRow_784', #S
+               'molDWRow_82', #Cl
+               'molDWRow_83', #Br
+               'molDWRow_836', #S
+               'molDWRow_837', #S
+               'molDWRow_839', #S
+               'molDWRow_840', #S
+               'molDWRow_952', #Br
+               'molDWRow_953', #Cl
+               'molDWRow_955', #charge, Cl
+               'molDWRow_988', #Br
+               'molDWRow_989', #Br
+               'molDWRow_990', #Cl
+               'molDWRow_991', #Cl
+               'molDWRow_992', #Cl
+               'molDWRow_993', #I
                'molDWRow_1676',  # two hydrogens are swichting place
                'molDWRow_287', # zwitterion
                'molDWRow_400', # zwitterion
                'molDWRow_412', # zwitterion
                'molDWRow_412',  # zwitterion
                'molDWRow_651',  # zwitterion
+               'molDWRow_369',  # zwitterion
                ]
 
 
