@@ -169,6 +169,25 @@ exclude_set_ANI = ['molDWRow_1004', # charge
                ]
 
 
+
+exclude_set_B3LYP = ['molDWRow_1004', # charge
+               'molDWRow_576', #I
+               'molDWRow_577', #I
+               'molDWRow_611', #I
+               'molDWRow_612', #I
+               'molDWRow_955', #charge, Cl
+               'molDWRow_993', #I
+               'molDWRow_1676',  # two hydrogens are swichting place
+               'molDWRow_287', # zwitterion
+               'molDWRow_400', # zwitterion
+               'molDWRow_412', # zwitterion
+               'molDWRow_412',  # zwitterion
+               'molDWRow_651',  # zwitterion
+               'molDWRow_369',  # zwitterion
+               ]
+
+
+
 # Imines are excluded from the tautomer_set_with_stereobonds since these don't need additional sampling
 tautomer_set_with_stereobonds = ['molDWRow_1082',
  'molDWRow_1083',
