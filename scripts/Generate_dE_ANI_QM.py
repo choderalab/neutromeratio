@@ -116,7 +116,7 @@ f = open(f"{base}/{name}_t1.csv", 'a+')
 for conf_id, (e_ani, e_qm) in enumerate(zip(t1_e_ani, t1_e_qm)):
     f.write(f"{conf_id}, {e_ani}, {e_qm}\n")  
 f.close()
-# write dG
+# write dE
 f = open(f"{base}/{name}_t2.csv", 'a+')
 for conf_id, (e_ani, e_qm) in enumerate(zip(t2_e_ani, t2_e_qm)):
     f.write(f"{conf_id}, {e_ani}, {e_qm}\n")  
