@@ -23,7 +23,7 @@ try:
 except AssertionError:
     raise AssertionError('Only ANI1x/ANI1ccx are accepted.')
 # read in exp results, smiles and names
-exp_results = pickle.load(open('../data/exp_results.pickle', 'rb'))
+exp_results = pickle.load(open('/home/mwieder/Work/Projects/neutromeratio/data/exp_results.pickle', 'rb'))
 
 # name of the system
 protocoll = []
@@ -42,7 +42,7 @@ t2_smiles = exp_results[name]['t2-smiles']
 t_type, tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name,
                                                                 t1_smiles,
                                                                 t2_smiles,
-                                                                nr_of_conformations=10,
+                                                                nr_of_conformations=100,
                                                                 enforceChirality=False)
 tautomer = tautomers[0]
 tautomer.perform_tautomer_transformation()
@@ -75,13 +75,11 @@ for conf_idx in range(mol.GetNumConformers()):
         print(f"Optimization failed for conf: {conf_idx}")
         continue
     
-    conf = np.asarray(wfn.molecule().geometry()) * unit.bohr #!!! BOHR!
-    print(conf)
+    conf = np.asarray(wfn.molecule().geometry()) * unit.bohr #!!!!!!!!!!! BOHR!
     e_ani, _, __, ____ = energy_function.calculate_energy(conf)
-    print(e_ani)
     t1_e_ani.append(e_ani/kT)
     t1_e_qm.append(e_qm/kT)
-
+    break
 
 
 # t2
@@ -105,19 +103,19 @@ for conf_idx in range(mol.GetNumConformers()):
         print(f"Optimization failed for conf: {conf_idx}")
         continue
     
-    conf = np.asarray(wfn.molecule().geometry()) * unit.bohr #!!! another distance unit was really missing  
+    conf = np.asarray(psi4_mol.geometry()) * unit.bohr #!!! another distance unit was really missing  
     e_ani, _, __, ____ = energy_function.calculate_energy(conf)
     t2_e_ani.append(e_ani/kT)
     t2_e_qm.append(e_qm/kT)
-
+    break
 
 # write dE
-f = open(f"{base}/{name}_t1.csv", 'a+')
+f = open(f"{base}/{name}_t1.csv", 'w')
 for conf_id, (e_ani, e_qm) in enumerate(zip(t1_e_ani, t1_e_qm)):
     f.write(f"{conf_id}, {e_ani}, {e_qm}\n")  
 f.close()
-# write dE
-f = open(f"{base}/{name}_t2.csv", 'a+')
+# write dG
+f = open(f"{base}/{name}_t2.csv", 'w')
 for conf_id, (e_ani, e_qm) in enumerate(zip(t2_e_ani, t2_e_qm)):
     f.write(f"{conf_id}, {e_ani}, {e_qm}\n")  
 f.close()

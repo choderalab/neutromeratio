@@ -10,8 +10,8 @@ idx=${1}
 hostname
 env='droplet'
 diameter=18
-per_atom_stddev_threshold=50.0
-base_path="/data/cluster/projects/neutromeratio/data/equilibrium_sampling/waterbox-${diameter}A/${name}"
+per_atom_stddev_threshold=5000.0
+base_path="/data/shared/projects/neutromeratio/data/equilibrium_sampling/waterbox-${diameter}A-V2/${name}"
 
 echo 'Idx: '${idx}
 echo 'Per atom stddev threshold: '${per_atom_stddev_threshold}

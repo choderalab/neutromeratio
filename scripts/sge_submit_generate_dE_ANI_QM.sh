@@ -13,11 +13,12 @@ pid=$$
 echo 'Idx: '${idx}
 
 mkdir -p /data/local/psi4-scratch/
-mkdir -p /data/local/${pid}
+mkdir -p /data/local/psi4-${pid}
 cd /data/local/psi4-${pid}
 
 . /data/shared/software/python_env/anaconda3/etc/profile.d/conda.sh
 conda activate ani36v2
 # nr of jobs: 400
-cd /home/mwieder/Work/Projects/neutromeratio/scripts
 python /home/mwieder/Work/Projects/neutromeratio/scripts/Generate_dE_ANI_QM.py ${idx} ANI1x 
+
+rm -r /data/local/psi4-${pid}

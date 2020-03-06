@@ -123,7 +123,7 @@ for kappa_value, tautomer in enumerate(tautomers):
         traj = md.load_dcd(dcd_filename, top=top)[::thinning]
         print(f"Nr of frames in trajectory: {len(traj)}")
         ani_trajs.append(traj)
-        f = open(f"{base_path}/{name}/{name}_lambda_{lam:0.4f}_energy_in_kappa_{round(kappa)}_{env}.csv", 'r')
+        f = open(f"{base_path}/{name}/{name}_lambda_{lam:0.4f}_energy_kappa_{round(kappa)}_in_{env}.csv", 'r')
         energies.append(np.array([float(e) for e in f][::thinning]))
         f.close()
 
