@@ -7,9 +7,8 @@ import numpy as np
 import pandas as pd
 import scipy.stats as scs
 
-# TODO: adding estimate uncertanty to scatter plot
-
 logger = logging.getLogger(__name__)
+plt.style.use('seaborn-deep')
 
 
 def plot_correlation_analysis(
@@ -49,11 +48,10 @@ def plot_correlation_analysis(
     plt.text(-29.0, 24.0, r"RMSE$ = {}$".format(rmse), fontsize=fontsize)
     plt.text(-29.0, 21.0, r"Nr of tautomer pairs$ = {}$".format(len(df['names'])), fontsize=fontsize)
 
-
     try:
         logger.info('Plotting with y-error bars')   
         for X, Y, name, error in zip(df.x, df.y, df.names, df.yerror):
-            ax.errorbar(X, Y, yerr=error,  mfc='blue', ms=5, fmt='_-b', alpha=0.6, ecolor='r', capthick=2)
+            ax.errorbar(X, Y, yerr=error,  mfc='blue', ms=3, fmt='o', capthick=2, alpha=0.6, ecolor='r')
             # mark tautomer pairs that behave strangly
             if name in mark_tautomer_names:
                 ax.annotate(str(name), (X, Y), fontsize=10)
@@ -68,12 +66,12 @@ def plot_correlation_analysis(
         logger.info('Plotting without y-error bars')   
 
     # draw lines +- 1kcal/mol
-    ax.plot((0.0, 30.0), (-30.0, 30.0), "k--", zorder=-1, linewidth=1., alpha=0.5)
-    ax.plot((0.0, 30.0), (-30.0, 29.0), "gray", zorder=-1, linewidth=1., alpha=0.5)
-    ax.plot((0.0, 29.0), (-29.0, 30.0), "gray", zorder=-1, linewidth=1., alpha=0.5)
-
-    ax.plot((0.0, 30.0), (0.0, 0.0), "r--", zorder=-1, linewidth=1., alpha=0.5)
-    ax.plot((0.0, 0.0), (0.0, 30.0), "r--", zorder=-1, linewidth=1., alpha=0.5)
+    ax.plot((-32.0, 32.0), (-32.0, 32.0), "k--", zorder=-1, linewidth=1., alpha=0.5)
+    ax.plot((-31.0, 32.0), (-32.0, 31.0), "gray", zorder=-1, linewidth=1., alpha=0.5)
+    ax.plot((-32.0, 31.0), (-31.0, 32.0), "gray", zorder=-1, linewidth=1., alpha=0.5)
+    
+    ax.plot((-32.0, 32.0), (0.0, 0.0), "r--", zorder=-1, linewidth=1., alpha=0.5)
+    ax.plot((0.0, 0.0), (-32.0, 32.0), "r--", zorder=-1, linewidth=1., alpha=0.5)
 
     ax.set_xlabel(x_label, fontsize=fontsize)
     ax.set_ylabel(y_label, fontsize=fontsize)
@@ -91,8 +89,8 @@ def plot_correlation_analysis(
     y = 30  # np.arange(0.01,30,0.1)
 
     plt.fill_between(x, y, color='#539ecd', alpha=0.2)
-    ax.set_xlim([0, 30])
-    ax.set_ylim([0, 30])
+    ax.set_xlim([-30, 30])
+    ax.set_ylim([-30, 30])
     return plt
 
 
