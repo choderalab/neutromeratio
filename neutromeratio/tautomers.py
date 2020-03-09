@@ -752,6 +752,8 @@ class Tautomer(object):
         bw_energies = []
         confs_traj = []
         minimum_energies = []
+        all_energies = []
+        all_conformations = []
 
         for ase_mol, rdkit_mol, ligand_atoms, ligand_coords, top, entropy_correction in zip(
             [self.initial_state_ase_mol, self.final_state_ase_mol],
@@ -760,7 +762,7 @@ class Tautomer(object):
             [self.initial_state_ligand_coords, self.final_state_ligand_coords],
             [self.initial_state_ligand_topology, self.final_state_ligand_topology],
                 [self.initial_state_entropy_correction, self.final_state_entropy_correction]):
-
+            
             print('Mining Minima starting ...')
             model = PureANI1ccx()
             model = model.to(device)
@@ -800,6 +802,8 @@ class Tautomer(object):
 
             # aligne the molecules
             AllChem.AlignMolConformers(rdkit_mol)
+            all_energies.append(copy.deepcopy(energies))
+            all_conformations.append(copy.deepcopy(rdkit_mol))
             min_and_filtered_rdkit_mol, filtered_energies = prune_conformers(
                 rdkit_mol, copy.deepcopy(energies), rmsd_threshold=rmsd_threshold)
 
@@ -819,4 +823,4 @@ class Tautomer(object):
             print('Mining Minima finished ...')
 
         e = (bw_energies[1] - bw_energies[0])
-        return confs_traj, e, minimum_energies
+        return confs_traj, e, minimum_energies, all_energies, all_conformations
