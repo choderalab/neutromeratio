@@ -761,7 +761,7 @@ def test_mining_minima():
     tautomer = tautomers[0]
     tautomer.perform_tautomer_transformation()
 
-    confs_traj, e, minimum_energies = tautomer.generate_mining_minima_structures()
+    confs_traj, e, minimum_energies, all_energies, all_conformations = tautomer.generate_mining_minima_structures()
 
 
 def test_plotting():
