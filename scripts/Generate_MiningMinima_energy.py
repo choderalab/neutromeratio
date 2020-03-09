@@ -33,12 +33,17 @@ torch.set_num_threads(2)
 t1_smiles = exp_results[name]['t1-smiles']
 t2_smiles = exp_results[name]['t2-smiles']
 
-tautomer = neutromeratio.Tautomer(name=name, initial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles), nr_of_conformations=100)
-tautomer.perform_tautomer_transformation_forward()
+t_type, tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name,
+                                                                t1_smiles,
+                                                                t2_smiles,
+                                                                nr_of_conformations=100,
+                                                                enforceChirality=True)
+tautomer = tautomers[0]
+tautomer.perform_tautomer_transformation()
 
 print('Treshold used for RMSD filtering: {}'.format(rmsd_threshold))
 confs_traj, mining_min_e, minimum_energies, all_energies, all_conformations = tautomer.generate_mining_minima_structures(rmsd_threshold=rmsd_threshold, 
-                                                                                        include_entropy_correction=True)
+                                                                                        include_entropy_correction=False)
 d = {'t1-energies': all_energies[0],
     't2-energies': all_energies[1],
     't1-confs': all_conformations[0],
