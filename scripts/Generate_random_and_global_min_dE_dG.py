@@ -40,7 +40,7 @@ t2_smiles = exp_results[name]['t2-smiles']
 t_type, tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name,
                                                                 t1_smiles,
                                                                 t2_smiles,
-                                                                nr_of_conformations=10,
+                                                                nr_of_conformations=100,
                                                                 enforceChirality=True)
 tautomer = tautomers[0]
 tautomer.perform_tautomer_transformation()
@@ -73,16 +73,14 @@ for coords in tautomer.initial_state_ligand_coords:
         print('Imaginary frequencies present - found transition state.')
         continue
 
-    g = neutromeratio.reduced_pot(e) + neutromeratio.reduced_pot(thermochemistry_correction)
     e = neutromeratio.reduced_pot(e)
+    g = e + neutromeratio.reduced_pot(thermochemistry_correction)
 
     if entropy_correction:
         g += neutromeratio.reduced_pot(tautomer.initial_state_entropy_correction)
         e += neutromeratio.reduced_pot(tautomer.final_state_entropy_correction)
 
     
-  
-
     t1_e.append(e)
     t1_g.append(g)
 
@@ -109,7 +107,7 @@ for coords in tautomer.final_state_ligand_coords:
         continue
 
     e = neutromeratio.reduced_pot(e)
-    g = neutromeratio.reduced_pot(e) + neutromeratio.reduced_pot(thermochemistry_correction)
+    g = e + neutromeratio.reduced_pot(thermochemistry_correction)
     if entropy_correction:
         g += neutromeratio.reduced_pot(tautomer.final_state_entropy_correction)
         e += neutromeratio.reduced_pot(tautomer.final_state_entropy_correction)

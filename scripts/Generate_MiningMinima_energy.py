@@ -37,28 +37,31 @@ tautomer = neutromeratio.Tautomer(name=name, initial_state_mol=neutromeratio.gen
 tautomer.perform_tautomer_transformation_forward()
 
 print('Treshold used for RMSD filtering: {}'.format(rmsd_threshold))
-confs_traj, mining_min_e, minimum_energies = tautomer.generate_mining_minima_structures(rmsd_threshold=rmsd_threshold, 
+confs_traj, mining_min_e, minimum_energies, all_energies, all_conformations = tautomer.generate_mining_minima_structures(rmsd_threshold=rmsd_threshold, 
                                                                                         include_entropy_correction=True)
+d = {'t1-energies' : all_energies[0], 't2-energies' : all_energies[1], 't1-confs' : all_conformations[0], , 't2-confs' : all_conformations[1]}
 
 #mkdir, write confs and structure
-os.makedirs(f"/home/mwieder/Work/Projects/neutromeratio/data/mining_minima/{name}", exist_ok=True)
-confs_traj[0].save_dcd(f"/home/mwieder/Work/Projects/neutromeratio/data/mining_minima/{name}/mm_confs_t1.dcd", force_overwrite=True)
-confs_traj[0].save_pdb(f"/home/mwieder/Work/Projects/neutromeratio/data/mining_minima/{name}/mm_confs_t1.pdb", force_overwrite=True)
-confs_traj[1].save_dcd(f"/home/mwieder/Work/Projects/neutromeratio/data/mining_minima/{name}/mm_confs_t2.dcd", force_overwrite=True)
-confs_traj[1].save_pdb(f"/home/mwieder/Work/Projects/neutromeratio/data/mining_minima/{name}/mm_confs_t2.pdb", force_overwrite=True)
+base = "/home/mwieder/Work/Projects/neutromeratio/data/mining_minima"
+os.makedirs(f"{base}/{name}", exist_ok=True)
+# all confs and energies
+with open(f"{base}/{name}/all_confs_energies.pickle", 'wb') as f:
+    pickle.dump(d, f)
+    
+confs_traj[0].save_dcd(f"{base}/{name}/mm_confs_t1.dcd", force_overwrite=True)
+confs_traj[0].save_pdb(f"{base}/{name}/mm_confs_t1.pdb", force_overwrite=True)
+confs_traj[1].save_dcd(f"{base}/{name}/mm_confs_t2.dcd", force_overwrite=True)
+confs_traj[1].save_pdb(f"{base}/{name}/mm_confs_t2.pdb", force_overwrite=True)
 
 # write minimum energies
-f = open(f"/home/mwieder/Work/Projects/neutromeratio/data/mining_minima/{name}/mm_confs_e_t1.csv", "w+")
-for e in minimum_energies[0]:
-    f.write(f"{neutromeratio.reduced_pot(e)}\n")
-f.close()
+with open(f"{base}/{name}/mm_confs_e_t1.csv", "w+") as f:
+    for e in minimum_energies[0]:
+        f.write(f"{neutromeratio.reduced_pot(e)}\n")
 # write minimum energies
-f = open(f"/home/mwieder/Work/Projects/neutromeratio/data/mining_minima/{name}/mm_confs_e_t2.csv", "w+")
-for e in minimum_energies[1]:
-    f.write(f"{neutromeratio.reduced_pot(e)}\n")
-f.close()
+with open(f"{base}/{name}/mm_confs_e_t2.csv", "w+") as f:
+    for e in minimum_energies[1]:
+        f.write(f"{neutromeratio.reduced_pot(e)}\n")
 
 # write results
-f = open('/home/mwieder/Work/Projects/neutromeratio/data/mining_minima/MM_ANI1ccx_vacuum.csv', 'a+')
-f.write(f"{name}, {neutromeratio.reduced_pot(mining_min_e)}, {str(confs_traj[0].n_frames)}, {str(confs_traj[1].n_frames)}\n")
-f.close()
+with open(f"{base}/MM_ANI1ccx_vacuum.csv", 'a+') as f:
+    f.write(f"{name}, {neutromeratio.reduced_pot(mining_min_e)}, {str(confs_traj[0].n_frames)}, {str(confs_traj[1].n_frames)}\n")
