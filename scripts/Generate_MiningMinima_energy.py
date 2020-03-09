@@ -39,7 +39,10 @@ tautomer.perform_tautomer_transformation_forward()
 print('Treshold used for RMSD filtering: {}'.format(rmsd_threshold))
 confs_traj, mining_min_e, minimum_energies, all_energies, all_conformations = tautomer.generate_mining_minima_structures(rmsd_threshold=rmsd_threshold, 
                                                                                         include_entropy_correction=True)
-d = {'t1-energies' : all_energies[0], 't2-energies' : all_energies[1], 't1-confs' : all_conformations[0], , 't2-confs' : all_conformations[1]}
+d = {'t1-energies': all_energies[0],
+    't2-energies': all_energies[1],
+    't1-confs': all_conformations[0],
+    't2-confs' : all_conformations[1]}
 
 #mkdir, write confs and structure
 base = "/home/mwieder/Work/Projects/neutromeratio/data/mining_minima"
@@ -47,7 +50,7 @@ os.makedirs(f"{base}/{name}", exist_ok=True)
 # all confs and energies
 with open(f"{base}/{name}/all_confs_energies.pickle", 'wb') as f:
     pickle.dump(d, f)
-    
+
 confs_traj[0].save_dcd(f"{base}/{name}/mm_confs_t1.dcd", force_overwrite=True)
 confs_traj[0].save_pdb(f"{base}/{name}/mm_confs_t1.pdb", force_overwrite=True)
 confs_traj[1].save_dcd(f"{base}/{name}/mm_confs_t2.dcd", force_overwrite=True)
