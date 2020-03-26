@@ -189,6 +189,15 @@ exclude_set_ANI = [
                'molDWRow_412',  # zwitterion
                'molDWRow_651',  # zwitterion
                'molDWRow_369',  # zwitterion
+               'molDWRow_1610',
+                'molDWRow_1665',
+                'molDWRow_1666',
+                'molDWRow_1667',
+                'molDWRow_1671',
+                'molDWRow_1672',
+                'molDWRow_1673',
+                'molDWRow_1675',
+                'molDWRow_1676',
                ]
 
 
@@ -207,6 +216,15 @@ exclude_set_B3LYP = [
                'molDWRow_412',  # zwitterion
                'molDWRow_651',  # zwitterion
                'molDWRow_369',  # zwitterion
+                'molDWRow_1610',
+                'molDWRow_1665',
+                'molDWRow_1666',
+                'molDWRow_1667',
+                'molDWRow_1671',
+                'molDWRow_1672',
+                'molDWRow_1673',
+                'molDWRow_1675',
+                'molDWRow_1676',
                ]
 
 
