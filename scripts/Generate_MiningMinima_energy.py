@@ -1,6 +1,6 @@
 import neutromeratio
 from openmmtools.constants import kB
-from neutromeratio.constants import exclude_set
+from neutromeratio.constants import exclude_set_ANI, mols_with_charge
 from simtk import unit
 import numpy as np
 import pickle
@@ -21,7 +21,7 @@ exp_results = pickle.load(open('../data/exp_results.pickle', 'rb'))
 # name of the system
 protocoll = []
 for name in sorted(exp_results):
-    if name in exclude_set:
+    if name in exclude_set_ANI, mols_with_charge:
         continue
     protocoll.append(name)
 
@@ -43,11 +43,20 @@ tautomer.perform_tautomer_transformation()
 
 print('Treshold used for RMSD filtering: {}'.format(rmsd_threshold))
 confs_traj, mining_min_e, minimum_energies, all_energies, all_conformations = tautomer.generate_mining_minima_structures(rmsd_threshold=rmsd_threshold, 
+    
                                                                                         include_entropy_correction=False)
-d = {'t1-energies': all_energies[0],
-    't2-energies': all_energies[1],
-    't1-confs': all_conformations[0],
-    't2-confs' : all_conformations[1]}
+
+if flipped:
+    d = {'t1-energies': all_energies[1],
+        't2-energies': all_energies[0],
+        't1-confs': all_conformations[1],
+        't2-confs': all_conformations[0]}
+else:
+    d = {'t1-energies': all_energies[0],
+        't2-energies': all_energies[1],
+        't1-confs': all_conformations[0],
+        't2-confs': all_conformations[1]}
+    
 
 #mkdir, write confs and structure
 base = "/home/mwieder/Work/Projects/neutromeratio/data/mining_minima"

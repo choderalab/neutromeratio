@@ -152,7 +152,7 @@ def generate_tautomer_class_stereobond_aware(name: str,
     stereobond_type = None
 
     if flag_unspec_stereo(t1_smiles) or flag_unspec_stereo(t2_smiles):
-        logger.info("Imines present ... switching to imine generation.")
+        logger.debug("Imines present ... switching to imine generation.")
         stereobond_type = 'Imine'
 
         if flag_unspec_stereo(t1_smiles):
@@ -191,7 +191,7 @@ def generate_tautomer_class_stereobond_aware(name: str,
         if get_nr_of_stereobonds(t1_smiles) == 0 and get_nr_of_stereobonds(t2_smiles) == 0:
             # no stereobond -- normal protocol
             # generate both rdkit mol
-            logger.info('No stereobonds ...')
+            logger.debug('No stereobonds ...')
             tautomers.append(Tautomer(name=name,
                                     initial_state_mol=generate_rdkit_mol(t1_smiles),
                                     final_state_mol=generate_rdkit_mol(t2_smiles),
@@ -350,3 +350,5 @@ def generate_torsion_restraint_from_minimized_conformation(tautomer, idx: list, 
     logger.info(f"Torsion restraint will be around: {torsion}")
 
     return TorsionHarmonicRestraint(sigma=10 * unit.degree, atom_idx=[1, 2, 3, 4], torsion_angle=torsion[0] * unit.degree, active_at=0)
+
+

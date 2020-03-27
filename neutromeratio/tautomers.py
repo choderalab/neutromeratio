@@ -56,8 +56,8 @@ class Tautomer(object):
         assert(type(initial_state_mol) == Chem.Mol)
         assert(type(final_state_mol) == Chem.Mol)
 
-        logger.info(f"Nr of conformations generated per tautomer: {nr_of_conformations}")
-        logger.info(f"Chirality enforced: {enforceChirality}")
+        logger.debug(f"Nr of conformations generated per tautomer: {nr_of_conformations}")
+        logger.debug(f"Chirality enforced: {enforceChirality}")
 
         self.initial_state_mol: Chem.Mol = initial_state_mol
         self.initial_state_mol_nx: nx.Graph = self._mol_to_nx(initial_state_mol)
@@ -80,9 +80,9 @@ class Tautomer(object):
         self.final_state_ase_mol: Atoms = final_state_ani_input['ase_mol']
 
         # attributes for the protocol
-        self.hybrid_hydrogen_idx_at_lambda_1: int = -1  # the dummy hydrogen
+        self.hybrid_hydrogen_idx_at_lambda_1: int = -1  # the dummy hydrogen at lambda 0, real hydrogen at lambda 1!! BEWARE!!
         self.hybrid_atoms: str = ''
-        self.hybrid_ligand_idxs = []
+        self.hybrid_ligand_idxs:list = []
         self.hybrid_coords: list = []
         self.hybrid_topology: md.Topology = md.Topology()
         self.heavy_atom_hydrogen_donor_idx: int = -1  # the heavy atom that losses the hydrogen
@@ -528,7 +528,7 @@ class Tautomer(object):
         """
 
         # find substructure and generate mol from substructure
-        sub_m = rdFMCS.FindMCS([m1, m2], bondCompare=Chem.rdFMCS.BondCompare.CompareOrder.CompareAny)
+        sub_m = rdFMCS.FindMCS([m1, m2], bondCompare=Chem.rdFMCS.BondCompare.CompareOrder.CompareAny, maximizeBonds=False)
         mcsp = Chem.MolFromSmarts(sub_m.smartsString, False)
 
         # the order of the substructure lists are the same for both
@@ -636,7 +636,7 @@ class Tautomer(object):
                 min_e = e
                 min_coordinates = hybrid_coord
 
-        self.hybrid_hydrogen_idx_at_lambda_1 = len(hybrid_atoms) - 1
+        self.hybrid_hydrogen_idx_at_lambda_1 = len(hybrid_atoms) - 1 # this is not the dummy hydrogen at lambda_1! it is the real hydrogen at lambda 1!
         self.hybrid_coords = min_coordinates
 
         # add restraint between dummy atom and heavy atom
@@ -669,85 +669,7 @@ class Tautomer(object):
         """
 
         from .ani import PureANI1ccx
-
-        def prune_conformers(mol: Chem.Mol, energies: list, rmsd_threshold: float) -> (Chem.Mol, list):
-            """
-            Adopted from: https://github.com/skearnes/rdkit-utils/blob/master/rdkit_utils/conformers.py
-            Prune conformers from a molecule using an RMSD threshold, starting
-            with the lowest energy conformer.
-            Parameters
-            ----------
-            mol : RDKit Mol
-                Molecule.
-            Returns
-            -------
-            A new RDKit Mol containing the chosen conformers, sorted by
-            increasing energy.
-            """
-            rmsd = get_conformer_rmsd(mol)
-            sort = np.argsort([x.value_in_unit(unit.kilocalorie_per_mole)
-                               for x in energies])  # sort by increasing energy
-            keep = []  # always keep lowest-energy conformer
-            discard = []
-            for i in sort:
-
-                # always keep lowest-energy conformer
-                if len(keep) == 0:
-                    keep.append(i)
-                    continue
-
-                # get RMSD to selected conformers
-                this_rmsd = rmsd[i][np.asarray(keep, dtype=int)]
-
-                # discard conformers within the RMSD threshold
-                if np.all(this_rmsd >= rmsd_threshold):
-                    keep.append(i)
-                else:
-                    discard.append(i)
-
-            # create a new molecule to hold the chosen conformers
-            # this ensures proper conformer IDs and energy-based ordering
-            new_mol = Chem.Mol(mol)
-            new_mol.RemoveAllConformers()
-            conf_ids = [conf.GetId() for conf in mol.GetConformers()]
-            filtered_energies = []
-            for i in keep:
-                conf = mol.GetConformer(conf_ids[i])
-                filtered_energies.append(energies[i])
-                new_mol.AddConformer(conf, assignId=True)
-            return new_mol, filtered_energies
-
-        def get_conformer_rmsd(mol) -> list:
-            """
-            Calculate conformer-conformer RMSD.
-            Parameters
-            ----------
-            mol : RDKit Mol
-                Molecule.
-            """
-            rmsd = np.zeros((mol.GetNumConformers(), mol.GetNumConformers()),
-                            dtype=float)
-
-            #mol = _remove_hydrogens(copy.deepcopy(mol))
-            for i, ref_conf in enumerate(mol.GetConformers()):
-                for j, fit_conf in enumerate(mol.GetConformers()):
-                    if i >= j:
-                        continue
-                    rmsd[i, j] = AllChem.GetBestRMS(mol, mol, ref_conf.GetId(),
-                                                    fit_conf.GetId())
-                    rmsd[j, i] = rmsd[i, j]
-            return rmsd
-
-        def calculate_weighted_energy(e_list):
-            # G = -RT ln Σ exp(-G/RT)
-
-            l = []
-            for energy in e_list:
-                v = ((-1) * (energy)) / (gas_constant * temperature)
-                l.append(v)
-
-            e_bw = (-1) * gas_constant * temperature * (logsumexp(l))
-            return e_bw
+        from .analysis import prune_conformers, calculate_weighted_energy
 
         bw_energies = []
         confs_traj = []
