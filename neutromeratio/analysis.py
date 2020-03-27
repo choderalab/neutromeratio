@@ -249,6 +249,8 @@ def compare_confomer_generator_and_trajectory_minimum_structures(results_path: s
 
     # generate rdkit mol object with the same atom indizes as the trajectory but without the dummy atom
     mol = Chem.MolFromPDBFile(tautomer_pdb, removeHs=False)
+    # remove conf of pdb
+    mol.RemoveAllConformers()
 
     # generate energy function, use atom symbols of rdkti mol
     from .ani import PureANI1ccx, ANI1_force_and_energy
@@ -257,8 +259,6 @@ def compare_confomer_generator_and_trajectory_minimum_structures(results_path: s
                                             atoms=[a.GetSymbol() for a in mol.GetAtoms()],
                                             mol=None)
 
-    # remove conf of pdb
-    mol.RemoveAllConformers()
     # take every 100th conformation and minimize it using ANI1
     minimized_traj = [] # store min conformations in here
 
@@ -281,8 +281,6 @@ def compare_confomer_generator_and_trajectory_minimum_structures(results_path: s
     # remove most hydrogens
     reference_mol = _remove_hydrogens(copy.deepcopy(reference[0]))
     compare_mol = _remove_hydrogens(copy.deepcopy(mol))
-    AllChem.AlignMolConformers(reference_mol)
-    AllChem.AlignMolConformers(compare_mol)
 
     # find atom indices that are compared for RMSD
     sub_m = rdFMCS.FindMCS([reference_mol, compare_mol], bondCompare=Chem.rdFMCS.BondCompare.CompareOrder.CompareAny, maximizeBonds=False)
@@ -290,23 +288,36 @@ def compare_confomer_generator_and_trajectory_minimum_structures(results_path: s
 
     # the order of the substructure lists are the same for both
     # substructure matches => substructure_idx_m1[i] = substructure_idx_m2[i]
-    substructure_idx_reference = reference_mol.GetSubstructMatch(mcsp)
-    substructure_idx_compare = compare_mol.GetSubstructMatch(mcsp)
+    substructure_idx_reference = reference_mol.GetSubstructMatches(mcsp, uniquify=False)
+    substructure_idx_compare = compare_mol.GetSubstructMatches(mcsp, uniquify=False)
     
     # generate rmsd matrix
     rmsd = np.zeros((reference_mol.GetNumConformers(), mol.GetNumConformers()),
                 dtype=float)
 
-    # atom mapping
-    atom_mapping = [(a1, a2) for a1, a2 in zip(substructure_idx_reference, substructure_idx_compare)]
-    
     # save clusters
     got_hit = np.zeros(reference_mol.GetNumConformers(), dtype=int)
 
+    # atom mapping
+    from itertools import combinations
+    for nr_of_mappings, (e1, e2) in enumerate(combinations(substructure_idx_reference+substructure_idx_compare, 2)):
+
+        atom_mapping = [(a1, a2) for a1, a2 in zip(e1, e2)]
+        # get rmsd matrix with a given set of atom mapping
+        # update rmsd matrix whenever lower RMSD appears
+        for i in range(len(reference_mol.GetConformers())):
+            for j in range(len(compare_mol.GetConformers())):       
+                
+                proposed_rmsd = AllChem.AlignMol(reference_mol, compare_mol, i, j, atomMap=atom_mapping)
+                # test if this is optimal atom mapping
+                if nr_of_mappings == 0:
+                    rmsd[i, j] = proposed_rmsd
+                else:
+                    rmsd[i, j] = min(rmsd[i, j], proposed_rmsd)
+
     for i in range(len(reference_mol.GetConformers())):
         for j in range(len(compare_mol.GetConformers())):       
-            rmsd[i, j] = AllChem.AlignMol(reference_mol, compare_mol, i, j, atomMap=atom_mapping)
-            if rmsd[i, j] < 0.1:
+            if  rmsd[i, j] <= 0.1:
                 got_hit[i] += 1
                                           
     sns.heatmap(rmsd)
@@ -316,6 +327,8 @@ def compare_confomer_generator_and_trajectory_minimum_structures(results_path: s
     print(f'Nr of conformations part of one cluster: {sum(got_hit)}/{mol.GetNumConformers()}')
     print(f'Clusters present: {got_hit}')
 
+    AllChem.AlignMolConformers(reference_mol)
+    AllChem.AlignMolConformers(compare_mol)
 
     return compare_mol, minimum_traj, reference_mol
 
