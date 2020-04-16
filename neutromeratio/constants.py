@@ -61,7 +61,14 @@ mols_with_charge = ['molDWRow_400',
  'molDWRow_1564',
  'molDWRow_285',
  'molDWRow_951',
- 'molDWRow_994']
+ 'molDWRow_994',
+'molDWRow_287', # zwitterion
+'molDWRow_400', # zwitterion
+'molDWRow_412', # zwitterion
+'molDWRow_412',  # zwitterion
+'molDWRow_651',  # zwitterion
+'molDWRow_369',  # zwitterion
+]
 
 
 
@@ -182,22 +189,15 @@ exclude_set_ANI = [
                'molDWRow_991', #Cl
                'molDWRow_992', #Cl
                'molDWRow_993', #I
-               'molDWRow_1676',  # two hydrogens are swichting place
-               'molDWRow_287', # zwitterion
-               'molDWRow_400', # zwitterion
-               'molDWRow_412', # zwitterion
-               'molDWRow_412',  # zwitterion
-               'molDWRow_651',  # zwitterion
-               'molDWRow_369',  # zwitterion
-               'molDWRow_1610',
-                'molDWRow_1665',
-                'molDWRow_1666',
-                'molDWRow_1667',
-                'molDWRow_1671',
-                'molDWRow_1672',
-                'molDWRow_1673',
-                'molDWRow_1675',
-                'molDWRow_1676',
+                'molDWRow_1610', # Two hydrogens are moving -- not really a tautomer
+                'molDWRow_1665', # Two hydrogens are moving -- not really a tautomer
+                'molDWRow_1666', # Two hydrogens are moving -- not really a tautomer
+                'molDWRow_1667', # Two hydrogens are moving -- not really a tautomer
+                'molDWRow_1671', # Two hydrogens are moving -- not really a tautomer
+                'molDWRow_1672', # Two hydrogens are moving -- not really a tautomer
+                'molDWRow_1673', # Two hydrogens are moving -- not really a tautomer
+                'molDWRow_1675', # Two hydrogens are moving -- not really a tautomer
+                'molDWRow_1676', # Two hydrogens are moving -- not really a tautomer
                ]
 
 
@@ -209,22 +209,18 @@ exclude_set_B3LYP = [
                'molDWRow_612', #I
                'molDWRow_955', #charge, Cl
                'molDWRow_993', #I
-               'molDWRow_1676',  # two hydrogens are swichting place
-               'molDWRow_287', # zwitterion
-               'molDWRow_400', # zwitterion
-               'molDWRow_412', # zwitterion
-               'molDWRow_412',  # zwitterion
-               'molDWRow_651',  # zwitterion
-               'molDWRow_369',  # zwitterion
-                'molDWRow_1610',
-                'molDWRow_1665',
-                'molDWRow_1666',
-                'molDWRow_1667',
-                'molDWRow_1671',
-                'molDWRow_1672',
-                'molDWRow_1673',
-                'molDWRow_1675',
-                'molDWRow_1676',
+                'molDWRow_601'  # one conf in solution has a max-min of 16724 kcal/mol
+                'molDWRow_37'  # one conf in solution has a max-min of 16724 kcal/mol
+                'molDWRow_1610', # Two hydrogens are moving -- not really a tautomer
+                'molDWRow_1665', # Two hydrogens are moving -- not really a tautomer
+                'molDWRow_1666', # Two hydrogens are moving -- not really a tautomer
+                'molDWRow_1667', # Two hydrogens are moving -- not really a tautomer
+                'molDWRow_1671', # Two hydrogens are moving -- not really a tautomer
+                'molDWRow_1672', # Two hydrogens are moving -- not really a tautomer
+                'molDWRow_1673', # Two hydrogens are moving -- not really a tautomer
+                'molDWRow_1675', # Two hydrogens are moving -- not really a tautomer
+                'molDWRow_1676', # Two hydrogens are moving -- not really a tautomer
+
                ]
 
 

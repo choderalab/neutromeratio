@@ -559,21 +559,11 @@ def test_restraint_with_LinearAlchemicalDualTopologyANI():
     torsion_angle=90* unit.degree,
     atom_idx=[10, 2, 3, 4],
     active_at=1.0)
-    energy_function.add_restraint_to_kappa_protocol(torsion_b)    
-
     energy, restraint_bias, stddev, ensemble_bias = energy_function.calculate_energy(x0, lambda_value=0.0)
     assert(is_quantity_close(energy, -906911.9843514563 * unit.kilojoule_per_mole, rtol=1e-9))
 
-    energy, restraint_bias, stddev, ensemble_bias = energy_function.calculate_energy(x0, lambda_value=0.0, kappa_value=0.0)
+    energy, restraint_bias, stddev, ensemble_bias = energy_function.calculate_energy(x0, lambda_value=0.0)
     assert(is_quantity_close(energy, -906911.9843514563 * unit.kilojoule_per_mole, rtol=1e-9))
-
-    energy, restraint_bias, stddev, ensemble_bias = energy_function.calculate_energy(x0, lambda_value=0.0, kappa_value=0.5)
-    assert(is_quantity_close(restraint_bias.in_units_of(unit.kilocalorie_per_mole), 4.087466423423118 * unit.kilocalorie_per_mole))
-    assert(is_quantity_close(energy, -906894.8823919407 * unit.kilojoule_per_mole, rtol=1e-9))
-
-    energy, restraint_bias, stddev, ensemble_bias = energy_function.calculate_energy(x0, lambda_value=0.0, kappa_value=1.0)
-    assert(is_quantity_close(restraint_bias.in_units_of(unit.kilocalorie_per_mole), 8.174932846846236 * unit.kilocalorie_per_mole))
-    assert(is_quantity_close(energy, -906877.7804324251 * unit.kilojoule_per_mole, rtol=1e-9))
 
 
 def test_min_and_single_point_energy():

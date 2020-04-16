@@ -330,7 +330,7 @@ def compare_confomer_generator_and_trajectory_minimum_structures(results_path: s
     AllChem.AlignMolConformers(reference_mol)
     AllChem.AlignMolConformers(compare_mol)
 
-    return compare_mol, minimum_traj, reference_mol
+    return compare_mol, minimum_traj, reference_mol, reference[1]
 
 
 def _generate_conformer(coordinates):

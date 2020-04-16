@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import pickle
 import torchani
 import torch
-from neutromeratio.constants import device, platform, kT, exclude_set
+from neutromeratio.constants import device, platform, kT, exclude_set_ANI, mols_with_charge
 import sys
 import os
 
@@ -31,7 +31,7 @@ if env == 'droplet':
 protocol = []
 exp_results = pickle.load(open('../data/exp_results.pickle', 'rb'))
 for name in sorted(exp_results):
-    if name in exclude_set:
+    if name in exclude_set_ANI + mols_with_charge:
         continue
     for lamb in np.linspace(0, 1, 11):
         protocol.append((name, np.round(lamb, 2)))
@@ -47,9 +47,7 @@ t2_smiles = exp_results[name]['t2-smiles']
 os.makedirs(f"{base_path}/{name}", exist_ok=True)
 
 t_type, tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
-for kappa_value, tautomer in enumerate(tautomers):
-    kappa_value = float(kappa_value)
-    print(kappa_value)
+for stereo, tautomer in enumerate(tautomers):
     tautomer.perform_tautomer_transformation()
 
     if env == 'droplet':
@@ -58,9 +56,9 @@ for kappa_value, tautomer in enumerate(tautomers):
                             diameter=diameter_in_angstrom * unit.angstrom,
                             restrain_hydrogen_bonds=True,
                             restrain_hydrogen_angles=False,
-                            top_file=f"{base_path}/{name}/{name}_kappa_{round(kappa_value)}_in_droplet.pdb")
+                            top_file=f"{base_path}/{name}/{name}_stereo_{stereo}_in_droplet.pdb")
     else:
-        pdb_filepath = f"{base_path}/{name}/{name}_{round(kappa_value)}.pdb"
+        pdb_filepath = f"{base_path}/{name}/{name}_{stereo}.pdb"
         try:
             traj = md.load(pdb_filepath)
         except OSError:
@@ -129,7 +127,7 @@ for kappa_value, tautomer in enumerate(tautomers):
 
     # save equilibrium energy values 
     for global_list, poperty_name in zip([energies, stddev, restraint_bias, ensemble_bias], ['energy', 'stddev', 'restraint_bias', 'ensemble_bias']):
-        f = open(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_{poperty_name}_kappa_{round(kappa_value)}_in_{env}.csv", 'w+')
+        f = open(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_{poperty_name}_stereo_{stereo}_in_{env}.csv", 'w+')
         for e in global_list[::20]:
             e_unitless = e / kT
             f.write('{}\n'.format(e_unitless))
@@ -141,4 +139,4 @@ for kappa_value, tautomer in enumerate(tautomers):
     else:
         ani_traj = md.Trajectory(equilibrium_samples[::20], tautomer.ligand_in_water_topology)
 
-    ani_traj.save(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_kappa_{round(kappa_value)}_in_{env}.dcd", force_overwrite=True)
+    ani_traj.save(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_stereo_{stereo}_in_{env}.dcd", force_overwrite=True)
