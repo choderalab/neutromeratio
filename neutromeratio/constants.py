@@ -219,7 +219,13 @@ exclude_set_B3LYP = [
                 'molDWRow_1672', # Two hydrogens are moving -- not really a tautomer
                 'molDWRow_1673', # Two hydrogens are moving -- not really a tautomer
                 'molDWRow_1675', # Two hydrogens are moving -- not really a tautomer
-                'molDWRow_1676', # Two hydrogens are moving -- not really a tautomer
+                'molDWRow_1676',  # Two hydrogens are moving -- not really a tautomer
+                'molDWRow_1260',# molecules were drawn without Nitrogen in the database!
+                'molDWRow_1261',# molecules were drawn without Nitrogen in the database!
+                'molDWRow_1262',# molecules were drawn without Nitrogen in the database!
+                'molDWRow_1263',# molecules were drawn without Nitrogen in the database!
+                'molDWRow_1264',# molecules were drawn without Nitrogen in the database!
+
 
                ]
 

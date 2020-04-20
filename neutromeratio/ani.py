@@ -51,7 +51,7 @@ class ANI1_force_and_energy(object):
         self.ase_mol = mol
         self.species = self.model.species_to_tensor(atoms).to(device).unsqueeze(0)
         self.platform = platform
-        self.list_of_lambda_restraints = []
+        self.list_of_lambda_restraints:list = []
         self.per_atom_thresh = per_atom_thresh.value_in_unit(unit.kilojoule_per_mole)
         self.adventure_mode = adventure_mode
         self.per_mol_tresh = float(self.per_atom_thresh * len(self.atoms))

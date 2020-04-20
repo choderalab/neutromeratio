@@ -462,7 +462,7 @@ class Tautomer(object):
         for b in mol.GetBonds():
             a1 = (b.GetBeginAtom())
             a2 = (b.GetEndAtom())
-#            if a1.GetSymbol() == 'H' or a2.GetSymbol() == 'H':
+#           if a1.GetSymbol() == 'H' or a2.GetSymbol() == 'H':
             bond_list.append((a1.GetIdx(), a2.GetIdx()))
 
         # get mdtraj topology
