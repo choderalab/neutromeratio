@@ -9,7 +9,7 @@ import torch
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import random, sys
-from neutromeratio.constants import platform, device, exclude_set
+from neutromeratio.constants import platform, device, exclude_set_ANI, mols_with_charge
 
 
 entropy_correction = True
@@ -26,7 +26,7 @@ exp_results = pickle.load(open('../data/exp_results.pickle', 'rb'))
 # name of the system
 protocoll = []
 for name in sorted(exp_results):
-    if name in exclude_set:
+    if name in exclude_set_ANI + mols_with_charge:
         continue
     protocoll.append(name)
 
@@ -37,14 +37,16 @@ print(name)
 t1_smiles = exp_results[name]['t1-smiles']
 t2_smiles = exp_results[name]['t2-smiles']
 
-tautomer = neutromeratio.Tautomer(name=name, initial_state_mol=neutromeratio.generate_rdkit_mol(t1_smiles), 
-                                    final_state_mol=neutromeratio.generate_rdkit_mol(t2_smiles), 
-                                    nr_of_conformations=100, 
-                                    enforceChirality=False)
-tautomer.perform_tautomer_transformation_forward()
+t_type, tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name,
+                                                                t1_smiles,
+                                                                t2_smiles,
+                                                                nr_of_conformations=100,
+                                                                enforceChirality=True)
+tautomer = tautomers[0]
+tautomer.perform_tautomer_transformation()
 
 # set model
-model = torchani.models.ANI1ccx()
+model = neutromeratio.ani.PureANI1ccx()  
 model = model.to(device)
 torch.set_num_threads(2)
 
@@ -55,7 +57,7 @@ energy_function = neutromeratio.ANI1_force_and_energy(
                                         model = model,
                                         mol = tautomer.initial_state_ase_mol,
                                         atoms = tautomer.initial_state_ligand_atoms,
-                                        use_pure_ani1ccx = True)
+                                        )
 
 t1_e = []
 t1_g = []
@@ -63,7 +65,7 @@ for coords in tautomer.initial_state_ligand_coords:
     # minimize
     minimized_coords, _ = energy_function.minimize(coords)
     # calculate electronic single point energy
-    e, _, __ = energy_function.calculate_energy(minimized_coords)
+    e, _, __, ___ = energy_function.calculate_energy(minimized_coords)
     # calculate Gibb's free energy
     try:
         thermochemistry_correction = energy_function.get_thermo_correction(minimized_coords)  
@@ -71,16 +73,14 @@ for coords in tautomer.initial_state_ligand_coords:
         print('Imaginary frequencies present - found transition state.')
         continue
 
-    g = neutromeratio.reduced_pot(e) + neutromeratio.reduced_pot(thermochemistry_correction)
     e = neutromeratio.reduced_pot(e)
+    g = e + neutromeratio.reduced_pot(thermochemistry_correction)
 
     if entropy_correction:
         g += neutromeratio.reduced_pot(tautomer.initial_state_entropy_correction)
         e += neutromeratio.reduced_pot(tautomer.final_state_entropy_correction)
 
     
-  
-
     t1_e.append(e)
     t1_g.append(g)
 
@@ -90,7 +90,7 @@ energy_function = neutromeratio.ANI1_force_and_energy(
                                         model = model,
                                         mol = tautomer.final_state_ase_mol,
                                         atoms = tautomer.final_state_ligand_atoms,
-                                        use_pure_ani1ccx = True)
+                                        )
 
 t2_e = []
 t2_g = []
@@ -98,7 +98,7 @@ for coords in tautomer.final_state_ligand_coords:
     # minimize
     minimized_coords, _ = energy_function.minimize(coords)
     # calculate electronic single point energy
-    e, _, __ = energy_function.calculate_energy(minimized_coords)
+    e, _, __, ___ = energy_function.calculate_energy(minimized_coords)
     # calculate Gibb's free energy
     try:
         thermochemistry_correction = energy_function.get_thermo_correction(minimized_coords)  
@@ -107,7 +107,7 @@ for coords in tautomer.final_state_ligand_coords:
         continue
 
     e = neutromeratio.reduced_pot(e)
-    g = neutromeratio.reduced_pot(e) + neutromeratio.reduced_pot(thermochemistry_correction)
+    g = e + neutromeratio.reduced_pot(thermochemistry_correction)
     if entropy_correction:
         g += neutromeratio.reduced_pot(tautomer.final_state_entropy_correction)
         e += neutromeratio.reduced_pot(tautomer.final_state_entropy_correction)
@@ -119,11 +119,11 @@ for coords in tautomer.final_state_ligand_coords:
 e_diff = t2_e[0] - t1_e[0]
 g_diff = t2_g[0] - t1_g[0]
 # write dE
-f = open(f"/home/mwieder/Work/Projects/neutromeratio/data/results/ANI1ccx_vacuum_random_minimum_dE{ending}.csv", 'a+')
+f = open(f"/home/mwieder/Work/Projects/neutromeratio/data/results/ANI1ccx_vacuum_random_minimum_dE_only_one_stereo{ending}.csv", 'a+')
 f.write(f"{name}, {e_diff}\n")
 f.close()
 # write dG
-f = open(f"/home/mwieder/Work/Projects/neutromeratio/data/results/ANI1ccx_vacuum_random_minimum_dG{ending}.csv", 'a+')
+f = open(f"/home/mwieder/Work/Projects/neutromeratio/data/results/ANI1ccx_vacuum_random_minimum_dG_only_one_stereo{ending}.csv", 'a+')
 f.write(f"{name}, {g_diff}\n")
 f.close()
 
@@ -133,10 +133,10 @@ f.close()
 e_diff = min(t2_e) - min(t1_e)
 g_diff = min(t2_g) - min(t1_g)
 # write dE
-f = open(f"/home/mwieder/Work/Projects/neutromeratio/data/results/ANI1ccx_vacuum_global_minimum_dE{ending}.csv", 'a+')
+f = open(f"/home/mwieder/Work/Projects/neutromeratio/data/results/ANI1ccx_vacuum_global_minimum_dE_only_one_stereo{ending}.csv", 'a+')
 f.write(f"{name}, {e_diff}\n")
 f.close()
 # write dG
-f = open(f"/home/mwieder/Work/Projects/neutromeratio/data/results/ANI1ccx_vacuum_global_minimum_dG{ending}.csv", 'a+')
+f = open(f"/home/mwieder/Work/Projects/neutromeratio/data/results/ANI1ccx_vacuum_global_minimum_dG_only_one_stereo{ending}.csv", 'a+')
 f.write(f"{name}, {g_diff}\n")
 f.close()

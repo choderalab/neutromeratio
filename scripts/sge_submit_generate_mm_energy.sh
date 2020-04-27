@@ -13,6 +13,6 @@ cd /home/mwieder/Work/Projects/neutromeratio/scripts
 hostname
 
 . /data/shared/software/python_env/anaconda3/etc/profile.d/conda.sh
-conda activate ani36
+conda activate ani36v2
 
 python Generate_MiningMinima_energy.py ${idx}

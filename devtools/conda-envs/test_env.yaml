@@ -4,6 +4,7 @@ channels:
   - omnia/label/dev
   - omnia
   - defaults
+  - psi4
 
 dependencies:
     # Base depends
@@ -12,7 +13,7 @@ dependencies:
     # Testing
   - pytest
   - pytest-cov
-  - ase
+  - ase=3.18.1
   - matplotlib
   - bson
   - mdtraj
@@ -28,10 +29,11 @@ dependencies:
   - rdkit
   - scipy
   - pytest-cov
+  - psi4
   - pip:
     - lark-parser
     - six
     - torch
-    - torchani==0.9
+    - torchani==1.2
     - torchvision
     - codecov

@@ -108,3 +108,6 @@ ENV/
 .vscode
 neutromeratio-workspace.code-workspace
 
+data/equilibrium_samples/
+data/mining_minima/
+data/results/csv/single_e
