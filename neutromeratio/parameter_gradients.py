@@ -252,7 +252,7 @@ if __name__ == '__main__':
     #################
 
     # specify the system you want to simulate
-    name = 'molDWRow_298'
+    name = 'molDWRow_298'  #Experimental free energy difference: 1.132369 kcal/mol
     # name = 'molDWRow_37'
     # name = 'molDWRow_45'
     # name = 'molDWRow_160'
@@ -262,6 +262,7 @@ if __name__ == '__main__':
 
     t1_smiles = exp_results[name]['t1-smiles']
     t2_smiles = exp_results[name]['t2-smiles']
+    print(f"Experimental free energy difference: {exp_results[name]['energy']} kcal/mol")
     t_type, tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
     tautomer = tautomers[0] # only considering ONE stereoisomer (the one deposited in the db)
     tautomer.perform_tautomer_transformation()
@@ -328,8 +329,7 @@ if __name__ == '__main__':
 
 
     deltaF = fec.compute_free_energy_difference()
-    print(deltaF)
-
+    print(f"Free energy difference {(deltaF.item() * kT).value_in_unit(unit.kilocalorie_per_mole)} kcal/mol")
     # let's say I had a loss function that wanted the free energy difference
     # estimate to be equal to 6:
     L = (deltaF - 6) ** 2
