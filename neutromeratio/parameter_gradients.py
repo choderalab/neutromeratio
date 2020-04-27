@@ -9,15 +9,15 @@ from pymbar.timeseries import detectEquilibration
 from simtk import unit
 from tqdm import tqdm
 
-from neutromeratio.ani import AlchemicalANI
-from neutromeratio.constants import hartree_to_kJ_mol, kT
+from neutromeratio.ani import ANI1_force_and_energy
+from neutromeratio.constants import hartree_to_kJ_mol, device, platform, kT, exclude_set_ANI, mols_with_charge
 
 logger = logging.getLogger(__name__)
 
 
 class FreeEnergyCalculator():
     def __init__(self,
-                 ani_model: AlchemicalANI,
+                 ani_model: ANI1_force_and_energy,
                  ani_trajs: list,
                  potential_energy_trajs: list,
                  lambdas: list,
@@ -74,6 +74,7 @@ class FreeEnergyCalculator():
         )
 
         self.mbar = MBAR(u_kn, N_k)
+        self.snapshots = snapshots
 
     def remove_confs_with_high_stddev(self, max_snapshots_per_window: int, per_atom_thresh: float):
         """
@@ -238,70 +239,6 @@ class FreeEnergyCalculator():
 
 
 
-
-
-
-
-
-class FreeEnergyCalculatorKappa(FreeEnergyCalculator):
-        
-    def __init__(self,
-                ani_model: AlchemicalANI,
-                ani_trajs: list,
-                kappas: list,
-                n_atoms: int,
-                added_restraint : list,
-                max_snapshots_per_window=50,
-                ):
-        """
-        Uses mbar to calculate the free energy difference between trajectories.
-        Parameters
-        ----------
-        ani_model : AlchemicalANI
-            model used for energy calculation
-        ani_trajs : list
-            trajectories 
-        potential_energy_trajs : list
-            energy trace of trajectories
-        kappas : list
-            all lambda states
-        n_atoms : int
-            number of atoms
-        per_atom_thresh : float
-            exclude snapshots where ensemble stddev in energy / n_atoms exceeds this threshold, in kJ/mol
-            if per_atom_tresh == -1 ignores ensemble stddev
-
-        """
-        K = len(kappas)
-        assert (len(ani_trajs) == K)
-        assert (len(potential_energy_trajs) == K)
-        
-        self.ani_model = ani_model
-        self.kappas = kappas
-        self.ani_trajs = ani_trajs
-        self.n_atoms = n_atoms
-
-        N_k = []
-        snapshots = []
-        tmp = {}
-
-        for kappa, traj in zip(kappas, ani_trajs):
-            start = int(len(traj) * 0.2) # remove first 20%
-            tmp[kappa] = traj[start:-1].xyz * unit.nanometer
-        for kappa in sorted(kappas):
-            N_k.append(len(tmp[kappa]))
-            snapshots.extend(tmp[kappa])
-
-        e_list = [ani_model.calculate_energy(x, lambda_value=1.0)[0] / kT for x in tqdm(snapshots)]
-        u_kn = np.stack([e_list for _ in range(len(N_k))])
-        bias = np.stack(
-            [[(bias.restraint(x).detach().numpy()) * unit.kilojoule_per_mole / kT for x in snapshots] for bias in added_restraint]
-        )
-        self.mbar = MBAR(u_kn + bias, N_k)
-
-
-
-
 if __name__ == '__main__':
     import neutromeratio
     import pickle
@@ -309,6 +246,10 @@ if __name__ == '__main__':
     from tqdm import tqdm
 
     exp_results = pickle.load(open('../data/exp_results.pickle', 'rb'))
+    # nr of steps
+    #################
+    n_steps = 100
+    #################
 
     # specify the system you want to simulate
     name = 'molDWRow_298'
@@ -316,69 +257,77 @@ if __name__ == '__main__':
     # name = 'molDWRow_45'
     # name = 'molDWRow_160'
     # name = 'molDWRow_590'
-
-    from_mol_tautomer_idx = 1
-    to_mol_tautomer_idx = 2
+    if name in exclude_set_ANI + mols_with_charge:
+        raise RuntimeError(f"{name} is part of the list of excluded molecules. Aborting")
 
     t1_smiles = exp_results[name]['t1-smiles']
     t2_smiles = exp_results[name]['t2-smiles']
+    t_type, tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
+    tautomer = tautomers[0] # only considering ONE stereoisomer (the one deposited in the db)
+    tautomer.perform_tautomer_transformation()
 
-    # generate both rdkit molhttp://localhost:8888/notebooks/notebooks/testing-hybrid-structures.ipynb#
-    mols = {'t1': neutromeratio.generate_rdkit_mol(t1_smiles), 't2': neutromeratio.generate_rdkit_mol(t2_smiles)}
-    from_mol = mols[f"t{from_mol_tautomer_idx}"]
-    to_mol = mols[f"t{to_mol_tautomer_idx}"]
-    ani_input = neutromeratio.from_mol_to_ani_input(from_mol)
+    # define the alchemical atoms
+    alchemical_atoms = [tautomer.hybrid_hydrogen_idx_at_lambda_1, tautomer.hybrid_hydrogen_idx_at_lambda_0]
 
-    tautomer_transformation = neutromeratio.get_tautomer_transformation(from_mol, to_mol)
-    neutromeratio.generate_hybrid_structure(ani_input, tautomer_transformation,
-                                            neutromeratio.ani.ANI1_force_and_energy)
-    alchemical_atoms = [tautomer_transformation['acceptor_hydrogen_idx'],
-                        tautomer_transformation['donor_hydrogen_idx']]
-
-    # extract hydrogen donor idx and hydrogen idx for from_mol
-    platform = 'cpu'
-    device = torch.device(platform)
-    model = neutromeratio.ani.LinearAlchemicalSingleTopologyANI(device=device, alchemical_atoms=alchemical_atoms,
-                                                                ani_input=ani_input)
+    # set the ANI model
+    model = neutromeratio.ani.LinearAlchemicalSingleTopologyANI(alchemical_atoms=alchemical_atoms)
     model = model.to(device)
+    torch.set_num_threads(1)
 
-    # perform initial sampling
     ani_trajs = []
-    n_steps = 100
-    ani_model = neutromeratio.ANI1_force_and_energy(device=device,
-                                                    model=model,
-                                                    atom_list=ani_input['hybrid_atoms'],
-                                                    platform=platform,
-                                                    tautomer_transformation=tautomer_transformation)
-    ani_model.restrain_acceptor = True
-    ani_model.restrain_donor = True
+    # define energy function
+    energy_function = neutromeratio.ANI1_force_and_energy(
+            model=model,
+            atoms=tautomer.hybrid_atoms,
+            mol=None,)
 
-    langevin = neutromeratio.LangevinDynamics(atom_list=ani_input['hybrid_atoms'],
-                                              force=ani_model)
+    # add ligand bond restraints (for all lambda states)
+    for r in tautomer.ligand_restraints:
+        energy_function.add_restraint_to_lambda_protocol(r)
 
-    x0 = np.array(ani_input['hybrid_coords']) * unit.angstrom
+    for r in tautomer.hybrid_ligand_restraints:
+        energy_function.add_restraint_to_lambda_protocol(r)
+
+    x0 = tautomer.hybrid_coords
     potential_energy_trajs = []
-
-    from tqdm import tqdm
-
     lambdas = np.linspace(0, 1, 5)
-    for lamb in tqdm(lambdas):
-        ani_model.lambda_value = lamb
 
-        equilibrium_samples, energies = langevin.run_dynamics(x0, n_steps)
+    for lamb in tqdm(lambdas):
+        # minimize coordinates with a given lambda value
+        x0, e_history = energy_function.minimize(x0, maxiter=5000, lambda_value=lamb)
+        # define energy function with a given lambda value
+        energy_and_force = lambda x : energy_function.calculate_force(x, lamb)
+        # define langevin object with a given energy function
+        langevin = neutromeratio.LangevinDynamics(atoms=tautomer.hybrid_atoms,
+                                        energy_and_force=energy_and_force)
+
+        
+        # sampling
+        equilibrium_samples, energies, restraint_bias, stddev, ensemble_bias = langevin.run_dynamics(x0,
+                                                                        n_steps=n_steps,
+                                                                        stepsize=1.0*unit.femtosecond,
+                                                                        progress_bar=False)
+
         potential_energy_trajs.append(np.array(
             [e.value_in_unit(unit.kilojoule_per_mole) for e in energies]
         ))
         equilibrium_samples = [x / unit.nanometer for x in equilibrium_samples]
-        ani_traj = md.Trajectory(equilibrium_samples, ani_input['hybrid_topolog'])
+        ani_traj = md.Trajectory(equilibrium_samples, tautomer.hybrid_topology)
 
         ani_trajs.append(ani_traj)
 
-    free_energy_calculator = FreeEnergyCalculator(
-        ani_model, ani_trajs, potential_energy_trajs, lambdas,
-    )
 
-    deltaF = free_energy_calculator.compute_free_energy_difference()
+    # calculate free energy in kT
+    fec = FreeEnergyCalculator(ani_model=energy_function,
+                               ani_trajs=ani_trajs,
+                               potential_energy_trajs=potential_energy_trajs,
+                               lambdas=lambdas,
+                               n_atoms=len(tautomer.hybrid_atoms),
+                               max_snapshots_per_window=-1,
+                               per_atom_thresh=1.0 * unit.kilojoule_per_mole)
+
+
+    deltaF = fec.compute_free_energy_difference()
     print(deltaF)
 
     # let's say I had a loss function that wanted the free energy difference
@@ -388,6 +337,6 @@ if __name__ == '__main__':
     # can I backpropagate derivatives painlessly to the ANI neural net parameters?
     L.backward()  # no errors or warnings
 
-    params = list(ani_model.model.parameters())
+    params = list(energy_function.model.parameters())
     for p in params:
         print(p.grad)  # all None
