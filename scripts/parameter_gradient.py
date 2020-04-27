@@ -126,6 +126,10 @@ fec = FreeEnergyCalculator(ani_model=energy_function,
                             per_atom_thresh=per_atom_stddev_threshold * unit.kilojoule_per_mole)
 
 DeltaF_ji, dDeltaF_ji = fec.end_state_free_energy_difference
+
+# BEWARE HERE: I change the sign of the result since if flipped is TRUE I have 
+# swapped tautomer 1 and 2 to mutate from the tautomer WITH the stereobond to the 
+# one without the stereobond
 if flipped:
     DeltaF_ji *= -1
 

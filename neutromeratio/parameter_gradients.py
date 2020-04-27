@@ -327,8 +327,13 @@ if __name__ == '__main__':
                                max_snapshots_per_window=-1,
                                per_atom_thresh=1.0 * unit.kilojoule_per_mole)
 
-
-    deltaF = fec.compute_free_energy_difference()
+    # BEWARE HERE: I change the sign of the result since if flipped is TRUE I have 
+    # swapped tautomer 1 and 2 to mutate from the tautomer WITH the stereobond to the 
+    # one without the stereobond
+    if flipped:
+        deltaF = fec.compute_free_energy_difference() * -1
+    else:
+        deltaF = fec.compute_free_energy_difference()
     print(f"Free energy difference {(deltaF.item() * kT).value_in_unit(unit.kilocalorie_per_mole)} kcal/mol")
     # let's say I had a loss function that wanted the free energy difference
     # estimate to be equal to 6:
