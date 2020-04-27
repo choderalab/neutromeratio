@@ -58,7 +58,7 @@ results = []
 uncertainty = []
 
 for kappa_value, tautomer in enumerate(tautomers):
-    kappa_value = float(kappa_value)
+    kappa_value = kappa_value
     tautomer.perform_tautomer_transformation()
     if env == 'droplet':
         tautomer.add_droplet(tautomer.hybrid_topology,
@@ -66,7 +66,7 @@ for kappa_value, tautomer in enumerate(tautomers):
                              diameter=diameter_in_angstrom * unit.angstrom,
                             restrain_hydrogen_bonds=True,
                             restrain_hydrogen_angles=False,
-                            top_file=f"{base_path}/{name}/{name}_kappa_{round(kappa_value)}_in_droplet.pdb")
+                            top_file=f"{base_path}/{name}/{name}_kappa_{kappa_value}_in_droplet.pdb")
 
         print('Nr of atoms: {}'.format(len(tautomer.ligand_in_water_atoms)))
         atoms = tautomer.ligand_in_water_atoms
@@ -109,7 +109,7 @@ for kappa_value, tautomer in enumerate(tautomers):
 
     # get steps inclusive endpoints
     # and lambda values in list
-    dcds = glob(f"{base_path}/{name}/*kappa_{round(kappa_value)}*.dcd")
+    dcds = glob(f"{base_path}/{name}/*kappa_{kappa_value}*.dcd")
 
     lambdas = []
     kappas = []

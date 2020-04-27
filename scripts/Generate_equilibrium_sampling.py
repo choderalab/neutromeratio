@@ -71,7 +71,7 @@ for stereo, tautomer in enumerate(tautomers):
     # define the alchemical atoms
     alchemical_atoms = [tautomer.hybrid_hydrogen_idx_at_lambda_1, tautomer.hybrid_hydrogen_idx_at_lambda_0]
 
-    # extract hydrogen donor idx and hydrogen idx for from_mol
+    # set the ANI model
     model = neutromeratio.ani.LinearAlchemicalSingleTopologyANI(alchemical_atoms=alchemical_atoms)
     model = model.to(device)
     torch.set_num_threads(1)
