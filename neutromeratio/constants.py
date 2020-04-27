@@ -225,8 +225,11 @@ exclude_set_B3LYP = [
                 'molDWRow_1262',# molecules were drawn without Nitrogen in the database!
                 'molDWRow_1263',# molecules were drawn without Nitrogen in the database!
                 'molDWRow_1264',# molecules were drawn without Nitrogen in the database!
-
-
+                'molDWRow_514',# wrong pyrimidine tautomer
+                'molDWRow_515',# wrong pyrimidine tautomer
+                'molDWRow_516',# wrong pyrimidine tautomer
+                'molDWRow_517',# wrong pyrimidine tautomer
+                'molDWRow_1587',# wrong structure 
                ]
 
 
