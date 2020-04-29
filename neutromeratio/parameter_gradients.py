@@ -14,7 +14,6 @@ from neutromeratio.constants import hartree_to_kJ_mol, device, platform, kT, exc
 
 logger = logging.getLogger(__name__)
 
-
 class FreeEnergyCalculator():
     def __init__(self,
                  ani_model: ANI1_force_and_energy,
@@ -54,15 +53,20 @@ class FreeEnergyCalculator():
         self.ani_trajs = ani_trajs
         self.n_atoms = n_atoms
 
-        N_k, snapshots, used_lambdas = self.remove_confs_with_high_stddev(max_snapshots_per_window, per_atom_thresh)
+        N_k, snapshots, used_lambdas = self.remove_confs_with_high_stddev(max_snapshots_per_window, per_atom_thresh/kT)
 
         # end-point energies, restraint_bias, stddev
         lambda0_e_b_stddev = [self.ani_model.calculate_energy(x, lambda_value=0.0) for x in tqdm(snapshots)]
         lambda1_e_b_stddev = [self.ani_model.calculate_energy(x, lambda_value=1.0) for x in tqdm(snapshots)]
 
         # extract endpoint energies
-        lambda0_e = [e/kT for e in [e_b_stddev[0] for e_b_stddev in lambda0_e_b_stddev]]
-        lambda1_e = [e/kT for e in [e_b_stddev[0] for e_b_stddev in lambda1_e_b_stddev]]
+        lambda0_e = [e for e in [e_b_stddev[0] for e_b_stddev in lambda0_e_b_stddev]]
+        lambda1_e = [e for e in [e_b_stddev[0] for e_b_stddev in lambda1_e_b_stddev]]
+
+        # extract endpoint energies
+        lambda0_e = [e for e in [e_b_stddev[-1] for e_b_stddev in lambda0_e_b_stddev]]
+        lambda1_e = [e for e in [e_b_stddev[-1] for e_b_stddev in lambda1_e_b_stddev]]
+
 
         def get_mix(lambda0, lambda1, lam=0.0):
             return (1 - lam) * np.array(lambda0) + lam * np.array(lambda1)
@@ -72,7 +76,6 @@ class FreeEnergyCalculator():
         u_kn = np.stack(
             [get_mix(lambda0_e, lambda1_e, lam) for lam in sorted(used_lambdas)]
         )
-
         self.mbar = MBAR(u_kn, N_k)
         self.snapshots = snapshots
 
@@ -94,18 +97,18 @@ class FreeEnergyCalculator():
             lambda1_e_b_stddev = [self.ani_model.calculate_energy(x, lambda_value=1.0) for x in tqdm(snapshots)]
 
             # extract endpoint stddev and return
-            lambda0_stddev = [stddev/kT for stddev in [e_b_stddev[2] for e_b_stddev in lambda0_e_b_stddev]]
-            lambda1_stddev = [stddev/kT for stddev in [e_b_stddev[2] for e_b_stddev in lambda1_e_b_stddev]]
+            lambda0_stddev = [stddev for stddev in [e_b_stddev[2] for e_b_stddev in lambda0_e_b_stddev]]
+            lambda1_stddev = [stddev for stddev in [e_b_stddev[2] for e_b_stddev in lambda1_e_b_stddev]]
             return np.array(lambda0_stddev), np.array(lambda1_stddev)
 
-        def compute_linear_ensemble_bias(current_stddev):
+        def compute_linear_ensemble_bias(current_stddev, per_atom_thresh):
             # calculate the total energy stddev threshold based on the provided per_atom_thresh
             # and the number of atoms
             total_thresh = (per_atom_thresh * self.n_atoms)
             logger.info(f"Per system treshold: {total_thresh}")
             # if stddev for a given conformation < total_thresh => 0.0
             # if stddev for a given conformation > total_thresh => stddev - total_threshold
-            linear_ensemble_bias = np.maximum(0, current_stddev - (total_thresh/kT))
+            linear_ensemble_bias = np.maximum(0, current_stddev - (total_thresh))
             return linear_ensemble_bias
 
         def compute_last_valid_ind(linear_ensemble_bias):
@@ -135,15 +138,15 @@ class FreeEnergyCalculator():
         last_valid_inds = {}
         logger.info(f"Looking through {len(ani_trajs)} lambda windows")
         for lam in sorted(ani_trajs.keys()):
-            if per_atom_thresh/kT < 0:
+            if per_atom_thresh < 0:
                 last_valid_ind = -1
             else:
-                logger.info(f"Calculating stddev and penarly for lambda: {lam}")
+                logger.info(f"Calculating stddev and penalty for lambda: {lam}")
                 # calculate endstate stddev for given confs
                 lambda0_stddev, lambda1_stddev = calculate_stddev(ani_trajs[lam])
                 # scale for current lam
                 current_stddev = (1 - lam) * lambda0_stddev + lam * lambda1_stddev
-                linear_ensemble_bias = compute_linear_ensemble_bias(current_stddev)
+                linear_ensemble_bias = compute_linear_ensemble_bias(current_stddev, per_atom_thresh)
                 last_valid_ind = compute_last_valid_ind(linear_ensemble_bias)
             last_valid_inds[lam] = last_valid_ind
 
@@ -201,7 +204,7 @@ class FreeEnergyCalculator():
             return torch.tensor(x, dtype=torch.double, requires_grad=True)
 
         states_with_samples = torch.tensor(self.mbar.N_k > 0)
-        N_k = torch.tensor(self.mbar.N_k, dtype=torch.double)
+        N_k = torch.tensor(self.mbar.N_k, dtype=torch.double, requires_grad=True)
         f_k = torchify(self.mbar.f_k)
         u_kn = torchify(self.mbar.u_kn)
 
@@ -216,19 +219,26 @@ class FreeEnergyCalculator():
     def form_u_ln(self):
 
         # TODO: vectorize!
-        e0_e_b_stddev = [self.ani_model.calculate_energy(s, lambda_value=0) for s in self.snapshots]
-        u0_stddev = [e_b_stddev[2] / kT for e_b_stddev in e0_e_b_stddev]
-        u_0 = torch.tensor(
-            [e_b_stddev[0] / kT for e_b_stddev in e0_e_b_stddev],
-            dtype=torch.double, requires_grad=True,
-        )
+        decomposed_energy_list_lamb0 = [self.ani_model.calculate_energy(s, lambda_value=0) for s in self.snapshots]      
+        u0_stddev = [decomposed_energy.stddev for decomposed_energy in decomposed_energy_list_lamb0]
+        #u_0 = torch.tensor(
+        #    [decomposed_energy.energy_tensor for decomposed_energy in decomposed_energy_list_lamb0],
+        #    dtype=torch.double, requires_grad=True,
+        #)
+        u_0 = torch.cat(
+            [decomposed_energy.energy_tensor for decomposed_energy in decomposed_energy_list_lamb0]
+                    )
+
         # TODO: vectorize!
-        e1_e_b_stddev = [self.ani_model.calculate_energy(s, lambda_value=1) for s in self.snapshots]
-        u1_stddev = [e_b_stddev[2] / kT for e_b_stddev in e1_e_b_stddev]
-        u_1 = torch.tensor(
-            [e_b_stddev[0] / kT for e_b_stddev in e1_e_b_stddev],
-            dtype=torch.double, requires_grad=True,
-        )
+        decomposed_energy_list_lamb1 = [self.ani_model.calculate_energy(s, lambda_value=1) for s in self.snapshots]
+        u1_stddev = [decomposed_energy.stddev for decomposed_energy in decomposed_energy_list_lamb1]
+        #u_1 = torch.tensor(
+        #    [e_b_stddev[-1]  for e_b_stddev in e1_e_b_stddev],
+        #    dtype=torch.double, requires_grad=True,
+        #)
+        u_1 = torch.cat(
+            [decomposed_energy.energy_tensor for decomposed_energy in decomposed_energy_list_lamb1]
+                    )
         u_ln = torch.stack([u_0, u_1])
         return u_ln,  u0_stddev, u1_stddev
 
@@ -238,17 +248,17 @@ class FreeEnergyCalculator():
         return f_k[1] - f_k[0]
 
 
-
 if __name__ == '__main__':
     import neutromeratio
     import pickle
     import mdtraj as md
     from tqdm import tqdm
-
-    exp_results = pickle.load(open('../data/exp_results.pickle', 'rb'))
+    
+    # TODO: pkg_resources instead of filepath relative to execution directory
+    exp_results = pickle.load(open('data/exp_results.pickle', 'rb'))
     # nr of steps
     #################
-    n_steps = 100
+    n_steps = 20
     #################
 
     # specify the system you want to simulate
@@ -275,7 +285,6 @@ if __name__ == '__main__':
     model = model.to(device)
     torch.set_num_threads(1)
 
-    ani_trajs = []
     # define energy function
     energy_function = neutromeratio.ANI1_force_and_energy(
             model=model,
@@ -291,6 +300,7 @@ if __name__ == '__main__':
 
     x0 = tautomer.hybrid_coords
     potential_energy_trajs = []
+    ani_trajs = []
     lambdas = np.linspace(0, 1, 5)
 
     for lamb in tqdm(lambdas):
@@ -302,21 +312,15 @@ if __name__ == '__main__':
         langevin = neutromeratio.LangevinDynamics(atoms=tautomer.hybrid_atoms,
                                         energy_and_force=energy_and_force)
 
-        
         # sampling
         equilibrium_samples, energies, restraint_bias, stddev, ensemble_bias = langevin.run_dynamics(x0,
                                                                         n_steps=n_steps,
                                                                         stepsize=1.0*unit.femtosecond,
                                                                         progress_bar=False)
 
-        potential_energy_trajs.append(np.array(
-            [e.value_in_unit(unit.kilojoule_per_mole) for e in energies]
-        ))
-        equilibrium_samples = [x / unit.nanometer for x in equilibrium_samples]
-        ani_traj = md.Trajectory(equilibrium_samples, tautomer.hybrid_topology)
+        potential_energy_trajs.append(np.array(energies))
 
-        ani_trajs.append(ani_traj)
-
+        ani_trajs.append(md.Trajectory([x / unit.nanometer for x in equilibrium_samples], tautomer.hybrid_topology))
 
     # calculate free energy in kT
     fec = FreeEnergyCalculator(ani_model=energy_function,
@@ -337,11 +341,10 @@ if __name__ == '__main__':
     print(f"Free energy difference {(deltaF.item() * kT).value_in_unit(unit.kilocalorie_per_mole)} kcal/mol")
     # let's say I had a loss function that wanted the free energy difference
     # estimate to be equal to 6:
-    L = (deltaF - 6) ** 2
-
-    # can I backpropagate derivatives painlessly to the ANI neural net parameters?
-    L.backward()  # no errors or warnings
+    deltaF.backward()  # no errors or warnings
 
     params = list(energy_function.model.parameters())
     for p in params:
         print(p.grad)  # all None
+
+    print('######################')
