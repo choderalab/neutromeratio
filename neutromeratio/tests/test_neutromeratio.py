@@ -942,5 +942,10 @@ def test_parameter_gradient():
 
     deltaF.backward()  # no errors or warnings
     params = list(energy_function.model.parameters())
+    non_counter = 0
     for p in params:
-        assert(p.grad == None)  # all None
+        if(p.grad == None):  # some are None!
+            non_counter += 1
+
+    assert(len(params) == 256)
+    assert(non_counter == 64)
