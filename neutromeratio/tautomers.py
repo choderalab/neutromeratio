@@ -130,11 +130,11 @@ class Tautomer(object):
 
     @property
     def initial_state_entropy_correction(self):
-        return (- kT * np.log(self.initial_state_ligand_degeneracy)).in_units_of(unit.kilocalorie_per_mole)
+        return -np.log(self.initial_state_ligand_degeneracy)
 
     @property
     def final_state_entropy_correction(self):
-        return (- kT * np.log(self.final_state_ligand_degeneracy)).in_units_of(unit.kilocalorie_per_mole)
+        return -np.log(self.final_state_ligand_degeneracy)
 
     @property
     def final_state_ligand_degeneracy(self):
@@ -174,7 +174,7 @@ class Tautomer(object):
                 pos = mol.GetConformer(0).GetAtomPosition(a.GetIdx())
                 tmp_coord_list.append([pos.x, pos.y, pos.z])
             x = np.array(tmp_coord_list) * unit.angstrom
-            e, _, stddev, ___ = energy_function.calculate_energy(x)
+            e, _, stddev, ___, ____ = energy_function.calculate_energy(x)
             return e, stddev
 
 
@@ -619,21 +619,20 @@ class Tautomer(object):
 
         self.hybrid_atoms = hybrid_atoms
         self.hybrid_ligand_idxs = [i for i in range(len(hybrid_atoms))]
-        energy_function.use_pure_ani1ccx = True
         # generate MC mover to get new hydrogen position
         hydrogen_mover = MC_Mover(self.heavy_atom_hydrogen_donor_idx,
                                   self.hydrogen_idx,
                                   self.heavy_atom_hydrogen_acceptor_idx,
                                   ligand_atoms)
 
-        min_e = 100 * unit.kilocalorie_per_mole
-        min_coordinates = None
+        min_e = 100 # kT
+        min_coordinates = []
 
         for _ in range(100):
             hybrid_coord = hydrogen_mover._move_hydrogen_to_acceptor_idx(ligand_coords, override=False)
-            e, _, __, ___ = energy_function.calculate_energy(hybrid_coord, lambda_value=1.0)
-            if e < min_e:
-                min_e = e
+            energy_decomposition = energy_function.calculate_energy(hybrid_coord, lambda_value=1.0)
+            if energy_decomposition.energy < min_e:
+                min_e = energy_decomposition.energy
                 min_coordinates = hybrid_coord
 
         self.hybrid_hydrogen_idx_at_lambda_1 = len(hybrid_atoms) - 1 # this is not the dummy hydrogen at lambda_1! it is the real hydrogen at lambda 1!
@@ -662,7 +661,7 @@ class Tautomer(object):
         -------
         confs_traj : list
             list of md.Trajectory objects with filtered conformations
-        e : unit.Quantity
+        e : unitless (in kT)
             free energy difference dG(final_state - initial_state)
         minimum_energies : list
             list of energies for the different minimum conformations
@@ -694,13 +693,13 @@ class Tautomer(object):
                 atoms=ligand_atoms,
                 mol=ase_mol
             )
-            traj = []
-            energies = []
+
+            energies:list = []
             for n_conf, coords in enumerate(ligand_coords):
                 # minimize
                 print(f"Conf: {n_conf}")
                 minimized_coords, _ = energy_function.minimize(coords)
-                single_point_energy, restraint_bias, stddev, ensemble_bias = energy_function.calculate_energy(
+                energy = energy_function.calculate_energy(
                     minimized_coords)
                 try:
                     thermochemistry_correction = energy_function.get_thermo_correction(minimized_coords)
@@ -709,9 +708,9 @@ class Tautomer(object):
                     continue
 
                 if include_entropy_correction:
-                    energies.append(single_point_energy + thermochemistry_correction + entropy_correction)
+                    energies.append(energy.energy + thermochemistry_correction + entropy_correction)
                 else:
-                    energies.append(single_point_energy + thermochemistry_correction)
+                    energies.append(energy.energy + thermochemistry_correction)
 
                 # update the coordinates in the rdkit mol
                 for atom in rdkit_mol.GetAtoms():

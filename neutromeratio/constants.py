@@ -10,7 +10,7 @@ temperature = 300 * unit.kelvin
 kT = kB * temperature
 device = torch.device(platform)
 
-torch.set_num_threads(2)
+torch.set_num_threads(1)
 
 # openmm units
 mass_unit = unit.dalton
@@ -23,6 +23,10 @@ force_unit = unit.kilojoule_per_mole / unit.nanometer
 # ANI-1 units and conversion factors
 ani_distance_unit = unit.angstrom
 hartree_to_kJ_mol = 2625.499638
+kJ_mol_to_kT = 0.40090737504650614
+kT_to_kJ_mol = 1/0.40090737504650614
+
+hartree_to_kT = (hartree_to_kJ_mol * kJ_mol_to_kT) # 1052.582168056132
 ani_energy_unit = hartree_to_kJ_mol * unit.kilojoule_per_mole  # simtk.unit doesn't have hartree?
 nm_to_angstroms = (1.0 * distance_unit) / (1.0 * ani_distance_unit)
 
@@ -38,6 +42,8 @@ conversion_factor_radian_to_degree = 57.2958
 pressure = 101325.0 * unit.pascal
 gas_constant = 0.0019872036 * (unit.kilocalorie_per_mole / unit.kelvin)
 water_hoh_angle = 104.5 * unit.degree
+
+
 
 mols_with_charge = ['molDWRow_400',
  'molDWRow_369',

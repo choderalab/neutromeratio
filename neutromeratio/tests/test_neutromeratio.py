@@ -26,13 +26,6 @@ def test_neutromeratio_imported():
     """Sample test, will always pass so long as import statement worked"""
     assert "neutromeratio" in sys.modules
 
-# def test_constants_init():
-
-#    neutromeratio.initialize_variables(300, 'cpu')
-#    assert(neutromeratio.constants.platform == 'cpu')
-#    assert(type(neutromeratio.constants.temperature) == unit.Quantity)
-
-
 def test_tautomer_class():
 
     from neutromeratio.tautomers import Tautomer
@@ -193,6 +186,8 @@ def test_tautomer_transformation():
 def test_neutromeratio_energy_calculations_with_torchANI_model():
 
     from neutromeratio.tautomers import Tautomer
+    from neutromeratio.constants import kT
+    import numpy as np
 
     # read in exp_results.pickle
     with open('data/exp_results.pickle', 'rb') as f:
@@ -221,8 +216,8 @@ def test_neutromeratio_energy_calculations_with_torchANI_model():
         atoms=tautomer.initial_state_ligand_atoms,
         mol=None)
 
-    energy, restraint_bias, stddev, ensemble_bias = energy_function.calculate_energy(x0,)
-    assert(is_quantity_close(energy, -906911.9843514563 * unit.kilojoule_per_mole, rtol=1e-5))
+    energy = energy_function.calculate_energy(x0,)
+    assert(np.isclose(energy.energy, (-906911.9843514563 * unit.kilojoule_per_mole)/kT, rtol=1e-5))
 
     tautomer = tautomers[1]
     tautomer.perform_tautomer_transformation()
@@ -241,8 +236,8 @@ def test_neutromeratio_energy_calculations_with_torchANI_model():
         atoms=tautomer.initial_state_ligand_atoms,
         mol=None)
 
-    energy, restraint_bias, stddev, ensemble_bias = energy_function.calculate_energy(x0,)
-    assert(is_quantity_close(energy, -906920.2981953777 * unit.kilojoule_per_mole, rtol=1e-5))
+    energy = energy_function.calculate_energy(x0,)
+    assert(np.isclose(energy.energy, (-906920.2981953777 * unit.kilojoule_per_mole)/kT, rtol=1e-5))
 
 
 
@@ -250,7 +245,8 @@ def test_neutromeratio_energy_calculations_with_torchANI_model():
 
 def test_neutromeratio_energy_calculations_with_LinearAlchemicalANI_model():
     from neutromeratio.tautomers import Tautomer
-
+    import numpy as np
+    from neutromeratio.constants import kT
     # read in exp_results.pickle
     with open('data/exp_results.pickle', 'rb') as f:
         exp_results = pickle.load(f)
@@ -282,10 +278,10 @@ def test_neutromeratio_energy_calculations_with_LinearAlchemicalANI_model():
         atoms=atoms,
         mol=tautomer.initial_state_ase_mol)
 
-    energy, restraint_bias, stddev, ensemble_bias = energy_function.calculate_energy(x0, lambda_value=1.0)
-    assert(is_quantity_close(energy, -906911.9843514563 * unit.kilojoule_per_mole, rtol=1e-9))
-    energy, restraint_bias, stddev, ensemble_bias = energy_function.calculate_energy(x0, lambda_value=0.0)
-    assert(is_quantity_close(energy, -906831.6071666518 * unit.kilojoule_per_mole, rtol=1e-9))
+    energy = energy_function.calculate_energy(x0, lambda_value=1.0)
+    assert(np.isclose(energy.energy, (-906911.9843514563 * unit.kilojoule_per_mole)/kT, rtol=1e-9))
+    energy = energy_function.calculate_energy(x0, lambda_value=0.0)
+    assert(np.isclose(energy.energy, (-906831.6071666518 * unit.kilojoule_per_mole)/kT, rtol=1e-9))
 
     tautomer = tautomers[1]
     tautomer.perform_tautomer_transformation()
@@ -308,15 +304,17 @@ def test_neutromeratio_energy_calculations_with_LinearAlchemicalANI_model():
         atoms=atoms,
         mol=tautomer.initial_state_ase_mol)
 
-    energy, restraint_bias, stddev, ensemble_bias = energy_function.calculate_energy(x0, lambda_value=1.0)
-    assert(is_quantity_close(energy, -906920.2981953777 * unit.kilojoule_per_mole, rtol=1e-9))
-    energy, restraint_bias, stddev, ensemble_bias = energy_function.calculate_energy(x0, lambda_value=0.0)
-    assert(is_quantity_close(energy, -906841.931489851 * unit.kilojoule_per_mole, rtol=1e-9))
+    energy = energy_function.calculate_energy(x0, lambda_value=1.0)
+    assert(np.isclose(energy.energy, (-906920.2981953777 * unit.kilojoule_per_mole)/kT, rtol=1e-9))
+    energy = energy_function.calculate_energy(x0, lambda_value=0.0)
+    assert(np.isclose(energy.energy, (-906841.931489851 * unit.kilojoule_per_mole)/kT, rtol=1e-9))
 
 
 
 def test_neutromeratio_energy_calculations_with_LinearAlchemicalDualTopologyANI_model():
     from neutromeratio.tautomers import Tautomer
+    import numpy as np
+    from neutromeratio.constants import kT
 
     # read in exp_results.pickle
     with open('data/exp_results.pickle', 'rb') as f:
@@ -352,10 +350,10 @@ def test_neutromeratio_energy_calculations_with_LinearAlchemicalDualTopologyANI_
 
     x0 = traj[0]
 
-    energy, restraint_bias, stddev, ensemble_bias = energy_function.calculate_energy(x0, lambda_value=1.0)
-    assert(is_quantity_close(energy, -906630.9281008451 * unit.kilojoule_per_mole, rtol=1e-9))
-    energy, restraint_bias, stddev, ensemble_bias = energy_function.calculate_energy(x0, lambda_value=0.0)
-    assert(is_quantity_close(energy, -906911.9843514563 * unit.kilojoule_per_mole, rtol=1e-9))
+    energy = energy_function.calculate_energy(x0, lambda_value=1.0)
+    assert(np.isclose(energy.energy, (-906630.9281008451 * unit.kilojoule_per_mole)/kT, rtol=1e-9))
+    energy = energy_function.calculate_energy(x0, lambda_value=0.0)
+    assert(np.isclose(energy.energy, (-906911.9843514563 * unit.kilojoule_per_mole)/kT, rtol=1e-9))
 
     ######################################################################
     ######################################################################
@@ -381,10 +379,10 @@ def test_neutromeratio_energy_calculations_with_LinearAlchemicalDualTopologyANI_
 
     x0 = traj[0]
 
-    energy, restraint_bias, stddev, ensemble_bias = energy_function.calculate_energy(x0, lambda_value=1.0)
-    assert(is_quantity_close(energy, -906700.3482745718 * unit.kilojoule_per_mole, rtol=1e-9))
-    energy, restraint_bias, stddev, ensemble_bias = energy_function.calculate_energy(x0, lambda_value=0.0)
-    assert(is_quantity_close(energy, -906920.2981953777 * unit.kilojoule_per_mole, rtol=1e-9))
+    energy = energy_function.calculate_energy(x0, lambda_value=1.0)
+    assert(np.isclose(energy.energy, (-906700.3482745718 * unit.kilojoule_per_mole)/kT, rtol=1e-9))
+    energy = energy_function.calculate_energy(x0, lambda_value=0.0)
+    assert(np.isclose(energy.energy, (-906920.2981953777 * unit.kilojoule_per_mole)/kT, rtol=1e-9))
 
 
 
@@ -421,6 +419,8 @@ def test_restraint():
 
 def test_restraint_with_alchemicalANI():
     from neutromeratio.tautomers import Tautomer
+    import numpy as np
+    from neutromeratio.constants import kT
 
     # read in exp_results.pickle
     with open('data/exp_results.pickle', 'rb') as f:
@@ -455,10 +455,10 @@ def test_restraint_with_alchemicalANI():
         atoms=atoms,
         mol=tautomer.initial_state_ase_mol)
 
-    energy, restraint_bias, stddev, ensemble_bias = energy_function.calculate_energy(x0, lambda_value=1.0)
-    assert(is_quantity_close(energy, -906911.9843514563 * unit.kilojoule_per_mole, rtol=1e-9))
-    energy, restraint_bias, stddev, ensemble_bias = energy_function.calculate_energy(x0, lambda_value=0.0)
-    assert(is_quantity_close(energy, -906831.6071666518 * unit.kilojoule_per_mole, rtol=1e-9))
+    energy = energy_function.calculate_energy(x0, lambda_value=1.0)
+    assert(np.isclose(energy.energy, (-906911.9843514563 * unit.kilojoule_per_mole)/kT, rtol=1e-9))
+    energy = energy_function.calculate_energy(x0, lambda_value=0.0)
+    assert(np.isclose(energy.energy, (-906831.6071666518 * unit.kilojoule_per_mole)/kT, rtol=1e-9))
 
     # test flat_bottom_restraint for lambda = 0.0
     r = []
@@ -471,8 +471,8 @@ def test_restraint_with_alchemicalANI():
     for r in [restrain1, restrain2, restrain3]:
         energy_function.add_restraint_to_lambda_protocol(r)
 
-    energy, restraint_bias, stddev, ensemble_bias = energy_function.calculate_energy(x0, lambda_value=0.0)
-    assert(is_quantity_close(energy, -906499.6764037954 * unit.kilojoule_per_mole, rtol=1e-9))
+    energy = energy_function.calculate_energy(x0, lambda_value=0.0)
+    assert(np.isclose(energy.energy, (-906499.6764037954 * unit.kilojoule_per_mole)/kT, rtol=1e-9))
 
     # test harmonic_restraint for lambda = 0.0
     energy_function.reset_lambda_restraints()
@@ -486,12 +486,12 @@ def test_restraint_with_alchemicalANI():
     for r in [restrain1, restrain2, restrain3]:
         energy_function.add_restraint_to_lambda_protocol(r)
 
-    energy, restraint_bias, stddev, ensemble_bias = energy_function.calculate_energy(x0, lambda_value=0.0)
-    assert(is_quantity_close(energy, -906229.5741461891 * unit.kilojoule_per_mole, rtol=1e-9))
+    energy = energy_function.calculate_energy(x0, lambda_value=0.0)
+    assert(np.isclose(energy.energy, (-906229.5741461891 * unit.kilojoule_per_mole)/kT, rtol=1e-9))
 
     # test harmonic_restraint for lambda = 1.0
-    energy, restraint_bias, stddev, ensemble_bias = energy_function.calculate_energy(x0, lambda_value=1.0)
-    assert(is_quantity_close(energy, -906309.9513309937 * unit.kilojoule_per_mole, rtol=1e-9))
+    energy = energy_function.calculate_energy(x0, lambda_value=1.0)
+    assert(np.isclose(energy.energy, (-906309.9513309937 * unit.kilojoule_per_mole)/kT, rtol=1e-9))
 
     # test harmonic_restraint and flat_bottom_restraint for lambda = 1.0
     r = []
@@ -511,12 +511,13 @@ def test_restraint_with_alchemicalANI():
     for r in [restrain1, restrain2, restrain3, restrain4, restrain5, restrain6]:
         energy_function.add_restraint_to_lambda_protocol(r)
 
-    energy, restraint_bias, stddev, ensemble_bias = energy_function.calculate_energy(x0, lambda_value=1.0)
-    assert(is_quantity_close(energy, -905978.0205681373 * unit.kilojoule_per_mole, rtol=1e-9))
+    energy = energy_function.calculate_energy(x0, lambda_value=1.0)
+    assert(np.isclose(energy.energy, (-905978.0205681373 * unit.kilojoule_per_mole)/kT, rtol=1e-9))
 
 
 def test_restraint_with_LinearAlchemicalDualTopologyANI():
-
+    import numpy as np
+    from neutromeratio.constants import kT
     # read in exp_results.pickle
     with open('data/exp_results.pickle', 'rb') as f:
         exp_results = pickle.load(f)
@@ -550,20 +551,19 @@ def test_restraint_with_LinearAlchemicalDualTopologyANI():
 
     energy_function.list_of_restraints = tautomer.ligand_restraints
 
-    energy, restraint_bias, stddev, ensemble_bias = energy_function.calculate_energy(x0,
+    energy = energy_function.calculate_energy(x0,
     lambda_value=0.0)
-    assert (is_quantity_close(energy, -906911.9843514563 * unit.kilojoule_per_mole,
-    rtol=1e-9))
+    assert (np.isclose(energy.energy, (-906911.9843514563 * unit.kilojoule_per_mole)/kT, rtol=1e-9))
 
     torsion_b=neutromeratio.restraints.TorsionHarmonicRestraint(sigma=0.3 * unit.radian,
     torsion_angle=90* unit.degree,
     atom_idx=[10, 2, 3, 4],
     active_at=1.0)
-    energy, restraint_bias, stddev, ensemble_bias = energy_function.calculate_energy(x0, lambda_value=0.0)
-    assert(is_quantity_close(energy, -906911.9843514563 * unit.kilojoule_per_mole, rtol=1e-9))
+    energy = energy_function.calculate_energy(x0, lambda_value=0.0)
+    assert(np.isclose(energy.energy, (-906911.9843514563 * unit.kilojoule_per_mole)/kT, rtol=1e-9))
 
-    energy, restraint_bias, stddev, ensemble_bias = energy_function.calculate_energy(x0, lambda_value=0.0)
-    assert(is_quantity_close(energy, -906911.9843514563 * unit.kilojoule_per_mole, rtol=1e-9))
+    energy = energy_function.calculate_energy(x0, lambda_value=0.0)
+    assert(np.isclose(energy.energy, (-906911.9843514563 * unit.kilojoule_per_mole)/kT, rtol=1e-9))
 
 
 def test_min_and_single_point_energy():
@@ -597,7 +597,7 @@ def test_min_and_single_point_energy():
         for coords in ligand_coords:
             # minimize
             x0, hist_e = energy_function.minimize(coords)
-            print(energy_function.calculate_energy(x0))
+            print(energy_function.calculate_energy(x0).energy)
 
 
 def test_thermochemistry():
@@ -730,10 +730,10 @@ def test_tautomer_conformation():
             # minimize
             print(f"Conf: {n_conf}")
             x, e_min_history = energy_function.minimize(coords)
-            energy, restraint_bias, stddev, ensemble_bias = energy_function.calculate_energy(x)
+            energy = energy_function.calculate_energy(x)
             e_correction = energy_function.get_thermo_correction(x)
-            print(f"Energy: {energy}")
-            print(f"Energy ensemble stddev: {stddev}")
+            print(f"Energy: {energy.energy}")
+            print(f"Energy ensemble stddev: {energy.stddev}")
             print(f"Energy correction: {e_correction}")
 
 
@@ -784,6 +784,8 @@ def test_plotting():
 
 
 def test_generating_droplet():
+    from neutromeratio.constants import kT
+    import numpy as np
 
     exp_results = pickle.load(open('data/exp_results.pickle', 'rb'))
 
@@ -822,8 +824,8 @@ def test_generating_droplet():
     for r in tautomer.hybrid_ligand_restraints:
         energy_function.add_restraint_to_lambda_protocol(r)
 
-    e, _, __, ___ = energy_function.calculate_energy(tautomer.ligand_in_water_coordinates)
-    assert(is_quantity_close(e, -15547479.771537919 * unit.kilojoule_per_mole, rtol=1e-7))
+    energy = energy_function.calculate_energy(tautomer.ligand_in_water_coordinates)
+    assert(np.isclose(energy.energy, (-15547479.771537919 * unit.kilojoule_per_mole)/kT, rtol=1e-7))
 
 
 @pytest.mark.skipif(
@@ -849,21 +851,96 @@ def test_psi4():
     qm.optimize(psi4_mol)
 
 
-@pytest.mark.skipif(
-    os.environ.get("TRAVIS", None) == "true", reason="Psi4 import fails on travis."
-)
-def test_torsion_scan():
-    from neutromeratio import qm
-
+def test_parameter_gradient():
+    import neutromeratio
+    from neutromeratio.constants import mols_with_charge, exclude_set_ANI, kT
+    from tqdm import tqdm
+    from  neutromeratio.parameter_gradients import FreeEnergyCalculator
+    
+    # TODO: pkg_resources instead of filepath relative to execution directory
     exp_results = pickle.load(open('data/exp_results.pickle', 'rb'))
+    # nr of steps
+    #################
+    n_steps = 40
+    #################
 
-    name = 'molDWRow_298'
+    # specify the system you want to simulate
+    name = 'molDWRow_298'  #Experimental free energy difference: 1.132369 kcal/mol
+    if name in exclude_set_ANI + mols_with_charge:
+        raise RuntimeError(f"{name} is part of the list of excluded molecules. Aborting")
 
     t1_smiles = exp_results[name]['t1-smiles']
     t2_smiles = exp_results[name]['t2-smiles']
-
-    # generate both rdkit mol
-    t_type, tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles, nr_of_conformations=5)
-    tautomer = tautomers[0]
+    print(f"Experimental free energy difference: {exp_results[name]['energy']} kcal/mol")
+    t_type, tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
+    tautomer = tautomers[0] # only considering ONE stereoisomer (the one deposited in the db)
     tautomer.perform_tautomer_transformation()
-    tautomer.performe_torsion_scan_initial_state([1, 2, 3, 4], 'test-mol-enol')
+
+    # define the alchemical atoms
+    alchemical_atoms = [tautomer.hybrid_hydrogen_idx_at_lambda_1, tautomer.hybrid_hydrogen_idx_at_lambda_0]
+
+    # set the ANI model
+    model = neutromeratio.ani.LinearAlchemicalSingleTopologyANI(alchemical_atoms=alchemical_atoms)
+    model = model.to(device)
+    torch.set_num_threads(1)
+
+    # define energy function
+    energy_function = neutromeratio.ANI1_force_and_energy(
+            model=model,
+            atoms=tautomer.hybrid_atoms,
+            mol=None,)
+
+    # add ligand bond restraints (for all lambda states)
+    for r in tautomer.ligand_restraints:
+        energy_function.add_restraint_to_lambda_protocol(r)
+
+    for r in tautomer.hybrid_ligand_restraints:
+        energy_function.add_restraint_to_lambda_protocol(r)
+
+    x0 = tautomer.hybrid_coords
+    potential_energy_trajs = []
+    ani_trajs = []
+    lambdas = np.linspace(0, 1, 5)
+
+    for lamb in tqdm(lambdas):
+        # minimize coordinates with a given lambda value
+        x0, e_history = energy_function.minimize(x0, maxiter=5000, lambda_value=lamb)
+        # define energy function with a given lambda value
+        energy_and_force = lambda x : energy_function.calculate_force(x, lamb)
+        # define langevin object with a given energy function
+        langevin = neutromeratio.LangevinDynamics(atoms=tautomer.hybrid_atoms,
+                                        energy_and_force=energy_and_force)
+
+        # sampling
+        equilibrium_samples, energies, restraint_bias, stddev, ensemble_bias = langevin.run_dynamics(x0,
+                                                                        n_steps=n_steps,
+                                                                        stepsize=1.0*unit.femtosecond,
+                                                                        progress_bar=False)
+
+        potential_energy_trajs.append(np.array(energies))
+
+        ani_trajs.append(md.Trajectory([x / unit.nanometer for x in equilibrium_samples], tautomer.hybrid_topology))
+
+
+    # calculate free energy in kT
+    fec = FreeEnergyCalculator(ani_model=energy_function,
+                               ani_trajs=ani_trajs,
+                               potential_energy_trajs=potential_energy_trajs,
+                               lambdas=lambdas,
+                               n_atoms=len(tautomer.hybrid_atoms),
+                               max_snapshots_per_window=-1,
+                               per_atom_thresh=1.0 * unit.kilojoule_per_mole)
+
+    # BEWARE HERE: I change the sign of the result since if flipped is TRUE I have 
+    # swapped tautomer 1 and 2 to mutate from the tautomer WITH the stereobond to the 
+    # one without the stereobond
+    if flipped:
+        deltaF = fec.compute_free_energy_difference() * -1
+    else:
+        deltaF = fec.compute_free_energy_difference()
+    print(f"Free energy difference {(deltaF.item() * kT).value_in_unit(unit.kilocalorie_per_mole)} kcal/mol")
+
+    deltaF.backward()  # no errors or warnings
+    params = list(energy_function.model.parameters())
+    for p in params:
+        assert(p.grad == None)  # all None

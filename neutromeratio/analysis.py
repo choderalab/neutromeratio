@@ -107,11 +107,11 @@ def prune_conformers(mol: Chem.Mol, energies: list, rmsd_threshold: float) -> (C
     A new RDKit Mol containing the chosen conformers, sorted by
     increasing energy.
     """
+    from typing import List
     rmsd = get_conformer_rmsd(mol)
-    sort = np.argsort([x.value_in_unit(unit.kilocalorie_per_mole)
-                       for x in energies])  # sort by increasing energy
-    keep = []  # always keep lowest-energy conformer
-    discard = []
+    sort = np.argsort(energies)  # sort by increasing energy
+    keep:List[int] = []  # always keep lowest-energy conformer
+    discard:List[int] = []
     for i in sort:
 
         # always keep lowest-energy conformer
@@ -165,13 +165,7 @@ def get_conformer_rmsd(mol) -> list:
 
 def calculate_weighted_energy(e_list):
     # G = -RT ln Σ exp(-G/RT)
-
-    l = []
-    for energy in e_list:
-        v = ((-1) * (energy)) / (gas_constant * temperature)
-        l.append(v)
-
-    e_bw = (-1) * gas_constant * temperature * (logsumexp(l))
+    e_bw = (-1) *(logsumexp(e_list))
     return e_bw
 
 
