@@ -174,8 +174,8 @@ class Tautomer(object):
                 pos = mol.GetConformer(0).GetAtomPosition(a.GetIdx())
                 tmp_coord_list.append([pos.x, pos.y, pos.z])
             x = np.array(tmp_coord_list) * unit.angstrom
-            e, _, stddev, ___, ____ = energy_function.calculate_energy(x)
-            return e, stddev
+            energy = energy_function.calculate_energy(x)
+            return energy.energy, energy.stddev
 
 
         model = PureANI1x()
@@ -630,9 +630,9 @@ class Tautomer(object):
 
         for _ in range(100):
             hybrid_coord = hydrogen_mover._move_hydrogen_to_acceptor_idx(ligand_coords, override=False)
-            energy_decomposition = energy_function.calculate_energy(hybrid_coord, lambda_value=1.0)
-            if energy_decomposition.energy < min_e:
-                min_e = energy_decomposition.energy
+            energy = energy_function.calculate_energy(hybrid_coord, lambda_value=1.0)
+            if energy.energy < min_e:
+                min_e = energy.energy
                 min_coordinates = hybrid_coord
 
         self.hybrid_hydrogen_idx_at_lambda_1 = len(hybrid_atoms) - 1 # this is not the dummy hydrogen at lambda_1! it is the real hydrogen at lambda 1!
