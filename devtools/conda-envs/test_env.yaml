@@ -30,6 +30,7 @@ dependencies:
   - scipy
   - pytest-cov
   - psi4
+  - seaborn
   - pip:
     - lark-parser
     - six
