@@ -9,7 +9,7 @@ from torch.distributions.normal import Normal
 
 from .constants import (bond_length_dict, device, mass_dict_in_daltons,
                         nm_to_angstroms, temperature, water_hoh_angle,
-                        conversion_factor_radian_to_degree)
+                        radian_to_degree)
 
 logger = logging.getLogger(__name__)
 
@@ -136,7 +136,7 @@ class TorsionFlatBottomRestraint(BaseTorsionRestraint):
         dxjk = (x[0][self.atom_k] - x[0][self.atom_j])
         dxkl = (x[0][self.atom_l] - x[0][self.atom_k])
         torsion = self._torsion(dxij, dxjk, dxkl)
-        return torsion * conversion_factor_radian_to_degree
+        return torsion * radian_to_degree
 
     def restraint(self, x):
         """       
@@ -192,7 +192,7 @@ class TorsionHarmonicRestraint(BaseTorsionRestraint):
         dxjk = (x[0][self.atom_k] - x[0][self.atom_j])
         dxkl = (x[0][self.atom_l] - x[0][self.atom_k])
         torsion = self._torsion(dxij, dxjk, dxkl)
-        return torsion * conversion_factor_radian_to_degree
+        return torsion * radian_to_degree
 
     def restraint(self, x):
         """       

@@ -18,7 +18,7 @@ from simtk import unit
 from torch import Tensor
 from enum import Enum
 
-from .constants import (conversion_factor_eV_to_kJ_mol, device,
+from .constants import (eV_to_kJ_mol, device,
                         hartree_to_kJ_mol, kT, nm_to_angstroms, platform,
                         pressure, temperature, hartree_to_kT, kT_to_kJ_mol)
 
@@ -162,7 +162,7 @@ class ANI1_force_and_energy(object):
             raise verror
         # removes the vib tmp files
         vib.clean()
-        return ((G * conversion_factor_eV_to_kJ_mol) * unit.kilojoule_per_mole)/kT  # eV * conversion_factor(eV to kJ/mol)
+        return ((G * eV_to_kJ_mol) * unit.kilojoule_per_mole)/kT  # eV * conversion_factor(eV to kJ/mol)
 
     def minimize(self, coords: simtk.unit.quantity.Quantity, maxiter: int = 1000,
                 lambda_value: float = 0.0, show_plot: bool = False)->Tuple[simtk.unit.quantity.Quantity, list]:
