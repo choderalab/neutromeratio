@@ -130,11 +130,11 @@ class Tautomer(object):
 
     @property
     def initial_state_entropy_correction(self):
-        return -np.log(self.initial_state_ligand_degeneracy)
+        return (- kT * np.log(self.initial_state_ligand_degeneracy))
 
     @property
     def final_state_entropy_correction(self):
-        return -np.log(self.final_state_ligand_degeneracy)
+        return (- kT * np.log(self.final_state_ligand_degeneracy))
 
     @property
     def final_state_ligand_degeneracy(self):
@@ -625,12 +625,13 @@ class Tautomer(object):
                                   self.heavy_atom_hydrogen_acceptor_idx,
                                   ligand_atoms)
 
-        min_e = 100 # kT
+        min_e = 100.0 * unit.kilojoule_per_mole 
         min_coordinates = []
 
         for _ in range(100):
             hybrid_coord = hydrogen_mover._move_hydrogen_to_acceptor_idx(ligand_coords, override=False)
             energy = energy_function.calculate_energy(hybrid_coord, lambda_value=1.0)
+            print(energy.energy)
             if energy.energy < min_e:
                 min_e = energy.energy
                 min_coordinates = hybrid_coord

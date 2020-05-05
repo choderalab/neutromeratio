@@ -53,19 +53,15 @@ class FreeEnergyCalculator():
         self.ani_trajs = ani_trajs
         self.n_atoms = n_atoms
 
-        N_k, snapshots, used_lambdas = self.remove_confs_with_high_stddev(max_snapshots_per_window, per_atom_thresh/kT)
+        N_k, snapshots, used_lambdas = self.remove_confs_with_high_stddev(max_snapshots_per_window, per_atom_thresh)
 
         # end-point energies, restraint_bias, stddev
-        lambda0_e_b_stddev = [self.ani_model.calculate_energy(x, lambda_value=0.0) for x in tqdm(snapshots)]
-        lambda1_e_b_stddev = [self.ani_model.calculate_energy(x, lambda_value=1.0) for x in tqdm(snapshots)]
+        lambda0 = [self.ani_model.calculate_energy(x, lambda_value=0.0) for x in tqdm(snapshots)]
+        lambda1 = [self.ani_model.calculate_energy(x, lambda_value=1.0) for x in tqdm(snapshots)]
 
         # extract endpoint energies
-        lambda0_e = [e for e in [e_b_stddev[0] for e_b_stddev in lambda0_e_b_stddev]]
-        lambda1_e = [e for e in [e_b_stddev[0] for e_b_stddev in lambda1_e_b_stddev]]
-
-        # extract endpoint energies
-        lambda0_e = [e for e in [e_b_stddev[-1] for e_b_stddev in lambda0_e_b_stddev]]
-        lambda1_e = [e for e in [e_b_stddev[-1] for e_b_stddev in lambda1_e_b_stddev]]
+        lambda0_e = [e.energy_tensor for e in lambda0]
+        lambda1_e = [e.energy_tensor for e in lambda0]
 
 
         def get_mix(lambda0, lambda1, lam=0.0):
@@ -93,18 +89,18 @@ class FreeEnergyCalculator():
         def calculate_stddev(snapshots):
             # calculate energy, restraint_bias and stddev for endstates
             logger.info('Calculating stddev')
-            lambda0_e_b_stddev = [self.ani_model.calculate_energy(x, lambda_value=0.0) for x in tqdm(snapshots)]
-            lambda1_e_b_stddev = [self.ani_model.calculate_energy(x, lambda_value=1.0) for x in tqdm(snapshots)]
+            lambda0 = [self.ani_model.calculate_energy(x, lambda_value=0.0) for x in tqdm(snapshots)]
+            lambda1 = [self.ani_model.calculate_energy(x, lambda_value=1.0) for x in tqdm(snapshots)]
 
             # extract endpoint stddev and return
-            lambda0_stddev = [stddev for stddev in [e_b_stddev[2] for e_b_stddev in lambda0_e_b_stddev]]
-            lambda1_stddev = [stddev for stddev in [e_b_stddev[2] for e_b_stddev in lambda1_e_b_stddev]]
+            lambda0_stddev = [e.stddev/kT for e in lambda0]
+            lambda1_stddev = [e.stddev/kT for e in lambda0]
             return np.array(lambda0_stddev), np.array(lambda1_stddev)
 
         def compute_linear_ensemble_bias(current_stddev, per_atom_thresh):
             # calculate the total energy stddev threshold based on the provided per_atom_thresh
             # and the number of atoms
-            total_thresh = (per_atom_thresh * self.n_atoms)
+            total_thresh = ((per_atom_thresh / kT) * self.n_atoms)
             logger.info(f"Per system treshold: {total_thresh}")
             # if stddev for a given conformation < total_thresh => 0.0
             # if stddev for a given conformation > total_thresh => stddev - total_threshold
@@ -138,7 +134,7 @@ class FreeEnergyCalculator():
         last_valid_inds = {}
         logger.info(f"Looking through {len(ani_trajs)} lambda windows")
         for lam in sorted(ani_trajs.keys()):
-            if per_atom_thresh < 0:
+            if per_atom_thresh < 0. * unit.kilojoule_per_mole:
                 last_valid_ind = -1
             else:
                 logger.info(f"Calculating stddev and penalty for lambda: {lam}")

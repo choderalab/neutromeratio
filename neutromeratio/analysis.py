@@ -109,7 +109,8 @@ def prune_conformers(mol: Chem.Mol, energies: list, rmsd_threshold: float) -> (C
     """
     from typing import List
     rmsd = get_conformer_rmsd(mol)
-    sort = np.argsort(energies)  # sort by increasing energy
+    sort = np.argsort([x.value_in_unit(unit.kilocalorie_per_mole)
+                       for x in energies])  # sort by increasing energy
     keep:List[int] = []  # always keep lowest-energy conformer
     discard:List[int] = []
     for i in sort:
@@ -165,7 +166,7 @@ def get_conformer_rmsd(mol) -> list:
 
 def calculate_weighted_energy(e_list):
     # G = -RT ln Σ exp(-G/RT)
-    e_bw = (-1) *(logsumexp(e_list))
+    e_bw = (-1) * gas_constant * temperature * (logsumexp([(-1) * (e) / (gas_constant * temperature) for e in e_list] ))
     return e_bw
 
 

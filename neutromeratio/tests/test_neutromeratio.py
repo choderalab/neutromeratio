@@ -217,7 +217,7 @@ def test_neutromeratio_energy_calculations_with_torchANI_model():
         mol=None)
 
     energy = energy_function.calculate_energy(x0,)
-    assert(np.isclose(energy.energy, (-906911.9843514563 * unit.kilojoule_per_mole)/kT, rtol=1e-5))
+    assert(is_quantity_close(energy.energy, (-906911.9843514563 * unit.kilojoule_per_mole), rtol=1e-5))
 
     tautomer = tautomers[1]
     tautomer.perform_tautomer_transformation()
@@ -237,7 +237,7 @@ def test_neutromeratio_energy_calculations_with_torchANI_model():
         mol=None)
 
     energy = energy_function.calculate_energy(x0,)
-    assert(np.isclose(energy.energy, (-906920.2981953777 * unit.kilojoule_per_mole)/kT, rtol=1e-5))
+    assert(is_quantity_close(energy.energy, (-906920.2981953777 * unit.kilojoule_per_mole), rtol=1e-5))
 
 
 
@@ -279,9 +279,9 @@ def test_neutromeratio_energy_calculations_with_LinearAlchemicalANI_model():
         mol=tautomer.initial_state_ase_mol)
 
     energy = energy_function.calculate_energy(x0, lambda_value=1.0)
-    assert(np.isclose(energy.energy, (-906911.9843514563 * unit.kilojoule_per_mole)/kT, rtol=1e-9))
+    assert(is_quantity_close(energy.energy, (-906911.9843514563 * unit.kilojoule_per_mole), rtol=1e-9))
     energy = energy_function.calculate_energy(x0, lambda_value=0.0)
-    assert(np.isclose(energy.energy, (-906831.6071666518 * unit.kilojoule_per_mole)/kT, rtol=1e-9))
+    assert(is_quantity_close(energy.energy, (-906831.6071666518 * unit.kilojoule_per_mole), rtol=1e-9))
 
     tautomer = tautomers[1]
     tautomer.perform_tautomer_transformation()
@@ -305,9 +305,9 @@ def test_neutromeratio_energy_calculations_with_LinearAlchemicalANI_model():
         mol=tautomer.initial_state_ase_mol)
 
     energy = energy_function.calculate_energy(x0, lambda_value=1.0)
-    assert(np.isclose(energy.energy, (-906920.2981953777 * unit.kilojoule_per_mole)/kT, rtol=1e-9))
+    assert(is_quantity_close(energy.energy, (-906920.2981953777 * unit.kilojoule_per_mole), rtol=1e-9))
     energy = energy_function.calculate_energy(x0, lambda_value=0.0)
-    assert(np.isclose(energy.energy, (-906841.931489851 * unit.kilojoule_per_mole)/kT, rtol=1e-9))
+    assert(is_quantity_close(energy.energy, (-906841.931489851 * unit.kilojoule_per_mole), rtol=1e-9))
 
 
 
@@ -351,9 +351,9 @@ def test_neutromeratio_energy_calculations_with_LinearAlchemicalDualTopologyANI_
     x0 = traj[0]
 
     energy = energy_function.calculate_energy(x0, lambda_value=1.0)
-    assert(np.isclose(energy.energy, (-906630.9281008451 * unit.kilojoule_per_mole)/kT, rtol=1e-9))
+    assert(is_quantity_close(energy.energy, (-906630.9281008451 * unit.kilojoule_per_mole), rtol=1e-9))
     energy = energy_function.calculate_energy(x0, lambda_value=0.0)
-    assert(np.isclose(energy.energy, (-906911.9843514563 * unit.kilojoule_per_mole)/kT, rtol=1e-9))
+    assert(is_quantity_close(energy.energy, (-906911.9843514563 * unit.kilojoule_per_mole), rtol=1e-9))
 
     ######################################################################
     ######################################################################
@@ -380,9 +380,9 @@ def test_neutromeratio_energy_calculations_with_LinearAlchemicalDualTopologyANI_
     x0 = traj[0]
 
     energy = energy_function.calculate_energy(x0, lambda_value=1.0)
-    assert(np.isclose(energy.energy, (-906700.3482745718 * unit.kilojoule_per_mole)/kT, rtol=1e-9))
+    assert(is_quantity_close(energy.energy, (-906700.3482745718 * unit.kilojoule_per_mole), rtol=1e-9))
     energy = energy_function.calculate_energy(x0, lambda_value=0.0)
-    assert(np.isclose(energy.energy, (-906920.2981953777 * unit.kilojoule_per_mole)/kT, rtol=1e-9))
+    assert(is_quantity_close(energy.energy, (-906920.2981953777 * unit.kilojoule_per_mole), rtol=1e-9))
 
 
 
@@ -456,9 +456,9 @@ def test_restraint_with_alchemicalANI():
         mol=tautomer.initial_state_ase_mol)
 
     energy = energy_function.calculate_energy(x0, lambda_value=1.0)
-    assert(np.isclose(energy.energy, (-906911.9843514563 * unit.kilojoule_per_mole)/kT, rtol=1e-9))
+    assert(is_quantity_close(energy.energy, (-906911.9843514563 * unit.kilojoule_per_mole), rtol=1e-9))
     energy = energy_function.calculate_energy(x0, lambda_value=0.0)
-    assert(np.isclose(energy.energy, (-906831.6071666518 * unit.kilojoule_per_mole)/kT, rtol=1e-9))
+    assert(is_quantity_close(energy.energy, (-906831.6071666518 * unit.kilojoule_per_mole), rtol=1e-9))
 
     # test flat_bottom_restraint for lambda = 0.0
     r = []
@@ -472,7 +472,7 @@ def test_restraint_with_alchemicalANI():
         energy_function.add_restraint_to_lambda_protocol(r)
 
     energy = energy_function.calculate_energy(x0, lambda_value=0.0)
-    assert(np.isclose(energy.energy, (-906499.6764037954 * unit.kilojoule_per_mole)/kT, rtol=1e-9))
+    assert(is_quantity_close(energy.energy, (-906499.6764037954 * unit.kilojoule_per_mole), rtol=1e-9))
 
     # test harmonic_restraint for lambda = 0.0
     energy_function.reset_lambda_restraints()
@@ -487,11 +487,11 @@ def test_restraint_with_alchemicalANI():
         energy_function.add_restraint_to_lambda_protocol(r)
 
     energy = energy_function.calculate_energy(x0, lambda_value=0.0)
-    assert(np.isclose(energy.energy, (-906229.5741461891 * unit.kilojoule_per_mole)/kT, rtol=1e-9))
+    assert(is_quantity_close(energy.energy, (-906229.5741461891 * unit.kilojoule_per_mole), rtol=1e-9))
 
     # test harmonic_restraint for lambda = 1.0
     energy = energy_function.calculate_energy(x0, lambda_value=1.0)
-    assert(np.isclose(energy.energy, (-906309.9513309937 * unit.kilojoule_per_mole)/kT, rtol=1e-9))
+    assert(is_quantity_close(energy.energy, (-906309.9513309937 * unit.kilojoule_per_mole), rtol=1e-9))
 
     # test harmonic_restraint and flat_bottom_restraint for lambda = 1.0
     r = []
@@ -512,7 +512,7 @@ def test_restraint_with_alchemicalANI():
         energy_function.add_restraint_to_lambda_protocol(r)
 
     energy = energy_function.calculate_energy(x0, lambda_value=1.0)
-    assert(np.isclose(energy.energy, (-905978.0205681373 * unit.kilojoule_per_mole)/kT, rtol=1e-9))
+    assert(is_quantity_close(energy.energy, (-905978.0205681373 * unit.kilojoule_per_mole), rtol=1e-9))
 
 
 def test_restraint_with_LinearAlchemicalDualTopologyANI():
@@ -553,17 +553,17 @@ def test_restraint_with_LinearAlchemicalDualTopologyANI():
 
     energy = energy_function.calculate_energy(x0,
     lambda_value=0.0)
-    assert (np.isclose(energy.energy, (-906911.9843514563 * unit.kilojoule_per_mole)/kT, rtol=1e-9))
+    assert (is_quantity_close(energy.energy, (-906911.9843514563 * unit.kilojoule_per_mole), rtol=1e-9))
 
     torsion_b=neutromeratio.restraints.TorsionHarmonicRestraint(sigma=0.3 * unit.radian,
     torsion_angle=90* unit.degree,
     atom_idx=[10, 2, 3, 4],
     active_at=1.0)
     energy = energy_function.calculate_energy(x0, lambda_value=0.0)
-    assert(np.isclose(energy.energy, (-906911.9843514563 * unit.kilojoule_per_mole)/kT, rtol=1e-9))
+    assert(is_quantity_close(energy.energy, (-906911.9843514563 * unit.kilojoule_per_mole), rtol=1e-9))
 
     energy = energy_function.calculate_energy(x0, lambda_value=0.0)
-    assert(np.isclose(energy.energy, (-906911.9843514563 * unit.kilojoule_per_mole)/kT, rtol=1e-9))
+    assert(is_quantity_close(energy.energy, (-906911.9843514563 * unit.kilojoule_per_mole), rtol=1e-9))
 
 
 def test_min_and_single_point_energy():
@@ -666,6 +666,7 @@ def test_euqilibrium():
     )
 
     for e in tautomer.ligand_restraints + tautomer.hybrid_ligand_restraints:
+        print(e)
         energy_function.add_restraint_to_lambda_protocol(e)
 
     x0 = np.array(tautomer.hybrid_coords) * unit.angstrom
@@ -729,7 +730,7 @@ def test_tautomer_conformation():
         for n_conf, coords in enumerate(ligand_coords):
             # minimize
             print(f"Conf: {n_conf}")
-            x, e_min_history = energy_function.minimize(coords)
+            x, e_min_history = energy_function.minimize(coords, maxiter=100000)
             energy = energy_function.calculate_energy(x)
             e_correction = energy_function.get_thermo_correction(x)
             print(f"Energy: {energy.energy}")
@@ -825,7 +826,7 @@ def test_generating_droplet():
         energy_function.add_restraint_to_lambda_protocol(r)
 
     energy = energy_function.calculate_energy(tautomer.ligand_in_water_coordinates)
-    assert(np.isclose(energy.energy, (-15547479.771537919 * unit.kilojoule_per_mole)/kT, rtol=1e-7))
+    assert(is_quantity_close(energy.energy, (-15547479.771537919 * unit.kilojoule_per_mole), rtol=1e-7))
 
 
 @pytest.mark.skipif(
