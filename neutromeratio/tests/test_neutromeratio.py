@@ -630,7 +630,7 @@ def test_thermochemistry():
         )
         for coords in ligand_coords:
             # minimize
-            x, hist_e = energy_function.minimize(coords)
+            x, hist_e = energy_function.minimize(coords, maxiter=100000)
             energy_function.get_thermo_correction(x)
 
 
