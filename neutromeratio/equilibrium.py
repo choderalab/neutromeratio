@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 class LangevinDynamics(object):
 
-    def __init__(self, atoms: str, energy_and_force: ANI1_force_and_energy.calculate_force):
+    def __init__(self, atoms: str, energy_and_force):
 
         self.energy_and_force = energy_and_force
         self.temperature = temperature
@@ -48,7 +48,7 @@ class LangevinDynamics(object):
                      progress_bar: bool = False,
                      save_checkpoints=True,
                      temperature = None
-                     ) -> (list, list, list, list, list):
+                     ):
         """Unadjusted Langevin dynamics.
 
         Parameters

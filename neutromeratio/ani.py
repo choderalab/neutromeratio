@@ -18,19 +18,55 @@ from simtk import unit
 from torch import Tensor
 from enum import Enum
 
-from .constants import (conversion_factor_eV_to_kJ_mol, device,
+from .constants import (eV_to_kJ_mol, device,
                         hartree_to_kJ_mol, kT, nm_to_angstroms, platform,
-                        pressure, temperature)
+                        pressure, temperature, hartree_to_kT, kT_to_kJ_mol)
+from .restraints import BaseDistanceRestraint 
 
 logger = logging.getLogger(__name__)
 
+class SpeciesEnergies(NamedTuple):
+    species: Tensor
+    energies: Tensor
+    stddev: Tensor
+
+class DecomposedForce(NamedTuple):
+    """Returned by _calculate_force()
+
+    force: unit'd
+    energy: unit'd
+    restraint_bias: unit'd (energy contribution of all restraints)
+    stddev: unit'd
+    ensemble_bias: unit'd
+    """
+    force: unit.Quantity
+    energy : unit.Quantity
+    restraint_bias: unit.Quantity
+    stddev: unit.Quantity
+    ensemble_bias: unit.Quantity
+
+class DecomposedEnergy(NamedTuple):
+    """Returned by _calculate_energy()
+
+    energy: unit'd
+    restraint_bias: unit'd (energy contribution of all restraints)
+    stddev: unit'd
+    ensemble_bias: unit'd
+    energy_tensor: in kT
+    """
+
+    energy: unit.Quantity
+    restraint_bias: unit.Quantity
+    stddev: unit.Quantity
+    ensemble_bias: unit.Quantity
+    energy_tensor: Tensor
 
 class ANI1_force_and_energy(object):
 
     def __init__(self,
                  model: torchani.models.ANI1ccx,
                  atoms: str,
-                 mol: Atoms,
+                 mol: Atoms = None,
                  adventure_mode: bool = True,
                  per_atom_thresh: unit.Quantity = 0.5 * unit.kilojoule_per_mole,
                  ):
@@ -39,11 +75,14 @@ class ANI1_force_and_energy(object):
 
         Parameters
         ----------
-        model:
+        model: torchani.models
         atoms: str
             a string of atoms in the indexed order
-        mol: ase.Atoms
+        mol (optional): ase.Atoms
             a ASE Atoms object with the atoms
+        adventure_mode :bool
+            stddev threshold for energy prediction
+        per_atom_thresh: unit'd
         """
         self.device = device
         self.model = model
@@ -61,18 +100,40 @@ class ANI1_force_and_energy(object):
         # TODO: check availablity of platform
 
     def add_restraint_to_lambda_protocol(self, restraint):
-        # add a single restraint
+        """
+        Add a single restraint to the lambda protocol.
+
+        Arguments:
+            restraint {neutromeratio.restraint.Restraint} -- Either Harmonic or FlatBottomRestraint
+        """
+        assert(isinstance(restraint, BaseDistanceRestraint))
         self.list_of_lambda_restraints.append(restraint)
 
     def reset_lambda_restraints(self):
+        """
+        Resets the restraints for the lambda protocol
+        """
         self.list_of_lambda_restraints = []
 
-
     def _compute_restraint_bias(self, x, lambda_value):
+        """
+        Computes the energy from different restraints of the system.  
+
+        Arguments:
+            x {Tensor} -- coordinates as torch.Tensor
+            lambda_value {float} -- lambda value
+
+        Raises:
+            RuntimeError: raises RuntimeError if restraint.active_at has numeric value outside [0,1]
+
+        Returns:
+            float -- energy [kT]
+        """
+
         # use correct restraint_bias in between the end-points...
 
         # lambda
-        lambda_restraint_bias_in_kJ_mol = torch.tensor(0.0,
+        lambda_restraint_bias_in_kT = torch.tensor(0.0,
                                                        device=self.device, dtype=torch.float64)
 
         for restraint in self.list_of_lambda_restraints:
@@ -85,10 +146,10 @@ class ANI1_force_and_energy(object):
                 pass
             else:
                 raise RuntimeError('Something went wrong with restraints.')
-            lambda_restraint_bias_in_kJ_mol += restraint_bias
+            lambda_restraint_bias_in_kT += (restraint_bias * unit.kilojoule_per_mole)/kT
 
 
-        return lambda_restraint_bias_in_kJ_mol
+        return lambda_restraint_bias_in_kT
 
     def compute_restraint_bias_on_snapshots(self, snapshots, lambda_value=0.0) -> float:
         """
@@ -106,17 +167,17 @@ class ANI1_force_and_energy(object):
         return reduced_restraint_bias
 
     def get_thermo_correction(self, coords: simtk.unit.quantity.Quantity) -> unit.quantity.Quantity:
-        """
+        
+        """        
         Returns the thermochemistry correction. This calls: https://wiki.fysik.dtu.dk/ase/ase/thermochemistry/thermochemistry.html
         and uses the Ideal gas rigid rotor harmonic oscillator approximation to calculate the Gibbs free energy correction that 
         needs to be added to the single point energy to obtain the Gibb's free energy
 
-        Parameters
-        ----------
-        coords:simtk.unit.quantity.Quantity
-        Returns
-        -------
-        gibbs_energy_correction : unit.kilojoule_per_mole
+        Raises:
+            verror: if imaginary frequencies are detected a ValueError is raised
+
+        Returns:
+            float -- temperature correct [kT] 
         """
 
         ase_mol = copy.deepcopy(self.ase_mol)
@@ -145,22 +206,23 @@ class ANI1_force_and_energy(object):
             raise verror
         # removes the vib tmp files
         vib.clean()
-        return (G * conversion_factor_eV_to_kJ_mol) * unit.kilojoule_per_mole  # eV * conversion_factor(eV to kJ/mol)
+        return ((G * eV_to_kJ_mol) * unit.kilojoule_per_mole)  # eV * conversion_factor(eV to kJ/mol)
 
     def minimize(self, coords: simtk.unit.quantity.Quantity, maxiter: int = 1000,
-                lambda_value: float = 0.0, show_plot: bool = False):
-        """
-        Minimizes the molecule.
-        Parameters
-        ----------
-        coords:simtk.unit.quantity.Quantity
-        maxiter: int
-            Maximum number of minimization steps performed.
-        lambda_value: float
-            indicate position in lambda protocoll to control how dummy atoms are handled
-        Returns
-        -------
-        coords:simtk.unit.quantity.Quantity
+                lambda_value: float = 0.0, show_plot: bool = False)->Tuple[simtk.unit.quantity.Quantity, list]:
+        """Minimizes the molecule
+
+        Arguments:
+            coords {simtk.unit.quantity.Quantity} -- coordinates of the molecules unit'd
+
+        Keyword Arguments:
+            maxiter {int} -- max iteration performed by minimizer (default: {1000})
+            lambda_value {float} -- lambda value (default: {0.0})
+            show_plot {bool} -- show summary plot after minimization finshes (default: {False})
+
+        Returns:
+            coordinates
+            list -- trajectory of energy values during minimization 
         """
         from scipy import optimize
         assert(type(coords) == unit.Quantity)
@@ -187,10 +249,11 @@ class ANI1_force_and_energy(object):
             plt.close()
 
         x = coords.value_in_unit(unit.angstrom)
-        self.memory_of_energy = []
-        self.memory_of_stddev = []
-        self.memory_of_ensemble_bias = []
-        self.memory_of_conformation_bias = []
+        self.memory_of_energy:list = []
+        self.memory_of_stddev:list = []
+        self.memory_of_ensemble_bias:list = []
+        self.memory_of_conformation_bias: list = []
+        
         print("Begin minimizing...")
         f = optimize.minimize(self._traget_energy_function, x, method='BFGS',
                               jac=True, args=(lambda_value),
@@ -220,34 +283,37 @@ class ANI1_force_and_energy(object):
             plotting(memory_of_energy, memory_of_conformation_bias,
                      'energy [kT]', 'energy', 'restraint bias [kT]', 'restraint bias', 'Restraint bias/Energy vs minimization step')
 
-        return f.x.reshape(-1, 3) * unit.angstrom, memory_of_energy
+        return (f.x.reshape(-1, 3) * unit.angstrom, memory_of_energy)
 
-    def calculate_force(self, x: simtk.unit.quantity.Quantity, lambda_value: float = 0.0) -> simtk.unit.quantity.Quantity:
+    def calculate_force(self, x: simtk.unit.quantity.Quantity, lambda_value: float = 0.0):
         """
         Given a coordinate set the forces with respect to the coordinates are calculated.
 
-        Parameters
-        ----------
-        x : array of floats, unit'd (distance unit)
-            initial configuration
-        lambda_value : float
-            between 0.0 and 1.0 - at zero contributions of alchemical atoms are zero
-        Returns
-        -------
-        F : float, unit'd
+        Arguments:
+            x {simtk.unit.quantity.Quantity} -- coordinates as 3*(nr of atoms) torch.Tensor. 
 
+        Keyword Arguments:
+            lambda_value {float} -- position in the lambda protocol (default: {0.0}).
+
+        Raises:
+            RuntimeError: raised if self.platform is not specified.
+
+        Returns:
+            NamedTuple -- DecomposedForce
         """
+        
+        
         assert(type(x) == unit.Quantity)
         assert(float(lambda_value) <= 1.0 and float(lambda_value) >= 0.0)
 
         coordinates = torch.tensor([x.value_in_unit(unit.nanometer)],
                                    requires_grad=True, device=self.device, dtype=torch.float32)
 
-        energy_in_kJ_mol, restraint_bias_in_kJ_mol, stddev_in_kJ_mol, ensemble_bias = self._calculate_energy(
+        energy_in_kT, restraint_bias_in_kT, stddev_in_kT, ensemble_bias_kT = self._calculate_energy(
             coordinates, lambda_value)
 
-        # derivative of E (in kJ/mol) w.r.t. coordinates (in nm)
-        derivative = torch.autograd.grad((energy_in_kJ_mol).sum(), coordinates)[0]
+        # derivative of E (kJ_mol) w.r.t. coordinates (in nm)
+        derivative = torch.autograd.grad(((energy_in_kT  *kT).value_in_unit(unit.kilojoule_per_mole)).sum(), coordinates)[0]
 
         if self.platform == 'cpu':
             F = - np.array(derivative)[0]
@@ -256,13 +322,14 @@ class ANI1_force_and_energy(object):
         else:
             raise RuntimeError('Platform needs to be specified. Either CPU or CUDA.')
 
-        return (F * (unit.kilojoule_per_mole / unit.nanometer),
-                energy_in_kJ_mol.item() * unit.kilojoule_per_mole,
-                restraint_bias_in_kJ_mol.item() * unit.kilojoule_per_mole,
-                stddev_in_kJ_mol.item() * unit.kilojoule_per_mole,
-                ensemble_bias.item() * unit.kilojoule_per_mole)
+        return DecomposedForce((F) * (unit.kilojoule_per_mole / unit.nanometer),
+                energy_in_kT.item() *kT,
+                restraint_bias_in_kT.item() *kT,
+                stddev_in_kT.item() *kT,
+                ensemble_bias_kT.item() *kT) 
 
-    def _calculate_energy(self, coordinates: torch.tensor, lambda_value: float) -> (torch.tensor, torch.tensor, torch.tensor, torch.tensor):
+
+    def _calculate_energy(self, coordinates: torch.Tensor, lambda_value: float) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Helpter function to return energies as tensor.
         Given a coordinate set the energy is calculated.
@@ -275,23 +342,23 @@ class ANI1_force_and_energy(object):
             between 0.0 and 1.0
         Returns
         -------
-        energy_in_kJ_mol : torch.tensor
+        energy_in_kT : torch.tensor
             return the energy with restraints added
-        restraint_bias_in_kJ_mol : torch.tensor
+        restraint_bias_in_kT : torch.tensor
             return the energy of the added restraints
-        stddev_in_kJ_mol : torch.tensor
+        stddev_in_kT : torch.tensor
             return the stddev of the energy (without added restraints)
-        ensemble_bias_in_kJ_mol : torch.tensor
+        ensemble_bias_in_kT : torch.tensor
             return the ensemble_bias added to the energy
         """
 
         stddev_in_hartree = torch.tensor(0.0,
                                          device=self.device, dtype=torch.float64)
 
-        restraint_bias_in_kJ_mol = torch.tensor(0.0,
+        restraint_bias_in_kT = torch.tensor(0.0,
                                                 device=self.device, dtype=torch.float64)
 
-        ensemble_bias_in_kJ_mol = torch.tensor(0.0,
+        ensemble_bias_in_kT = torch.tensor(0.0,
                                                device=self.device, dtype=torch.float64)
 
         assert(0.0 <= float(lambda_value) <= 1.0)
@@ -299,41 +366,40 @@ class ANI1_force_and_energy(object):
         _, energy_in_hartree, stddev_in_hartree = self.model(
             (self.species, coordinates * nm_to_angstroms, lambda_value))
 
-        # convert energy from hartrees to kJ/mol
-        energy_in_kJ_mol = energy_in_hartree * hartree_to_kJ_mol
-        stddev_in_kJ_mol = stddev_in_hartree * hartree_to_kJ_mol
+        # convert energy from hartree to kT
+        energy_in_kT = energy_in_hartree * hartree_to_kT
+        stddev_in_kT = stddev_in_hartree * hartree_to_kT
 
-        restraint_bias_in_kJ_mol = self._compute_restraint_bias(
+        restraint_bias_in_kT = self._compute_restraint_bias(
             coordinates, lambda_value=lambda_value)
-        logger.debug(restraint_bias_in_kJ_mol)
-        energy_in_kJ_mol += restraint_bias_in_kJ_mol
+
+        energy_in_kT += restraint_bias_in_kT
 
         if self.adventure_mode == False:
-            if stddev_in_kJ_mol > self.per_mol_tresh:
+            if stddev_in_kT > self.per_mol_tresh:
                 #logger.info(f"Per atom tresh: {self.per_atom_thresh}")
                 #logger.info(f"Nr of atoms: {species.size()[1]}")
                 #logger.warning(f"Stddev: {stddev_in_kJ_mol} kJ/mol")
                 #logger.warning(f"Energy: {energy_in_kJ_mol} kJ/mol")
-                ensemble_bias_in_kJ_mol = self._linear_ensemble_bias(stddev_in_kJ_mol)
-                #ensemble_bias_in_kJ_mol = self._quadratic_ensemble_bias(stddev_in_kJ_mol)
+                ensemble_bias_in_kT = self._linear_ensemble_bias(stddev_in_kT)
 
-            energy_in_kJ_mol += ensemble_bias_in_kJ_mol
+            energy_in_kT += ensemble_bias_in_kT
 
-        return energy_in_kJ_mol, restraint_bias_in_kJ_mol, stddev_in_kJ_mol, ensemble_bias_in_kJ_mol
+        return energy_in_kT, restraint_bias_in_kT, stddev_in_kT, ensemble_bias_in_kT
 
     def _quadratic_ensemble_bias(self, stddev):
-        ensemble_bias_in_kJ_mol = torch.tensor(0.1 * ((stddev.item() - self.per_mol_tresh)**2),
+        ensemble_bias_in_kT = torch.tensor(0.1 * ((stddev.item() - self.per_mol_tresh)**2),
                                                device=self.device, dtype=torch.float64, requires_grad=True)
-        logger.warning(f"Applying ensemble_bias: {ensemble_bias_in_kJ_mol.item()} kJ/mol")
-        return ensemble_bias_in_kJ_mol
+        logger.warning(f"Applying ensemble_bias: {ensemble_bias_in_kT.item()} kT")
+        return ensemble_bias_in_kT
 
     def _linear_ensemble_bias(self, stddev):
-        ensemble_bias_in_kJ_mol = torch.tensor(abs(stddev.item() - self.per_mol_tresh),
+        ensemble_bias_in_kT = torch.tensor(abs(stddev.item() - self.per_mol_tresh),
                                                device=self.device, dtype=torch.float64, requires_grad=True)
-        logger.warning(f"Applying ensemble_bias: {ensemble_bias_in_kJ_mol.item()} kJ/mol")
-        return ensemble_bias_in_kJ_mol
+        logger.warning(f"Applying ensemble_bias: {ensemble_bias_in_kT.item()} kT")
+        return ensemble_bias_in_kT
 
-    def _traget_energy_function(self, x, lambda_value: float = 0.0) -> float:
+    def _traget_energy_function(self, x, lambda_value: float = 0.0):
         """
         Given a coordinate set (x) the energy is calculated in kJ/mol.
 
@@ -346,18 +412,19 @@ class ANI1_force_and_energy(object):
 
         Returns
         -------
-        E : float, unit'd 
+        E : kT
+        F : unit'd
         """
         x = x.reshape(-1, 3) * unit.angstrom
-        F, E, B, S, P = self.calculate_force(x, lambda_value)
-        F_flat = -np.array(F.value_in_unit(unit.kilojoule_per_mole/unit.angstrom).flatten(), dtype=np.float64)
-        self.memory_of_energy.append(E)
-        self.memory_of_stddev.append(S)
-        self.memory_of_conformation_bias.append(B)
-        self.memory_of_ensemble_bias.append(P)
-        return E.value_in_unit(unit.kilojoule_per_mole), F_flat
+        force_energy = self.calculate_force(x, lambda_value)
+        F_flat = -np.array(force_energy.force.value_in_unit(unit.kilojoule_per_mole/unit.angstrom).flatten(), dtype=np.float64)
+        self.memory_of_energy.append(force_energy.energy)
+        self.memory_of_stddev.append(force_energy.stddev)
+        self.memory_of_conformation_bias.append(force_energy.restraint_bias)
+        self.memory_of_ensemble_bias.append(force_energy.ensemble_bias)
+        return (force_energy.energy.value_in_unit(unit.kilojoule_per_mole), F_flat)
 
-    def calculate_energy(self, x: simtk.unit.quantity.Quantity, lambda_value: float = 0.0) -> (simtk.unit.quantity.Quantity, simtk.unit.quantity.Quantity, simtk.unit.quantity.Quantity, simtk.unit.quantity.Quantity):
+    def calculate_energy(self, x: simtk.unit.quantity.Quantity, lambda_value: float = 0.0):
         """
         Given a coordinate set (x) the energy is calculated in kJ/mol.
 
@@ -370,14 +437,14 @@ class ANI1_force_and_energy(object):
 
         Returns
         -------
-        energy : unit.Quantity
-            energy in kJ/mol
-        restraint_bias : unit.Quantity
-            restraint_bias in kJ/mol
-        stddev : unit.Quantity
-            stddev in kJ/mol
-        ensemble_bias : unit.Quantity
-            ensemble_bias in kJ/mol
+        energy : float
+            energy unit'd
+        restraint_bias : float
+            restraint_bias in unit'd
+        stddev : float
+            stddev in unit'd
+        ensemble_bias : float
+            ensemble_bias in unit'd
         """
 
         assert(type(x) == unit.Quantity)
@@ -385,13 +452,15 @@ class ANI1_force_and_energy(object):
         coordinates = torch.tensor([x.value_in_unit(unit.nanometer)],
                                    requires_grad=True, device=self.device, dtype=torch.float32)
 
-        energy_in_kJ_mol, restraint_bias_in_kJ_mol, stddev_in_kJ_mol, ensemble_bias_in_kJ_mol = self._calculate_energy(
+        energy_in_kT, restraint_bias_in_kT, stddev_in_kT, ensemble_bias_in_kT = self._calculate_energy(
             coordinates, lambda_value)
-        energy = energy_in_kJ_mol.item() * unit.kilojoule_per_mole
-        restraint_bias = restraint_bias_in_kJ_mol.item() * unit.kilojoule_per_mole
-        stddev = stddev_in_kJ_mol.item() * unit.kilojoule_per_mole
-        ensemble_bias = ensemble_bias_in_kJ_mol.item() * unit.kilojoule_per_mole
-        return energy, restraint_bias, stddev, ensemble_bias
+
+        energy = (energy_in_kT.item() *kT)
+        restraint_bias = (restraint_bias_in_kT.item()  *kT)
+        stddev = (stddev_in_kT.item()  *kT)
+        ensemble_bias = (ensemble_bias_in_kT.item()  *kT)
+
+        return DecomposedEnergy(energy, restraint_bias, stddev, ensemble_bias, energy_in_kT)
 
 
 class AlchemicalANI(torchani.models.ANI1ccx):
@@ -464,10 +533,6 @@ class PureANI1x(torchani.models.ANI1x):
         return SpeciesEnergies(species, E, state.stddev)
 
 
-class SpeciesEnergies(NamedTuple):
-    species: Tensor
-    energies: Tensor
-    stddev: Tensor
 
 
 class Ensemble(torch.nn.ModuleList):

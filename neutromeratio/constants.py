@@ -10,7 +10,7 @@ temperature = 300 * unit.kelvin
 kT = kB * temperature
 device = torch.device(platform)
 
-torch.set_num_threads(2)
+torch.set_num_threads(1)
 
 # openmm units
 mass_unit = unit.dalton
@@ -24,6 +24,10 @@ force_unit = unit.kilojoule_per_mole / unit.nanometer
 ani_distance_unit = unit.angstrom
 hartree_to_kJ_mol = 2625.499638
 ani_energy_unit = hartree_to_kJ_mol * unit.kilojoule_per_mole  # simtk.unit doesn't have hartree?
+kJ_mol_to_kT = (1. * unit.kilojoule_per_mole)/kT # 0.40090737504650614
+kT_to_kJ_mol = (1./ kJ_mol_to_kT) #1/0.40090737504650614
+
+hartree_to_kT = (hartree_to_kJ_mol * kJ_mol_to_kT) # 1052.582168056132
 nm_to_angstroms = (1.0 * distance_unit) / (1.0 * ani_distance_unit)
 
 mass_dict_in_daltons = {'H': 1.0, 'C': 12.0, 'N': 14.0, 'O': 16.0}
@@ -33,11 +37,13 @@ bond_length_dict = {frozenset(['C', 'H']): 1.09 * unit.angstrom,
                     frozenset(['N', 'H']): 1.01 * unit.angstrom
                     }
 
-conversion_factor_eV_to_kJ_mol = 96.485
-conversion_factor_radian_to_degree = 57.2958
+eV_to_kJ_mol = 96.485
+radian_to_degree = (1. *unit.radian / unit.degree) # 57.2958
 pressure = 101325.0 * unit.pascal
 gas_constant = 0.0019872036 * (unit.kilocalorie_per_mole / unit.kelvin)
 water_hoh_angle = 104.5 * unit.degree
+
+
 
 mols_with_charge = ['molDWRow_400',
  'molDWRow_369',
@@ -295,66 +301,3 @@ tautomer_set_with_stereobonds = ['molDWRow_1082',
  'molDWRow_735',
  'molDWRow_853',
  'molDWRow_973']
-
-minimum_torsion_angles_in_degree = {
-'molDWRow_1082' : {'idx' : [5,4,6,7], 'torsion' : np.linspace(180,0,21)},
- 'molDWRow_1083': {'idx' : [5,4,6,7], 'torsion' : np.linspace(180,0,21)},
- 'molDWRow_113':  {'idx' : [3,4,6,7], 'torsion' : np.linspace(70,-70,21)},
- 'molDWRow_114': {'idx' : [9,8,1,2], 'torsion' : np.linspace(70,-70,21)},
- 'molDWRow_115': {'idx' : [9,8,1,2], 'torsion' : np.linspace(-70,-180,21)},
- 'molDWRow_116': {'idx' : [9,8,1,2], 'torsion' : np.linspace(-70,-180,21)},
- 'molDWRow_117': {'idx' : [9,8,1,2], 'torsion' : np.linspace(-75,75,21)},
- 'molDWRow_1182': {'idx' : [5,6,7,8], 'torsion' : np.linspace(180,0,21)},
- 'molDWRow_1183': {'idx' : [4,3,2,1], 'torsion' : np.linspace(0,180,21)},
- 'molDWRow_119': {'idx' : [9,8,1,2], 'torsion' : np.linspace(75,-75,21)},
- 'molDWRow_120': {'idx' : [9,8,1,2], 'torsion' : np.linspace(75,-75,21)},
- 'molDWRow_121': {'idx' : [9,8,1,2], 'torsion' : np.linspace(-75,75,21)},
- 'molDWRow_122': {'idx' : [9,8,1,2], 'torsion' : np.linspace(-75,75,21)},
- 'molDWRow_1232': {'idx' : [3,4,5,6], 'torsion' : np.linspace(180,0,21)},
- 'molDWRow_1234': {'idx' : [3,4,5,6], 'torsion' : np.linspace(180,0,21)},
- 'molDWRow_1235': {'idx' : [12,11,10,9], 'torsion' : np.linspace(180,0,21)},
- 'molDWRow_1240': {'idx' : [0,1,2,12], 'torsion' : np.linspace(180,0,21)},
- 'molDWRow_1243': {'idx' : [7,6,5,4], 'torsion' : np.linspace(180,0,21)}, # that one seems strange
- 'molDWRow_1254': {'idx' : [7,6,5,4], 'torsion' : np.linspace(60,-60,21)},
- 'molDWRow_126': {'idx' : [7,6,5,4], 'torsion' : np.linspace(75,-75,21)},
- #'molDWRow_1260': {?????}, # NOTE: stereobonds are not kept constant -- this is an imine that allows interconversion between cis and trans R=NR 
- #'molDWRow_1261': {????????},# https://chemistry.stackexchange.com/questions/26304/why-are-oxime-geometrical-isomers-stable
- 'molDWRow_1456': {'idx' : [7,6,5,4], 'torsion' : np.linspace(75,-75,21)},
- 'molDWRow_1534': [],
- 'molDWRow_1547': [],
- 'molDWRow_1556': [],
- 'molDWRow_1559': [],
- 'molDWRow_1560': [],
- 'molDWRow_1569': [],
- 'molDWRow_251': [],
- 'molDWRow_282': [],
- 'molDWRow_283': [],
- 'molDWRow_284': [],
- 'molDWRow_285': [],
- 'molDWRow_286': [],
- 'molDWRow_298': [],
- 'molDWRow_309': [],
- 'molDWRow_37': [],
- 'molDWRow_38': [],
- 'molDWRow_401': [],
- 'molDWRow_402': [],
- 'molDWRow_415': [],
- 'molDWRow_418': [],
- 'molDWRow_46': [],
- 'molDWRow_50': [],
- 'molDWRow_507': [],
- 'molDWRow_509': [],
- 'molDWRow_51': [],
- 'molDWRow_511': [],
- 'molDWRow_512': [],
- 'molDWRow_514': [],
- 'molDWRow_516': [],
- 'molDWRow_52': [],
- 'molDWRow_521': [],
- 'molDWRow_54': [],
- 'molDWRow_649': [],
- 'molDWRow_708': [],
- 'molDWRow_735': [],
- 'molDWRow_853': [],
- 'molDWRow_973': []
- }
