@@ -437,14 +437,7 @@ class ANI1_force_and_energy(object):
 
         Returns
         -------
-        energy : float
-            energy unit'd
-        restraint_bias : float
-            restraint_bias in unit'd
-        stddev : float
-            stddev in unit'd
-        ensemble_bias : float
-            ensemble_bias in unit'd
+        NamedTuple
         """
 
         assert(type(x) == unit.Quantity)

@@ -38,8 +38,8 @@ class FreeEnergyCalculator():
             all lambda states
         n_atoms : int
             number of atoms
-        per_atom_thresh : float
-            exclude snapshots where ensemble stddev in energy / n_atoms exceeds this threshold, in kJ/mol
+        per_atom_thresh : unit'd
+            exclude snapshots where ensemble stddev in energy / n_atoms exceeds this threshold
             if per_atom_tresh == -1 ignores ensemble stddev
 
         """
@@ -55,14 +55,9 @@ class FreeEnergyCalculator():
 
         N_k, snapshots, used_lambdas = self.remove_confs_with_high_stddev(max_snapshots_per_window, per_atom_thresh)
 
-        # end-point energies, restraint_bias, stddev
-        lambda0 = [self.ani_model.calculate_energy(x, lambda_value=0.0) for x in tqdm(snapshots)]
-        lambda1 = [self.ani_model.calculate_energy(x, lambda_value=1.0) for x in tqdm(snapshots)]
-
-        # extract endpoint energies
-        lambda0_e = [e.energy_tensor for e in lambda0]
-        lambda1_e = [e.energy_tensor for e in lambda0]
-
+        # end-point energies
+        lambda0_e = [self.ani_model.calculate_energy(x, lambda_value=0.0).energy_tensor for x in tqdm(snapshots)]
+        lambda1_e = [self.ani_model.calculate_energy(x, lambda_value=1.0).energy_tensor for x in tqdm(snapshots)]
 
         def get_mix(lambda0, lambda1, lam=0.0):
             return (1 - lam) * np.array(lambda0) + lam * np.array(lambda1)
@@ -75,7 +70,7 @@ class FreeEnergyCalculator():
         self.mbar = MBAR(u_kn, N_k)
         self.snapshots = snapshots
 
-    def remove_confs_with_high_stddev(self, max_snapshots_per_window: int, per_atom_thresh: float):
+    def remove_confs_with_high_stddev(self, max_snapshots_per_window: int, per_atom_thresh: unit.Quantity):
         """
         Removes conformations with ensemble energy stddev per atom above a given threshold.
         Parameters
@@ -87,14 +82,11 @@ class FreeEnergyCalculator():
         """
 
         def calculate_stddev(snapshots):
-            # calculate energy, restraint_bias and stddev for endstates
+            # calculate energy, restraint_bias and stddev for endstates, extract stddev
             logger.info('Calculating stddev')
-            lambda0 = [self.ani_model.calculate_energy(x, lambda_value=0.0) for x in tqdm(snapshots)]
-            lambda1 = [self.ani_model.calculate_energy(x, lambda_value=1.0) for x in tqdm(snapshots)]
+            lambda0_stddev = [self.ani_model.calculate_energy(x, lambda_value=0.0).stddev/kT for x in tqdm(snapshots)]
+            lambda1_stddev = [self.ani_model.calculate_energy(x, lambda_value=1.0).stddev/kT for x in tqdm(snapshots)]
 
-            # extract endpoint stddev and return
-            lambda0_stddev = [e.stddev/kT for e in lambda0]
-            lambda1_stddev = [e.stddev/kT for e in lambda0]
             return np.array(lambda0_stddev), np.array(lambda1_stddev)
 
         def compute_linear_ensemble_bias(current_stddev, per_atom_thresh):
