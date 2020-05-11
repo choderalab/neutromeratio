@@ -528,7 +528,7 @@ class Tautomer(object):
         """
 
         # find substructure and generate mol from substructure
-        sub_m = rdFMCS.FindMCS([m1, m2], bondCompare=Chem.rdFMCS.BondCompare.CompareOrder.CompareAny, maximizeBonds=False)
+        sub_m = rdFMCS.FindMCS([m1, m2], bondCompare=Chem.rdFMCS.BondCompare.CompareOrder.CompareAny, maximizeBonds=True)
         mcsp = Chem.MolFromSmarts(sub_m.smartsString, False)
 
         # the order of the substructure lists are the same for both

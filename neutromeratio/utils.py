@@ -197,11 +197,19 @@ def generate_tautomer_class_stereobond_aware(name: str,
                                     final_state_mol=generate_rdkit_mol(t2_smiles),
                                     nr_of_conformations=nr_of_conformations,
                                     enforceChirality=enforceChirality))
+        elif name == 'molDWRow_1636':
+            logger.debug('molDWRow_1636 -- stereobonds in hetereocycle ...')
+            tautomers.append(Tautomer(name=name,
+                                    initial_state_mol=generate_rdkit_mol(t1_smiles),
+                                    final_state_mol=generate_rdkit_mol(t2_smiles),
+                                    nr_of_conformations=nr_of_conformations,
+                                    enforceChirality=enforceChirality))
+
         else:
             # stereobonds on both endstates
             # we need to add a torsion bias to make sure that the lambda protocol stopp at the correct torsion
 
-            raise RuntimeError()
+            raise RuntimeError('Two stereobonds ... aborting')
     elif get_nr_of_stereobonds(t1_smiles) > get_nr_of_stereobonds(t2_smiles):
         stereobond_type = 'generic'
         t1_smiles_kappa_0 = t1_smiles

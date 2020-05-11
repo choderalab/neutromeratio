@@ -21,7 +21,7 @@ exp_results = pickle.load(open('../data/exp_results.pickle', 'rb'))
 # name of the system
 protocoll = []
 for name in sorted(exp_results):
-    if name in exclude_set_ANI, mols_with_charge:
+    if name in exclude_set_ANI + mols_with_charge:
         continue
     protocoll.append(name)
 
