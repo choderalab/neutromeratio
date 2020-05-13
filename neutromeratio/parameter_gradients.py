@@ -189,10 +189,10 @@ class FreeEnergyCalculator():
         assert (type(u_ln) == torch.Tensor)
 
         def torchify(x):
-            return torch.tensor(x, dtype=torch.double, requires_grad=True)
+            return torch.tensor(x, dtype=torch.double, requires_grad=True, device=device)
 
-        states_with_samples = torch.tensor(self.mbar.N_k > 0)
-        N_k = torch.tensor(self.mbar.N_k, dtype=torch.double, requires_grad=True)
+        states_with_samples = torch.tensor(self.mbar.N_k > 0, device=device)
+        N_k = torch.tensor(self.mbar.N_k, dtype=torch.double, requires_grad=True, device=device)
         f_k = torchify(self.mbar.f_k)
         u_kn = torchify(self.mbar.u_kn)
 
@@ -209,10 +209,6 @@ class FreeEnergyCalculator():
         # TODO: vectorize!
         decomposed_energy_list_lamb0 = [self.ani_model.calculate_energy(s, lambda_value=0) for s in self.snapshots]      
         u0_stddev = [decomposed_energy.stddev for decomposed_energy in decomposed_energy_list_lamb0]
-        #u_0 = torch.tensor(
-        #    [decomposed_energy.energy_tensor for decomposed_energy in decomposed_energy_list_lamb0],
-        #    dtype=torch.double, requires_grad=True,
-        #)
         u_0 = torch.cat(
             [decomposed_energy.energy_tensor for decomposed_energy in decomposed_energy_list_lamb0]
                     )
@@ -220,10 +216,6 @@ class FreeEnergyCalculator():
         # TODO: vectorize!
         decomposed_energy_list_lamb1 = [self.ani_model.calculate_energy(s, lambda_value=1) for s in self.snapshots]
         u1_stddev = [decomposed_energy.stddev for decomposed_energy in decomposed_energy_list_lamb1]
-        #u_1 = torch.tensor(
-        #    [e_b_stddev[-1]  for e_b_stddev in e1_e_b_stddev],
-        #    dtype=torch.double, requires_grad=True,
-        #)
         u_1 = torch.cat(
             [decomposed_energy.energy_tensor for decomposed_energy in decomposed_energy_list_lamb1]
                     )

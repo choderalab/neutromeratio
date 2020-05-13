@@ -239,7 +239,6 @@ exclude_set_B3LYP = [
                ]
 
 
-
 # Imines are excluded from the tautomer_set_with_stereobonds since these don't need additional sampling
 tautomer_set_with_stereobonds = ['molDWRow_1082',
  'molDWRow_1083',
