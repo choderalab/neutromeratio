@@ -219,13 +219,9 @@ def read_precalculated_md(top: str, trajs: list):
 
     Returns
     -------
-    traj_in_mm : list of (n_atoms,3) numpy arrays with nanometer units attached?
+    traj
     """
-    topology = md.load(top).topology
-    traj = md.load(trajs, top=topology)
+    traj = md.load(trajs, top=md.load(top).topology)
     # TODO: update this a bit
-    traj_in_nm = []
-    for x in traj:
-        coordinates = x.xyz[0] * unit.nanometer
-        traj_in_nm.append(coordinates)
-    return traj_in_nm
+    traj = [x.xyz[0] for x in traj] * unit.nanometer
+    return traj #

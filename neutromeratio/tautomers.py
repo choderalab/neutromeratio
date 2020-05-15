@@ -428,6 +428,7 @@ class Tautomer(object):
         m1 = copy.deepcopy(self.initial_state_mol)
         m2 = copy.deepcopy(self.final_state_mol)
         self._perform_tautomer_transformation(m1, m2, self.initial_state_ligand_bonds)
+        #TODO: fix this!
         self._generate_hybrid_structure(self.initial_state_ligand_atoms,
                                         self.initial_state_ligand_coords[0], self.initial_state_ligand_topology)
 
@@ -455,7 +456,8 @@ class Tautomer(object):
             for a in mol.GetAtoms():
                 pos = mol.GetConformer(conf_idx).GetAtomPosition(a.GetIdx())
                 tmp_coord_list.append([pos.x, pos.y, pos.z])
-            coord_list.append(np.array(tmp_coord_list) * unit.angstrom)
+            coord_list.append(np.array(tmp_coord_list))
+        coord_list = coord_list * unit.angstrom 
 
         # generate bond list of heavy atoms to hydrogens
         bond_list = []
@@ -630,7 +632,7 @@ class Tautomer(object):
 
         for _ in range(100):
             hybrid_coord = hydrogen_mover._move_hydrogen_to_acceptor_idx(ligand_coords, override=False)
-            energy = energy_function.calculate_energy(hybrid_coord, lambda_value=1.0)
+            energy = energy_function.calculate_energy([hybrid_coord / unit.angstrom] * unit.angstrom , lambda_value=1.0)
             if energy.energy < min_e:
                 min_e = energy.energy
                 min_coordinates = hybrid_coord
@@ -700,7 +702,7 @@ class Tautomer(object):
                 print(f"Conf: {n_conf}")
                 minimized_coords, _ = energy_function.minimize(coords)
                 energy = energy_function.calculate_energy(
-                    minimized_coords)
+                    [minimized_coords/unit.angstrom] * unit.angstrom)
                 try:
                     thermochemistry_correction = energy_function.get_thermo_correction(minimized_coords)
                 except ValueError:
@@ -708,9 +710,9 @@ class Tautomer(object):
                     continue
 
                 if include_entropy_correction:
-                    energies.append(energy.energy + thermochemistry_correction + entropy_correction)
+                    energies.append(energy.energy[0] + thermochemistry_correction + entropy_correction)
                 else:
-                    energies.append(energy.energy + thermochemistry_correction)
+                    energies.append(energy.energy[0] + thermochemistry_correction)
 
                 # update the coordinates in the rdkit mol
                 for atom in rdkit_mol.GetAtoms():

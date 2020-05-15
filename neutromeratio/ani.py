@@ -115,7 +115,7 @@ class ANI1_force_and_energy(object):
         """
         self.list_of_lambda_restraints = []
 
-    def _compute_restraint_bias(self, x, lambda_value):
+    def _compute_restraint_bias(self, coordinates, lambda_value):
         """
         Computes the energy from different restraints of the system.  
 
@@ -133,11 +133,11 @@ class ANI1_force_and_energy(object):
         # use correct restraint_bias in between the end-points...
 
         # lambda
-        lambda_restraint_bias_in_kT = torch.tensor(0.0,
-                                                       device=self.device, dtype=torch.float64)
-
+        nr_of_mols = len(coordinates)
+        restraint_bias_in_kT = torch.tensor([0.0] * nr_of_mols,
+                                                device=self.device, dtype=torch.float64)
         for restraint in self.list_of_lambda_restraints:
-            restraint_bias = restraint.restraint(x * nm_to_angstroms)
+            restraint_bias = restraint.restraint(coordinates * nm_to_angstroms)
             if restraint.active_at == 1:
                 restraint_bias *= lambda_value
             elif restraint.active_at == 0:
@@ -146,10 +146,8 @@ class ANI1_force_and_energy(object):
                 pass
             else:
                 raise RuntimeError('Something went wrong with restraints.')
-            lambda_restraint_bias_in_kT += (restraint_bias * unit.kilojoule_per_mole)/kT
-
-
-        return lambda_restraint_bias_in_kT
+            restraint_bias_in_kT += (restraint_bias * unit.kilojoule_per_mole)/kT
+        return restraint_bias_in_kT
 
     def compute_restraint_bias_on_snapshots(self, snapshots, lambda_value=0.0) -> float:
         """
@@ -172,6 +170,7 @@ class ANI1_force_and_energy(object):
         Returns the thermochemistry correction. This calls: https://wiki.fysik.dtu.dk/ase/ase/thermochemistry/thermochemistry.html
         and uses the Ideal gas rigid rotor harmonic oscillator approximation to calculate the Gibbs free energy correction that 
         needs to be added to the single point energy to obtain the Gibb's free energy
+        coords: [K][3]
 
         Raises:
             verror: if imaginary frequencies are detected a ValueError is raised
@@ -352,23 +351,23 @@ class ANI1_force_and_energy(object):
             return the ensemble_bias added to the energy
         """
 
-        stddev_in_hartree = torch.tensor(0.0,
-                                         device=self.device, dtype=torch.float64)
-
-        restraint_bias_in_kT = torch.tensor(0.0,
-                                                device=self.device, dtype=torch.float64)
-
-        ensemble_bias_in_kT = torch.tensor(0.0,
+        nr_of_mols = len(coordinates)
+        logger.debug(f"len(coordinates): {nr_of_mols}")
+        ensemble_bias_in_kT = torch.tensor([0.0] * nr_of_mols,
                                                device=self.device, dtype=torch.float64)
+        batch_species = torch.stack([self.species[0]] * nr_of_mols)
 
-        assert(0.0 <= float(lambda_value) <= 1.0)
+        assert (0.0 <= float(lambda_value) <= 1.0)
+        assert (batch_species.size()[0] == coordinates.size()[0])
+        assert (batch_species.size()[1] == coordinates.size()[1])
 
-        _, energy_in_hartree, stddev_in_hartree = self.model(
-            (self.species, coordinates * nm_to_angstroms, lambda_value))
+        _, energy_in_hartree, stddev_in_hartree = self.model((batch_species, coordinates * nm_to_angstroms, lambda_value))
 
         # convert energy from hartree to kT
         energy_in_kT = energy_in_hartree * hartree_to_kT
+        logger.debug(f"energy_in_kT: {energy_in_kT}")
         stddev_in_kT = stddev_in_hartree * hartree_to_kT
+        logger.debug(f"stddev_in_kT: {stddev_in_kT}")
 
         restraint_bias_in_kT = self._compute_restraint_bias(
             coordinates, lambda_value=lambda_value)
@@ -424,13 +423,13 @@ class ANI1_force_and_energy(object):
         self.memory_of_ensemble_bias.append(force_energy.ensemble_bias)
         return (force_energy.energy.value_in_unit(unit.kilojoule_per_mole), F_flat)
 
-    def calculate_energy(self, x: simtk.unit.quantity.Quantity, lambda_value: float = 0.0):
+    def calculate_energy(self, coordinate_list:unit.Quantity, lambda_value: float = 0.0):
         """
         Given a coordinate set (x) the energy is calculated in kJ/mol.
 
         Parameters
         ----------
-        x : array of floats, unit'd (distance unit)
+        x : list, [N][K][3] unit'd (distance unit)
             initial configuration
         lambda_value : float
             between 0.0 and 1.0 - at zero contributions of alchemical atoms are zero
@@ -439,19 +438,22 @@ class ANI1_force_and_energy(object):
         -------
         NamedTuple
         """
-
-        assert(type(x) == unit.Quantity)
-
-        coordinates = torch.tensor([x.value_in_unit(unit.nanometer)],
+ 
+        assert (type(coordinate_list) == unit.Quantity)
+        logger.debug(f'Batch-size: {len(coordinate_list)}')
+        
+        coordinates = torch.tensor(coordinate_list.value_in_unit(unit.nanometer),
                                    requires_grad=True, device=self.device, dtype=torch.float32)
 
+        logger.debug(f"coordinates: {coordinates.size()}")
         energy_in_kT, restraint_bias_in_kT, stddev_in_kT, ensemble_bias_in_kT = self._calculate_energy(
             coordinates, lambda_value)
 
-        energy = (energy_in_kT.item() *kT)
-        restraint_bias = (restraint_bias_in_kT.item()  *kT)
-        stddev = (stddev_in_kT.item()  *kT)
-        ensemble_bias = (ensemble_bias_in_kT.item()  *kT)
+        energy = np.array([e.item() for e in energy_in_kT]) * kT
+        
+        restraint_bias = np.array([e.item() for e in restraint_bias_in_kT]) *kT  
+        stddev = np.array([e.item() for e in stddev_in_kT]) *kT
+        ensemble_bias = np.array([e.item() for e in ensemble_bias_in_kT]) *kT
 
         return DecomposedEnergy(energy, restraint_bias, stddev, ensemble_bias, energy_in_kT)
 
@@ -537,7 +539,7 @@ class Ensemble(torch.nn.ModuleList):
 
     def forward(self, species_input: Tuple[Tensor, Tensor],
                 cell: Optional[Tensor] = None,
-                pbc: Optional[Tensor] = None) -> (torch.Tensor, torch.Tensor):
+                pbc: Optional[Tensor] = None) -> SpeciesEnergies:
         """
         Returns the averager and mean of the NN ensemble energy prediction
         Returns
@@ -545,12 +547,19 @@ class Ensemble(torch.nn.ModuleList):
         energy_mean : torch.Tensor in Hartree
         stddev : torch.Tensor in Hartree
         """
-
-        outputs_tensor = torch.cat([x(species_input)[1].double() for x in self])
-        stddev = torch.std(outputs_tensor, unbiased=False)  # to match np.std default ddof=0
-        energy_mean = torch.mean(outputs_tensor)
         species, _ = species_input
-        return SpeciesEnergies(species, energy_mean, stddev)
+
+        nr_of_mols = len(species)
+        energy_evaluations = torch.stack([x(species_input)[1].double() for x in self])
+        logger.debug(f"energy_evaluations.size(): {energy_evaluations.size()}")
+        logger.debug(f"nr_of_mols: {nr_of_mols}")
+        logger.debug(energy_evaluations)
+        #std = torch.tensor([0.] * nr_of_mols, device=device, dtype=torch.float64)
+        #avg = torch.tensor([0.] * nr_of_mols, device=device, dtype=torch.float64)
+        std = torch.std(energy_evaluations.T, dim=1, unbiased=False)
+        avg = torch.mean(energy_evaluations.T, dim=1)
+
+        return SpeciesEnergies(species, avg, std)
 
 
 def load_model_ensemble(species, prefix, count):

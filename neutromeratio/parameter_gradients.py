@@ -56,8 +56,8 @@ class FreeEnergyCalculator():
         N_k, snapshots, used_lambdas = self.remove_confs_with_high_stddev(max_snapshots_per_window, per_atom_thresh)
 
         # end-point energies
-        lambda0_e = [self.ani_model.calculate_energy(x, lambda_value=0.0).energy_tensor for x in tqdm(snapshots)]
-        lambda1_e = [self.ani_model.calculate_energy(x, lambda_value=1.0).energy_tensor for x in tqdm(snapshots)]
+        lambda0_e = [self.ani_model.calculate_energy([x/unit.angstrom] * unit.angstrom, lambda_value=0.0).energy_tensor for x in tqdm(snapshots)]
+        lambda1_e = [self.ani_model.calculate_energy([x/unit.angstrom] * unit.angstrom, lambda_value=1.0).energy_tensor for x in tqdm(snapshots)]
 
         def get_mix(lambda0, lambda1, lam=0.0):
             return (1 - lam) * np.array(lambda0) + lam * np.array(lambda1)
@@ -84,8 +84,8 @@ class FreeEnergyCalculator():
         def calculate_stddev(snapshots):
             # calculate energy, restraint_bias and stddev for endstates, extract stddev
             logger.info('Calculating stddev')
-            lambda0_stddev = [self.ani_model.calculate_energy(x, lambda_value=0.0).stddev/kT for x in tqdm(snapshots)]
-            lambda1_stddev = [self.ani_model.calculate_energy(x, lambda_value=1.0).stddev/kT for x in tqdm(snapshots)]
+            lambda0_stddev = [self.ani_model.calculate_energy([x/unit.angstrom] * unit.angstrom, lambda_value=0.0).stddev/kT for x in tqdm(snapshots)]
+            lambda1_stddev = [self.ani_model.calculate_energy([x/unit.angstrom] * unit.angstrom, lambda_value=1.0).stddev/kT for x in tqdm(snapshots)]
 
             return np.array(lambda0_stddev), np.array(lambda1_stddev)
 
@@ -206,19 +206,19 @@ class FreeEnergyCalculator():
 
     def form_u_ln(self):
 
+        # bring list of unit'd coordinates in [N][K][3] * unit shape
+        coordinates = [sample / unit.angstrom for sample in self.snapshots] * unit.angstrom
+        
         # TODO: vectorize!
-        decomposed_energy_list_lamb0 = [self.ani_model.calculate_energy(s, lambda_value=0) for s in self.snapshots]      
-        u0_stddev = [decomposed_energy.stddev for decomposed_energy in decomposed_energy_list_lamb0]
-        u_0 = torch.cat(
-            [decomposed_energy.energy_tensor for decomposed_energy in decomposed_energy_list_lamb0]
-                    )
+        decomposed_energy_list_lamb0 = self.ani_model.calculate_energy(coordinates, lambda_value=0)      
+        u_0 = decomposed_energy_list_lamb0.energy_tensor
+        u0_stddev = decomposed_energy_list_lamb0.stddev
 
         # TODO: vectorize!
-        decomposed_energy_list_lamb1 = [self.ani_model.calculate_energy(s, lambda_value=1) for s in self.snapshots]
-        u1_stddev = [decomposed_energy.stddev for decomposed_energy in decomposed_energy_list_lamb1]
-        u_1 = torch.cat(
-            [decomposed_energy.energy_tensor for decomposed_energy in decomposed_energy_list_lamb1]
-                    )
+        decomposed_energy_list_lamb1 = self.ani_model.calculate_energy(coordinates, lambda_value=1)     
+        u_1 = decomposed_energy_list_lamb1.energy_tensor
+        u1_stddev = decomposed_energy_list_lamb1.stddev
+
         u_ln = torch.stack([u_0, u_1])
         return u_ln,  u0_stddev, u1_stddev
 

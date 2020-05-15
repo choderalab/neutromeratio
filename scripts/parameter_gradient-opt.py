@@ -17,10 +17,8 @@ import os
 import torchani
 
 latest_checkpoint = 'latest.pt'
-
-
 # read in exp results, smiles and names
-exp_results = pickle.load(open('../data/exp_results.pickle', 'rb'))
+exp_results = pickle.load(open('data/exp_results.pickle', 'rb'))
 def parse_lambda_from_dcd_filename(dcd_filename, env):
     l = dcd_filename[:dcd_filename.find(f"_energy_in_{env}")].split('_')
     lam = l[-3]
@@ -35,8 +33,8 @@ sns.set_context('paper')
 sns.set(color_codes=True)
 
 env = 'vacuum'
-name = 'SAMPLmol2'  #Experimental free energy difference: 1.132369 kcal/mol
-base_path = f"../data/"
+name = 'SAMPLmol2'
+base_path = f"./data/"
 
 if name in exclude_set_ANI + mols_with_charge:
     raise RuntimeError(f"{name} is part of the list of excluded molecules. Aborting")
@@ -45,10 +43,6 @@ t1_smiles = exp_results[name]['t1-smiles']
 t2_smiles = exp_results[name]['t2-smiles']
 print(f"Experimental free energy difference: {exp_results[name]['energy']} kcal/mol")
 
-assert(env == 'droplet' or env == 'vacuum')
-# diameter
-if env == 'droplet':
-    diameter_in_angstrom = int(sys.argv[5])
 #######################
 #######################
 
@@ -77,19 +71,11 @@ energy_function = neutromeratio.ANI1_force_and_energy(
     adventure_mode=True
 )
 
+# add restraints
 for r in tautomer.ligand_restraints:
     energy_function.add_restraint_to_lambda_protocol(r)
-
 for r in tautomer.hybrid_ligand_restraints:
     energy_function.add_restraint_to_lambda_protocol(r)
-
-if env == 'droplet':
-    tautomer.add_COM_for_hybrid_ligand(
-        np.array([diameter_in_angstrom/2, diameter_in_angstrom/2, diameter_in_angstrom/2]) * unit.angstrom)
-    for r in tautomer.solvent_restraints:
-        energy_function.add_restraint_to_lambda_protocol(r)
-    for r in tautomer.com_restraints:
-        energy_function.add_restraint_to_lambda_protocol(r)
 
 # get steps inclusive endpoints
 # and lambda values in list
@@ -99,6 +85,7 @@ lambdas = []
 ani_trajs = []
 energies = []
 
+# read in all the frames from the trajectories
 for dcd_filename in dcds:
     lam = parse_lambda_from_dcd_filename(dcd_filename, env)
     lambdas.append(lam)
@@ -109,11 +96,6 @@ for dcd_filename in dcds:
     energies.append(np.array([float(e) for e in f][::thinning]))
     f.close()
 
-# plotting the energies for all equilibrium runs
-for e in energies:
-    plt.plot(e, alpha=0.5)
-plt.savefig(f"{base_path}/{name}/{name}_energy.png")
-
 # calculate free energy in kT
 fec = FreeEnergyCalculator(ani_model=energy_function,
                             ani_trajs=ani_trajs,
@@ -123,7 +105,35 @@ fec = FreeEnergyCalculator(ani_model=energy_function,
                             max_snapshots_per_window=-1,
                             per_atom_thresh=per_atom_stddev_threshold)
 
+# defining neural networks
+nn = model.neural_networks
+aev_dim = model.aev_computer.aev_length
+# define which layer should be modified -- currently the last one
+layer = 6
+# take only a single network from the ensemble of 8
+single_nn = model.neural_networks[0]
 
+# set up minimizer for weights
+AdamW = torchani.optim.AdamW([
+    {'params' : [single_nn.C[layer].weight], 'weight_decay': 0.000001},
+    {'params' : [single_nn.H[layer].weight], 'weight_decay': 0.000001},
+    {'params' : [single_nn.O[layer].weight], 'weight_decay': 0.000001},
+    {'params' : [single_nn.N[layer].weight], 'weight_decay': 0.000001},
+])
+
+# set up minimizer for bias
+SGD = torch.optim.SGD([
+    {'params' : [single_nn.C[layer].bias]},
+    {'params' : [single_nn.H[layer].bias]},
+    {'params' : [single_nn.O[layer].bias]},
+    {'params' : [single_nn.N[layer].bias]},
+], lr=1e-3)
+
+
+AdamW_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(AdamW, factor=0.5, patience=100, threshold=0)
+SGD_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(SGD, factor=0.5, patience=100, threshold=0)
+
+# save checkpoint
 if os.path.isfile(latest_checkpoint):
     checkpoint = torch.load(latest_checkpoint)
     nn.load_state_dict(checkpoint['nn'])
@@ -132,27 +142,8 @@ if os.path.isfile(latest_checkpoint):
     AdamW_scheduler.load_state_dict(checkpoint['AdamW_scheduler'])
     SGD_scheduler.load_state_dict(checkpoint['SGD_scheduler'])
 
-aev_dim= model.aev_computer.aev_length
-nn = model.neural_networks
-import torchani
-layer = 6
-single_nn = model.neural_networks[0]
-AdamW = torchani.optim.AdamW([
-    {'params' : [single_nn.C[layer].weight], 'weight_decay': 0.000001},
-    {'params' : [single_nn.H[layer].weight], 'weight_decay': 0.000001},
-    {'params' : [single_nn.O[layer].weight], 'weight_decay': 0.000001},
-    {'params' : [single_nn.N[layer].weight], 'weight_decay': 0.000001},
-])
 
-SGD = torch.optim.SGD([
-    {'params' : [single_nn.C[layer].bias]},
-    {'params' : [single_nn.H[layer].bias]},
-    {'params' : [single_nn.O[layer].bias]},
-    {'params' : [single_nn.N[layer].bias]},
-], lr=1e-3)
-AdamW_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(AdamW, factor=0.5, patience=100, threshold=0)
-SGD_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(SGD, factor=0.5, patience=100, threshold=0)
-
+# calculate free energy
 def validate():
     'return free energy in kT'
     
@@ -163,6 +154,7 @@ def validate():
         deltaF = fec.compute_free_energy_difference()
     return deltaF
 
+# return the experimental value
 def experimental_value():
     e_in_kT = (exp_results[name]['energy'] * unit.kilocalorie_per_mole)/kT
     return torch.tensor([e_in_kT], device=device)
@@ -180,11 +172,10 @@ for _ in tqdm(range(AdamW_scheduler.last_epoch + 1, max_epochs)):
      # checkpoint
     if AdamW_scheduler.is_better(rmse, AdamW_scheduler.best):
         torch.save(nn.state_dict(), best_model_checkpoint)
-           
-    AdamW_scheduler.step(0.1)
-    SGD_scheduler.step(0.1)
 
-
+    # define the stepsize -- very conservative
+    AdamW_scheduler.step(rmse/10)
+    SGD_scheduler.step(rmse/10)
     loss = rmse
 
     AdamW.zero_grad()
