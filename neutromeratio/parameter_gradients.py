@@ -235,8 +235,26 @@ class FreeEnergyCalculator():
 
 
 def tweak_parameters(name:str = 'SAMPLmol2', data_path:str = "../data/"):
+    """
+    Calculates the free energy of a staged free energy simulation, 
+    tweaks the neural net parameter so that using reweighting the difference 
+    between the experimental and calculated free energy is minimized.
 
+    The function is set up to be called from the notebook or scripts folder.  
+
+    Keyword Arguments:
+        name {str} -- the name of the system (using the usual naming sheme) (default: {'SAMPLmol2'})
+        data_path {str} -- should point to where the dcd files are located (default: {"../data/"})
+    """
     def parse_lambda_from_dcd_filename(dcd_filename):
+        """parsed the dcd filename
+
+        Arguments:
+            dcd_filename {str} -- how is the dcd file called?
+
+        Returns:
+            [float] -- lambda value
+        """
         l = dcd_filename[:dcd_filename.find(f"_energy_in_vacuum")].split('_')
         lam = l[-3]
         return float(lam)
@@ -254,6 +272,12 @@ def tweak_parameters(name:str = 'SAMPLmol2', data_path:str = "../data/"):
 
     # return the experimental value
     def experimental_value():
+        """
+        Returns the experimental free energy differen in solution for the tautomer pair
+
+        Returns:
+            [torch.Tensor] -- free energy in kT
+        """
         e_in_kT = (exp_results[name]['energy'] * unit.kilocalorie_per_mole)/kT
         return torch.tensor([e_in_kT], device=device)
 
@@ -261,6 +285,8 @@ def tweak_parameters(name:str = 'SAMPLmol2', data_path:str = "../data/"):
         raise RuntimeError(f"{name} is part of the list of excluded molecules. Aborting")
 
     #######################
+    # some input parameters
+    # 
     exp_results = pickle.load(open('../data/exp_results.pickle', 'rb'))
     t1_smiles = exp_results[name]['t1-smiles']
     t2_smiles = exp_results[name]['t2-smiles']
@@ -268,11 +294,11 @@ def tweak_parameters(name:str = 'SAMPLmol2', data_path:str = "../data/"):
     per_atom_stddev_threshold = 10.0 * unit.kilojoule_per_mole 
     latest_checkpoint = 'latest.pt'
     #######################
-
     print(f"Experimental free energy difference: {exp_results[name]['energy']} kcal/mol")
-
     #######################
 
+    ####################
+    # Set up the system, set the restraints and read in the dcd files
     t_type, tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
     tautomer = tautomers[0]
     tautomer.perform_tautomer_transformation()
@@ -338,7 +364,7 @@ def tweak_parameters(name:str = 'SAMPLmol2', data_path:str = "../data/"):
     aev_dim = model.aev_computer.aev_length
     # define which layer should be modified -- currently the last one
     layer = 6
-    # take only a single network from the ensemble of 8
+    # take each of the networks from the ensemble of 8
     weight_layers = []
     bias_layers = []
     for nn in model.neural_networks:
@@ -361,7 +387,6 @@ def tweak_parameters(name:str = 'SAMPLmol2', data_path:str = "../data/"):
 
     # set up minimizer for weights
     AdamW = torchani.optim.AdamW(weight_layers)
-
     # set up minimizer for bias
     SGD = torch.optim.SGD(bias_layers, lr=1e-3)
 
@@ -380,7 +405,7 @@ def tweak_parameters(name:str = 'SAMPLmol2', data_path:str = "../data/"):
 
     print("training starting from epoch", AdamW_scheduler.last_epoch + 1)
     max_epochs = 100
-    early_stopping_learning_rate = 1.0E-5
+    early_stopping_learning_rate = 1.0E-2
     best_model_checkpoint = 'best.pt'
 
     for _ in tqdm(range(AdamW_scheduler.last_epoch + 1, max_epochs)):
