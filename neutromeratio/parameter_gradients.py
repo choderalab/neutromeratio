@@ -58,120 +58,50 @@ class FreeEnergyCalculator():
         self.ani_trajs = ani_trajs
         self.n_atoms = n_atoms
 
-        N_k, snapshots, used_lambdas = self.remove_confs_with_high_stddev(max_snapshots_per_window, per_atom_thresh)
+        ani_trajs = {}
+        for lam, traj, potential_energy in zip(self.lambdas, self.ani_trajs, self.potential_energy_trajs):
+            # detect equilibrium
+            equil, g = detectEquilibration(np.array([e/kT for e in potential_energy]))[:2]
+            # thinn snapshots and return max_snapshots_per_window confs
+            quarter_traj_limit = int(len(traj) / 4)
+            snapshots = traj[min(quarter_traj_limit, equil):].xyz * unit.nanometer
+            further_thinning = max(int(len(snapshots) / max_snapshots_per_window), 1)
+            snapshots = snapshots[::further_thinning][:max_snapshots_per_window]
+            ani_trajs[lam] = snapshots
+
+        snapshots = []
+        N_k = []
+        for lam in sorted(self.lambdas):
+            print(f"lamb: {lam}")
+            N_k.append(len(ani_trajs[lam]))
+            snapshots.extend(ani_trajs[lam])
+            logger.info(f"Snapshots per lambda {lam}: {len(ani_trajs[lam])}")
+
+        assert (len(snapshots) > 20)
+        
+        coordinates = [sample / unit.angstrom for sample in snapshots] * unit.angstrom
+
+        print(f"len(coordinates): {len(coordinates)}")
+        print(f"coordinates: {coordinates[:5]}")
 
         # end-point energies
-        lambda0_e = [self.ani_model.calculate_energy([x/unit.angstrom] * unit.angstrom, lambda_value=0.0).energy_tensor for x in tqdm(snapshots)]
-        lambda1_e = [self.ani_model.calculate_energy([x/unit.angstrom] * unit.angstrom, lambda_value=1.0).energy_tensor for x in tqdm(snapshots)]
+        lambda0_e = self.ani_model.calculate_energy(coordinates, lambda_value=0.).energy_tensor      
+        lambda1_e = self.ani_model.calculate_energy(coordinates, lambda_value=1.).energy_tensor      
+
+        print(f"lambda0_e: {len(lambda0_e)}")
+        print(f"lambda0_e: {lambda0_e[:50]}")
 
         def get_mix(lambda0, lambda1, lam=0.0):
-            return (1 - lam) * np.array(lambda0) + lam * np.array(lambda1)
+            return (1 - lam) * np.array(lambda0.detach()) + lam * np.array(lambda1.detach())
 
         logger.info('Nr of atoms: {}'.format(n_atoms))
 
         u_kn = np.stack(
-            [get_mix(lambda0_e, lambda1_e, lam) for lam in sorted(used_lambdas)]
+            [get_mix(lambda0_e, lambda1_e, lam) for lam in sorted(self.lambdas)]
         )
         self.mbar = MBAR(u_kn, N_k)
         self.snapshots = snapshots
 
-    def remove_confs_with_high_stddev(self, max_snapshots_per_window: int, per_atom_thresh: unit.Quantity):
-        """
-        Removes conformations with ensemble energy stddev per atom above a given threshold.
-        Parameters
-        ----------
-        max_snapshots_per_window : int
-            maximum number of conformations per lambda window
-        per_atom_thresh : float
-            per atom stddev threshold - by default this is set to 0.5 kJ/mol/atom
-        """
-
-        def calculate_stddev(snapshots):
-            # calculate energy, restraint_bias and stddev for endstates, extract stddev
-            logger.info('Calculating stddev')
-            lambda0_stddev = [self.ani_model.calculate_energy([x/unit.angstrom] * unit.angstrom, lambda_value=0.0).stddev/kT for x in tqdm(snapshots)]
-            lambda1_stddev = [self.ani_model.calculate_energy([x/unit.angstrom] * unit.angstrom, lambda_value=1.0).stddev/kT for x in tqdm(snapshots)]
-
-            return np.array(lambda0_stddev), np.array(lambda1_stddev)
-
-        def compute_linear_ensemble_bias(current_stddev, per_atom_thresh):
-            # calculate the total energy stddev threshold based on the provided per_atom_thresh
-            # and the number of atoms
-            total_thresh = ((per_atom_thresh / kT) * self.n_atoms)
-            logger.info(f"Per system treshold: {total_thresh}")
-            # if stddev for a given conformation < total_thresh => 0.0
-            # if stddev for a given conformation > total_thresh => stddev - total_threshold
-            linear_ensemble_bias = np.maximum(0, current_stddev - (total_thresh))
-            return linear_ensemble_bias
-
-        def compute_last_valid_ind(linear_ensemble_bias):
-            # return the idx of the first entry that is above 0.0
-            if np.sum(linear_ensemble_bias) < 0.01:  # means all can be used
-                logger.info('Last valid ind: -1')
-                return -1
-            elif np.argmax(np.cumsum(linear_ensemble_bias) > 0) == 0:  # means nothing can be used
-                logger.info('Last valid ind: 0')
-                return 0
-            else:
-                idx = np.argmax(np.cumsum(linear_ensemble_bias) > 0) - 1
-                logger.info(f"Last valid ind: {idx}")
-                return idx  # means up to idx can be used
-
-        ani_trajs = {}
-        further_thinning = 10
-        for lam, traj, potential_energy in zip(self.lambdas, self.ani_trajs, self.potential_energy_trajs):
-            # detect equilibrium
-            #equil, g = detectEquilibration(potential_energy)[:2]
-            # thinn snapshots and return max_snapshots_per_window confs
-            #snapshots = list(traj[int(len(traj)/2):].xyz * unit.nanometer)[::further_thinning]
-            snapshots = list(traj.xyz * unit.nanometer)[:max_snapshots_per_window]
-            ani_trajs[lam] = snapshots
-            logger.info(f"Snapshots per lambda: {len(snapshots)}")
-
-        last_valid_inds = {}
-        logger.info(f"Looking through {len(ani_trajs)} lambda windows")
-        for lam in sorted(ani_trajs.keys()):
-            if per_atom_thresh < 0. * unit.kilojoule_per_mole:
-                last_valid_ind = -1
-            else:
-                logger.info(f"Calculating stddev and penalty for lambda: {lam}")
-                # calculate endstate stddev for given confs
-                lambda0_stddev, lambda1_stddev = calculate_stddev(ani_trajs[lam])
-                # scale for current lam
-                current_stddev = (1 - lam) * lambda0_stddev + lam * lambda1_stddev
-                linear_ensemble_bias = compute_linear_ensemble_bias(current_stddev, per_atom_thresh)
-                last_valid_ind = compute_last_valid_ind(linear_ensemble_bias)
-            last_valid_inds[lam] = last_valid_ind
-
-        snapshots = []
-        self.snapshot_mask = []
-        N_k = []
-        lambdas_with_usable_samples = []
-        # lambbdas with usable samples applied to usable conformations
-        for lam in sorted(list(last_valid_inds.keys())):
-            logger.info(f"lam: {lam}")
-            if last_valid_inds[lam] > 5:
-                lambdas_with_usable_samples.append(lam)
-                new_snapshots = ani_trajs[lam][0:last_valid_inds[lam]]
-                logger.info(
-                    f"For lambda {lam}: {len(new_snapshots)} snaphosts below treshold out of {len(ani_trajs[lam])}")
-                snapshots.extend(new_snapshots)
-                N_k.append(len(new_snapshots))
-                self.snapshot_mask.append(len(new_snapshots))
-            elif last_valid_inds[lam] == -1:  # -1 means all can be used
-                lambdas_with_usable_samples.append(lam)
-                new_snapshots = ani_trajs[lam][:]
-                logger.info(
-                    f"For lambda {lam}: {len(new_snapshots)} snaphosts below treshold out of {len(ani_trajs[lam])}")
-                snapshots.extend(new_snapshots)
-                N_k.append(len(new_snapshots))
-                self.snapshot_mask.append(len(new_snapshots))
-
-            else:
-                self.snapshot_mask.append(0)
-                logger.info(f"For lambda {lam}: ZERO snaphosts below treshold out of {len(ani_trajs[lam])}")
-        logger.info(f"Nr of snapshots considered for postprocessing: {len(snapshots)}")
-        return N_k, snapshots, lambdas_with_usable_samples
 
     @property
     def free_energy_differences(self):
@@ -234,7 +164,7 @@ class FreeEnergyCalculator():
 
 
 
-def tweak_parameters(name:str = 'SAMPLmol2', data_path:str = "../data/"):
+def tweak_parameters(name:str = 'SAMPLmol2', data_path:str = "../data/", nr_of_nn:int = 8):
     """
     Calculates the free energy of a staged free energy simulation, 
     tweaks the neural net parameter so that using reweighting the difference 
@@ -245,6 +175,7 @@ def tweak_parameters(name:str = 'SAMPLmol2', data_path:str = "../data/"):
     Keyword Arguments:
         name {str} -- the name of the system (using the usual naming sheme) (default: {'SAMPLmol2'})
         data_path {str} -- should point to where the dcd files are located (default: {"../data/"})
+        nr_of_nn {int} -- number of neural networks that should be tweeked, maximum 8  (default: {8})
     """
     def parse_lambda_from_dcd_filename(dcd_filename):
         """parsed the dcd filename
@@ -287,6 +218,7 @@ def tweak_parameters(name:str = 'SAMPLmol2', data_path:str = "../data/"):
     #######################
     # some input parameters
     # 
+    assert (int(nr_of_nn) <= 8)
     exp_results = pickle.load(open('../data/exp_results.pickle', 'rb'))
     t1_smiles = exp_results[name]['t1-smiles']
     t2_smiles = exp_results[name]['t2-smiles']
@@ -367,7 +299,7 @@ def tweak_parameters(name:str = 'SAMPLmol2', data_path:str = "../data/"):
     # take each of the networks from the ensemble of 8
     weight_layers = []
     bias_layers = []
-    for nn in model.neural_networks:
+    for nn in model.neural_networks[:nr_of_nn]:
         weight_layers.extend(
             [
         {'params' : [nn.C[layer].weight], 'weight_decay': 0.000001},

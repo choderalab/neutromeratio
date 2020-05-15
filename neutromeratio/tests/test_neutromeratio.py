@@ -944,11 +944,9 @@ def test_parameter_gradient():
                                                                         n_steps=n_steps,
                                                                         stepsize=1.0*unit.femtosecond,
                                                                         progress_bar=False)
-
-        potential_energy_trajs.append(np.array(energies))
+        potential_energy_trajs.append(energies)
 
         ani_trajs.append(md.Trajectory([x / unit.nanometer for x in equilibrium_samples], tautomer.hybrid_topology))
-
 
     # calculate free energy in kT
     fec = FreeEnergyCalculator(ani_model=energy_function,
@@ -982,7 +980,6 @@ def test_parameter_gradient():
 
 def test_postprocessing():
     import neutromeratio
-    from tqdm import tqdm
     from neutromeratio.parameter_gradients import FreeEnergyCalculator
     from neutromeratio.constants import kT, device, exclude_set_ANI, mols_with_charge
     from glob import glob
@@ -1078,7 +1075,7 @@ def test_postprocessing():
         print(f"Nr of frames in trajectory: {len(traj)}")
         ani_trajs.append(traj)
         f = open(f"{base_path}/{name}/{name}_lambda_{lam:0.4f}_energy_in_{env}.csv", 'r')
-        energies.append(np.array([float(e) for e in f][::thinning]))
+        energies.append(np.array([float(e) * kT for e in f][::thinning])) # this is pretty inconsisten -- but 
         f.close()
 
     # calculate free energy in kT
@@ -1092,4 +1089,5 @@ def test_postprocessing():
 
     
     rmse = torch.sqrt((validate() - experimental_value())** 2)
-    assert( np.isclose(rmse.item(),  5.0236))
+    assert(np.isclose(fec.end_state_free_energy_difference[0], -4.764917445894416, rtol=1.e-2))
+    assert( np.isclose(rmse.item(),  5.467, rtol=1.e-2))

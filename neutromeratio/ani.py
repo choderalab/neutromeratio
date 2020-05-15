@@ -445,7 +445,7 @@ class ANI1_force_and_energy(object):
         coordinates = torch.tensor(coordinate_list.value_in_unit(unit.nanometer),
                                    requires_grad=True, device=self.device, dtype=torch.float32)
 
-        logger.debug(f"coordinates: {coordinates.size()}")
+        logger.debug(f"coordinates tensor: {coordinates.size()}")
         energy_in_kT, restraint_bias_in_kT, stddev_in_kT, ensemble_bias_in_kT = self._calculate_energy(
             coordinates, lambda_value)
 
