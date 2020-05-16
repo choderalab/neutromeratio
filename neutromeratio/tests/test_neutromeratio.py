@@ -1091,3 +1091,7 @@ def test_postprocessing():
     rmse = torch.sqrt((validate() - experimental_value())** 2)
     assert(np.isclose(fec.end_state_free_energy_difference[0], -4.764917445894416, rtol=1.e-2))
     assert( np.isclose(rmse.item(),  5.467, rtol=1.e-2))
+
+def test_tweak_parameters():
+    from neutromeratio.parameter_gradients import tweak_parameters
+    tweak_parameters(data_path='./data', nr_of_nn=2)

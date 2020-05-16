@@ -164,7 +164,7 @@ class FreeEnergyCalculator():
 
 
 
-def tweak_parameters(name:str = 'SAMPLmol2', data_path:str = "../data/", nr_of_nn:int = 8):
+def tweak_parameters(name:str = 'SAMPLmol2', data_path:str = "../data/", nr_of_nn:int = 8, max_epochs:int = 10):
     """
     Calculates the free energy of a staged free energy simulation, 
     tweaks the neural net parameter so that using reweighting the difference 
@@ -219,7 +219,7 @@ def tweak_parameters(name:str = 'SAMPLmol2', data_path:str = "../data/", nr_of_n
     # some input parameters
     # 
     assert (int(nr_of_nn) <= 8)
-    exp_results = pickle.load(open('../data/exp_results.pickle', 'rb'))
+    exp_results = pickle.load(open(f"{data_path}/exp_results.pickle", 'rb'))
     t1_smiles = exp_results[name]['t1-smiles']
     t2_smiles = exp_results[name]['t2-smiles']
     thinning = 50
@@ -278,7 +278,8 @@ def tweak_parameters(name:str = 'SAMPLmol2', data_path:str = "../data/", nr_of_n
         print(f"Nr of frames in trajectory: {len(traj)}")
         ani_trajs.append(traj)
         f = open(f"{data_path}/{name}/{name}_lambda_{lam:0.4f}_energy_in_vacuum.csv", 'r')
-        energies.append(np.array([float(e) for e in f][::thinning]))
+        energies.append(np.array([float(e) * kT for e in f][::thinning])) # this is pretty inconsisten -- but 
+
         f.close()
 
     # calculate free energy in kT
@@ -336,7 +337,6 @@ def tweak_parameters(name:str = 'SAMPLmol2', data_path:str = "../data/", nr_of_n
 
 
     print("training starting from epoch", AdamW_scheduler.last_epoch + 1)
-    max_epochs = 100
     early_stopping_learning_rate = 1.0E-2
     best_model_checkpoint = 'best.pt'
 
@@ -366,6 +366,7 @@ def tweak_parameters(name:str = 'SAMPLmol2', data_path:str = "../data/", nr_of_n
         'AdamW_scheduler': AdamW_scheduler.state_dict(),
         'SGD_scheduler': SGD_scheduler.state_dict(),
     }, latest_checkpoint)
+
 
 
 
