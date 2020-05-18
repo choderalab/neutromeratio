@@ -15,7 +15,7 @@ import mdtraj as md
 import torchani
 import torch
 from rdkit.Chem import rdFMCS
-from importlib_resources import files
+import pkg_resources
 
 from neutromeratio.constants import kT, gas_constant, temperature, mols_with_charge, exclude_set_ANI, device
 from neutromeratio.tautomers import Tautomer
@@ -375,10 +375,10 @@ def setup_mbar(names:list = ['SAMPLmol2'], data_path:str = "../data/", thinning:
         l = dcd_filename[:dcd_filename.find(f"_energy_in_vacuum")].split('_')
         lam = l[-3]
         return float(lam)
-
-    data = files(neutromeratio).joinpath('data/exp_results.pickle')
-    exp_results = pickle.load(open(str(data), 'rb'))
-    thinning = thinning
+    
+    data = pkg_resources.resource_stream(__name__, "data/exp_results.pickle")
+    print(f"data-filename: {data}")
+    exp_results = pickle.load(data)
 
     fec_list = []
     for name in names:

@@ -16,7 +16,7 @@ import os
 import neutromeratio
 import pickle
 import mdtraj as md
-from importlib_resources import files
+import pkg_resources
 
 logger = logging.getLogger(__name__)
 
@@ -208,8 +208,9 @@ def tweak_parameters(names:list = ['SAMPLmol2'], data_path:str = "../data/", nr_
     # some input parameters
     # 
     assert (int(nr_of_nn) <= 8)
-    data = files(neutromeratio).joinpath('data/exp_results.pickle')
-    exp_results = pickle.load(open(str(data), 'rb'))
+    data = pkg_resources.resource_stream(__name__, "data/exp_results.pickle")
+    print(f"data-filename: {data}")
+    exp_results = pickle.load(data)
     latest_checkpoint = 'latest.pt'
     fec_list, model = neutromeratio.analysis.setup_mbar(names, data_path)
 
