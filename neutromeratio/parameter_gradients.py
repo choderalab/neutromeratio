@@ -76,15 +76,15 @@ class FreeEnergyCalculator():
         
         coordinates = [sample / unit.angstrom for sample in snapshots] * unit.angstrom
 
-        print(f"len(coordinates): {len(coordinates)}")
-        print(f"coordinates: {coordinates[:5]}")
+        logger.info(f"len(coordinates): {len(coordinates)}")
+        logger.info(f"coordinates: {coordinates[:5]}")
 
         # end-point energies
         lambda0_e = self.ani_model.calculate_energy(coordinates, lambda_value=0.).energy_tensor      
         lambda1_e = self.ani_model.calculate_energy(coordinates, lambda_value=1.).energy_tensor      
 
-        print(f"lambda0_e: {len(lambda0_e)}")
-        print(f"lambda0_e: {lambda0_e[:50]}")
+        logger.info(f"lambda0_e: {len(lambda0_e)}")
+        logger.info(f"lambda0_e: {lambda0_e[:50]}")
 
         def get_mix(lambda0, lambda1, lam=0.0):
             return (1 - lam) * np.array(lambda0.detach()) + lam * np.array(lambda1.detach())
