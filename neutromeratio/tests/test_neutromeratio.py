@@ -1094,4 +1094,4 @@ def test_postprocessing():
 
 def test_tweak_parameters():
     from neutromeratio.parameter_gradients import tweak_parameters
-    tweak_parameters(data_path='./data', nr_of_nn=2)
+    tweak_parameters(data_path='./data', nr_of_nn=2, names = ['SAMPLmol2', 'SAMPLmol4'])

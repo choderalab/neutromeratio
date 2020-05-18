@@ -164,7 +164,7 @@ class FreeEnergyCalculator():
 
 
 
-def tweak_parameters(name:str = 'SAMPLmol2', data_path:str = "../data/", nr_of_nn:int = 8, max_epochs:int = 10):
+def tweak_parameters(names:list = ['SAMPLmol2'], data_path:str = "../data/", nr_of_nn:int = 8, max_epochs:int = 10):
     """
     Calculates the free energy of a staged free energy simulation, 
     tweaks the neural net parameter so that using reweighting the difference 
@@ -191,105 +191,123 @@ def tweak_parameters(name:str = 'SAMPLmol2', data_path:str = "../data/", nr_of_n
         return float(lam)
 
     # calculate free energy
-    def validate():
+    def validate(fec_list):
         'return free energy in kT'
-        
-        #return torch.tensor([5.0], device=device)
-        if flipped:
-            deltaF = fec.compute_free_energy_difference() * -1.
-        else:
-            deltaF = fec.compute_free_energy_difference()
-        return deltaF
+        calc = torch.tensor([0.0] * len(fec_list),
+                                    device=device, dtype=torch.float64)
+
+        for idx, fec in enumerate(fec_list):
+            #return torch.tensor([5.0], device=device)
+            if fec.flipped:
+                deltaF = fec.compute_free_energy_difference() * -1.
+            else:
+                deltaF = fec.compute_free_energy_difference()
+            calc[idx] = deltaF
+        return calc
 
     # return the experimental value
-    def experimental_value():
+    def experimental_value(names):
         """
         Returns the experimental free energy differen in solution for the tautomer pair
 
         Returns:
             [torch.Tensor] -- free energy in kT
         """
-        e_in_kT = (exp_results[name]['energy'] * unit.kilocalorie_per_mole)/kT
-        return torch.tensor([e_in_kT], device=device)
+        exp = torch.tensor([0.0] * len(names),
+                                    device=device, dtype=torch.float64)
+        for idx, name in enumerate(names):
+            e_in_kT = (exp_results[name]['energy'] * unit.kilocalorie_per_mole)/kT
+            exp[idx] = e_in_kT
+        return exp
 
-    if name in exclude_set_ANI + mols_with_charge:
-        raise RuntimeError(f"{name} is part of the list of excluded molecules. Aborting")
 
     #######################
     # some input parameters
     # 
     assert (int(nr_of_nn) <= 8)
+
     exp_results = pickle.load(open(f"{data_path}/exp_results.pickle", 'rb'))
-    t1_smiles = exp_results[name]['t1-smiles']
-    t2_smiles = exp_results[name]['t2-smiles']
     thinning = 50
     per_atom_stddev_threshold = 10.0 * unit.kilojoule_per_mole 
     latest_checkpoint = 'latest.pt'
-    #######################
-    print(f"Experimental free energy difference: {exp_results[name]['energy']} kcal/mol")
-    #######################
 
-    ####################
-    # Set up the system, set the restraints and read in the dcd files
-    t_type, tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
-    tautomer = tautomers[0]
-    tautomer.perform_tautomer_transformation()
+    fec_list = []
+    for name in names:
+        if name in exclude_set_ANI + mols_with_charge:
+            raise RuntimeError(f"{name} is part of the list of excluded molecules. Aborting")
 
-    atoms = tautomer.hybrid_atoms
-    top = tautomer.hybrid_topology
+        #######################
+        # some input parameters
+        # 
+        t1_smiles = exp_results[name]['t1-smiles']
+        t2_smiles = exp_results[name]['t2-smiles']
+        #######################
+        print(f"Experimental free energy difference: {exp_results[name]['energy']} kcal/mol")
+        #######################
+        ####################
+        # Set up the system, set the restraints and read in the dcd files
+        t_type, tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
+        tautomer = tautomers[0]
+        tautomer.perform_tautomer_transformation()
 
-    # define the alchemical atoms
-    alchemical_atoms = [tautomer.hybrid_hydrogen_idx_at_lambda_1, tautomer.hybrid_hydrogen_idx_at_lambda_0]
+        atoms = tautomer.hybrid_atoms
+        top = tautomer.hybrid_topology
 
-    # extract hydrogen donor idx and hydrogen idx for from_mol
-    model = neutromeratio.ani.LinearAlchemicalSingleTopologyANI(alchemical_atoms=alchemical_atoms)
+        # define the alchemical atoms
+        alchemical_atoms = [tautomer.hybrid_hydrogen_idx_at_lambda_1, tautomer.hybrid_hydrogen_idx_at_lambda_0]
 
-    model = model.to(device)
-    torch.set_num_threads(1)
+        # extract hydrogen donor idx and hydrogen idx for from_mol
+        model = neutromeratio.ani.LinearAlchemicalSingleTopologyANI(alchemical_atoms=alchemical_atoms)
 
-    # perform initial sampling
-    energy_function = neutromeratio.ANI1_force_and_energy(
-        model=model,
-        atoms=atoms,
-        mol=None,
-        per_atom_thresh=10.4 * unit.kilojoule_per_mole,
-        adventure_mode=True
-    )
+        model = model.to(device)
+        torch.set_num_threads(1)
 
-    # add restraints
-    for r in tautomer.ligand_restraints:
-        energy_function.add_restraint_to_lambda_protocol(r)
-    for r in tautomer.hybrid_ligand_restraints:
-        energy_function.add_restraint_to_lambda_protocol(r)
+        # perform initial sampling
+        energy_function = neutromeratio.ANI1_force_and_energy(
+            model=model,
+            atoms=atoms,
+            mol=None,
+            per_atom_thresh=10.4 * unit.kilojoule_per_mole,
+            adventure_mode=True
+        )
 
-    # get steps inclusive endpoints
-    # and lambda values in list
-    dcds = glob(f"{data_path}/{name}/*.dcd")
+        # add restraints
+        for r in tautomer.ligand_restraints:
+            energy_function.add_restraint_to_lambda_protocol(r)
+        for r in tautomer.hybrid_ligand_restraints:
+            energy_function.add_restraint_to_lambda_protocol(r)
 
-    lambdas = []
-    ani_trajs = []
-    energies = []
+        # get steps inclusive endpoints
+        # and lambda values in list
+        dcds = glob(f"{data_path}/{name}/*.dcd")
 
-    # read in all the frames from the trajectories
-    for dcd_filename in dcds:
-        lam = parse_lambda_from_dcd_filename(dcd_filename)
-        lambdas.append(lam)
-        traj = md.load_dcd(dcd_filename, top=top)[::thinning]
-        print(f"Nr of frames in trajectory: {len(traj)}")
-        ani_trajs.append(traj)
-        f = open(f"{data_path}/{name}/{name}_lambda_{lam:0.4f}_energy_in_vacuum.csv", 'r')
-        energies.append(np.array([float(e) * kT for e in f][::thinning])) # this is pretty inconsisten -- but 
+        lambdas = []
+        ani_trajs = []
+        energies = []
 
-        f.close()
+        # read in all the frames from the trajectories
+        for dcd_filename in dcds:
+            lam = parse_lambda_from_dcd_filename(dcd_filename)
+            lambdas.append(lam)
+            traj = md.load_dcd(dcd_filename, top=top)[::thinning]
+            print(f"Nr of frames in trajectory: {len(traj)}")
+            ani_trajs.append(traj)
+            f = open(f"{data_path}/{name}/{name}_lambda_{lam:0.4f}_energy_in_vacuum.csv", 'r')
+            energies.append(np.array([float(e) * kT for e in f][::thinning])) # this is pretty inconsisten -- but 
 
-    # calculate free energy in kT
-    fec = FreeEnergyCalculator(ani_model=energy_function,
-                                ani_trajs=ani_trajs,
-                                potential_energy_trajs=energies,
-                                lambdas=lambdas,
-                                n_atoms=len(atoms),
-                                max_snapshots_per_window=-1,
-                                per_atom_thresh=per_atom_stddev_threshold)
+            f.close()
+
+        # calculate free energy in kT
+        fec = FreeEnergyCalculator(ani_model=energy_function,
+                                    ani_trajs=ani_trajs,
+                                    potential_energy_trajs=energies,
+                                    lambdas=lambdas,
+                                    n_atoms=len(atoms),
+                                    max_snapshots_per_window=-1,
+                                    per_atom_thresh=per_atom_stddev_threshold)
+
+        fec.flipped = flipped
+        fec_list.append(fec)
 
 
     # defining neural networks
@@ -314,7 +332,7 @@ def tweak_parameters(name:str = 'SAMPLmol2', data_path:str = "../data/", nr_of_n
         {'params' : [nn.C[layer].bias]},
         {'params' : [nn.H[layer].bias]},
         {'params' : [nn.O[layer].bias]},
-        {'params': [nn.N[layer].bias]},
+        {'params' : [nn.N[layer].bias]},
             ]
         )
 
@@ -337,12 +355,13 @@ def tweak_parameters(name:str = 'SAMPLmol2', data_path:str = "../data/", nr_of_n
 
 
     print("training starting from epoch", AdamW_scheduler.last_epoch + 1)
-    early_stopping_learning_rate = 1.0E-2
+    early_stopping_learning_rate = 1.0E-5
     best_model_checkpoint = 'best.pt'
 
+
     for _ in tqdm(range(AdamW_scheduler.last_epoch + 1, max_epochs)):
-        rmse = torch.sqrt((validate() - experimental_value())**2)
-        print(rmse)
+        rmse = torch.sqrt(torch.mean((validate(fec_list) - experimental_value(names))**2))
+        print(f"RMSE: {rmse}")
                 
         # checkpoint
         if AdamW_scheduler.is_better(rmse, AdamW_scheduler.best):
@@ -358,6 +377,7 @@ def tweak_parameters(name:str = 'SAMPLmol2', data_path:str = "../data/", nr_of_n
         loss.backward()
         AdamW.step()
         SGD.step()
+    raise RuntimeError()
 
     torch.save({
         'nn': nn.state_dict(),
