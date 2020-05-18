@@ -15,6 +15,7 @@ import mdtraj as md
 import torchani
 import torch
 from rdkit.Chem import rdFMCS
+from importlib_resources import files
 
 from neutromeratio.constants import kT, gas_constant, temperature, mols_with_charge, exclude_set_ANI, device
 from neutromeratio.tautomers import Tautomer
@@ -23,7 +24,6 @@ import neutromeratio
 from glob import glob
 
 logger = logging.getLogger(__name__)
-
 
 def _remove_hydrogens(m: Chem.Mol):
     """Removing all hydrogens from the molecule with a few exceptions"""
@@ -346,9 +346,23 @@ def _generate_conformer(coordinates):
         new_conf.SetAtomPosition(idx, point)
     return new_conf
 
+def get_data_filename():
+    """
+    In the source distribution, these files are in ``neutromeratio/data/*/``,
+    but on installation, they're moved to somewhere in the user's python
+    site-packages directory.
+    """
+
+    from pkg_resources import resource_filename
+    fn = resource_filename('neutromeratio')
+
+    if not os.path.exists(fn):
+        raise ValueError("Sorry! %s does not exist. If you just added it, you'll have to re-install" % fn)
+
+    return fn
 
 def setup_mbar(names:list = ['SAMPLmol2'], data_path:str = "../data/", thinning:int = 50, ):
-
+    import neutromeratio
     def parse_lambda_from_dcd_filename(dcd_filename):
         """parsed the dcd filename
 
@@ -362,8 +376,8 @@ def setup_mbar(names:list = ['SAMPLmol2'], data_path:str = "../data/", thinning:
         lam = l[-3]
         return float(lam)
 
-
-    exp_results = pickle.load(open(f"{data_path}/exp_results.pickle", 'rb'))
+    data = files(neutromeratio).joinpath('data/exp_results.pickle')
+    exp_results = pickle.load(open(str(data), 'rb'))
     thinning = thinning
 
     fec_list = []
