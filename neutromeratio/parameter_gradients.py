@@ -76,8 +76,8 @@ class FreeEnergyCalculator():
         
         coordinates = [sample / unit.angstrom for sample in snapshots] * unit.angstrom
 
-        logger.info(f"len(coordinates): {len(coordinates)}")
-        logger.info(f"coordinates: {coordinates[:5]}")
+        logger.debug(f"len(coordinates): {len(coordinates)}")
+        logger.debug(f"coordinates: {coordinates[:5]}")
 
         # end-point energies
         lambda0_e = self.ani_model.calculate_energy(coordinates, lambda_value=0.).energy_tensor      

@@ -13,7 +13,6 @@ from neutromeratio.constants import kT, device, exclude_set_ANI, mols_with_charg
 from glob import glob
 
 #######################
-thinning = 4
 #######################
 # job idx
 idx = int(sys.argv[1])
@@ -33,7 +32,7 @@ for name in sorted(exp_results):
 
 name = protocoll[idx-1]
 print(name)
-fec_list, model = neutromeratio.analysis.setup_mbar([name], base_path)
+fec_list, model = neutromeratio.analysis.setup_mbar([name], base_path, 100)
 
 fec = fec_list[0]
 
@@ -42,6 +41,6 @@ if fec.flipped:
     DeltaF_ji *= -1
 
 print(fec.end_state_free_energy_difference)
-f = open(f"{base_path}/results_in_kT_threshold_{per_atom_stddev_threshold}.csv", 'a+')
+f = open(f"{base_path}/results_in_kT.csv", 'a+')
 f.write(f"{name}, {DeltaF_ji}, {dDeltaF_ji}\n")
 f.close()
