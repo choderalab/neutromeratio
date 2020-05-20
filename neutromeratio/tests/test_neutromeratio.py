@@ -364,122 +364,6 @@ def test_restraint():
     print('Restraing: {}.'.format(flat_bottom.restraint(coordinates)))
 
 
-def test_restraint_with_alchemicalANI():
-    from neutromeratio.tautomers import Tautomer
-    import numpy as np
-    from neutromeratio.constants import kT
-
-    # read in exp_results.pickle
-    with open('data/exp_results.pickle', 'rb') as f:
-        exp_results = pickle.load(f)
-
-    # generate smiles
-    name = 'molDWRow_298'
-    t1_smiles = exp_results[name]['t1-smiles']
-    t2_smiles = exp_results[name]['t2-smiles']
-
-
-    t_type, tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
-    tautomer = tautomers[0]
-    tautomer.perform_tautomer_transformation()
-
-    # read in pregenerated traj
-    traj_path = 'neutromeratio/data/molDWRow_298_lambda_0.0000_kappa_0.0000.dcd'
-    top_path = 'neutromeratio/data/molDWRow_298_lambda_0.0000_kappa_0.0000.pdb'
-    traj = md.load(traj_path, top=md.load(top_path).topology)
-    traj = traj.atom_slice([a for a in range(len(tautomer.initial_state_ligand_atoms))])
-
-
-    atoms = tautomer.initial_state_ligand_atoms
-    hydrogen_idx = tautomer.hydrogen_idx
-
-    # overwrite the coordinates that rdkit generated with the first frame in the traj
-    x0 = [x.xyz[0] for x in traj[0]] * unit.nanometer
-
-    model = neutromeratio.ani.LinearAlchemicalANI(alchemical_atoms=[hydrogen_idx])
-
-    energy_function = neutromeratio.ANI1_force_and_energy(
-        model=model,
-        atoms=atoms,
-        mol=tautomer.initial_state_ase_mol)
-
-    energy = energy_function.calculate_energy(x0, lambda_value=1.0)
-    assert(is_quantity_close(energy.energy, (-906911.9843514563 * unit.kilojoule_per_mole), rtol=1e-9))
-    energy = energy_function.calculate_energy(x0, lambda_value=0.0)
-    assert(is_quantity_close(energy.energy, (-906831.6071666518 * unit.kilojoule_per_mole), rtol=1e-9))
-
-    # test flat_bottom_restraint for lambda = 0.0
-    r = []
-    restrain1 = neutromeratio.restraints.BondFlatBottomRestraint(
-        sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at=0)
-    restrain2 = neutromeratio.restraints.BondFlatBottomRestraint(
-        sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at=1)
-    restrain3 = neutromeratio.restraints.BondFlatBottomRestraint(
-        sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at=-1)
-    for r in [restrain1, restrain2, restrain3]:
-        energy_function.add_restraint_to_lambda_protocol(r)
-
-    energy = energy_function.calculate_energy(x0, lambda_value=0.0)
-    assert(is_quantity_close(energy.energy, (-906499.6764037954 * unit.kilojoule_per_mole), rtol=1e-9))
-
-    # test harmonic_restraint for lambda = 0.0
-    energy_function.reset_lambda_restraints()
-    r = []
-    restrain1 = neutromeratio.restraints.BondHarmonicRestraint(
-        sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at=0)
-    restrain2 = neutromeratio.restraints.BondHarmonicRestraint(
-        sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at=1)
-    restrain3 = neutromeratio.restraints.BondHarmonicRestraint(
-        sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at=-1)
-    for r in [restrain1, restrain2, restrain3]:
-        energy_function.add_restraint_to_lambda_protocol(r)
-
-    energy = energy_function.calculate_energy(x0, lambda_value=0.0)
-    assert(is_quantity_close(energy.energy, (-906229.5741461891 * unit.kilojoule_per_mole), rtol=1e-9))
-
-    # test harmonic_restraint for lambda = 1.0
-    energy = energy_function.calculate_energy(x0, lambda_value=1.0)
-    assert(is_quantity_close(energy.energy, (-906309.9513309937 * unit.kilojoule_per_mole), rtol=1e-9))
-
-    # test harmonic_restraint and flat_bottom_restraint for lambda = 1.0
-    r = []
-    energy_function.reset_lambda_restraints()
-    restrain1 = neutromeratio.restraints.BondFlatBottomRestraint(
-        sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at=0)
-    restrain2 = neutromeratio.restraints.BondFlatBottomRestraint(
-        sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at=1)
-    restrain3 = neutromeratio.restraints.BondFlatBottomRestraint(
-        sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at=-1)
-    restrain4 = neutromeratio.restraints.BondHarmonicRestraint(
-        sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at=0)
-    restrain5 = neutromeratio.restraints.BondHarmonicRestraint(
-        sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at=1)
-    restrain6 = neutromeratio.restraints.BondHarmonicRestraint(
-        sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms, active_at=-1)
-    for r in [restrain1, restrain2, restrain3, restrain4, restrain5, restrain6]:
-        energy_function.add_restraint_to_lambda_protocol(r)
-
-    energy = energy_function.calculate_energy(x0, lambda_value=1.0)
-    assert(is_quantity_close(energy.energy, (-905978.0205681373 * unit.kilojoule_per_mole), rtol=1e-9))
-
-    # Test this nwo for multiple conformations
-    x0 = [x.xyz[0] for x in traj[:10]] * unit.nanometer
-
-    # do we get the same value as above for the first snapshot?
-    energy = energy_function.calculate_energy(x0, lambda_value=1.0)
-    assert(is_quantity_close(energy.energy[0], (-905978.0205681373 * unit.kilojoule_per_mole), rtol=1e-9))
-    print("energy.energy")
-    print(energy)
-    # iterate over all results
-    for e1, e2 in zip(energy.energy, [-905978.021, -905943.832, -905967.008, -905884.034, -905997.435, -905906.12 , -905805.753, -905802.63 , -905890.451, -905853.844] * unit.kilojoule_per_mole):
-        assert(is_quantity_close(e1, e2, rtol=1e-3))
-
-    for e1, e2 in zip(energy.stddev, [3.12271046, 3.33607646, 2.28859368, 3.12835365, 4.00708405, 3.45141667, 2.23584861, 3.07390768, 4.07272756, 2.68385511] * unit.kilojoule_per_mole):
-        assert(is_quantity_close(e1, e2, rtol=1e-3))
-
-    for e1, e2 in zip(energy.restraint_bias, [933.96378332,  932.22974069,  845.05047774, 1068.93911257, 806.6204046 , 1014.8812657 , 1221.00378272, 1204.67203483, 998.94889026, 1117.49656028] * unit.kilojoule_per_mole):
-        assert(is_quantity_close(e1, e2, rtol=1e-3))
-
 def test_restraint_with_LinearAlchemicalSingleTopologyANI():
     import numpy as np
     from neutromeratio.constants import kT
@@ -811,7 +695,8 @@ def test_psi4():
 def test_parameter_gradient():
     from ..constants import mols_with_charge, exclude_set_ANI, kT
     from tqdm import tqdm
-    from  ..parameter_gradients import FreeEnergyCalculator
+    from ..parameter_gradients import FreeEnergyCalculator
+    from ..analysis import setup_energy_function
     
     # TODO: pkg_resources instead of filepath relative to execution directory
     exp_results = pickle.load(open('data/exp_results.pickle', 'rb'))
@@ -825,34 +710,8 @@ def test_parameter_gradient():
     if name in exclude_set_ANI + mols_with_charge:
         raise RuntimeError(f"{name} is part of the list of excluded molecules. Aborting")
 
-    t1_smiles = exp_results[name]['t1-smiles']
-    t2_smiles = exp_results[name]['t2-smiles']
-    print(f"Experimental free energy difference: {exp_results[name]['energy']} kcal/mol")
-    t_type, tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
-    tautomer = tautomers[0] # only considering ONE stereoisomer (the one deposited in the db)
-    tautomer.perform_tautomer_transformation()
-
-    # define the alchemical atoms
-    alchemical_atoms = [tautomer.hybrid_hydrogen_idx_at_lambda_1, tautomer.hybrid_hydrogen_idx_at_lambda_0]
-
-    # set the ANI model
-    model = neutromeratio.ani.LinearAlchemicalSingleTopologyANI(alchemical_atoms=alchemical_atoms)
-    model = model.to(device)
-    torch.set_num_threads(1)
-
-    # define energy function
-    energy_function = neutromeratio.ANI1_force_and_energy(
-            model=model,
-            atoms=tautomer.hybrid_atoms,
-            mol=None,)
-
-    # add ligand bond restraints (for all lambda states)
-    for r in tautomer.ligand_restraints:
-        energy_function.add_restraint_to_lambda_protocol(r)
-
-    for r in tautomer.hybrid_ligand_restraints:
-        energy_function.add_restraint_to_lambda_protocol(r)
-
+    energy_function, tautomer, flipped = setup_energy_function(name)
+    
     x0 = tautomer.hybrid_coords
     potential_energy_trajs = []
     ani_trajs = []
@@ -894,7 +753,7 @@ def test_parameter_gradient():
     print(f"Free energy difference {(deltaF.item() * kT).value_in_unit(unit.kilocalorie_per_mole)} kcal/mol")
 
     deltaF.backward()  # no errors or warnings
-    params = list(energy_function.model.parameters())
+    params = list(energy_function.model.neural_networks.parameters())
     none_counter = 0
     for p in params:
         if(p.grad == None):  # some are None!
@@ -904,16 +763,16 @@ def test_parameter_gradient():
     assert (none_counter == 64)
     
 def test_postprocessing():
-    from ..parameter_gradients import FreeEnergyCalculator
+    from ..parameter_gradients import FreeEnergyCalculator, get_free_energy_differences, get_experimental_values
     from ..constants import kT, device, exclude_set_ANI, mols_with_charge
     from glob import glob
 
     exp_results = pickle.load(open('data/exp_results.pickle', 'rb'))
     names = ['molDWRow_298', 'SAMPLmol2', 'SAMPLmol4']
-    fec_list, model = neutromeratio.analysis.setup_mbar(names, './data/')
+    fec_list = neutromeratio.analysis.setup_mbar(names, './data/', thinning = 50, max_snapshots_per_window = -1)
 
     assert(len(fec_list) == 3)
-    rmse = torch.sqrt(torch.mean((validate(fec_list) - experimental_value(names))**2))
+    rmse = torch.sqrt(torch.mean((get_free_energy_differences(fec_list) - get_experimental_values(names))**2))
 
     assert(np.isclose(fec_list[0].end_state_free_energy_difference[0], -1.2657010719456991, rtol=1.e-2))
     assert(np.isclose(fec_list[1].end_state_free_energy_difference[0], -4.764917445894416, rtol=1.e-2))
@@ -927,4 +786,3 @@ def test_tweak_parameters():
     os.remove('best.pt')
     os.remove('latest.pt')
     print(h_exp_free_energy_difference)
-    raise RuntimeError()

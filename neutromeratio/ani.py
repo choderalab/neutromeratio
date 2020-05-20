@@ -374,16 +374,6 @@ class ANI1_force_and_energy(object):
 
         energy_in_kT += restraint_bias_in_kT
 
-        if self.adventure_mode == False:
-            if stddev_in_kT > self.per_mol_tresh:
-                #logger.info(f"Per atom tresh: {self.per_atom_thresh}")
-                #logger.info(f"Nr of atoms: {species.size()[1]}")
-                #logger.warning(f"Stddev: {stddev_in_kJ_mol} kJ/mol")
-                #logger.warning(f"Energy: {energy_in_kJ_mol} kJ/mol")
-                ensemble_bias_in_kT = self._linear_ensemble_bias(stddev_in_kT)
-
-            energy_in_kT += ensemble_bias_in_kT
-
         return energy_in_kT, restraint_bias_in_kT, stddev_in_kT, ensemble_bias_in_kT
 
     def _quadratic_ensemble_bias(self, stddev):
@@ -505,8 +495,6 @@ class PureANI1ccx(torchani.models.ANI1ccx):
         _, E = self.energy_shifter((species, state.energies))
 
         return SpeciesEnergies(species, E, state.stddev)
-
-
 
 class PureANI1x(torchani.models.ANI1x):
     def __init__(self):
