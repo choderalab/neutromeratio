@@ -248,81 +248,11 @@ def test_neutromeratio_energy_calculations_with_torchANI_model():
     energy = energy_function.calculate_energy(x0)
     assert(is_quantity_close(energy.energy, (-906920.2981953777 * unit.kilojoule_per_mole), rtol=1e-5))
 
-def test_neutromeratio_energy_calculations_with_LinearAlchemicalANI_model():
-    from neutromeratio.tautomers import Tautomer
-    import numpy as np
-    from neutromeratio.constants import kT
-    # read in exp_results.pickle
-    with open('data/exp_results.pickle', 'rb') as f:
-        exp_results = pickle.load(f)
-
-    # generate smiles
-    name = 'molDWRow_298'
-    t1_smiles = exp_results[name]['t1-smiles']
-    t2_smiles = exp_results[name]['t2-smiles']
-
-    t_type, tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
-    tautomer = tautomers[0]
-    tautomer.perform_tautomer_transformation()
-
-    # read in pregenerated traj
-    traj_path = 'neutromeratio/data/molDWRow_298_lambda_0.0000_kappa_0.0000.dcd'
-    top_path = 'neutromeratio/data/molDWRow_298_lambda_0.0000_kappa_0.0000.pdb'
-    traj = md.load(traj_path, top=md.load(top_path).topology)
-    traj = traj.atom_slice([a for a in range(len(tautomer.initial_state_ligand_atoms))])
-
-    # generate tautomer transformation
-    hydrogen_idx = tautomer.hydrogen_idx
-    atoms = tautomer.initial_state_ligand_atoms
-
-    # overwrite the coordinates that rdkit generated with the first frame in the traj
-    x0 = [x.xyz[0] for x in traj[0]] * unit.nanometer
-    model = neutromeratio.ani.LinearAlchemicalANI(alchemical_atoms=[hydrogen_idx])
-    torch.set_num_threads(1)
-
-    energy_function = neutromeratio.ANI1_force_and_energy(
-        model=model,
-        atoms=atoms,
-        mol=tautomer.initial_state_ase_mol)
-
-    energy = energy_function.calculate_energy(x0, lambda_value=1.0)
-    assert(is_quantity_close(energy.energy, (-906911.9843514563 * unit.kilojoule_per_mole), rtol=1e-9))
-    energy = energy_function.calculate_energy(x0, lambda_value=0.0)
-    assert(is_quantity_close(energy.energy, (-906831.6071666518 * unit.kilojoule_per_mole), rtol=1e-9))
-    tautomer = tautomers[1]
-    tautomer.perform_tautomer_transformation()
-
-    # read in pregenerated traj
-    traj_path = 'neutromeratio/data/molDWRow_298_lambda_0.0000_kappa_1.0000.dcd'
-    top_path = 'neutromeratio/data/molDWRow_298_lambda_0.0000_kappa_1.0000.pdb'
-    traj = md.load(traj_path, top=md.load(top_path).topology)
-    traj = traj.atom_slice([a for a in range(len(tautomer.initial_state_ligand_atoms))])
-
-    # generate tautomer transformation
-    hydrogen_idx = tautomer.hydrogen_idx
-    atoms = tautomer.initial_state_ligand_atoms
-
-    # overwrite the coordinates that rdkit generated with the first frame in the traj
-    x0 = [x.xyz[0] for x in traj[0]] * unit.nanometer
-    model = neutromeratio.ani.LinearAlchemicalANI(alchemical_atoms=[hydrogen_idx])
-    torch.set_num_threads(1)
-
-    energy_function = neutromeratio.ANI1_force_and_energy(
-        model=model,
-        atoms=atoms,
-        mol=tautomer.initial_state_ase_mol)
-
-    energy = energy_function.calculate_energy(x0, lambda_value=1.0)
-    assert(is_quantity_close(energy.energy, (-906920.2981953777 * unit.kilojoule_per_mole), rtol=1e-9))
-    energy = energy_function.calculate_energy(x0, lambda_value=0.0)
-    assert(is_quantity_close(energy.energy, (-906841.931489851 * unit.kilojoule_per_mole), rtol=1e-9))
-
-
 
 def test_neutromeratio_energy_calculations_LinearAlchemicalSingleTopologyANI_model():
-    from neutromeratio.tautomers import Tautomer
+    from ..tautomers import Tautomer
     import numpy as np
-    from neutromeratio.constants import kT
+    from ..constants import kT
 
     # read in exp_results.pickle
     with open('data/exp_results.pickle', 'rb') as f:
@@ -401,7 +331,6 @@ def test_neutromeratio_energy_calculations_LinearAlchemicalSingleTopologyANI_mod
     for e1, e2 in zip(energy.stddev, [3.74471131, 4.1930047 , 3.38845079, 3.93200761, 3.19887848,
        4.02611676, 4.32329868, 2.92180683, 4.3240609 , 2.78107752]* unit.kilojoule_per_mole):
         assert(is_quantity_close(e1, e2, rtol=1e-3))    
-
     
 def test_restraint():
     from neutromeratio.tautomers import Tautomer
@@ -880,10 +809,9 @@ def test_psi4():
 
 
 def test_parameter_gradient():
-    import neutromeratio
-    from neutromeratio.constants import mols_with_charge, exclude_set_ANI, kT
+    from ..constants import mols_with_charge, exclude_set_ANI, kT
     from tqdm import tqdm
-    from  neutromeratio.parameter_gradients import FreeEnergyCalculator
+    from  ..parameter_gradients import FreeEnergyCalculator
     
     # TODO: pkg_resources instead of filepath relative to execution directory
     exp_results = pickle.load(open('data/exp_results.pickle', 'rb'))
@@ -950,7 +878,7 @@ def test_parameter_gradient():
 
     # calculate free energy in kT
     fec = FreeEnergyCalculator(ani_model=energy_function,
-                               ani_trajs=ani_trajs,
+                               md_trajs=ani_trajs,
                                potential_energy_trajs=potential_energy_trajs,
                                lambdas=lambdas,
                                n_atoms=len(tautomer.hybrid_atoms),
@@ -975,46 +903,11 @@ def test_parameter_gradient():
     assert(len(params) == 256)
     assert (none_counter == 64)
     
-
-
 def test_postprocessing():
-    import neutromeratio
-    from neutromeratio.parameter_gradients import FreeEnergyCalculator
-    from neutromeratio.constants import kT, device, exclude_set_ANI, mols_with_charge
+    from ..parameter_gradients import FreeEnergyCalculator
+    from ..constants import kT, device, exclude_set_ANI, mols_with_charge
     from glob import glob
 
-    # calculate free energy
-    def validate(fec_list):
-        'return free energy in kT'
-        calc = torch.tensor([0.0] * len(fec_list),
-                                    device=device, dtype=torch.float64)
-
-        for idx, fec in enumerate(fec_list):
-            #return torch.tensor([5.0], device=device)
-            if fec.flipped:
-                deltaF = fec.compute_free_energy_difference() * -1.
-            else:
-                deltaF = fec.compute_free_energy_difference()
-            calc[idx] = deltaF
-        return calc
-
-    # return the experimental value
-    def experimental_value(names):
-        """
-        Returns the experimental free energy differen in solution for the tautomer pair
-
-        Returns:
-            [torch.Tensor] -- free energy in kT
-        """
-        exp = torch.tensor([0.0] * len(names),
-                                    device=device, dtype=torch.float64)
-        for idx, name in enumerate(names):
-            e_in_kT = (exp_results[name]['energy'] * unit.kilocalorie_per_mole)/kT
-            exp[idx] = e_in_kT
-        return exp
-
-
-    # TODO: pkg_resources instead of filepath relative to execution directory
     exp_results = pickle.load(open('data/exp_results.pickle', 'rb'))
     names = ['molDWRow_298', 'SAMPLmol2', 'SAMPLmol4']
     fec_list, model = neutromeratio.analysis.setup_mbar(names, './data/')
@@ -1028,5 +921,10 @@ def test_postprocessing():
     assert(np.isclose(rmse.item(),  5.599380922019047, rtol=1.e-2))
 
 def test_tweak_parameters():
-    from neutromeratio.parameter_gradients import tweak_parameters
-    tweak_parameters(data_path='./data', nr_of_nn=2, names = ['SAMPLmol2', 'SAMPLmol4'], max_epochs=2)
+    from ..parameter_gradients import tweak_parameters
+    import os
+    h_exp_free_energy_difference = tweak_parameters(data_path='./data', nr_of_nn=8, names=['SAMPLmol2', 'SAMPLmol4'], max_epochs=5)
+    os.remove('best.pt')
+    os.remove('latest.pt')
+    print(h_exp_free_energy_difference)
+    raise RuntimeError()

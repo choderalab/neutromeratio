@@ -376,11 +376,13 @@ def setup_mbar(names:list = ['SAMPLmol2'], data_path:str = "../data/", thinning:
         lam = l[-3]
         return float(lam)
     
+    assert (len(names) > 0)
     data = pkg_resources.resource_stream(__name__, "data/exp_results.pickle")
     print(f"data-filename: {data}")
     exp_results = pickle.load(data)
 
     fec_list = []
+
     for name in names:
         if name in exclude_set_ANI + mols_with_charge:
             raise RuntimeError(f"{name} is part of the list of excluded molecules. Aborting")
@@ -404,12 +406,10 @@ def setup_mbar(names:list = ['SAMPLmol2'], data_path:str = "../data/", thinning:
 
         # define the alchemical atoms
         alchemical_atoms = [tautomer.hybrid_hydrogen_idx_at_lambda_1, tautomer.hybrid_hydrogen_idx_at_lambda_0]
-
-        # extract hydrogen donor idx and hydrogen idx for from_mol
         model = neutromeratio.ani.LinearAlchemicalSingleTopologyANI(alchemical_atoms=alchemical_atoms)
-
         model = model.to(device)
         torch.set_num_threads(1)
+        # extract hydrogen donor idx and hydrogen idx for from_mol
 
         # perform initial sampling
         energy_function = neutromeratio.ANI1_force_and_energy(
@@ -431,7 +431,7 @@ def setup_mbar(names:list = ['SAMPLmol2'], data_path:str = "../data/", thinning:
         dcds = glob(f"{data_path}/{name}/*.dcd")
 
         lambdas = []
-        ani_trajs = []
+        md_trajs = []
         energies = []
 
         # read in all the frames from the trajectories
@@ -440,15 +440,15 @@ def setup_mbar(names:list = ['SAMPLmol2'], data_path:str = "../data/", thinning:
             lambdas.append(lam)
             traj = md.load_dcd(dcd_filename, top=top)[::thinning]
             print(f"Nr of frames in trajectory: {len(traj)}")
-            ani_trajs.append(traj)
+            md_trajs.append(traj)
             f = open(f"{data_path}/{name}/{name}_lambda_{lam:0.4f}_energy_in_vacuum.csv", 'r')
-            energies.append(np.array([float(e) * kT for e in f][::thinning])) # this is pretty inconsisten -- but 
+            energies.append(np.array([float(e) * kT for e in f][::thinning])) 
 
             f.close()
 
         # calculate free energy in kT
         fec = FreeEnergyCalculator(ani_model=energy_function,
-                                    ani_trajs=ani_trajs,
+                                    md_trajs=md_trajs,
                                     potential_energy_trajs=energies,
                                     lambdas=lambdas,
                                     n_atoms=len(atoms),

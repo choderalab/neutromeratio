@@ -17,13 +17,14 @@ import neutromeratio
 import pickle
 import mdtraj as md
 import pkg_resources
+import memory_profiler
 
 logger = logging.getLogger(__name__)
 
 class FreeEnergyCalculator():
     def __init__(self,
                  ani_model: ANI1_force_and_energy,
-                 ani_trajs: list,
+                 md_trajs: list,
                  potential_energy_trajs: list,
                  lambdas: list,
                  n_atoms: int,
@@ -45,16 +46,15 @@ class FreeEnergyCalculator():
             number of atoms
         """
         K = len(lambdas)
-        assert (len(ani_trajs) == K)
+        assert (len(md_trajs) == K)
         assert (len(potential_energy_trajs) == K)
         self.ani_model = ani_model
         self.potential_energy_trajs = potential_energy_trajs  # for detecting equilibrium
         self.lambdas = lambdas
-        self.ani_trajs = ani_trajs
         self.n_atoms = n_atoms
 
         ani_trajs = {}
-        for lam, traj, potential_energy in zip(self.lambdas, self.ani_trajs, self.potential_energy_trajs):
+        for lam, traj, potential_energy in zip(self.lambdas, md_trajs, self.potential_energy_trajs):
             # detect equilibrium
             equil, g = detectEquilibration(np.array([e/kT for e in potential_energy]))[:2]
             # thinn snapshots and return max_snapshots_per_window confs
@@ -63,7 +63,8 @@ class FreeEnergyCalculator():
             further_thinning = max(int(len(snapshots) / max_snapshots_per_window), 1)
             snapshots = snapshots[::further_thinning][:max_snapshots_per_window]
             ani_trajs[lam] = snapshots
-
+        
+        del(md_trajs)
         snapshots = []
         N_k = []
         for lam in sorted(self.lambdas):
@@ -114,7 +115,7 @@ class FreeEnergyCalculator():
         results = self.mbar.getFreeEnergyDifferences(return_dict=True)
         return results['Delta_f'][0, -1], results['dDelta_f'][0, -1]
 
-    def compute_perturbed_free_energies(self, u_ln, u0_stddev, u1_stddev):
+    def compute_perturbed_free_energies(self, u_ln):
         """compute perturbed free energies at new thermodynamic states l"""
         assert (type(u_ln) == torch.Tensor)
 
@@ -150,15 +151,62 @@ class FreeEnergyCalculator():
         u1_stddev = decomposed_energy_list_lamb1.stddev
 
         u_ln = torch.stack([u_0, u_1])
-        return u_ln,  u0_stddev, u1_stddev
+        return u_ln
 
     def compute_free_energy_difference(self):
-        u_ln, u0_stddev, u1_stddev = self.form_u_ln()
-        f_k = self.compute_perturbed_free_energies(u_ln, u0_stddev, u1_stddev)
+        u_ln = self.form_u_ln()
+        f_k = self.compute_perturbed_free_energies(u_ln)
         return f_k[1] - f_k[0]
 
 
+def get_free_energy_differences(fec_list:list)-> torch.Tensor:
+    """
+    Gets a list of fec instances and returns a torch.tensor with 
+    the computed free energy differences.
 
+    Arguments:
+        fec_list {list[torch.tensor]} 
+
+    Returns:
+        torch.tensor -- calculated free energy in kT
+    """
+    calc = torch.tensor([0.0] * len(fec_list),
+                                device=device, dtype=torch.float64)
+
+    for idx, fec in enumerate(fec_list):
+        #return torch.tensor([5.0], device=device)
+        if fec.flipped:
+            deltaF = fec.compute_free_energy_difference() * -1.
+        else:
+            deltaF = fec.compute_free_energy_difference()
+        calc[idx] = deltaF
+    print(calc)
+    return calc
+
+# return the experimental value
+def get_experimental_values(names:list)-> torch.Tensor:
+    """
+    Returns the experimental free energy differen in solution for the tautomer pair
+
+    Returns:
+        [torch.Tensor] -- experimental free energy in kT
+    """
+    exp = torch.tensor([0.0] * len(names),
+                                device = device, dtype = torch.float64)
+    data = pkg_resources.resource_stream(__name__, "data/exp_results.pickle")
+    exp_results = pickle.load(data)
+
+    for idx, name in enumerate(names):
+        e_in_kT = (exp_results[name]['energy'] * unit.kilocalorie_per_mole)/kT
+        exp[idx] = e_in_kT
+    return exp
+
+def calculate_rmse(t1: torch.Tensor, t2: torch.Tensor):
+    assert (t1.size() == t2.size())
+    
+    return torch.sqrt(torch.mean((t1 - t2)**2))
+
+@profile
 def tweak_parameters(names:list = ['SAMPLmol2'], data_path:str = "../data/", nr_of_nn:int = 8, max_epochs:int = 10):
     """
     Calculates the free energy of a staged free energy simulation, 
@@ -172,37 +220,6 @@ def tweak_parameters(names:list = ['SAMPLmol2'], data_path:str = "../data/", nr_
         data_path {str} -- should point to where the dcd files are located (default: {"../data/"})
         nr_of_nn {int} -- number of neural networks that should be tweeked, maximum 8  (default: {8})
     """
-
-    # calculate free energy
-    def validate(fec_list):
-        'return free energy in kT'
-        calc = torch.tensor([0.0] * len(fec_list),
-                                    device=device, dtype=torch.float64)
-
-        for idx, fec in enumerate(fec_list):
-            #return torch.tensor([5.0], device=device)
-            if fec.flipped:
-                deltaF = fec.compute_free_energy_difference() * -1.
-            else:
-                deltaF = fec.compute_free_energy_difference()
-            calc[idx] = deltaF
-        return calc
-
-    # return the experimental value
-    def experimental_value(names):
-        """
-        Returns the experimental free energy differen in solution for the tautomer pair
-
-        Returns:
-            [torch.Tensor] -- free energy in kT
-        """
-        exp = torch.tensor([0.0] * len(names),
-                                    device=device, dtype=torch.float64)
-        for idx, name in enumerate(names):
-            e_in_kT = (exp_results[name]['energy'] * unit.kilocalorie_per_mole)/kT
-            exp[idx] = e_in_kT
-        return exp
-
 
     #######################
     # some input parameters
@@ -263,11 +280,14 @@ def tweak_parameters(names:list = ['SAMPLmol2'], data_path:str = "../data/", nr_
     early_stopping_learning_rate = 1.0E-5
     best_model_checkpoint = 'best.pt'
 
-
+    h_exp_free_energy_difference = []
     for _ in tqdm(range(AdamW_scheduler.last_epoch + 1, max_epochs)):
-        rmse = torch.sqrt(torch.mean((validate(fec_list) - experimental_value(names))**2))
-        print(f"RMSE: {rmse}")
-                
+        calc_free_energy_difference = get_free_energy_differences(fec_list)
+        exp_free_energy_difference = get_experimental_values(names)
+        rmse = calculate_rmse(calc_free_energy_difference, exp_free_energy_difference)
+        logger.debug(f"RMSE: {rmse}")
+        logger.debug(f"calc free energy difference: {exp_free_energy_difference}")
+        h_exp_free_energy_difference.append(calc_free_energy_difference)  
         # checkpoint
         if AdamW_scheduler.is_better(rmse, AdamW_scheduler.best):
             torch.save(nn.state_dict(), best_model_checkpoint)
@@ -290,106 +310,4 @@ def tweak_parameters(names:list = ['SAMPLmol2'], data_path:str = "../data/", nr_
         'AdamW_scheduler': AdamW_scheduler.state_dict(),
         'SGD_scheduler': SGD_scheduler.state_dict(),
     }, latest_checkpoint)
-
-
-
-
-if __name__ == '__main__':
-    import neutromeratio
-    import pickle
-    import mdtraj as md
-    from tqdm import tqdm
-    
-    # TODO: pkg_resources instead of filepath relative to execution directory
-    exp_results = pickle.load(open('data/exp_results.pickle', 'rb'))
-    # nr of steps
-    #################
-    n_steps = 20
-    #################
-
-    # specify the system you want to simulate
-    name = 'molDWRow_298'  #Experimental free energy difference: 1.132369 kcal/mol
-    # name = 'molDWRow_37'
-    # name = 'molDWRow_45'
-    # name = 'molDWRow_160'
-    # name = 'molDWRow_590'
-    if name in exclude_set_ANI + mols_with_charge:
-        raise RuntimeError(f"{name} is part of the list of excluded molecules. Aborting")
-
-    t1_smiles = exp_results[name]['t1-smiles']
-    t2_smiles = exp_results[name]['t2-smiles']
-    print(f"Experimental free energy difference: {exp_results[name]['energy']} kcal/mol")
-    t_type, tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
-    tautomer = tautomers[0] # only considering ONE stereoisomer (the one deposited in the db)
-    tautomer.perform_tautomer_transformation()
-
-    # define the alchemical atoms
-    alchemical_atoms = [tautomer.hybrid_hydrogen_idx_at_lambda_1, tautomer.hybrid_hydrogen_idx_at_lambda_0]
-
-    # set the ANI model
-    model = neutromeratio.ani.LinearAlchemicalSingleTopologyANI(alchemical_atoms=alchemical_atoms)
-    model = model.to(device)
-    torch.set_num_threads(1)
-
-    # define energy function
-    energy_function = neutromeratio.ANI1_force_and_energy(
-            model=model,
-            atoms=tautomer.hybrid_atoms,
-            mol=None,)
-
-    # add ligand bond restraints (for all lambda states)
-    for r in tautomer.ligand_restraints:
-        energy_function.add_restraint_to_lambda_protocol(r)
-
-    for r in tautomer.hybrid_ligand_restraints:
-        energy_function.add_restraint_to_lambda_protocol(r)
-
-    x0 = tautomer.hybrid_coords
-    potential_energy_trajs = []
-    ani_trajs = []
-    lambdas = np.linspace(0, 1, 5)
-
-    for lamb in tqdm(lambdas):
-        # minimize coordinates with a given lambda value
-        x0, e_history = energy_function.minimize(x0, maxiter=5000, lambda_value=lamb)
-        # define energy function with a given lambda value
-        energy_and_force = lambda x : energy_function.calculate_force(x, lamb)
-        # define langevin object with a given energy function
-        langevin = neutromeratio.LangevinDynamics(atoms=tautomer.hybrid_atoms,
-                                        energy_and_force=energy_and_force)
-
-        # sampling
-        equilibrium_samples, energies, restraint_bias, stddev, ensemble_bias = langevin.run_dynamics(x0,
-                                                                        n_steps=n_steps,
-                                                                        stepsize=1.0*unit.femtosecond,
-                                                                        progress_bar=False)
-
-        potential_energy_trajs.append(np.array(energies))
-
-        ani_trajs.append(md.Trajectory([x / unit.nanometer for x in equilibrium_samples], tautomer.hybrid_topology))
-
-    # calculate free energy in kT
-    fec = FreeEnergyCalculator(ani_model=energy_function,
-                               ani_trajs=ani_trajs,
-                               potential_energy_trajs=potential_energy_trajs,
-                               lambdas=lambdas,
-                               n_atoms=len(tautomer.hybrid_atoms),
-                               max_snapshots_per_window=-1)
-
-    # BEWARE HERE: I change the sign of the result since if flipped is TRUE I have 
-    # swapped tautomer 1 and 2 to mutate from the tautomer WITH the stereobond to the 
-    # one without the stereobond
-    if flipped:
-        deltaF = fec.compute_free_energy_difference() * -1
-    else:
-        deltaF = fec.compute_free_energy_difference()
-    print(f"Free energy difference {(deltaF.item() * kT).value_in_unit(unit.kilocalorie_per_mole)} kcal/mol")
-    # let's say I had a loss function that wanted the free energy difference
-    # estimate to be equal to 6:
-    deltaF.backward()  # no errors or warnings
-
-    params = list(energy_function.model.parameters())
-    for p in params:
-        print(p.grad)  # all None
-
-    print('######################')
+    return h_exp_free_energy_difference

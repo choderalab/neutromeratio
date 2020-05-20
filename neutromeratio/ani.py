@@ -459,16 +459,24 @@ class ANI1_force_and_energy(object):
 
 
 class AlchemicalANI(torchani.models.ANI1ccx):
-
+    neural_networks = None
     def __init__(self, alchemical_atoms=[]):
-        """Scale the contributions of alchemical atoms to the energy."""
+        """
+        Scale the contributions of alchemical atoms to the energy.
+        """
         super().__init__()
+        nn = load_model_ensemble(self.species,
+                                self.ensemble_prefix,
+                                self.ensemble_size
+                                )
+        self.device = device
         self.alchemical_atoms = alchemical_atoms
+        if AlchemicalANI.neural_networks == None:
+            AlchemicalANI.neural_networks = nn
 
     def forward(self, species_coordinates, lam=1.0):
         raise (NotImplementedError)
-
-
+    
 class PureANI1ccx(torchani.models.ANI1ccx):
     def __init__(self):
         """
@@ -499,6 +507,7 @@ class PureANI1ccx(torchani.models.ANI1ccx):
         return SpeciesEnergies(species, E, state.stddev)
 
 
+
 class PureANI1x(torchani.models.ANI1x):
     def __init__(self):
         """
@@ -526,9 +535,6 @@ class PureANI1x(torchani.models.ANI1x):
         _, E = self.energy_shifter((species, state.energies))
 
         return SpeciesEnergies(species, E, state.stddev)
-
-
-
 
 class Ensemble(torch.nn.ModuleList):
     """Compute the average output of an ensemble of modules."""
@@ -579,57 +585,7 @@ def load_model_ensemble(species, prefix, count):
     return Ensemble(models)
 
 
-class LinearAlchemicalANI(AlchemicalANI):
-
-    def __init__(self, alchemical_atoms: list):
-        """Scale the indirect contributions of alchemical atoms to the energy sum by
-        linearly interpolating, for other atom i, between the energy E_i^0 it would compute
-        in the _complete absence_ of the alchemical atoms, and the energy E_i^1 it would compute
-        in the _presence_ of the alchemical atoms.
-        (Also scale direct contributions, as in DirectAlchemicalANI)
-        """
-        super().__init__(alchemical_atoms)
-        self.neural_networks = load_model_ensemble(self.species,
-                                                   self.ensemble_prefix,
-                                                   self.ensemble_size
-                                                   )
-        self.device = device
-
-    def forward(self, species_coordinates):
-
-        assert(len(self.alchemical_atoms) == 1)
-        alchemical_atom = self.alchemical_atoms[0]
-
-        # LAMBDA = 1: fully interacting
-        # species, AEVs of fully interacting system
-        species, coordinates, lam = species_coordinates
-        aevs = (species, coordinates)
-        species, aevs = self.aev_computer(aevs)
-
-        # neural net output given these AEVs
-        state_1 = self.neural_networks((species, aevs))
-        _, E_1 = self.energy_shifter((species, state_1.energies))
-
-        # LAMBDA == 1: fully interacting
-        if float(lam) == 1.0:
-            E = E_1
-            stddev = state_1.stddev
-        else:
-            # LAMBDA == 0: fully removed
-            # species, AEVs of all other atoms, in absence of alchemical atoms
-            mod_species = torch.cat((species[:, :alchemical_atom],  species[:, alchemical_atom+1:]), dim=1)
-            mod_coordinates = torch.cat((coordinates[:, :alchemical_atom],  coordinates[:, alchemical_atom+1:]), dim=1)
-            _, mod_aevs = self.aev_computer((mod_species, mod_coordinates))
-            # neural net output given these modified AEVs
-            state_0 = self.neural_networks((mod_species, mod_aevs))
-            _, E_0 = self.energy_shifter((species, state_0.energies))
-            E = (lam * E_1) + ((1 - lam) * E_0)
-            stddev = (lam * state_1.stddev) + ((1-lam) * state_0.stddev)
-
-        return species, E, stddev
-
-
-class LinearAlchemicalSingleTopologyANI(LinearAlchemicalANI):
+class LinearAlchemicalSingleTopologyANI(AlchemicalANI):
 
     def __init__(self, alchemical_atoms: list):
         """Scale the indirect contributions of alchemical atoms to the energy sum by
@@ -645,8 +601,7 @@ class LinearAlchemicalSingleTopologyANI(LinearAlchemicalANI):
             “Fortune and glory, kid. Fortune and glory.” - Indiana Jones
         """
 
-        assert(len(alchemical_atoms) == 2)
-
+        assert (len(alchemical_atoms) == 2)
         super().__init__(alchemical_atoms)
 
     def forward(self, species_coordinates):
@@ -672,14 +627,20 @@ class LinearAlchemicalSingleTopologyANI(LinearAlchemicalANI):
         # what is real and what is dummy at lambda 1 - that seems awefully error prone
         dummy_atom_0 = self.alchemical_atoms[0]
         dummy_atom_1 = self.alchemical_atoms[1]
-
         # neural net output given these AEVs
         mod_species_0 = torch.cat((species[:, :dummy_atom_0],  species[:, dummy_atom_0+1:]), dim=1)
+
         mod_coordinates_0 = torch.cat((coordinates[:, :dummy_atom_0],  coordinates[:, dummy_atom_0+1:]), dim=1)
         _, mod_aevs_0 = self.aev_computer((mod_species_0, mod_coordinates_0))
         # neural net output given these modified AEVs
         state_0 = self.neural_networks((mod_species_0, mod_aevs_0))
         _, E_0 = self.energy_shifter((mod_species_0, state_0.energies))
+
+        assert (mod_species_0.size()[0] == species.size()[0])
+        assert(mod_species_0.size()[1] == species.size()[1] - 1)
+        assert (mod_coordinates_0.size()[0] == coordinates.size()[0])
+        assert(mod_coordinates_0.size()[1] == coordinates.size()[1] - 1)
+
 
         # neural net output given these AEVs
         mod_species_1 = torch.cat((species[:, :dummy_atom_1],  species[:, dummy_atom_1+1:]), dim=1)
