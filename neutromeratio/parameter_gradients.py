@@ -17,7 +17,6 @@ import neutromeratio
 import pickle
 import mdtraj as md
 import pkg_resources
-import memory_profiler
 
 logger = logging.getLogger(__name__)
 
@@ -84,8 +83,11 @@ class FreeEnergyCalculator():
         lambda0_e = self.ani_model.calculate_energy(coordinates, lambda_value=0.).energy_tensor      
         lambda1_e = self.ani_model.calculate_energy(coordinates, lambda_value=1.).energy_tensor      
 
-        logger.info(f"lambda0_e: {len(lambda0_e)}")
-        logger.info(f"lambda0_e: {lambda0_e[:50]}")
+        logger.debug(f"lambda0_e: {len(lambda0_e)}")
+        logger.debug(f"lambda1_e: {lambda0_e[:50]}")
+
+        logger.debug(f"lambda0_e: {len(lambda1_e)}")
+        logger.debug(f"lambda1_e: {lambda1_e[:50]}")
 
         def get_mix(lambda0, lambda1, lam=0.0):
             return (1 - lam) * np.array(lambda0.detach()) + lam * np.array(lambda1.detach())
@@ -145,12 +147,16 @@ class FreeEnergyCalculator():
         u_0 = decomposed_energy_list_lamb0.energy_tensor
         u0_stddev = decomposed_energy_list_lamb0.stddev
 
+
         # TODO: vectorize!
         decomposed_energy_list_lamb1 = self.ani_model.calculate_energy(coordinates, lambda_value=1)     
         u_1 = decomposed_energy_list_lamb1.energy_tensor
         u1_stddev = decomposed_energy_list_lamb1.stddev
 
         u_ln = torch.stack([u_0, u_1])
+        decomposed_energy_list_lamb0 = None
+        decomposed_energy_list_lamb1 = None
+        
         return u_ln
 
     def compute_free_energy_difference(self):
@@ -183,7 +189,6 @@ def get_free_energy_differences(fec_list:list)-> torch.Tensor:
     print(calc)
     return calc
 
-# return the experimental value
 def get_experimental_values(names:list)-> torch.Tensor:
     """
     Returns the experimental free energy differen in solution for the tautomer pair
@@ -206,8 +211,7 @@ def calculate_rmse(t1: torch.Tensor, t2: torch.Tensor):
     
     return torch.sqrt(torch.mean((t1 - t2)**2))
 
-@profile
-def tweak_parameters(names:list = ['SAMPLmol2'], data_path:str = "../data/", nr_of_nn:int = 8, max_epochs:int = 10):
+def tweak_parameters(names:list = ['SAMPLmol2'], data_path:str = "../data/", nr_of_nn:int = 8, max_epochs:int = 10, max_snapshots_per_window:int = 200):
     """
     Calculates the free energy of a staged free energy simulation, 
     tweaks the neural net parameter so that using reweighting the difference 
@@ -229,18 +233,15 @@ def tweak_parameters(names:list = ['SAMPLmol2'], data_path:str = "../data/", nr_
     print(f"data-filename: {data}")
     exp_results = pickle.load(data)
     latest_checkpoint = 'latest.pt'
-    fec_list, model = neutromeratio.analysis.setup_mbar(names, data_path)
+    fec_list = neutromeratio.analysis.setup_mbar(names, data_path, thinning=50, max_snapshots_per_window=max_snapshots_per_window)
 
-
-    # defining neural networks
-    nn = model.neural_networks
-    aev_dim = model.aev_computer.aev_length
     # define which layer should be modified -- currently the last one
     layer = 6
     # take each of the networks from the ensemble of 8
     weight_layers = []
     bias_layers = []
-    for nn in model.neural_networks[:nr_of_nn]:
+    model = neutromeratio.ani.LinearAlchemicalSingleTopologyANI.neural_networks
+    for nn in model[:nr_of_nn]:
         weight_layers.extend(
             [
         {'params' : [nn.C[layer].weight], 'weight_decay': 0.000001},
