@@ -361,8 +361,56 @@ def get_data_filename():
 
     return fn
 
-def setup_mbar(names:list = ['SAMPLmol2'], data_path:str = "../data/", thinning:int = 50, ):
+
+def setup_energy_function(name: str):
+
+    data = pkg_resources.resource_stream(__name__, "data/exp_results.pickle")
+    exp_results = pickle.load(data)
+
+    t1_smiles = exp_results[name]['t1-smiles']
+    t2_smiles = exp_results[name]['t2-smiles']
+    
+    #######################
+    print(f"Experimental free energy difference: {exp_results[name]['energy']} kcal/mol")
+    #######################
+    
+    ####################
+    # Set up the system, set the restraints and read in the dcd files
+    t_type, tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
+    tautomer = tautomers[0]
+    tautomer.perform_tautomer_transformation()
+
+    atoms = tautomer.hybrid_atoms
+
+    # define the alchemical atoms
+    alchemical_atoms = [tautomer.hybrid_hydrogen_idx_at_lambda_1, tautomer.hybrid_hydrogen_idx_at_lambda_0]
+    model = neutromeratio.ani.LinearAlchemicalSingleTopologyANI(alchemical_atoms=alchemical_atoms)
+    model = model.to(device)
+    torch.set_num_threads(1)
+    # extract hydrogen donor idx and hydrogen idx for from_mol
+
+    # perform initial sampling
+    energy_function = neutromeratio.ANI1_force_and_energy(
+        model=model,
+        atoms=atoms,
+        mol=None,
+        per_atom_thresh=10.4 * unit.kilojoule_per_mole,
+        adventure_mode=True
+    )
+
+    # add restraints
+    for r in tautomer.ligand_restraints:
+        energy_function.add_restraint_to_lambda_protocol(r)
+    for r in tautomer.hybrid_ligand_restraints:
+        energy_function.add_restraint_to_lambda_protocol(r)
+
+    return energy_function, tautomer, flipped
+
+
+def setup_mbar(names:list = ['SAMPLmol2'], data_path:str = "../data/", thinning:int = 50, max_snapshots_per_window:int = 200):
+    
     import neutromeratio
+    
     def parse_lambda_from_dcd_filename(dcd_filename):
         """parsed the dcd filename
 
@@ -388,45 +436,7 @@ def setup_mbar(names:list = ['SAMPLmol2'], data_path:str = "../data/", thinning:
             raise RuntimeError(f"{name} is part of the list of excluded molecules. Aborting")
 
         #######################
-        # some input parameters
-        # 
-        t1_smiles = exp_results[name]['t1-smiles']
-        t2_smiles = exp_results[name]['t2-smiles']
-        #######################
-        print(f"Experimental free energy difference: {exp_results[name]['energy']} kcal/mol")
-        #######################
-        ####################
-        # Set up the system, set the restraints and read in the dcd files
-        t_type, tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
-        tautomer = tautomers[0]
-        tautomer.perform_tautomer_transformation()
-
-        atoms = tautomer.hybrid_atoms
-        top = tautomer.hybrid_topology
-
-        # define the alchemical atoms
-        alchemical_atoms = [tautomer.hybrid_hydrogen_idx_at_lambda_1, tautomer.hybrid_hydrogen_idx_at_lambda_0]
-        model = neutromeratio.ani.LinearAlchemicalSingleTopologyANI(alchemical_atoms=alchemical_atoms)
-        model = model.to(device)
-        torch.set_num_threads(1)
-        # extract hydrogen donor idx and hydrogen idx for from_mol
-
-        # perform initial sampling
-        energy_function = neutromeratio.ANI1_force_and_energy(
-            model=model,
-            atoms=atoms,
-            mol=None,
-            per_atom_thresh=10.4 * unit.kilojoule_per_mole,
-            adventure_mode=True
-        )
-
-        # add restraints
-        for r in tautomer.ligand_restraints:
-            energy_function.add_restraint_to_lambda_protocol(r)
-        for r in tautomer.hybrid_ligand_restraints:
-            energy_function.add_restraint_to_lambda_protocol(r)
-
-        # get steps inclusive endpoints
+        energy_function, tautomer, flipped = setup_energy_function(name)
         # and lambda values in list
         dcds = glob(f"{data_path}/{name}/*.dcd")
 
@@ -438,12 +448,11 @@ def setup_mbar(names:list = ['SAMPLmol2'], data_path:str = "../data/", thinning:
         for dcd_filename in dcds:
             lam = parse_lambda_from_dcd_filename(dcd_filename)
             lambdas.append(lam)
-            traj = md.load_dcd(dcd_filename, top=top)[::thinning]
+            traj = md.load_dcd(dcd_filename, top=tautomer.hybrid_topology)[::thinning]
             print(f"Nr of frames in trajectory: {len(traj)}")
             md_trajs.append(traj)
             f = open(f"{data_path}/{name}/{name}_lambda_{lam:0.4f}_energy_in_vacuum.csv", 'r')
             energies.append(np.array([float(e) * kT for e in f][::thinning])) 
-
             f.close()
 
         # calculate free energy in kT
@@ -451,9 +460,11 @@ def setup_mbar(names:list = ['SAMPLmol2'], data_path:str = "../data/", thinning:
                                     md_trajs=md_trajs,
                                     potential_energy_trajs=energies,
                                     lambdas=lambdas,
-                                    n_atoms=len(atoms),
-                                    max_snapshots_per_window=-1)
+                                    n_atoms=len(tautomer.hybrid_atoms),
+                                    max_snapshots_per_window=max_snapshots_per_window)
 
         fec.flipped = flipped
         fec_list.append(fec)
-    return fec_list, model
+
+    assert(len(fec_list) != 0)
+    return fec_list
