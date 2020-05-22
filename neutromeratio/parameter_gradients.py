@@ -242,6 +242,39 @@ def tweak_parameters(batch_size:int = 10, data_path:str = "../data/", nr_of_nn:i
     assert(int(batch_size) <= 20 and int(batch_size) >= 5)
     h_exp_free_energy_difference = []
 
+    # define which layer should be modified -- currently the last one
+    layer = 6
+    # take each of the networks from the ensemble of 8
+    weight_layers = []
+    bias_layers = []
+    model = neutromeratio.ani.LinearAlchemicalSingleTopologyANI([0,0]).neural_networks
+    for nn in model[:nr_of_nn]:
+        weight_layers.extend(
+            [
+        {'params' : [nn.C[layer].weight], 'weight_decay': 0.000001},
+        {'params' : [nn.H[layer].weight], 'weight_decay': 0.000001},
+        {'params' : [nn.O[layer].weight], 'weight_decay': 0.000001},
+        {'params' : [nn.N[layer].weight], 'weight_decay': 0.000001},
+            ]
+        )
+        bias_layers.extend(
+            [
+        {'params' : [nn.C[layer].bias]},
+        {'params' : [nn.H[layer].bias]},
+        {'params' : [nn.O[layer].bias]},
+        {'params' : [nn.N[layer].bias]},
+            ]
+        )
+
+    # set up minimizer for weights
+    AdamW = torchani.optim.AdamW(weight_layers)
+    # set up minimizer for bias
+    SGD = torch.optim.SGD(bias_layers, lr=1e-3)
+
+    AdamW_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(AdamW, factor=0.5, patience=100, threshold=0)
+    SGD_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(SGD, factor=0.5, patience=100, threshold=0)
+
+
     names_list = []
     for n in exp_results.keys():
         if n in exclude_set_ANI + mols_with_charge:
@@ -254,37 +287,6 @@ def tweak_parameters(batch_size:int = 10, data_path:str = "../data/", nr_of_nn:i
         print(names)
         fec_list = neutromeratio.analysis.setup_mbar(names, data_path, thinning=50, max_snapshots_per_window=max_snapshots_per_window)
 
-        # define which layer should be modified -- currently the last one
-        layer = 6
-        # take each of the networks from the ensemble of 8
-        weight_layers = []
-        bias_layers = []
-        model = neutromeratio.ani.LinearAlchemicalSingleTopologyANI.neural_networks
-        for nn in model[:nr_of_nn]:
-            weight_layers.extend(
-                [
-            {'params' : [nn.C[layer].weight], 'weight_decay': 0.000001},
-            {'params' : [nn.H[layer].weight], 'weight_decay': 0.000001},
-            {'params' : [nn.O[layer].weight], 'weight_decay': 0.000001},
-            {'params' : [nn.N[layer].weight], 'weight_decay': 0.000001},
-                ]
-            )
-            bias_layers.extend(
-                [
-            {'params' : [nn.C[layer].bias]},
-            {'params' : [nn.H[layer].bias]},
-            {'params' : [nn.O[layer].bias]},
-            {'params' : [nn.N[layer].bias]},
-                ]
-            )
-
-        # set up minimizer for weights
-        AdamW = torchani.optim.AdamW(weight_layers)
-        # set up minimizer for bias
-        SGD = torch.optim.SGD(bias_layers, lr=1e-3)
-
-        AdamW_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(AdamW, factor=0.5, patience=100, threshold=0)
-        SGD_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(SGD, factor=0.5, patience=100, threshold=0)
 
         # save checkpoint
         if os.path.isfile(latest_checkpoint):
