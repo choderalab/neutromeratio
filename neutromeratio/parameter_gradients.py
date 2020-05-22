@@ -274,6 +274,14 @@ def tweak_parameters(batch_size:int = 10, data_path:str = "../data/", nr_of_nn:i
     AdamW_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(AdamW, factor=0.5, patience=100, threshold=0)
     SGD_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(SGD, factor=0.5, patience=100, threshold=0)
 
+    # save checkpoint
+    if os.path.isfile(latest_checkpoint):
+        checkpoint = torch.load(latest_checkpoint)
+        nn.load_state_dict(checkpoint['nn'])
+        AdamW.load_state_dict(checkpoint['AdamW'])
+        SGD.load_state_dict(checkpoint['SGD'])
+        AdamW_scheduler.load_state_dict(checkpoint['AdamW_scheduler'])
+        SGD_scheduler.load_state_dict(checkpoint['SGD_scheduler'])
 
     names_list = []
     for n in exp_results.keys():
@@ -283,32 +291,21 @@ def tweak_parameters(batch_size:int = 10, data_path:str = "../data/", nr_of_nn:i
 
     random.shuffle(names_list)
 
-    for names in chunks(names_list, batch_size):
-        print(names)
-        fec_list = neutromeratio.analysis.setup_mbar(names, data_path, thinning=50, max_snapshots_per_window=max_snapshots_per_window)
+    print("training starting from epoch", AdamW_scheduler.last_epoch + 1)
+    early_stopping_learning_rate = 1.0E-5
+    best_model_checkpoint = 'best.pt'
 
+    for _ in tqdm(range(AdamW_scheduler.last_epoch + 1, max_epochs)):
+        for names in chunks(names_list, batch_size):
+            print(names)
+            fec_list = neutromeratio.analysis.setup_mbar(names, data_path, thinning=50, max_snapshots_per_window=max_snapshots_per_window)
 
-        # save checkpoint
-        if os.path.isfile(latest_checkpoint):
-            checkpoint = torch.load(latest_checkpoint)
-            nn.load_state_dict(checkpoint['nn'])
-            AdamW.load_state_dict(checkpoint['AdamW'])
-            SGD.load_state_dict(checkpoint['SGD'])
-            AdamW_scheduler.load_state_dict(checkpoint['AdamW_scheduler'])
-            SGD_scheduler.load_state_dict(checkpoint['SGD_scheduler'])
-
-
-        print("training starting from epoch", AdamW_scheduler.last_epoch + 1)
-        early_stopping_learning_rate = 1.0E-5
-        best_model_checkpoint = 'best.pt'
-
-        for _ in tqdm(range(AdamW_scheduler.last_epoch + 1, max_epochs)):
             calc_free_energy_difference = get_free_energy_differences(fec_list)
             exp_free_energy_difference = get_experimental_values(names)
             rmse = calculate_rmse(calc_free_energy_difference, exp_free_energy_difference)
             logger.debug(f"RMSE: {rmse}")
             logger.debug(f"calc free energy difference: {exp_free_energy_difference}")
-            h_exp_free_energy_difference.append(calc_free_energy_difference)  
+            h_exp_free_energy_difference.append(calc_free_energy_difference.item())  
             # checkpoint
             if AdamW_scheduler.is_better(rmse, AdamW_scheduler.best):
                 torch.save(nn.state_dict(), best_model_checkpoint)
