@@ -12,4 +12,4 @@ for name in exp_results:
         continue
     names.append(name)
 
-neutromeratio.parameter_gradients.tweak_parameters(data_path='./data', nr_of_nn=8, names = names[:10], max_epochs=100)
+neutromeratio.parameter_gradients.tweak_parameters(batch_size=10, data_path='./data', nr_of_nn=8, max_epochs=100)

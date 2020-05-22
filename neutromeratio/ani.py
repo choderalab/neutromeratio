@@ -615,11 +615,15 @@ class LinearAlchemicalSingleTopologyANI(AlchemicalANI):
         # what is real and what is dummy at lambda 1 - that seems awefully error prone
         dummy_atom_0 = self.alchemical_atoms[0]
         dummy_atom_1 = self.alchemical_atoms[1]
+        
         # neural net output given these AEVs
         mod_species_0 = torch.cat((species[:, :dummy_atom_0],  species[:, dummy_atom_0+1:]), dim=1)
-
         mod_coordinates_0 = torch.cat((coordinates[:, :dummy_atom_0],  coordinates[:, dummy_atom_0+1:]), dim=1)
         _, mod_aevs_0 = self.aev_computer((mod_species_0, mod_coordinates_0))
+        _, mod_aevs_0 = self.aev_computer((mod_species_0, mod_coordinates_0))
+        _, mod_aevs_0 = self.aev_computer((mod_species_0, mod_coordinates_0))
+        _, mod_aevs_0 = self.aev_computer((mod_species_0, mod_coordinates_0))
+
         # neural net output given these modified AEVs
         state_0 = self.neural_networks((mod_species_0, mod_aevs_0))
         _, E_0 = self.energy_shifter((mod_species_0, state_0.energies))
@@ -634,10 +638,21 @@ class LinearAlchemicalSingleTopologyANI(AlchemicalANI):
         mod_species_1 = torch.cat((species[:, :dummy_atom_1],  species[:, dummy_atom_1+1:]), dim=1)
         mod_coordinates_1 = torch.cat((coordinates[:, :dummy_atom_1],  coordinates[:, dummy_atom_1+1:]), dim=1)
         _, mod_aevs_1 = self.aev_computer((mod_species_1, mod_coordinates_1))
+
         # neural net output given these modified AEVs
         state_1 = self.neural_networks((mod_species_1, mod_aevs_1))
         _, E_1 = self.energy_shifter((mod_species_1, state_1.energies))
 
         E = (lam * E_1) + ((1 - lam) * E_0)
         stddev = (lam * state_1.stddev) + ((1-lam) * state_0.stddev)
+        del (state_1)
+        del (state_0)
+        del (mod_species_1)
+        del (mod_species_0)
+        del (mod_coordinates_1)
+        del (mod_coordinates_0)
+        del (species_coordinates)
+        del (mod_aevs_0, mod_aevs_1)
+
+
         return species, E, stddev

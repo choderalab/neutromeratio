@@ -83,6 +83,10 @@ class FreeEnergyCalculator():
         lambda0_e = self.ani_model.calculate_energy(coordinates, lambda_value=0.).energy_tensor      
         lambda1_e = self.ani_model.calculate_energy(coordinates, lambda_value=1.).energy_tensor      
 
+        lambda0_e = self.ani_model.calculate_energy(coordinates, lambda_value=0.).energy_tensor      
+        lambda1_e = self.ani_model.calculate_energy(coordinates, lambda_value=1.).energy_tensor      
+
+
         logger.debug(f"lambda0_e: {len(lambda0_e)}")
         logger.debug(f"lambda1_e: {lambda0_e[:50]}")
 
@@ -211,7 +215,12 @@ def calculate_rmse(t1: torch.Tensor, t2: torch.Tensor):
     
     return torch.sqrt(torch.mean((t1 - t2)**2))
 
-def tweak_parameters(names:list = ['SAMPLmol2'], data_path:str = "../data/", nr_of_nn:int = 8, max_epochs:int = 10, max_snapshots_per_window:int = 200):
+def chunks(lst, n):
+    """Yield successive n-sized chunks from lst."""
+    for i in range(0, len(lst), n):
+        yield lst[i:i + n]
+
+def tweak_parameters(batch_size:int = 10, data_path:str = "../data/", nr_of_nn:int = 8, max_epochs:int = 10, max_snapshots_per_window:int = 200):
     """
     Calculates the free energy of a staged free energy simulation, 
     tweaks the neural net parameter so that using reweighting the difference 
@@ -224,85 +233,94 @@ def tweak_parameters(names:list = ['SAMPLmol2'], data_path:str = "../data/", nr_
         data_path {str} -- should point to where the dcd files are located (default: {"../data/"})
         nr_of_nn {int} -- number of neural networks that should be tweeked, maximum 8  (default: {8})
     """
-
-    #######################
-    # some input parameters
-    # 
-    assert (int(nr_of_nn) <= 8)
+    import random
+    assert (int(nr_of_nn) <= 8 and int(nr_of_nn) >= 0)
     data = pkg_resources.resource_stream(__name__, "data/exp_results.pickle")
     print(f"data-filename: {data}")
     exp_results = pickle.load(data)
     latest_checkpoint = 'latest.pt'
-    fec_list = neutromeratio.analysis.setup_mbar(names, data_path, thinning=50, max_snapshots_per_window=max_snapshots_per_window)
-
-    # define which layer should be modified -- currently the last one
-    layer = 6
-    # take each of the networks from the ensemble of 8
-    weight_layers = []
-    bias_layers = []
-    model = neutromeratio.ani.LinearAlchemicalSingleTopologyANI.neural_networks
-    for nn in model[:nr_of_nn]:
-        weight_layers.extend(
-            [
-        {'params' : [nn.C[layer].weight], 'weight_decay': 0.000001},
-        {'params' : [nn.H[layer].weight], 'weight_decay': 0.000001},
-        {'params' : [nn.O[layer].weight], 'weight_decay': 0.000001},
-        {'params' : [nn.N[layer].weight], 'weight_decay': 0.000001},
-            ]
-        )
-        bias_layers.extend(
-            [
-        {'params' : [nn.C[layer].bias]},
-        {'params' : [nn.H[layer].bias]},
-        {'params' : [nn.O[layer].bias]},
-        {'params' : [nn.N[layer].bias]},
-            ]
-        )
-
-    # set up minimizer for weights
-    AdamW = torchani.optim.AdamW(weight_layers)
-    # set up minimizer for bias
-    SGD = torch.optim.SGD(bias_layers, lr=1e-3)
-
-    AdamW_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(AdamW, factor=0.5, patience=100, threshold=0)
-    SGD_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(SGD, factor=0.5, patience=100, threshold=0)
-
-    # save checkpoint
-    if os.path.isfile(latest_checkpoint):
-        checkpoint = torch.load(latest_checkpoint)
-        nn.load_state_dict(checkpoint['nn'])
-        AdamW.load_state_dict(checkpoint['AdamW'])
-        SGD.load_state_dict(checkpoint['SGD'])
-        AdamW_scheduler.load_state_dict(checkpoint['AdamW_scheduler'])
-        SGD_scheduler.load_state_dict(checkpoint['SGD_scheduler'])
-
-
-    print("training starting from epoch", AdamW_scheduler.last_epoch + 1)
-    early_stopping_learning_rate = 1.0E-5
-    best_model_checkpoint = 'best.pt'
-
+    assert(int(batch_size) <= 20 and int(batch_size) >= 5)
     h_exp_free_energy_difference = []
-    for _ in tqdm(range(AdamW_scheduler.last_epoch + 1, max_epochs)):
-        calc_free_energy_difference = get_free_energy_differences(fec_list)
-        exp_free_energy_difference = get_experimental_values(names)
-        rmse = calculate_rmse(calc_free_energy_difference, exp_free_energy_difference)
-        logger.debug(f"RMSE: {rmse}")
-        logger.debug(f"calc free energy difference: {exp_free_energy_difference}")
-        h_exp_free_energy_difference.append(calc_free_energy_difference)  
-        # checkpoint
-        if AdamW_scheduler.is_better(rmse, AdamW_scheduler.best):
-            torch.save(nn.state_dict(), best_model_checkpoint)
 
-        # define the stepsize -- very conservative
-        AdamW_scheduler.step(rmse/10)
-        SGD_scheduler.step(rmse/10)
-        loss = rmse
+    names_list = []
+    for n in exp_results.keys():
+        if n in exclude_set_ANI + mols_with_charge:
+            continue
+        names_list.append(n)
 
-        AdamW.zero_grad()
-        SGD.zero_grad()
-        loss.backward()
-        AdamW.step()
-        SGD.step()
+    random.shuffle(names_list)
+
+    for names in chunks(names_list, batch_size):
+        print(names)
+        fec_list = neutromeratio.analysis.setup_mbar(names, data_path, thinning=50, max_snapshots_per_window=max_snapshots_per_window)
+
+        # define which layer should be modified -- currently the last one
+        layer = 6
+        # take each of the networks from the ensemble of 8
+        weight_layers = []
+        bias_layers = []
+        model = neutromeratio.ani.LinearAlchemicalSingleTopologyANI.neural_networks
+        for nn in model[:nr_of_nn]:
+            weight_layers.extend(
+                [
+            {'params' : [nn.C[layer].weight], 'weight_decay': 0.000001},
+            {'params' : [nn.H[layer].weight], 'weight_decay': 0.000001},
+            {'params' : [nn.O[layer].weight], 'weight_decay': 0.000001},
+            {'params' : [nn.N[layer].weight], 'weight_decay': 0.000001},
+                ]
+            )
+            bias_layers.extend(
+                [
+            {'params' : [nn.C[layer].bias]},
+            {'params' : [nn.H[layer].bias]},
+            {'params' : [nn.O[layer].bias]},
+            {'params' : [nn.N[layer].bias]},
+                ]
+            )
+
+        # set up minimizer for weights
+        AdamW = torchani.optim.AdamW(weight_layers)
+        # set up minimizer for bias
+        SGD = torch.optim.SGD(bias_layers, lr=1e-3)
+
+        AdamW_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(AdamW, factor=0.5, patience=100, threshold=0)
+        SGD_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(SGD, factor=0.5, patience=100, threshold=0)
+
+        # save checkpoint
+        if os.path.isfile(latest_checkpoint):
+            checkpoint = torch.load(latest_checkpoint)
+            nn.load_state_dict(checkpoint['nn'])
+            AdamW.load_state_dict(checkpoint['AdamW'])
+            SGD.load_state_dict(checkpoint['SGD'])
+            AdamW_scheduler.load_state_dict(checkpoint['AdamW_scheduler'])
+            SGD_scheduler.load_state_dict(checkpoint['SGD_scheduler'])
+
+
+        print("training starting from epoch", AdamW_scheduler.last_epoch + 1)
+        early_stopping_learning_rate = 1.0E-5
+        best_model_checkpoint = 'best.pt'
+
+        for _ in tqdm(range(AdamW_scheduler.last_epoch + 1, max_epochs)):
+            calc_free_energy_difference = get_free_energy_differences(fec_list)
+            exp_free_energy_difference = get_experimental_values(names)
+            rmse = calculate_rmse(calc_free_energy_difference, exp_free_energy_difference)
+            logger.debug(f"RMSE: {rmse}")
+            logger.debug(f"calc free energy difference: {exp_free_energy_difference}")
+            h_exp_free_energy_difference.append(calc_free_energy_difference)  
+            # checkpoint
+            if AdamW_scheduler.is_better(rmse, AdamW_scheduler.best):
+                torch.save(nn.state_dict(), best_model_checkpoint)
+
+            # define the stepsize -- very conservative
+            AdamW_scheduler.step(rmse/10)
+            SGD_scheduler.step(rmse/10)
+            loss = rmse
+
+            AdamW.zero_grad()
+            SGD.zero_grad()
+            loss.backward()
+            AdamW.step()
+            SGD.step()
 
     torch.save({
         'nn': nn.state_dict(),
