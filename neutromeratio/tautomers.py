@@ -428,6 +428,7 @@ class Tautomer(object):
         m1 = copy.deepcopy(self.initial_state_mol)
         m2 = copy.deepcopy(self.final_state_mol)
         self._perform_tautomer_transformation(m1, m2, self.initial_state_ligand_bonds)
+        #TODO: fix this!
         self._generate_hybrid_structure(self.initial_state_ligand_atoms,
                                         self.initial_state_ligand_coords[0], self.initial_state_ligand_topology)
 
@@ -455,7 +456,8 @@ class Tautomer(object):
             for a in mol.GetAtoms():
                 pos = mol.GetConformer(conf_idx).GetAtomPosition(a.GetIdx())
                 tmp_coord_list.append([pos.x, pos.y, pos.z])
-            coord_list.append(np.array(tmp_coord_list) * unit.angstrom)
+            coord_list.append(np.array(tmp_coord_list))
+        coord_list = coord_list * unit.angstrom 
 
         # generate bond list of heavy atoms to hydrogens
         bond_list = []
@@ -528,7 +530,7 @@ class Tautomer(object):
         """
 
         # find substructure and generate mol from substructure
-        sub_m = rdFMCS.FindMCS([m1, m2], bondCompare=Chem.rdFMCS.BondCompare.CompareOrder.CompareAny, maximizeBonds=False)
+        sub_m = rdFMCS.FindMCS([m1, m2], bondCompare=Chem.rdFMCS.BondCompare.CompareOrder.CompareAny, maximizeBonds=True)
         mcsp = Chem.MolFromSmarts(sub_m.smartsString, False)
 
         # the order of the substructure lists are the same for both
@@ -543,7 +545,7 @@ class Tautomer(object):
             atoms += str(a.GetSymbol())
 
             if a.GetIdx() not in substructure_idx_m1:
-                logger.info('Index of atom that moves: {}.'.format(a.GetIdx()))
+                logger.debug('Index of atom that moves: {}.'.format(a.GetIdx()))
                 hydrogen_idx_that_moves = a.GetIdx()
 
         # adding ligand constraints for heavy atom - hydrogen
@@ -556,7 +558,7 @@ class Tautomer(object):
         # get idx of connected heavy atom which is the donor atom
         # there can only be one neighbor, therefor it is valid to take the first neighbor of the hydrogen
         donor = int(m1.GetAtomWithIdx(hydrogen_idx_that_moves).GetNeighbors()[0].GetIdx())
-        logger.info('Index of atom that donates hydrogen: {}'.format(donor))
+        logger.debug('Index of atom that donates hydrogen: {}'.format(donor))
 
         logging.debug(substructure_idx_m1)
         logging.debug(substructure_idx_m2)
@@ -574,7 +576,7 @@ class Tautomer(object):
                     if substructure_idx_m1[i] == donor:
                         continue
                     acceptor = substructure_idx_m1[i]
-                    logger.info('Index of atom that accepts hydrogen: {}'.format(acceptor))
+                    logger.debug('Index of atom that accepts hydrogen: {}'.format(acceptor))
                     acceptor_count += 1
                     if acceptor_count > 1:
                         raise RuntimeError('There are too many potential acceptor atoms.')
@@ -630,8 +632,7 @@ class Tautomer(object):
 
         for _ in range(100):
             hybrid_coord = hydrogen_mover._move_hydrogen_to_acceptor_idx(ligand_coords, override=False)
-            energy = energy_function.calculate_energy(hybrid_coord, lambda_value=1.0)
-            print(energy.energy)
+            energy = energy_function.calculate_energy([hybrid_coord / unit.angstrom] * unit.angstrom , lambda_value=1.0)
             if energy.energy < min_e:
                 min_e = energy.energy
                 min_coordinates = hybrid_coord
@@ -701,7 +702,7 @@ class Tautomer(object):
                 print(f"Conf: {n_conf}")
                 minimized_coords, _ = energy_function.minimize(coords)
                 energy = energy_function.calculate_energy(
-                    minimized_coords)
+                    [minimized_coords/unit.angstrom] * unit.angstrom)
                 try:
                     thermochemistry_correction = energy_function.get_thermo_correction(minimized_coords)
                 except ValueError:
@@ -709,9 +710,9 @@ class Tautomer(object):
                     continue
 
                 if include_entropy_correction:
-                    energies.append(energy.energy + thermochemistry_correction + entropy_correction)
+                    energies.append(energy.energy[0] + thermochemistry_correction + entropy_correction)
                 else:
-                    energies.append(energy.energy + thermochemistry_correction)
+                    energies.append(energy.energy[0] + thermochemistry_correction)
 
                 # update the coordinates in the rdkit mol
                 for atom in rdkit_mol.GetAtoms():

@@ -31,6 +31,7 @@ dependencies:
   - pytest-cov
   - psi4
   - seaborn
+  - scikit-learn
   - pip:
     - lark-parser
     - six

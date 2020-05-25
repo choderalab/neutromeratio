@@ -240,6 +240,9 @@ exclude_set_B3LYP = [
 
 
 
+
+
+
 # Imines are excluded from the tautomer_set_with_stereobonds since these don't need additional sampling
 tautomer_set_with_stereobonds = ['molDWRow_1082',
  'molDWRow_1083',
@@ -301,3 +304,20 @@ tautomer_set_with_stereobonds = ['molDWRow_1082',
  'molDWRow_735',
  'molDWRow_853',
  'molDWRow_973']
+
+# these molecules should be removed for analysis with rfe
+multiple_stereobonds = ['molDWRow_1637',
+'molDWRow_510',
+'molDWRow_513',
+'molDWRow_515',
+'molDWRow_517',
+'molDWRow_518',
+'molDWRow_787',
+'molDWRow_788',
+'molDWRow_789',
+'molDWRow_810',
+'molDWRow_811',
+'molDWRow_812',
+'molDWRow_865',
+'molDWRow_866',
+'molDWRow_867']
