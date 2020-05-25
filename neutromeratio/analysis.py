@@ -17,11 +17,13 @@ import torch
 from rdkit.Chem import rdFMCS
 import pkg_resources
 
-from neutromeratio.constants import kT, gas_constant, temperature, mols_with_charge, exclude_set_ANI, multiple_stereobonds, device
-from neutromeratio.tautomers import Tautomer
-from neutromeratio.parameter_gradients import FreeEnergyCalculator
-import neutromeratio
+from .constants import kT, gas_constant, temperature, mols_with_charge, exclude_set_ANI, multiple_stereobonds, device
+from .tautomers import Tautomer
+from .parameter_gradients import FreeEnergyCalculator
+from .utils import generate_tautomer_class_stereobond_aware
+from .ani import LinearAlchemicalSingleTopologyANI, ANI1_force_and_energy
 from glob import glob
+
 
 logger = logging.getLogger(__name__)
 
@@ -211,7 +213,6 @@ def entropy_correction(mol):
 def compare_confomer_generator_and_trajectory_minimum_structures(results_path: str, name: str, base: str, tautomer_idx: int, thinning:int = 100):
     assert (tautomer_idx == 1 or tautomer_idx == 2)
 
-    from .utils import generate_tautomer_class_stereobond_aware
     ani_results = pickle.load(open(f'{results_path}/ani_mm_results.pickle', 'rb'))
     exp_results = pickle.load(open(f'{results_path}/exp_results.pickle', 'rb'))
 
@@ -376,7 +377,7 @@ def setup_energy_function(name: str):
     
     ####################
     # Set up the system, set the restraints and read in the dcd files
-    t_type, tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
+    t_type, tautomers, flipped = generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
     tautomer = tautomers[0]
     tautomer.perform_tautomer_transformation()
 
@@ -384,13 +385,13 @@ def setup_energy_function(name: str):
 
     # define the alchemical atoms
     alchemical_atoms = [tautomer.hybrid_hydrogen_idx_at_lambda_1, tautomer.hybrid_hydrogen_idx_at_lambda_0]
-    model = neutromeratio.ani.LinearAlchemicalSingleTopologyANI(alchemical_atoms=alchemical_atoms)
+    model = LinearAlchemicalSingleTopologyANI(alchemical_atoms=alchemical_atoms)
     model = model.to(device)
     torch.set_num_threads(1)
     # extract hydrogen donor idx and hydrogen idx for from_mol
 
     # perform initial sampling
-    energy_function = neutromeratio.ANI1_force_and_energy(
+    energy_function = ANI1_force_and_energy(
         model=model,
         atoms=atoms,
         mol=None,
@@ -409,8 +410,7 @@ def setup_energy_function(name: str):
 
 def setup_mbar(name:str, data_path:str = "../data/", thinning:int = 50, max_snapshots_per_window:int = 200):
     
-    import neutromeratio
-    
+   
     def parse_lambda_from_dcd_filename(dcd_filename):
         """parsed the dcd filename
 
