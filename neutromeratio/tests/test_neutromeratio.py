@@ -782,7 +782,7 @@ def test_postprocessing():
 def test_tweak_parameters():
     from ..parameter_gradients import tweak_parameters
     import os
-    h_exp_free_energy_difference = tweak_parameters(data_path='./data', nr_of_nn=8, names=['SAMPLmol2', 'SAMPLmol4'], max_epochs=5)
+    h_exp_free_energy_difference = tweak_parameters(batch_size=10, data_path='./data', nr_of_nn=8, max_epochs=5)
     os.remove('best.pt')
     os.remove('latest.pt')
     print(h_exp_free_energy_difference)

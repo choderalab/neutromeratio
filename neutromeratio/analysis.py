@@ -17,7 +17,7 @@ import torch
 from rdkit.Chem import rdFMCS
 import pkg_resources
 
-from neutromeratio.constants import kT, gas_constant, temperature, mols_with_charge, exclude_set_ANI, device
+from neutromeratio.constants import kT, gas_constant, temperature, mols_with_charge, exclude_set_ANI, multiple_stereobonds, device
 from neutromeratio.tautomers import Tautomer
 from neutromeratio.parameter_gradients import FreeEnergyCalculator
 import neutromeratio
@@ -407,7 +407,7 @@ def setup_energy_function(name: str):
     return energy_function, tautomer, flipped
 
 
-def setup_mbar(names:list = ['SAMPLmol2'], data_path:str = "../data/", thinning:int = 50, max_snapshots_per_window:int = 200):
+def setup_mbar(name:str, data_path:str = "../data/", thinning:int = 50, max_snapshots_per_window:int = 200):
     
     import neutromeratio
     
@@ -424,47 +424,44 @@ def setup_mbar(names:list = ['SAMPLmol2'], data_path:str = "../data/", thinning:
         lam = l[-3]
         return float(lam)
     
-    assert (len(names) > 0)
     data = pkg_resources.resource_stream(__name__, "data/exp_results.pickle")
-    print(f"data-filename: {data}")
     exp_results = pickle.load(data)
 
-    fec_list = []
+    if name in exclude_set_ANI + mols_with_charge + multiple_stereobonds:
+        raise RuntimeError(f"{name} is part of the list of excluded molecules. Aborting")
 
-    for name in names:
-        if name in exclude_set_ANI + mols_with_charge:
-            raise RuntimeError(f"{name} is part of the list of excluded molecules. Aborting")
+    #######################
+    energy_function, tautomer, flipped = setup_energy_function(name)
+    # and lambda values in list
+    dcds = glob(f"{data_path}/{name}/*.dcd")
 
-        #######################
-        energy_function, tautomer, flipped = setup_energy_function(name)
-        # and lambda values in list
-        dcds = glob(f"{data_path}/{name}/*.dcd")
+    lambdas = []
+    md_trajs = []
+    energies = []
 
-        lambdas = []
-        md_trajs = []
-        energies = []
+    # read in all the frames from the trajectories
+    for dcd_filename in dcds:
+        lam = parse_lambda_from_dcd_filename(dcd_filename)
+        lambdas.append(lam)
+        traj = md.load_dcd(dcd_filename, top=tautomer.hybrid_topology)[::thinning]
+        print(f"Nr of frames in trajectory: {len(traj)}")
+        md_trajs.append(traj)
+        f = open(f"{data_path}/{name}/{name}_lambda_{lam:0.4f}_energy_in_vacuum.csv", 'r')
+        energies.append(np.array([float(e) * kT for e in f][::thinning])) 
+        f.close()
 
-        # read in all the frames from the trajectories
-        for dcd_filename in dcds:
-            lam = parse_lambda_from_dcd_filename(dcd_filename)
-            lambdas.append(lam)
-            traj = md.load_dcd(dcd_filename, top=tautomer.hybrid_topology)[::thinning]
-            print(f"Nr of frames in trajectory: {len(traj)}")
-            md_trajs.append(traj)
-            f = open(f"{data_path}/{name}/{name}_lambda_{lam:0.4f}_energy_in_vacuum.csv", 'r')
-            energies.append(np.array([float(e) * kT for e in f][::thinning])) 
-            f.close()
+    assert (len(lambdas) > 5)
+    assert(len(lambdas) == len(energies))
+    assert(len(lambdas) == len(md_trajs))
 
-        # calculate free energy in kT
-        fec = FreeEnergyCalculator(ani_model=energy_function,
-                                    md_trajs=md_trajs,
-                                    potential_energy_trajs=energies,
-                                    lambdas=lambdas,
-                                    n_atoms=len(tautomer.hybrid_atoms),
-                                    max_snapshots_per_window=max_snapshots_per_window)
+    # calculate free energy in kT
+    fec = FreeEnergyCalculator(ani_model=energy_function,
+                                md_trajs=md_trajs,
+                                potential_energy_trajs=energies,
+                                lambdas=lambdas,
+                                n_atoms=len(tautomer.hybrid_atoms),
+                                max_snapshots_per_window=max_snapshots_per_window)
 
-        fec.flipped = flipped
-        fec_list.append(fec)
+    fec.flipped = flipped
 
-    assert(len(fec_list) != 0)
-    return fec_list
+    return fec

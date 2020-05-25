@@ -10,7 +10,7 @@ from simtk import unit
 from tqdm import tqdm
 from glob import glob
 from neutromeratio.ani import ANI1_force_and_energy
-from neutromeratio.constants import hartree_to_kJ_mol, device, platform, kT, exclude_set_ANI, mols_with_charge
+from neutromeratio.constants import hartree_to_kJ_mol, device, platform, kT, exclude_set_ANI, mols_with_charge, multiple_stereobonds
 import torchani, torch
 import os
 import neutromeratio
@@ -63,11 +63,10 @@ class FreeEnergyCalculator():
             snapshots = snapshots[::further_thinning][:max_snapshots_per_window]
             ani_trajs[lam] = snapshots
         
-        del(md_trajs)
         snapshots = []
         N_k = []
         for lam in sorted(self.lambdas):
-            print(f"lamb: {lam}")
+            logger.info(f"lamb: {lam}")
             N_k.append(len(ani_trajs[lam]))
             snapshots.extend(ani_trajs[lam])
             logger.info(f"Snapshots per lambda {lam}: {len(ani_trajs[lam])}")
@@ -82,13 +81,6 @@ class FreeEnergyCalculator():
         # end-point energies
         lambda0_e = self.ani_model.calculate_energy(coordinates, lambda_value=0.).energy_tensor      
         lambda1_e = self.ani_model.calculate_energy(coordinates, lambda_value=1.).energy_tensor      
-
-        lambda0_e = self.ani_model.calculate_energy(coordinates, lambda_value=0.).energy_tensor      
-        lambda1_e = self.ani_model.calculate_energy(coordinates, lambda_value=1.).energy_tensor      
-
-
-        logger.debug(f"lambda0_e: {len(lambda0_e)}")
-        logger.debug(f"lambda1_e: {lambda0_e[:50]}")
 
         logger.debug(f"lambda0_e: {len(lambda1_e)}")
         logger.debug(f"lambda1_e: {lambda1_e[:50]}")
@@ -190,7 +182,7 @@ def get_free_energy_differences(fec_list:list)-> torch.Tensor:
         else:
             deltaF = fec.compute_free_energy_difference()
         calc[idx] = deltaF
-    print(calc)
+    logger.debug(calc)
     return calc
 
 def get_experimental_values(names:list)-> torch.Tensor:
@@ -208,11 +200,18 @@ def get_experimental_values(names:list)-> torch.Tensor:
     for idx, name in enumerate(names):
         e_in_kT = (exp_results[name]['energy'] * unit.kilocalorie_per_mole)/kT
         exp[idx] = e_in_kT
+    logger.debug(exp)
     return exp
+
+def validate():
+    mse_sum = torch.nn.MSELoss(reduction='sum')
+    total_mse = 0.0
+    count = 0
+
+
 
 def calculate_rmse(t1: torch.Tensor, t2: torch.Tensor):
     assert (t1.size() == t2.size())
-    
     return torch.sqrt(torch.mean((t1 - t2)**2))
 
 def chunks(lst, n):
@@ -220,7 +219,7 @@ def chunks(lst, n):
     for i in range(0, len(lst), n):
         yield lst[i:i + n]
 
-def tweak_parameters(batch_size:int = 10, data_path:str = "../data/", nr_of_nn:int = 8, max_epochs:int = 10, max_snapshots_per_window:int = 200):
+def tweak_parameters(batch_size:int = 10, data_path:str = "../data/", nr_of_nn:int = 8, max_epochs:int = 10, max_snapshots_per_window:int = 100):
     """
     Calculates the free energy of a staged free energy simulation, 
     tweaks the neural net parameter so that using reweighting the difference 
@@ -234,12 +233,15 @@ def tweak_parameters(batch_size:int = 10, data_path:str = "../data/", nr_of_nn:i
         nr_of_nn {int} -- number of neural networks that should be tweeked, maximum 8  (default: {8})
     """
     import random
-    assert (int(nr_of_nn) <= 8 and int(nr_of_nn) >= 0)
-    data = pkg_resources.resource_stream(__name__, "data/exp_results.pickle")
-    print(f"data-filename: {data}")
-    exp_results = pickle.load(data)
-    latest_checkpoint = 'latest.pt'
+    from sklearn.model_selection import train_test_split
     assert(int(batch_size) <= 20 and int(batch_size) >= 5)
+    assert (int(nr_of_nn) <= 8 and int(nr_of_nn) >= 0)
+
+    data = pkg_resources.resource_stream(__name__, "data/exp_results.pickle")
+    logger.debug(f"data-filename: {data}")
+    exp_results = pickle.load(data)
+
+    latest_checkpoint = 'latest.pt'
     h_exp_free_energy_difference = []
 
     # define which layer should be modified -- currently the last one
@@ -283,36 +285,52 @@ def tweak_parameters(batch_size:int = 10, data_path:str = "../data/", nr_of_nn:i
         AdamW_scheduler.load_state_dict(checkpoint['AdamW_scheduler'])
         SGD_scheduler.load_state_dict(checkpoint['SGD_scheduler'])
 
+    # get names of molecules we want to optimize
     names_list = []
     for n in exp_results.keys():
-        if n in exclude_set_ANI + mols_with_charge:
+        if n in exclude_set_ANI + mols_with_charge + multiple_stereobonds:
             continue
         names_list.append(n)
 
-    random.shuffle(names_list)
-
-    print("training starting from epoch", AdamW_scheduler.last_epoch + 1)
+    logger.info("training starting from epoch", AdamW_scheduler.last_epoch + 1)
     early_stopping_learning_rate = 1.0E-5
     best_model_checkpoint = 'best.pt'
 
-    for _ in tqdm(range(AdamW_scheduler.last_epoch + 1, max_epochs)):
-        for names in chunks(names_list, batch_size):
-            print(names)
-            fec_list = neutromeratio.analysis.setup_mbar(names, data_path, thinning=50, max_snapshots_per_window=max_snapshots_per_window)
+    names_training_validating, names_test = train_test_split(names_list,test_size=0.2)
+    print(f"Len of training/validation set: {len(names_training_validating)}/{len(names_list)}")
+
+    for i in range(AdamW_scheduler.last_epoch + 1, max_epochs):
+        rmse = 
+        print(f"Epoche {i} of {AdamW_scheduler.last_epoch + 1}")
+        # shuffel the names
+        names_training, names_validating = train_test_split(names_training_validating,test_size=0.2)
+        print(f"Len of training set: {len(names_training)}/{len(names_training_validating)}")
+        print(f"Len of validating set: {len(names_validating)}/{len(names_training_validating)}")
+
+        # training/validation split
+        # checkpoint
+        if AdamW_scheduler.is_better(rmse, AdamW_scheduler.best):
+            torch.save(nn.state_dict(), best_model_checkpoint)
+
+        # define the stepsize 
+        AdamW_scheduler.step(rmse)
+        SGD_scheduler.step(rmse)
+
+
+        # iterate over batches
+        for names in tqdm(chunks(names_training, batch_size)):
+            logger.debug(names)
+            fec_list = [neutromeratio.analysis.setup_mbar(name, data_path, thinning=100, max_snapshots_per_window=max_snapshots_per_window) for name in names]
 
             calc_free_energy_difference = get_free_energy_differences(fec_list)
             exp_free_energy_difference = get_experimental_values(names)
             rmse = calculate_rmse(calc_free_energy_difference, exp_free_energy_difference)
+            
             logger.debug(f"RMSE: {rmse}")
             logger.debug(f"calc free energy difference: {exp_free_energy_difference}")
-            h_exp_free_energy_difference.append(calc_free_energy_difference.item())  
-            # checkpoint
-            if AdamW_scheduler.is_better(rmse, AdamW_scheduler.best):
-                torch.save(nn.state_dict(), best_model_checkpoint)
+            
+            h_exp_free_energy_difference.append([e.item() for e in calc_free_energy_difference])  
 
-            # define the stepsize -- very conservative
-            AdamW_scheduler.step(rmse/10)
-            SGD_scheduler.step(rmse/10)
             loss = rmse
 
             AdamW.zero_grad()

@@ -545,7 +545,7 @@ class Tautomer(object):
             atoms += str(a.GetSymbol())
 
             if a.GetIdx() not in substructure_idx_m1:
-                logger.info('Index of atom that moves: {}.'.format(a.GetIdx()))
+                logger.debug('Index of atom that moves: {}.'.format(a.GetIdx()))
                 hydrogen_idx_that_moves = a.GetIdx()
 
         # adding ligand constraints for heavy atom - hydrogen
@@ -558,7 +558,7 @@ class Tautomer(object):
         # get idx of connected heavy atom which is the donor atom
         # there can only be one neighbor, therefor it is valid to take the first neighbor of the hydrogen
         donor = int(m1.GetAtomWithIdx(hydrogen_idx_that_moves).GetNeighbors()[0].GetIdx())
-        logger.info('Index of atom that donates hydrogen: {}'.format(donor))
+        logger.debug('Index of atom that donates hydrogen: {}'.format(donor))
 
         logging.debug(substructure_idx_m1)
         logging.debug(substructure_idx_m2)
@@ -576,7 +576,7 @@ class Tautomer(object):
                     if substructure_idx_m1[i] == donor:
                         continue
                     acceptor = substructure_idx_m1[i]
-                    logger.info('Index of atom that accepts hydrogen: {}'.format(acceptor))
+                    logger.debug('Index of atom that accepts hydrogen: {}'.format(acceptor))
                     acceptor_count += 1
                     if acceptor_count > 1:
                         raise RuntimeError('There are too many potential acceptor atoms.')
