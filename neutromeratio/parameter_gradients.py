@@ -204,10 +204,6 @@ def get_experimental_values(names:list)-> torch.Tensor:
     return exp
 
 def validate(names:list, data_path:str, thinning:int, max_snapshots_per_window:int):
-    mse_sum = torch.nn.MSELoss(reduction='sum')
-    total_mse = 0.0
-    count = 0
-
     e_calc = np.empty(shape=len(names), dtype=float)
     e_exp = np.empty(shape=len(names), dtype=float)
     setup_mbar = neutromeratio.analysis.setup_mbar
@@ -216,13 +212,16 @@ def validate(names:list, data_path:str, thinning:int, max_snapshots_per_window:i
         e_calc[idx] = get_free_energy_differences([setup_mbar(name, data_path, thinning, max_snapshots_per_window)])[0].item()
         e_exp[idx] = get_experimental_values([name])[0].item()
 
-    
-    total_mse = mse_sum(torch.tensor(e_calc), torch.tensor(e_exp)).item()
-    return float(np.sqrt(total_mse/len(names)))     
+    return calculate_rmse(torch.tensor(e_calc), torch.tensor(e_exp))
+
+def calculate_mse(t1: torch.Tensor, t2: torch.Tensor):
+    assert (t1.size() == t2.size())
+    return torch.mean((t1 - t2)**2)
+
 
 def calculate_rmse(t1: torch.Tensor, t2: torch.Tensor):
     assert (t1.size() == t2.size())
-    return torch.sqrt(torch.mean((t1 - t2)**2))
+    return torch.sqrt(calculate_mse(t1, t2))
 
 def chunks(lst, n):
     """Yield successive n-sized chunks from lst."""
@@ -268,9 +267,6 @@ def tweak_parameters(batch_size:int = 10, data_path:str = "../data/", nr_of_nn:i
 
     # save batch loss through epochs
     h_exp_free_energy_difference = []
-
-    # define loss
-    mse = torch.nn.MSELoss(reduction='none')
 
     # define which layer should be modified -- currently the last one
     layer = 6
@@ -373,7 +369,7 @@ def tweak_parameters(batch_size:int = 10, data_path:str = "../data/", nr_of_nn:i
             # obtain the experimental free energies
             exp_free_energy_difference = get_experimental_values(names)
             # calculate the loss as MSE
-            loss = (mse(calc_free_energy_difference, exp_free_energy_difference)/torch.sqrt(torch.tensor(float(len(fec_list))))).mean()
+            loss = calculate_mse(calc_free_energy_difference, exp_free_energy_difference)
             
             logger.info(f"exp free energy difference: {exp_free_energy_difference}")
             logger.info(f"calc free energy difference: {calc_free_energy_difference}")

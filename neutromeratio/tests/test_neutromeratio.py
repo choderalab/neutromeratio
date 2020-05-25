@@ -769,7 +769,8 @@ def test_postprocessing():
 
     exp_results = pickle.load(open('data/exp_results.pickle', 'rb'))
     names = ['molDWRow_298', 'SAMPLmol2', 'SAMPLmol4']
-    fec_list = neutromeratio.analysis.setup_mbar(names, './data/', thinning = 50, max_snapshots_per_window = -1)
+    setup_mbar = neutromeratio.analysis.setup_mbar
+    fec_list = [setup_mbar(name, './data/', thinning = 50, max_snapshots_per_window = -1) for name in names]
 
     assert(len(fec_list) == 3)
     rmse = torch.sqrt(torch.mean((get_free_energy_differences(fec_list) - get_experimental_values(names))**2))
