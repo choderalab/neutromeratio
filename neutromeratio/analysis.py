@@ -372,7 +372,7 @@ def setup_energy_function(name: str):
     t2_smiles = exp_results[name]['t2-smiles']
     
     #######################
-    print(f"Experimental free energy difference: {exp_results[name]['energy']} kcal/mol")
+    logger.info(f"Experimental free energy difference: {exp_results[name]['energy']} kcal/mol")
     #######################
     
     ####################
@@ -444,7 +444,7 @@ def setup_mbar(name:str, data_path:str = "../data/", thinning:int = 50, max_snap
         lam = parse_lambda_from_dcd_filename(dcd_filename)
         lambdas.append(lam)
         traj = md.load_dcd(dcd_filename, top=tautomer.hybrid_topology)[::thinning]
-        print(f"Nr of frames in trajectory: {len(traj)}")
+        logger.debug(f"Nr of frames in trajectory: {len(traj)}")
         md_trajs.append(traj)
         f = open(f"{data_path}/{name}/{name}_lambda_{lam:0.4f}_energy_in_vacuum.csv", 'r')
         energies.append(np.array([float(e) * kT for e in f][::thinning])) 

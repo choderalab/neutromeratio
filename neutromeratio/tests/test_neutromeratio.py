@@ -782,7 +782,15 @@ def test_postprocessing():
 def test_tweak_parameters():
     from ..parameter_gradients import tweak_parameters
     import os
-    h_exp_free_energy_difference = tweak_parameters(batch_size=10, data_path='./data', nr_of_nn=8, max_epochs=5)
-    os.remove('best.pt')
-    os.remove('latest.pt')
-    print(h_exp_free_energy_difference)
+    names = ['molDWRow_298', 'SAMPLmol2', 'SAMPLmol4']
+
+    rmse_val, rmse_test, h_exp_free_energy_difference = tweak_parameters(names=names, batch_size=3, data_path='./data', nr_of_nn=8, max_epochs=2)
+    try:
+        os.remove('best.pt')
+        os.remove('latest.pt')
+
+    except FileNotFoundError:
+        pass
+    
+    np.isclose(rmse_val, rmse_test, rtol=1e-2)
+    np.isclose(rmse_val, 5.279, rtol=1e-2)
