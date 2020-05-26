@@ -16,6 +16,7 @@ from neutromeratio.constants import device
 import torchani
 from openmmtools.utils import is_quantity_close
 import pandas as pd
+from rdkit import Chem
 
 
 def test_equ():
@@ -532,6 +533,47 @@ def test_euqilibrium():
                                                                                                  n_steps=n_steps,
                                                                                                  stepsize=1.0 * unit.femtosecond,
                                                                                                  progress_bar=True)
+def test_setup_energy_function():
+    from ..analysis import setup_energy_function
+    name = 'molDWRow_298'
+    energy_function, tautomer, flipped = setup_energy_function(name)
+    assert (flipped == True)
+
+def test_setup_mbar():
+    from ..analysis import setup_mbar
+    name = 'molDWRow_298'
+    fec = setup_mbar(name, data_path="data/", max_snapshots_per_window=50)
+    np.isclose(-3.2048, fec.compute_free_energy_difference().item(), rtol=1e-3)
+
+def test_change_stereobond():
+    from ..utils import change_only_stereobond, get_nr_of_stereobonds
+    def get_all_stereotags(smiles):
+        mol = Chem.MolFromSmiles(smiles)
+        stereo = set()
+        for bond in mol.GetBonds():
+            if str(bond.GetStereo()) == 'STEREONONE':
+                continue
+            else:
+                stereo.add(bond.GetStereo())
+        return stereo
+    
+    name = 'molDWRow_298'
+    exp_results = pickle.load(open('data/exp_results.pickle', 'rb'))
+    
+    # no stereobond
+    smiles = exp_results[name]['t1-smiles']
+    assert(get_nr_of_stereobonds(smiles) == 0)
+    stereo1 = get_all_stereotags(smiles)
+    stereo2 = get_all_stereotags(change_only_stereobond(smiles))
+    assert(stereo1 == stereo2)
+
+    # one stereobond
+    smiles = exp_results[name]['t2-smiles']
+    assert(get_nr_of_stereobonds(smiles) == 1)
+    stereo1 = get_all_stereotags(smiles)
+    stereo2 = get_all_stereotags(change_only_stereobond(smiles))
+    assert(stereo1 != stereo2)
+
 
 
 def test_tautomer_conformation():
@@ -761,7 +803,21 @@ def test_parameter_gradient():
 
     assert(len(params) == 256)
     assert (none_counter == 64)
-    
+
+def test_validate():
+    from ..parameter_gradients import validate, get_experimental_values
+    from ..constants import kT
+    names = ['SAMPLmol2']
+    exp_results = pickle.load(open('data/exp_results.pickle', 'rb'))
+
+    exp_values = get_experimental_values(names)
+    rmse = validate(names, data_path='./data/', thinning=10, max_snapshots_per_window=100)
+    assert (np.isclose(exp_values.item(), -10.2321, rtol=1e-3))
+    assert (np.isclose(rmse.item(), 5.4302, rtol=1e-3))
+    # compare exp results to exp results to output of get_experimental_values
+    assert(np.isclose((exp_results[names[0]]['energy'] * unit.kilocalorie_per_mole) / kT, exp_values, rtol=1e-3))
+
+
 def test_postprocessing():
     from ..parameter_gradients import FreeEnergyCalculator, get_free_energy_differences, get_experimental_values
     from ..constants import kT, device, exclude_set_ANI, mols_with_charge

@@ -407,7 +407,6 @@ def setup_energy_function(name: str):
 
 
 def setup_mbar(name:str, data_path:str = "../data/", thinning:int = 50, max_snapshots_per_window:int = 200):
-    
    
     def parse_lambda_from_dcd_filename(dcd_filename):
         """parsed the dcd filename

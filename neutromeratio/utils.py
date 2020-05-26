@@ -253,7 +253,7 @@ def change_stereobond_in_imine_to_trans(mol: Chem.Mol) -> Chem.Mol:
     Chem.FindPotentialStereoBonds(mol)
     for bond in mol.GetBonds():
         if bond.GetStereo() == Chem.BondStereo.STEREOANY:
-            logger.info(f"{bond.GetBeginAtom().GetSymbol()} {bond.GetSmarts()} {bond.GetEndAtom().GetSymbol()}")
+            logger.debug(f"{bond.GetBeginAtom().GetSymbol()} {bond.GetSmarts()} {bond.GetEndAtom().GetSymbol()}")
             bond.SetStereo(Chem.BondStereo.STEREOE)
 
     return mol
@@ -312,51 +312,3 @@ def reduced_pot(E: float) -> float:
         u(x) = U(x) / kBT
     """
     return E / kT
-
-
-def generate_torsion_restraint_from_minimized_conformation(tautomer, idx: list, lambda_value: float = 0.0):
-
-    from .ani import LinearAlchemicalSingleTopologyANI, ANI1_force_and_energy
-    from .restraints import TorsionHarmonicRestraint
-    from .constants import device
-    import torch
-
-    alchemical_atoms = [tautomer.hybrid_hydrogen_idx_at_lambda_1,
-                        tautomer.hybrid_hydrogen_idx_at_lambda_0]
-
-    # extract hydrogen donor idx and hydrogen idx for from_mol
-    model = LinearAlchemicalSingleTopologyANI(alchemical_atoms=alchemical_atoms)
-    model = model.to(device)
-    torch.set_num_threads(1)
-
-    # perform initial sampling
-    energy_function = ANI1_force_and_energy(
-        model=model,
-        atoms=tautomer.hybrid_atoms,
-        mol=None,
-        per_atom_thresh=0.4 * unit.kilojoule_per_mole,
-        adventure_mode=True
-    )
-
-    for r in tautomer.ligand_restraints:
-        energy_function.add_restraint_to_lambda_protocol(r)
-
-    for r in tautomer.hybrid_ligand_restraints:
-        energy_function.add_restraint_to_lambda_protocol(r)
-
-    x0 = tautomer.hybrid_coords
-    x0, _ = energy_function.minimize(x0,
-                                     maxiter=100,
-                                     lambda_value=lambda_value,
-                                     kappa_value=0.0,
-                                     show_plot=False)
-
-    x0 = [x0.value_in_unit(unit.nanometer)]
-    ani_traj = md.Trajectory(x0, tautomer.hybrid_topology)
-    torsion = md.compute_dihedrals(ani_traj, [idx]) * unit.radian
-    torsion = torsion.value_in_unit(unit.degree)
-    logger.info(f"Torsion restraint will be around: {torsion}")
-
-    return TorsionHarmonicRestraint(sigma=10 * unit.degree, atom_idx=[1, 2, 3, 4], torsion_angle=torsion[0] * unit.degree, active_at=0)
-
-
