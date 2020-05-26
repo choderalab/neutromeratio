@@ -342,11 +342,11 @@ def tweak_parameters(batch_size:int = 10, data_path:str = "../data/", nr_of_nn:i
     ## training loop
     for i in range(AdamW_scheduler.last_epoch + 1, max_epochs):
         # calculate the rmse on the current parameters
-        logger.debug('RMSE calulation for validation set')
+        print('RMSE calulation for validation set')
         rmse_validation.append(validate(names_validating, data_path = data_path, thinning=thinning, max_snapshots_per_window = max_snapshots_per_window))
         print(f"RMSE on validation set: {rmse_validation[-1]} at epoch {AdamW_scheduler.last_epoch + 1}")
         
-        logger.debug('RMSE calulation for test set')
+        print('RMSE calulation for test set')
         rmse_training.append(validate(names_training, data_path = data_path, thinning=thinning, max_snapshots_per_window = max_snapshots_per_window))
         print(f"RMSE on training set: {rmse_training[-1]} at epoch {AdamW_scheduler.last_epoch + 1}")
         
