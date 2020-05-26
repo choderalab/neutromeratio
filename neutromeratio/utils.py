@@ -39,7 +39,7 @@ def flag_unspec_stereo(smiles: str):
     Chem.FindPotentialStereoBonds(m)
     for bond in m.GetBonds():
         if bond.GetStereo() == Chem.BondStereo.STEREOANY:
-            print(bond.GetBeginAtom().GetSymbol(), bond.GetSmarts(), bond.GetEndAtom().GetSymbol())
+            logger.debug(bond.GetBeginAtom().GetSymbol(), bond.GetSmarts(), bond.GetEndAtom().GetSymbol())
             unspec = True
     return unspec
 

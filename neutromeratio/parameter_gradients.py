@@ -257,7 +257,7 @@ def tweak_parameters(batch_size:int = 10, data_path:str = "../data/", nr_of_nn:i
 
     from sklearn.model_selection import train_test_split
     assert(int(batch_size) <= 10 and int(batch_size) >= 1)
-    assert (int(nr_of_nn) <= 8 and int(nr_of_nn) >= 0)
+    assert (int(nr_of_nn) <= 8 and int(nr_of_nn) >= 1)
 
     data = pkg_resources.resource_stream(__name__, "data/exp_results.pickle")
     logger.debug(f"data-filename: {data}")
@@ -329,7 +329,6 @@ def tweak_parameters(batch_size:int = 10, data_path:str = "../data/", nr_of_nn:i
         names_validating = names
         names_training = names
         names_test = names
-
     else:
         # split in training/validation/test set
         names_training_validating, names_test = train_test_split(names_list,test_size=0.2)
@@ -339,10 +338,15 @@ def tweak_parameters(batch_size:int = 10, data_path:str = "../data/", nr_of_nn:i
         print(f"Len of training set: {len(names_training)}/{len(names_training_validating)}")
         print(f"Len of validating set: {len(names_validating)}/{len(names_training_validating)}")
 
+
+    ## training loop
     for i in range(AdamW_scheduler.last_epoch + 1, max_epochs):
         # calculate the rmse on the current parameters
+        logger.debug('RMSE calulation for validation set')
         rmse_validation.append(validate(names_validating, data_path = data_path, thinning=thinning, max_snapshots_per_window = max_snapshots_per_window))
         print(f"RMSE on validation set: {rmse_validation[-1]} at epoch {AdamW_scheduler.last_epoch + 1}")
+        
+        logger.debug('RMSE calulation for test set')
         rmse_training.append(validate(names_training, data_path = data_path, thinning=thinning, max_snapshots_per_window = max_snapshots_per_window))
         print(f"RMSE on training set: {rmse_training[-1]} at epoch {AdamW_scheduler.last_epoch + 1}")
         
@@ -359,9 +363,10 @@ def tweak_parameters(batch_size:int = 10, data_path:str = "../data/", nr_of_nn:i
         # define the stepsize 
         AdamW_scheduler.step(rmse_validation[-1]/2)
         SGD_scheduler.step(rmse_validation[-1]/2)
-        
+        loss = torch.tensor(0.0)
+
         # iterate over batches of molecules
-        for names in tqdm(chunks(names_training, batch_size)):
+        for names in tqdm(chunks(names_training, batch_size), desc=f"MSE: {loss.item()}"):
             logger.debug(f"Batch names: {names}")
 
             # define setup_mbar function

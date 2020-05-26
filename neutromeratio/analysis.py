@@ -113,8 +113,6 @@ def prune_conformers(mol: Chem.Mol, energies: list, rmsd_threshold: float) -> (C
     increasing energy.
     """
     from typing import List
-    print(mol)
-    print(energies)
     rmsd = get_conformer_rmsd(mol)
     sort = np.argsort([x.value_in_unit(unit.kilocalorie_per_mole)
                        for x in energies])  # sort by increasing energy
@@ -372,7 +370,7 @@ def setup_energy_function(name: str):
     t2_smiles = exp_results[name]['t2-smiles']
     
     #######################
-    logger.info(f"Experimental free energy difference: {exp_results[name]['energy']} kcal/mol")
+    logger.debug(f"Experimental free energy difference: {exp_results[name]['energy']} kcal/mol")
     #######################
     
     ####################
