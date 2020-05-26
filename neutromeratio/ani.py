@@ -548,8 +548,6 @@ class Ensemble(torch.nn.ModuleList):
         logger.debug(f"energy_evaluations.size(): {energy_evaluations.size()}")
         logger.debug(f"nr_of_mols: {nr_of_mols}")
         logger.debug(energy_evaluations)
-        #std = torch.tensor([0.] * nr_of_mols, device=device, dtype=torch.float64)
-        #avg = torch.tensor([0.] * nr_of_mols, device=device, dtype=torch.float64)
         std = torch.std(energy_evaluations.T, dim=1, unbiased=False)
         avg = torch.mean(energy_evaluations.T, dim=1)
 
@@ -620,9 +618,6 @@ class LinearAlchemicalSingleTopologyANI(AlchemicalANI):
         mod_species_0 = torch.cat((species[:, :dummy_atom_0],  species[:, dummy_atom_0+1:]), dim=1)
         mod_coordinates_0 = torch.cat((coordinates[:, :dummy_atom_0],  coordinates[:, dummy_atom_0+1:]), dim=1)
         _, mod_aevs_0 = self.aev_computer((mod_species_0, mod_coordinates_0))
-        _, mod_aevs_0 = self.aev_computer((mod_species_0, mod_coordinates_0))
-        _, mod_aevs_0 = self.aev_computer((mod_species_0, mod_coordinates_0))
-        _, mod_aevs_0 = self.aev_computer((mod_species_0, mod_coordinates_0))
 
         # neural net output given these modified AEVs
         state_0 = self.neural_networks((mod_species_0, mod_aevs_0))
@@ -645,14 +640,4 @@ class LinearAlchemicalSingleTopologyANI(AlchemicalANI):
 
         E = (lam * E_1) + ((1 - lam) * E_0)
         stddev = (lam * state_1.stddev) + ((1-lam) * state_0.stddev)
-        del (state_1)
-        del (state_0)
-        del (mod_species_1)
-        del (mod_species_0)
-        del (mod_coordinates_1)
-        del (mod_coordinates_0)
-        del (species_coordinates)
-        del (mod_aevs_0, mod_aevs_1)
-
-
         return species, E, stddev

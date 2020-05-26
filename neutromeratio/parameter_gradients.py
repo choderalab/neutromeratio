@@ -17,6 +17,7 @@ import neutromeratio
 import pickle
 import mdtraj as md
 import pkg_resources
+from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +89,7 @@ class FreeEnergyCalculator():
         def get_mix(lambda0, lambda1, lam=0.0):
             return (1 - lam) * np.array(lambda0.detach()) + lam * np.array(lambda1.detach())
 
-        logger.info('Nr of atoms: {}'.format(n_atoms))
+        logger.debug('Nr of atoms: {}'.format(n_atoms))
 
         u_kn = np.stack(
             [get_mix(lambda0_e, lambda1_e, lam) for lam in sorted(self.lambdas)]
@@ -208,11 +209,11 @@ def validate(names:list, data_path:str, thinning:int, max_snapshots_per_window:i
     e_exp = np.empty(shape=len(names), dtype=float)
     setup_mbar = neutromeratio.analysis.setup_mbar
 
-    for idx, name in enumerate(names):
+    for idx, name in enumerate(tqdm(names)):
         e_calc[idx] = get_free_energy_differences([setup_mbar(name, data_path, thinning, max_snapshots_per_window)])[0].item()
         e_exp[idx] = get_experimental_values([name])[0].item()
 
-    return calculate_rmse(torch.tensor(e_calc), torch.tensor(e_exp))
+    return calculate_rmse(torch.tensor(e_calc, device=device), torch.tensor(e_exp, device=device))
 
 def calculate_mse(t1: torch.Tensor, t2: torch.Tensor):
     assert (t1.size() == t2.size())
@@ -275,7 +276,8 @@ def tweak_parameters(batch_size:int = 10, data_path:str = "../data/", nr_of_nn:i
     # take each of the networks from the ensemble of 8
     weight_layers = []
     bias_layers = []
-    model = neutromeratio.ani.LinearAlchemicalSingleTopologyANI([0,0]).neural_networks
+    model = neutromeratio.ani.LinearAlchemicalSingleTopologyANI([0,0]).to(device).neural_networks
+
     for nn in model[:nr_of_nn]:
         weight_layers.extend(
             [
@@ -341,8 +343,8 @@ def tweak_parameters(batch_size:int = 10, data_path:str = "../data/", nr_of_nn:i
         # calculate the rmse on the current parameters
         rmse_validation.append(validate(names_validating, data_path = data_path, thinning=thinning, max_snapshots_per_window = max_snapshots_per_window))
         print(f"RMSE on validation set: {rmse_validation[-1]} at epoch {AdamW_scheduler.last_epoch + 1}")
-        rmse_training.append(validate(names_test, data_path = data_path, thinning=thinning, max_snapshots_per_window = max_snapshots_per_window))
-        print(f"RMSE on training set: {rmse_validation[-1]} at epoch {AdamW_scheduler.last_epoch + 1}")
+        rmse_training.append(validate(names_training, data_path = data_path, thinning=thinning, max_snapshots_per_window = max_snapshots_per_window))
+        print(f"RMSE on training set: {rmse_training[-1]} at epoch {AdamW_scheduler.last_epoch + 1}")
         
         # get the learning group
         learning_rate = AdamW.param_groups[0]['lr']
