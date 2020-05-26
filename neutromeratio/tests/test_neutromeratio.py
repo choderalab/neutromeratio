@@ -846,7 +846,7 @@ def test_tweak_parameters():
     import os
     names = ['molDWRow_298', 'SAMPLmol2', 'SAMPLmol4']
 
-    rmse_training, rmse_val, rmse_test = tweak_parameters(names=names, batch_size=3, data_path='./data', nr_of_nn=8, max_epochs=3)
+    rmse_training, rmse_val, rmse_test = tweak_parameters(names=names, batch_size=3, data_path='./data', nr_of_nn=8, max_epochs=2)
     try:
         os.remove('best.pt')
         os.remove('latest.pt')
@@ -856,4 +856,3 @@ def test_tweak_parameters():
     
     np.isclose(rmse_val[-1], rmse_test, rtol=1e-2)
     np.isclose(rmse_val[-1], 5.279, rtol=1e-2)
-    raise RuntimeError()

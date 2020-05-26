@@ -208,10 +208,11 @@ def validate(names:list, data_path:str, thinning:int, max_snapshots_per_window:i
     e_calc = np.empty(shape=len(names), dtype=float)
     e_exp = np.empty(shape=len(names), dtype=float)
     setup_mbar = neutromeratio.analysis.setup_mbar
-
-    for idx, name in enumerate(tqdm(names)):
+    it = tqdm(names)
+    for idx, name in enumerate(it):
         e_calc[idx] = get_free_energy_differences([setup_mbar(name, data_path, thinning, max_snapshots_per_window)])[0].item()
         e_exp[idx] = get_experimental_values([name])[0].item()
+        it.set_description(f"RMSE: {calculate_rmse(torch.tensor(e_calc), torch.tensor(e_exp))}")
 
     return calculate_rmse(torch.tensor(e_calc, device=device), torch.tensor(e_exp, device=device))
 
@@ -361,14 +362,15 @@ def tweak_parameters(batch_size:int = 10, data_path:str = "../data/", nr_of_nn:i
             torch.save(nn.state_dict(), best_model_checkpoint)
 
         # define the stepsize 
-        AdamW_scheduler.step(rmse_validation[-1]/2)
-        SGD_scheduler.step(rmse_validation[-1]/2)
+        AdamW_scheduler.step(rmse_validation[-1])
+        SGD_scheduler.step(rmse_validation[-1])
         loss = torch.tensor(0.0)
 
         # iterate over batches of molecules
-        for names in tqdm(chunks(names_training, batch_size), desc=f"MSE: {loss.item()}"):
+        it = tqdm(chunks(names_training, batch_size))
+        for names in it:
             logger.debug(f"Batch names: {names}")
-
+            it.set_description(f"MSE: {loss.item()}")
             # define setup_mbar function
             setup_mbar = neutromeratio.analysis.setup_mbar
 
