@@ -817,7 +817,9 @@ def test_validate():
     # compare exp results to exp results to output of get_experimental_values
     assert(np.isclose((exp_results[names[0]]['energy'] * unit.kilocalorie_per_mole) / kT, exp_values, rtol=1e-3))
 
-
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
 def test_postprocessing():
     from ..parameter_gradients import FreeEnergyCalculator, get_free_energy_differences, get_experimental_values
     from ..constants import kT, device, exclude_set_ANI, mols_with_charge
@@ -836,12 +838,15 @@ def test_postprocessing():
     assert(np.isclose(fec_list[2].end_state_free_energy_difference[0], 4.127431117241131, rtol=1.e-2))
     assert(np.isclose(rmse.item(),  5.599380922019047, rtol=1.e-2))
 
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
 def test_tweak_parameters():
     from ..parameter_gradients import tweak_parameters
     import os
     names = ['molDWRow_298', 'SAMPLmol2', 'SAMPLmol4']
 
-    rmse_training, rmse_val, rmse_test = tweak_parameters(names=names, batch_size=3, data_path='./data', nr_of_nn=8, max_epochs=2)
+    rmse_training, rmse_val, rmse_test = tweak_parameters(names=names, batch_size=3, data_path='./data', nr_of_nn=8, max_epochs=3)
     try:
         os.remove('best.pt')
         os.remove('latest.pt')
@@ -851,3 +856,4 @@ def test_tweak_parameters():
     
     np.isclose(rmse_val[-1], rmse_test, rtol=1e-2)
     np.isclose(rmse_val[-1], 5.279, rtol=1e-2)
+    raise RuntimeError()

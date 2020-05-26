@@ -382,9 +382,9 @@ def tweak_parameters(batch_size:int = 10, data_path:str = "../data/", nr_of_nn:i
             # calculate the loss as MSE
             loss = calculate_mse(calc_free_energy_difference, exp_free_energy_difference)
             
-            logger.info(f"exp free energy difference: {exp_free_energy_difference}")
-            logger.info(f"calc free energy difference: {calc_free_energy_difference}")
-            logger.info(f"MSE: {loss}")
+            logger.debug(f"exp free energy difference: {exp_free_energy_difference}")
+            logger.debug(f"calc free energy difference: {calc_free_energy_difference}")
+            logger.debug(f"MSE: {loss}")
             
             AdamW.zero_grad()
             SGD.zero_grad()
