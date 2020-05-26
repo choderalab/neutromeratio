@@ -785,7 +785,7 @@ def test_tweak_parameters():
     import os
     names = ['molDWRow_298', 'SAMPLmol2', 'SAMPLmol4']
 
-    rmse_val, rmse_test, h_exp_free_energy_difference = tweak_parameters(names=names, batch_size=3, data_path='./data', nr_of_nn=8, max_epochs=2)
+    rmse_training, rmse_val, rmse_test = tweak_parameters(names=names, batch_size=3, data_path='./data', nr_of_nn=8, max_epochs=2)
     try:
         os.remove('best.pt')
         os.remove('latest.pt')
@@ -793,5 +793,5 @@ def test_tweak_parameters():
     except FileNotFoundError:
         pass
     
-    np.isclose(rmse_val, rmse_test, rtol=1e-2)
-    np.isclose(rmse_val, 5.279, rtol=1e-2)
+    np.isclose(rmse_val[-1], rmse_test, rtol=1e-2)
+    np.isclose(rmse_val[-1], 5.279, rtol=1e-2)

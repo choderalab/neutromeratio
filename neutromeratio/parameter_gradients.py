@@ -251,7 +251,7 @@ def tweak_parameters(batch_size:int = 10, data_path:str = "../data/", nr_of_nn:i
         names {list} -- only used for tests -- this loads specific molecules (default: {[]})
 
     Returns:
-        [type] -- [description]
+        (list, list, float) -- rmse on validation set, rmse on training set, rmse on test set
     """
 
     from sklearn.model_selection import train_test_split
@@ -266,7 +266,9 @@ def tweak_parameters(batch_size:int = 10, data_path:str = "../data/", nr_of_nn:i
     best_model_checkpoint = 'best.pt'
 
     # save batch loss through epochs
-    h_exp_free_energy_difference = []
+    rmse_validation = []
+    rmse_training = []
+    rmse_test = []
 
     # define which layer should be modified -- currently the last one
     layer = 6
@@ -337,8 +339,10 @@ def tweak_parameters(batch_size:int = 10, data_path:str = "../data/", nr_of_nn:i
 
     for i in range(AdamW_scheduler.last_epoch + 1, max_epochs):
         # calculate the rmse on the current parameters
-        rmse = validate(names_validating, data_path = data_path, thinning=thinning, max_snapshots_per_window = max_snapshots_per_window)
-        print(f"RMSE: {rmse} at epoch {AdamW_scheduler.last_epoch + 1}")
+        rmse_validation.append(validate(names_validating, data_path = data_path, thinning=thinning, max_snapshots_per_window = max_snapshots_per_window))
+        print(f"RMSE on validation set: {rmse_validation[-1]} at epoch {AdamW_scheduler.last_epoch + 1}")
+        rmse_training.append(validate(names_test, data_path = data_path, thinning=thinning, max_snapshots_per_window = max_snapshots_per_window))
+        print(f"RMSE on training set: {rmse_validation[-1]} at epoch {AdamW_scheduler.last_epoch + 1}")
         
         # get the learning group
         learning_rate = AdamW.param_groups[0]['lr']
@@ -346,13 +350,13 @@ def tweak_parameters(batch_size:int = 10, data_path:str = "../data/", nr_of_nn:i
         if learning_rate < early_stopping_learning_rate:
             break
         
-        # checkpoint
-        if AdamW_scheduler.is_better(rmse, AdamW_scheduler.best):
+        # checkpoint -- if best parameters on validation set save parameters
+        if AdamW_scheduler.is_better(rmse_validation[-1], AdamW_scheduler.best):
             torch.save(nn.state_dict(), best_model_checkpoint)
 
         # define the stepsize 
-        AdamW_scheduler.step(rmse)
-        SGD_scheduler.step(rmse)
+        AdamW_scheduler.step(rmse_validation[-1]/2)
+        SGD_scheduler.step(rmse_validation[-1]/2)
         
         # iterate over batches of molecules
         for names in tqdm(chunks(names_training, batch_size)):
@@ -375,8 +379,6 @@ def tweak_parameters(batch_size:int = 10, data_path:str = "../data/", nr_of_nn:i
             logger.info(f"calc free energy difference: {calc_free_energy_difference}")
             logger.info(f"MSE: {loss}")
             
-            h_exp_free_energy_difference.append([e.item() for e in calc_free_energy_difference])  
-
             AdamW.zero_grad()
             SGD.zero_grad()
             loss.backward()
@@ -392,9 +394,11 @@ def tweak_parameters(batch_size:int = 10, data_path:str = "../data/", nr_of_nn:i
         'SGD_scheduler': SGD_scheduler.state_dict(),
     }, latest_checkpoint)
     
+    # final rmsd calculation on training set
+    rmse_training.append(validate(names_test, data_path = data_path, thinning=thinning, max_snapshots_per_window = max_snapshots_per_window))
     # final rmsd calculation on validation set
-    rmse_val = validate(names_validating, data_path = data_path, thinning=thinning, max_snapshots_per_window = max_snapshots_per_window)
+    rmse_validation.append(validate(names_validating, data_path = data_path, thinning=thinning, max_snapshots_per_window = max_snapshots_per_window))
     # final rmsd calculation on test set
     rmse_test = validate(names_test, data_path = data_path, thinning=thinning, max_snapshots_per_window = max_snapshots_per_window)
-
-    return rmse_val, rmse_test, h_exp_free_energy_difference
+    
+    return rmse_training, rmse_validation, rmse_test
