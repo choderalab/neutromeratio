@@ -9,8 +9,8 @@ from pymbar.timeseries import detectEquilibration
 from simtk import unit
 from tqdm import tqdm
 from glob import glob
-from .ani import ANI1_force_and_energy
-from .constants import hartree_to_kJ_mol, device, platform, kT, exclude_set_ANI, mols_with_charge, multiple_stereobonds
+from neutromeratio.ani import ANI1_force_and_energy
+from neutromeratio.constants import hartree_to_kJ_mol, device, platform, kT, exclude_set_ANI, mols_with_charge, multiple_stereobonds
 import torchani, torch
 import os
 import neutromeratio
@@ -79,19 +79,16 @@ class FreeEnergyCalculator():
         logger.debug(f"coordinates: {coordinates[:5]}")
 
         # end-point energies
-        lambda0_e = self.ani_model.calculate_energy(coordinates, lambda_value=0.).energy_tensor      
-        lambda1_e = self.ani_model.calculate_energy(coordinates, lambda_value=1.).energy_tensor      
-
-        logger.debug(f"lambda0_e: {len(lambda1_e)}")
-        logger.debug(f"lambda1_e: {lambda1_e[:50]}")
+        lambda0_e = self.ani_model.calculate_energy(coordinates, lambda_value=0.).energy      
+        lambda1_e = self.ani_model.calculate_energy(coordinates, lambda_value=1.).energy      
 
         def get_mix(lambda0, lambda1, lam=0.0):
-            return (1 - lam) * np.array(lambda0.detach()) + lam * np.array(lambda1.detach())
+            return (1 - lam) * np.array(lambda0) + lam * np.array(lambda1)
 
         logger.debug('Nr of atoms: {}'.format(n_atoms))
 
         u_kn = np.stack(
-            [get_mix(lambda0_e, lambda1_e, lam) for lam in sorted(self.lambdas)]
+            [get_mix(lambda0_e/kT, lambda1_e/kT, lam) for lam in sorted(self.lambdas)]
         )
         self.mbar = MBAR(u_kn, N_k)
         self.snapshots = snapshots
@@ -203,17 +200,28 @@ def get_experimental_values(names:list)-> torch.Tensor:
     logger.debug(exp)
     return exp
 
-def validate(names:list, data_path:str, thinning:int, max_snapshots_per_window:int):
+def validate(names: list, data_path: str, thinning: int, max_snapshots_per_window: int)->torch.Tensor:
+    """
+    Returns the RMSE between calculated and experimental free energy differences as float.
+
+    Arguments:
+        names {list} -- list of system names considered for RMSE calculation
+        data_path {str} -- data path to the location of the trajectories
+        thinning {int} -- nth frame considerd
+        max_snapshots_per_window {int} -- maximum number of snapshots per window
+
+    Returns:
+        [type] -- returns the RMSE without attached grad
+    """
     e_calc = np.empty(shape=len(names), dtype=float)
     e_exp = np.empty(shape=len(names), dtype=float)
-    setup_mbar = neutromeratio.analysis.setup_mbar
     it = tqdm(names)
     for idx, name in enumerate(it):
         e_calc[idx] = get_free_energy_differences([setup_mbar(name, data_path, thinning, max_snapshots_per_window)])[0].item()
         e_exp[idx] = get_experimental_values([name])[0].item()
         it.set_description(f"RMSE: {calculate_rmse(torch.tensor(e_calc), torch.tensor(e_exp))}")
 
-    return calculate_rmse(torch.tensor(e_calc, device=device), torch.tensor(e_exp, device=device))
+    return calculate_rmse(torch.tensor(e_calc), torch.tensor(e_exp))
 
 def calculate_mse(t1: torch.Tensor, t2: torch.Tensor):
     assert (t1.size() == t2.size())
@@ -270,7 +278,6 @@ def tweak_parameters(batch_size:int = 10, data_path:str = "../data/", nr_of_nn:i
     # save batch loss through epochs
     rmse_validation = []
     rmse_training = []
-    rmse_test = []
 
     # define which layer should be modified -- currently the last one
     layer = 6
@@ -340,11 +347,12 @@ def tweak_parameters(batch_size:int = 10, data_path:str = "../data/", nr_of_nn:i
         print(f"Len of validating set: {len(names_validating)}/{len(names_training_validating)}")
 
 
-    # calculate the rmse on the current parameters
+    # calculate the rmse on the current parameters for the validation set
     print('RMSE calulation for validation set')
     rmse_validation.append(validate(names_validating, data_path = data_path, thinning=thinning, max_snapshots_per_window = max_snapshots_per_window))
     print(f"RMSE on validation set: {rmse_validation[-1]} at epoch {AdamW_scheduler.last_epoch + 1}")
     
+    # calculate the rmse on the current parameters for the training set
     print('RMSE calulation for training set')
     rmse_training.append(validate(names_training, data_path = data_path, thinning=thinning, max_snapshots_per_window = max_snapshots_per_window))
     print(f"RMSE on training set: {rmse_training[-1]} at epoch {AdamW_scheduler.last_epoch + 1}")
@@ -375,7 +383,6 @@ def tweak_parameters(batch_size:int = 10, data_path:str = "../data/", nr_of_nn:i
         for idx, names in enumerate(it):
             logger.debug(f"Batch names: {names}")
             # define setup_mbar function
-            setup_mbar = neutromeratio.analysis.setup_mbar
 
             # get mbar instances in a list
             fec_list = [setup_mbar(name, data_path, thinning=thinning, max_snapshots_per_window=max_snapshots_per_window) for name in names]
@@ -427,3 +434,61 @@ def tweak_parameters(batch_size:int = 10, data_path:str = "../data/", nr_of_nn:i
     rmse_test = validate(names_test, data_path = data_path, thinning=thinning, max_snapshots_per_window = max_snapshots_per_window)
     
     return rmse_training, rmse_validation, rmse_test
+
+
+def setup_mbar(name:str, data_path:str = "../data/", thinning:int = 50, max_snapshots_per_window:int = 200):
+    from neutromeratio.analysis import setup_energy_function
+    def parse_lambda_from_dcd_filename(dcd_filename):
+        """parsed the dcd filename
+
+        Arguments:
+            dcd_filename {str} -- how is the dcd file called?
+
+        Returns:
+            [float] -- lambda value
+        """
+        l = dcd_filename[:dcd_filename.find(f"_energy_in_vacuum")].split('_')
+        lam = l[-3]
+        return float(lam)
+    
+    data = pkg_resources.resource_stream(__name__, "data/exp_results.pickle")
+    exp_results = pickle.load(data)
+
+    if name in exclude_set_ANI + mols_with_charge + multiple_stereobonds:
+        raise RuntimeError(f"{name} is part of the list of excluded molecules. Aborting")
+
+    #######################
+    energy_function, tautomer, flipped = setup_energy_function(name)
+    # and lambda values in list
+    dcds = glob(f"{data_path}/{name}/*.dcd")
+
+    lambdas = []
+    md_trajs = []
+    energies = []
+
+    # read in all the frames from the trajectories
+    for dcd_filename in dcds:
+        lam = parse_lambda_from_dcd_filename(dcd_filename)
+        lambdas.append(lam)
+        traj = md.load_dcd(dcd_filename, top=tautomer.hybrid_topology)[::thinning]
+        logger.debug(f"Nr of frames in trajectory: {len(traj)}")
+        md_trajs.append(traj)
+        f = open(f"{data_path}/{name}/{name}_lambda_{lam:0.4f}_energy_in_vacuum.csv", 'r')
+        energies.append(np.array([float(e) * kT for e in f][::thinning])) 
+        f.close()
+
+    assert (len(lambdas) > 5)
+    assert(len(lambdas) == len(energies))
+    assert(len(lambdas) == len(md_trajs))
+
+    # calculate free energy in kT
+    fec = FreeEnergyCalculator(ani_model=energy_function,
+                                md_trajs=md_trajs,
+                                potential_energy_trajs=energies,
+                                lambdas=lambdas,
+                                n_atoms=len(tautomer.hybrid_atoms),
+                                max_snapshots_per_window=max_snapshots_per_window)
+
+    fec.flipped = flipped
+
+    return fec

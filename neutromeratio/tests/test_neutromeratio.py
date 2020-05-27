@@ -823,11 +823,11 @@ def test_validate():
 def test_postprocessing():
     from ..parameter_gradients import FreeEnergyCalculator, get_free_energy_differences, get_experimental_values
     from ..constants import kT, device, exclude_set_ANI, mols_with_charge
+    from ..parameter_gradients import setup_mbar
     from glob import glob
 
     exp_results = pickle.load(open('data/exp_results.pickle', 'rb'))
     names = ['molDWRow_298', 'SAMPLmol2', 'SAMPLmol4']
-    setup_mbar = neutromeratio.analysis.setup_mbar
     fec_list = [setup_mbar(name, './data/', thinning = 50, max_snapshots_per_window = -1) for name in names]
 
     assert(len(fec_list) == 3)

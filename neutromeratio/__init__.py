@@ -17,7 +17,7 @@ from .vis import display_mol, generate_nglview_object
 from .mcmc import Instantaneous_MC_Mover, NonequilibriumMC
 from .equilibrium import LangevinDynamics, use_precalculated_md_and_performe_mc
 from .ani import ANI1_force_and_energy, LinearAlchemicalSingleTopologyANI
-from .analysis import _remove_hydrogens, prune_conformers, entropy_correction, calculate_weighted_energy, compare_confomer_generator_and_trajectory_minimum_structures, setup_mbar
+from .analysis import _remove_hydrogens, prune_conformers, entropy_correction, calculate_weighted_energy, compare_confomer_generator_and_trajectory_minimum_structures
 
 # Handle versioneer
 from ._version import get_versions
