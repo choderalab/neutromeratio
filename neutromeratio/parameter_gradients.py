@@ -368,8 +368,6 @@ def tweak_parameters(batch_size:int = 10, data_path:str = "../data/", nr_of_nn:i
         SGD_scheduler.step(rmse_validation[-1])
         loss = torch.tensor(0.0)
 
-        # randomize training set
-        random.shuffle(names_training)
         # iterate over batches of molecules
         it = tqdm(chunks(names_training, batch_size))
         calc_free_energy_difference_batches = []
