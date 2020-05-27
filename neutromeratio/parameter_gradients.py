@@ -238,7 +238,7 @@ def tweak_parameters(batch_size:int = 10, data_path:str = "../data/", nr_of_nn:i
     Much of this code is taken from:
     https://aiqm.github.io/torchani/examples/nnp_training.html
     but instead of training on atomic energies the training is 
-    performed on relative free energies
+    performed on relative free energies.
 
     The function is set up to be called from the notebook or scripts folder.  
 
@@ -256,6 +256,7 @@ def tweak_parameters(batch_size:int = 10, data_path:str = "../data/", nr_of_nn:i
     """
 
     from sklearn.model_selection import train_test_split
+    import random
     assert(int(batch_size) <= 10 and int(batch_size) >= 1)
     assert (int(nr_of_nn) <= 8 and int(nr_of_nn) >= 1)
 
@@ -367,6 +368,8 @@ def tweak_parameters(batch_size:int = 10, data_path:str = "../data/", nr_of_nn:i
         SGD_scheduler.step(rmse_validation[-1])
         loss = torch.tensor(0.0)
 
+        # randomize training set
+        random.shuffle(names_training)
         # iterate over batches of molecules
         it = tqdm(chunks(names_training, batch_size))
         calc_free_energy_difference_batches = []
