@@ -17,7 +17,6 @@ import neutromeratio
 import pickle
 import mdtraj as md
 import pkg_resources
-from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
 
@@ -340,16 +339,18 @@ def tweak_parameters(batch_size:int = 10, data_path:str = "../data/", nr_of_nn:i
         print(f"Len of validating set: {len(names_validating)}/{len(names_training_validating)}")
 
 
+    # calculate the rmse on the current parameters
+    print('RMSE calulation for validation set')
+    rmse_validation.append(validate(names_validating, data_path = data_path, thinning=thinning, max_snapshots_per_window = max_snapshots_per_window))
+    print(f"RMSE on validation set: {rmse_validation[-1]} at epoch {AdamW_scheduler.last_epoch + 1}")
+    
+    print('RMSE calulation for training set')
+    rmse_training.append(validate(names_training, data_path = data_path, thinning=thinning, max_snapshots_per_window = max_snapshots_per_window))
+    print(f"RMSE on training set: {rmse_training[-1]} at epoch {AdamW_scheduler.last_epoch + 1}")
+
+
     ## training loop
     for i in range(AdamW_scheduler.last_epoch + 1, max_epochs):
-        # calculate the rmse on the current parameters
-        print('RMSE calulation for validation set')
-        rmse_validation.append(validate(names_validating, data_path = data_path, thinning=thinning, max_snapshots_per_window = max_snapshots_per_window))
-        print(f"RMSE on validation set: {rmse_validation[-1]} at epoch {AdamW_scheduler.last_epoch + 1}")
-        
-        print('RMSE calulation for training set')
-        rmse_training.append(validate(names_training, data_path = data_path, thinning=thinning, max_snapshots_per_window = max_snapshots_per_window))
-        print(f"RMSE on training set: {rmse_training[-1]} at epoch {AdamW_scheduler.last_epoch + 1}")
         
         # get the learning group
         learning_rate = AdamW.param_groups[0]['lr']
@@ -368,9 +369,11 @@ def tweak_parameters(batch_size:int = 10, data_path:str = "../data/", nr_of_nn:i
 
         # iterate over batches of molecules
         it = tqdm(chunks(names_training, batch_size))
-        for names in it:
+        calc_free_energy_difference_batches = []
+        exp_free_energy_difference_batches = []
+        for idx, names in enumerate(it):
             logger.debug(f"Batch names: {names}")
-            it.set_description(f"MSE: {loss.item()}")
+            it.set_description(f"Batch {idx} -- MSE: {loss.item()}")
             # define setup_mbar function
             setup_mbar = neutromeratio.analysis.setup_mbar
 
@@ -387,13 +390,23 @@ def tweak_parameters(batch_size:int = 10, data_path:str = "../data/", nr_of_nn:i
             logger.debug(f"exp free energy difference: {exp_free_energy_difference}")
             logger.debug(f"calc free energy difference: {calc_free_energy_difference}")
             logger.debug(f"MSE: {loss}")
-            
+            calc_free_energy_difference_batches.extend([e.item() for e in calc_free_energy_difference])
+            exp_free_energy_difference_batches.extend([e.item() for e in exp_free_energy_difference])
+           
             AdamW.zero_grad()
             SGD.zero_grad()
             loss.backward()
             AdamW.step()
             SGD.step()
-            
+
+        print('RMSE calulation for validation set')
+        rmse_validation.append(validate(names_validating, data_path = data_path, thinning=thinning, max_snapshots_per_window = max_snapshots_per_window))
+        print(f"RMSE on validation set: {rmse_validation[-1]} at epoch {AdamW_scheduler.last_epoch + 1}")
+        
+        print('RMSE calulation for training set')
+        rmse_training.append(calculate_rmse(torch.tensor(calc_free_energy_difference_batches), torch.tensor(exp_free_energy_difference_batches)))
+        print(f"RMSE on training set: {rmse_training[-1]} at epoch {AdamW_scheduler.last_epoch + 1}")
+
 
     torch.save({
         'nn': nn.state_dict(),
