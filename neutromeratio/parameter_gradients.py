@@ -373,7 +373,6 @@ def tweak_parameters(batch_size:int = 10, data_path:str = "../data/", nr_of_nn:i
         exp_free_energy_difference_batches = []
         for idx, names in enumerate(it):
             logger.debug(f"Batch names: {names}")
-            it.set_description(f"Batch {idx} -- MSE: {loss.item()}")
             # define setup_mbar function
             setup_mbar = neutromeratio.analysis.setup_mbar
 
@@ -386,7 +385,7 @@ def tweak_parameters(batch_size:int = 10, data_path:str = "../data/", nr_of_nn:i
             exp_free_energy_difference = get_experimental_values(names)
             # calculate the loss as MSE
             loss = calculate_mse(calc_free_energy_difference, exp_free_energy_difference)
-            
+            it.set_description(f"Batch {idx} -- MSE: {loss.item()}")
             logger.debug(f"exp free energy difference: {exp_free_energy_difference}")
             logger.debug(f"calc free energy difference: {calc_free_energy_difference}")
             logger.debug(f"MSE: {loss}")
