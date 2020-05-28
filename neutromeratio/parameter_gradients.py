@@ -90,6 +90,10 @@ class FreeEnergyCalculator():
         u_kn = np.stack(
             [get_mix(lambda0_e/kT, lambda1_e/kT, lam) for lam in sorted(self.lambdas)]
         )
+        
+        del lambda0_e
+        del lambda1_e
+
         self.mbar = MBAR(u_kn, N_k)
         self.snapshots = snapshots
 
@@ -147,8 +151,8 @@ class FreeEnergyCalculator():
         u1_stddev = decomposed_energy_list_lamb1.stddev
 
         u_ln = torch.stack([u_0, u_1])
-        decomposed_energy_list_lamb0 = None
-        decomposed_energy_list_lamb1 = None
+        del decomposed_energy_list_lamb0
+        del decomposed_energy_list_lamb1
         
         return u_ln
 
@@ -169,8 +173,7 @@ def get_free_energy_differences(fec_list:list)-> torch.Tensor:
     Returns:
         torch.tensor -- calculated free energy in kT
     """
-    calc = torch.tensor([0.0] * len(fec_list),
-                                device=device, dtype=torch.float64)
+    calc = []
 
     for idx, fec in enumerate(fec_list):
         #return torch.tensor([5.0], device=device)
@@ -178,9 +181,10 @@ def get_free_energy_differences(fec_list:list)-> torch.Tensor:
             deltaF = fec.compute_free_energy_difference() * -1.
         else:
             deltaF = fec.compute_free_energy_difference()
-        calc[idx] = deltaF
+        calc.append(deltaF)
     logger.debug(calc)
-    return calc
+    return torch.stack([e for e in calc])
+
 
 def get_experimental_values(names:list)-> torch.Tensor:
     """
@@ -221,7 +225,7 @@ def validate(names: list, data_path: str, thinning: int, max_snapshots_per_windo
         e_exp[idx] = get_experimental_values([name])[0].item()
         it.set_description(f"RMSE: {calculate_rmse(torch.tensor(e_calc), torch.tensor(e_exp))}")
 
-    return calculate_rmse(torch.tensor(e_calc), torch.tensor(e_exp))
+    return calculate_rmse(torch.tensor(e_calc), torch.tensor(e_exp)).item()
 
 def calculate_mse(t1: torch.Tensor, t2: torch.Tensor):
     assert (t1.size() == t2.size())
@@ -425,7 +429,7 @@ def tweak_parameters(batch_size:int = 10, data_path:str = "../data/", nr_of_nn:i
     
     # final rmsd calculation on training set
     print('RMSE calulation for training set')
-    rmse_training.append(validate(names_test, data_path = data_path, thinning=thinning, max_snapshots_per_window = max_snapshots_per_window))
+    rmse_training.append(validate(names_training, data_path = data_path, thinning=thinning, max_snapshots_per_window = max_snapshots_per_window))
     # final rmsd calculation on validation set
     print('RMSE calulation for validation set')
     rmse_validation.append(validate(names_validating, data_path = data_path, thinning=thinning, max_snapshots_per_window = max_snapshots_per_window))
