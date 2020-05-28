@@ -415,7 +415,7 @@ def tweak_parameters(batch_size:int = 10, data_path:str = "../data/", nr_of_nn:i
         print(f"RMSE on validation set: {rmse_validation[-1]} at epoch {AdamW_scheduler.last_epoch + 1}")
         
         print('RMSE calulation for training set')
-        rmse_training.append(calculate_rmse(torch.tensor(calc_free_energy_difference_batches), torch.tensor(exp_free_energy_difference_batches)))
+        rmse_training.append(calculate_rmse(torch.tensor(calc_free_energy_difference_batches), torch.tensor(exp_free_energy_difference_batches)).item())
         print(f"RMSE on training set: {rmse_training[-1]} at epoch {AdamW_scheduler.last_epoch + 1}")
 
 
@@ -427,12 +427,6 @@ def tweak_parameters(batch_size:int = 10, data_path:str = "../data/", nr_of_nn:i
         'SGD_scheduler': SGD_scheduler.state_dict(),
     }, latest_checkpoint)
     
-    # final rmsd calculation on training set
-    print('RMSE calulation for training set')
-    rmse_training.append(validate(names_training, data_path = data_path, thinning=thinning, max_snapshots_per_window = max_snapshots_per_window))
-    # final rmsd calculation on validation set
-    print('RMSE calulation for validation set')
-    rmse_validation.append(validate(names_validating, data_path = data_path, thinning=thinning, max_snapshots_per_window = max_snapshots_per_window))
     # final rmsd calculation on test set
     print('RMSE calulation for test set')
     rmse_test = validate(names_test, data_path = data_path, thinning=thinning, max_snapshots_per_window = max_snapshots_per_window)
