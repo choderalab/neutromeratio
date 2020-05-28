@@ -217,12 +217,12 @@ def validate(names: list, data_path: str, thinning: int, max_snapshots_per_windo
     Returns:
         [type] -- returns the RMSE without attached grad
     """
-    e_calc = np.empty(shape=len(names), dtype=float)
-    e_exp = np.empty(shape=len(names), dtype=float)
+    e_calc = []
+    e_exp = []
     it = tqdm(names)
     for idx, name in enumerate(it):
-        e_calc[idx] = get_free_energy_differences([setup_mbar(name, data_path, thinning, max_snapshots_per_window)])[0].item()
-        e_exp[idx] = get_experimental_values([name])[0].item()
+        e_calc.append(get_free_energy_differences([setup_mbar(name, data_path, thinning, max_snapshots_per_window)])[0].item())
+        e_exp.append(get_experimental_values([name])[0].item())
         it.set_description(f"RMSE: {calculate_rmse(torch.tensor(e_calc), torch.tensor(e_exp))}")
 
     return calculate_rmse(torch.tensor(e_calc), torch.tensor(e_exp)).item()
