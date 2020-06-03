@@ -540,7 +540,7 @@ def test_setup_energy_function():
     assert (flipped == True)
 
 def test_setup_mbar():
-    from ..analysis import setup_mbar
+    from ..parameter_gradients import setup_mbar
     name = 'molDWRow_298'
     fec = setup_mbar(name, data_path="data/", max_snapshots_per_window=50)
     np.isclose(-3.2048, fec.compute_free_energy_difference().item(), rtol=1e-3)
@@ -813,7 +813,7 @@ def test_validate():
     exp_values = get_experimental_values(names)
     rmse = validate(names, data_path='./data/', thinning=10, max_snapshots_per_window=100)
     assert (np.isclose(exp_values.item(), -10.2321, rtol=1e-3))
-    assert (np.isclose(rmse.item(), 5.4302, rtol=1e-3))
+    assert (np.isclose(rmse, 5.4302, rtol=1e-3))
     # compare exp results to exp results to output of get_experimental_values
     assert(np.isclose((exp_results[names[0]]['energy'] * unit.kilocalorie_per_mole) / kT, exp_values, rtol=1e-3))
 

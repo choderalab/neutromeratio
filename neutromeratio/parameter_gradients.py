@@ -204,7 +204,7 @@ def get_experimental_values(names:list)-> torch.Tensor:
     logger.debug(exp)
     return exp
 
-def validate(names: list, data_path: str, thinning: int, max_snapshots_per_window: int)->torch.Tensor:
+def validate(names: list, data_path: str, thinning: int, max_snapshots_per_window: int)->float:
     """
     Returns the RMSE between calculated and experimental free energy differences as float.
 
@@ -215,7 +215,7 @@ def validate(names: list, data_path: str, thinning: int, max_snapshots_per_windo
         max_snapshots_per_window {int} -- maximum number of snapshots per window
 
     Returns:
-        [type] -- returns the RMSE without attached grad
+        [type] -- returns the RMSE as float
     """
     e_calc = []
     e_exp = []
@@ -223,14 +223,17 @@ def validate(names: list, data_path: str, thinning: int, max_snapshots_per_windo
     for idx, name in enumerate(it):
         e_calc.append(get_free_energy_differences([setup_mbar(name, data_path, thinning, max_snapshots_per_window)])[0].item())
         e_exp.append(get_experimental_values([name])[0].item())
-        it.set_description(f"RMSE: {calculate_rmse(torch.tensor(e_calc), torch.tensor(e_exp))}")
-
+        current_rmse = calculate_rmse(torch.tensor(e_calc), torch.tensor(e_exp)).item()
+        it.set_description(f"RMSE: {current_rmse}")
+        if current_rmse > 50:
+            logger.critical(f"RMSE above 50 with {current_rmse}: {name}")
+            logger.critical(names)
+            
     return calculate_rmse(torch.tensor(e_calc), torch.tensor(e_exp)).item()
 
 def calculate_mse(t1: torch.Tensor, t2: torch.Tensor):
     assert (t1.size() == t2.size())
     return torch.mean((t1 - t2)**2)
-
 
 def calculate_rmse(t1: torch.Tensor, t2: torch.Tensor):
     assert (t1.size() == t2.size())
