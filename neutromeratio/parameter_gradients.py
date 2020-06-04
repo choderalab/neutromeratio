@@ -478,7 +478,8 @@ def setup_mbar(name:str, data_path:str = "../data/", thinning:int = 50, max_snap
         energies.append(np.array([float(e) * kT for e in f][::thinning])) 
         f.close()
 
-    assert (len(lambdas) > 5)
+    if (len(lambdas) < 5):
+        raise RuntimeError(f"Below 5 lambda states for {name}")
     assert(len(lambdas) == len(energies))
     assert(len(lambdas) == len(md_trajs))
 
