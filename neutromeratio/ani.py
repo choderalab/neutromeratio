@@ -66,9 +66,7 @@ class ANI1_force_and_energy(object):
     def __init__(self,
                  model: torchani.models.ANI1ccx,
                  atoms: str,
-                 mol: Atoms = None,
-                 adventure_mode: bool = True,
-                 per_atom_thresh: unit.Quantity = 0.5 * unit.kilojoule_per_mole,
+                 mol: Atoms = None
                  ):
         """
         Performs energy and force calculations.
@@ -80,9 +78,6 @@ class ANI1_force_and_energy(object):
             a string of atoms in the indexed order
         mol (optional): ase.Atoms
             a ASE Atoms object with the atoms
-        adventure_mode :bool
-            stddev threshold for energy prediction
-        per_atom_thresh: unit'd
         """
         self.device = device
         self.model = model
@@ -91,11 +86,7 @@ class ANI1_force_and_energy(object):
         self.species = self.model.species_to_tensor(atoms).to(device).unsqueeze(0)
         self.platform = platform
         self.list_of_lambda_restraints:list = []
-        self.per_atom_thresh = per_atom_thresh.value_in_unit(unit.kilojoule_per_mole)
-        self.adventure_mode = adventure_mode
-        self.per_mol_tresh = float(self.per_atom_thresh * len(self.atoms))
 
-        assert(type(per_atom_thresh) == unit.Quantity)
 
         # TODO: check availablity of platform
 
@@ -376,17 +367,6 @@ class ANI1_force_and_energy(object):
 
         return energy_in_kT, restraint_bias_in_kT, stddev_in_kT, ensemble_bias_in_kT
 
-    def _quadratic_ensemble_bias(self, stddev):
-        ensemble_bias_in_kT = torch.tensor(0.1 * ((stddev.item() - self.per_mol_tresh)**2),
-                                               device=self.device, dtype=torch.float64, requires_grad=True)
-        logger.warning(f"Applying ensemble_bias: {ensemble_bias_in_kT.item()} kT")
-        return ensemble_bias_in_kT
-
-    def _linear_ensemble_bias(self, stddev):
-        ensemble_bias_in_kT = torch.tensor(abs(stddev.item() - self.per_mol_tresh),
-                                               device=self.device, dtype=torch.float64, requires_grad=True)
-        logger.warning(f"Applying ensemble_bias: {ensemble_bias_in_kT.item()} kT")
-        return ensemble_bias_in_kT
 
     def _traget_energy_function(self, x, lambda_value: float = 0.0):
         """
@@ -446,6 +426,26 @@ class ANI1_force_and_energy(object):
         ensemble_bias = np.array([e.item() for e in ensemble_bias_in_kT]) *kT
 
         return DecomposedEnergy(energy, restraint_bias, stddev, ensemble_bias, energy_in_kT)
+
+# class AlchemicalANI2ccx(torchani.models.ANI2ccx):
+#     neural_networks = None
+#     def __init__(self, alchemical_atoms=[]):
+#         """
+#         Scale the contributions of alchemical atoms to the energy.
+#         """
+#         super().__init__()
+#         nn = load_model_ensemble(self.species,
+#                                 self.ensemble_prefix,
+#                                 self.ensemble_size
+#                                 )
+#         self.device = device
+#         self.alchemical_atoms = alchemical_atoms
+#         if AlchemicalANI.neural_networks == None:
+#             AlchemicalANI.neural_networks = nn
+
+#     def forward(self, species_coordinates, lam=1.0):
+#         raise (NotImplementedError)
+
 
 
 class AlchemicalANI(torchani.models.ANI1ccx):
@@ -583,8 +583,6 @@ class LinearAlchemicalSingleTopologyANI(AlchemicalANI):
         Parameters
         ----------
         alchemical_atoms : list
-        adventure_mode : bool
-            “Fortune and glory, kid. Fortune and glory.” - Indiana Jones
         """
 
         assert (len(alchemical_atoms) == 2)
