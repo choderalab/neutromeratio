@@ -437,8 +437,12 @@ def tweak_parameters(batch_size:int = 10, data_path:str = "../data/", nr_of_nn:i
     return rmse_training, rmse_validation, rmse_test
 
 
-def setup_mbar(name:str, data_path:str = "../data/", thinning:int = 50, max_snapshots_per_window:int = 200):
-    from neutromeratio.analysis import setup_energy_function
+def setup_mbar(name:str, env:str = 'vacuum', data_path:str = "../data/", thinning:int = 50, max_snapshots_per_window:int = 200):
+    from neutromeratio.analysis import setup_system_and_energy_function
+    import os
+    if env != 'vacuum' and env != 'droplet':
+        raise RuntimeError('Only keyword vacuum or droplet are allowed as environment.') 
+
     def parse_lambda_from_dcd_filename(dcd_filename):
         """parsed the dcd filename
 
@@ -448,18 +452,21 @@ def setup_mbar(name:str, data_path:str = "../data/", thinning:int = 50, max_snap
         Returns:
             [float] -- lambda value
         """
-        l = dcd_filename[:dcd_filename.find(f"_energy_in_vacuum")].split('_')
+        l = dcd_filename[:dcd_filename.find(f"_energy_in_{env}")].split('_')
         lam = l[-3]
         return float(lam)
     
     data = pkg_resources.resource_stream(__name__, "data/exp_results.pickle")
     exp_results = pickle.load(data)
+    data_path = os.path.abspath(data_path)
+    if not os.path.exists(data_path):
+        raise RuntimeError(f"{data_path} does not exist!")
 
     if name in exclude_set_ANI + mols_with_charge + multiple_stereobonds:
         raise RuntimeError(f"{name} is part of the list of excluded molecules. Aborting")
 
     #######################
-    energy_function, tautomer, flipped = setup_energy_function(name)
+    energy_function, tautomer, flipped = setup_system_and_energy_function(name=name, env=env, base_path=f"{data_path}/{name}/")
     # and lambda values in list
     dcds = glob(f"{data_path}/{name}/*.dcd")
 
@@ -468,18 +475,24 @@ def setup_mbar(name:str, data_path:str = "../data/", thinning:int = 50, max_snap
     energies = []
 
     # read in all the frames from the trajectories
+    if env == 'vacuum':
+        top = tautomer.hybrid_topology
+    else:
+        top = f"{data_path}/{name}/{name}_in_droplet.pdb"
+
     for dcd_filename in dcds:
         lam = parse_lambda_from_dcd_filename(dcd_filename)
         lambdas.append(lam)
-        traj = md.load_dcd(dcd_filename, top=tautomer.hybrid_topology)[::thinning]
+        traj = md.load_dcd(dcd_filename, top=top)[::thinning]
         logger.debug(f"Nr of frames in trajectory: {len(traj)}")
         md_trajs.append(traj)
-        f = open(f"{data_path}/{name}/{name}_lambda_{lam:0.4f}_energy_in_vacuum.csv", 'r')
+        f = open(f"{data_path}/{name}/{name}_lambda_{lam:0.4f}_energy_in_{env}.csv", 'r')
         energies.append(np.array([float(e) * kT for e in f][::thinning])) 
         f.close()
 
     if (len(lambdas) < 5):
         raise RuntimeError(f"Below 5 lambda states for {name}")
+    
     assert(len(lambdas) == len(energies))
     assert(len(lambdas) == len(md_trajs))
 

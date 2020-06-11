@@ -49,10 +49,11 @@ def test_tautomer_class():
     t.perform_tautomer_transformation()
 
 
+
+
 def test_tautomer_transformation():
     from neutromeratio.tautomers import Tautomer
 
-    print(os.getcwd())
     with open('data/exp_results.pickle', 'rb') as f:
         exp_results = pickle.load(f)
 
@@ -137,7 +138,7 @@ def test_tautomer_transformation():
     assert(t.hybrid_hydrogen_idx_at_lambda_0 == 12)
     assert(t.hybrid_hydrogen_idx_at_lambda_1 == 19)
 
-    # test if droplet works for
+    # test if droplet works
     t.add_droplet(t.final_state_ligand_topology, t.final_state_ligand_coords[0])
 
 
@@ -177,8 +178,72 @@ def test_tautomer_transformation():
     assert(t.hybrid_hydrogen_idx_at_lambda_0 == 18)
     assert(t.hybrid_hydrogen_idx_at_lambda_1 == 19)
 
-    # test if droplet works for
+    # test if droplet works
     t.add_droplet(t.final_state_ligand_topology, t.final_state_ligand_coords[0])
+
+
+
+def test_setup_tautomer_system_in_vaccum():
+    from ..analysis import setup_system_and_energy_function
+    from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
+    import random, shutil
+
+    idx = 50
+    with open('data/exp_results.pickle', 'rb') as f:
+        exp_results = pickle.load(f)
+    names = []
+    for name in sorted(exp_results):
+        if name in exclude_set_ANI + mols_with_charge + multiple_stereobonds:
+            continue
+        names.append(name)
+
+    lambda_value = 0.1
+    name = names[100]
+    try:
+        energy_function, tautomer, flipped = setup_system_and_energy_function(name=name, env='vacuum', base_path='pdbs')
+        assert (tautomer.initial_state_ligand_atoms == 'NCNNCNHHHH')
+        x0 = tautomer.hybrid_coords
+        f = energy_function.calculate_force(x0, lambda_value)
+        for _ in range(10):
+            name = random.choice(names)
+            print(name)
+            energy_function, tautomer, flipped = setup_system_and_energy_function(name=name, env='vacuum', base_path='pdbs')
+            x0 = tautomer.hybrid_coords
+            f = energy_function.calculate_force(x0, lambda_value)
+    finally:
+        shutil.rmtree('pdbs')
+
+def test_setup_tautomer_system_in_droplet():
+    from ..analysis import setup_system_and_energy_function
+    from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
+    import random, shutil
+
+    idx = 50
+    with open('data/exp_results.pickle', 'rb') as f:
+        exp_results = pickle.load(f)
+    names = []
+    for name in sorted(exp_results):
+        if name in exclude_set_ANI + mols_with_charge + multiple_stereobonds:
+            continue
+        names.append(name)
+
+    lambda_value = 0.1
+    name = names[100]
+    try:
+        energy_function, tautomer, flipped = setup_system_and_energy_function(name=name, env='droplet', base_path='pdbs', diameter=10)
+        assert (tautomer.initial_state_ligand_atoms == 'NCNNCNHHHH')
+        x0 = tautomer.ligand_in_water_coordinates
+        energy_function.calculate_force(x0, lambda_value)
+
+        for _ in range(5):
+            name = random.choice(names)
+            print(name)
+            energy_function, tautomer, flipped = setup_system_and_energy_function(name=name, env='droplet', base_path='pdbs', diameter=10)
+            x0 = tautomer.ligand_in_water_coordinates
+            energy_function.calculate_force(x0, lambda_value)
+
+    finally:
+        shutil.rmtree('pdbs')
 
 def test_neutromeratio_energy_calculations_with_torchANI_model():
 
@@ -542,8 +607,10 @@ def test_setup_energy_function():
 def test_setup_mbar():
     from ..parameter_gradients import setup_mbar
     name = 'molDWRow_298'
-    fec = setup_mbar(name, data_path="data/", max_snapshots_per_window=50)
+    fec = setup_mbar(name, env='vacuum', data_path="data/vacuum", max_snapshots_per_window=50)
     np.isclose(-3.2048, fec.compute_free_energy_difference().item(), rtol=1e-3)
+    fec = setup_mbar(name, env='droplet', data_path="data/droplet", max_snapshots_per_window=25)
+    np.isclose(-3.2048, fec.compute_free_energy_difference().item(), rtol=1e-2)
 
 def test_change_stereobond():
     from ..utils import change_only_stereobond, get_nr_of_stereobonds
