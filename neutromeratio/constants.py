@@ -9,8 +9,9 @@ platform = 'cpu'
 temperature = 300 * unit.kelvin
 kT = kB * temperature
 device = torch.device(platform)
+num_threads = 4
 
-torch.set_num_threads(1)
+torch.set_num_threads(num_threads)
 
 # openmm units
 mass_unit = unit.dalton
