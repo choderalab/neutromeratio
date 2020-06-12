@@ -187,6 +187,7 @@ def test_setup_tautomer_system_in_vaccum():
     from ..analysis import setup_system_and_energy_function
     from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
     import random, shutil
+    import parmed as pm
 
     idx = 50
     with open('data/exp_results.pickle', 'rb') as f:
@@ -541,46 +542,23 @@ def test_thermochemistry():
 
 
 def test_euqilibrium():
+    from ..analysis import setup_system_and_energy_function
+    from ..equilibrium import LangevinDynamics
+
     # name of the system
     name = 'molDWRow_298'
     # number of steps
     n_steps = 50
 
     exp_results = pickle.load(open('data/exp_results.pickle', 'rb'))
-
-    t1_smiles = exp_results[name]['t1-smiles']
-    t2_smiles = exp_results[name]['t2-smiles']
-
-    t_type, tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
-    tautomer = tautomers[0]
-    tautomer.perform_tautomer_transformation()
-
-    # define the alchemical atoms
-    alchemical_atoms = [tautomer.hybrid_hydrogen_idx_at_lambda_1,
-                        tautomer.hybrid_hydrogen_idx_at_lambda_0]
-
-    # extract hydrogen donor idx and hydrogen idx for from_mol
-    model = neutromeratio.ani.LinearAlchemicalSingleTopologyANI(alchemical_atoms=alchemical_atoms)
-    model = model.to(device)
-    torch.set_num_threads(1)
-
-    # perform initial sampling
-    energy_function = neutromeratio.ANI1_force_and_energy(
-        model=model,
-        atoms=tautomer.hybrid_atoms,
-        mol=None
-    )
-
-    for e in tautomer.ligand_restraints + tautomer.hybrid_ligand_restraints:
-        print(e)
-        energy_function.add_restraint_to_lambda_protocol(e)
+    energy_function, tautomer, flipped = setup_system_and_energy_function(name=name, env='vacuum', base_path='pdbs')
 
     x0 = [np.array(tautomer.hybrid_coords)] * unit.angstrom # format [1][K][3] * unit
     x0, hist_e = energy_function.minimize(x0)
 
     energy_and_force = lambda x : energy_function.calculate_force(x, 1.0)
 
-    langevin = neutromeratio.LangevinDynamics(atoms=tautomer.hybrid_atoms,
+    langevin = LangevinDynamics(atoms=tautomer.hybrid_atoms,
                                               energy_and_force=energy_and_force,
                                               )
 
@@ -591,7 +569,7 @@ def test_euqilibrium():
 
     energy_and_force = lambda x : energy_function.calculate_force(x, 0.0)
 
-    langevin = neutromeratio.LangevinDynamics(atoms=tautomer.hybrid_atoms,
+    langevin = LangevinDynamics(atoms=tautomer.hybrid_atoms,
                                               energy_and_force=energy_and_force)
 
     equilibrium_samples, energies, restraint_bias, stddev, ensemble_bias = langevin.run_dynamics(x0,
@@ -599,9 +577,9 @@ def test_euqilibrium():
                                                                                                  stepsize=1.0 * unit.femtosecond,
                                                                                                  progress_bar=True)
 def test_setup_energy_function():
-    from ..analysis import setup_energy_function
+    from ..analysis import setup_system_and_energy_function
     name = 'molDWRow_298'
-    energy_function, tautomer, flipped = setup_energy_function(name)
+    energy_function, tautomer, flipped = setup_system_and_energy_function(name, env='vacuum')
     assert (flipped == True)
 
 def test_setup_mbar():
@@ -609,8 +587,8 @@ def test_setup_mbar():
     name = 'molDWRow_298'
     fec = setup_mbar(name, env='vacuum', data_path="data/vacuum", max_snapshots_per_window=50)
     np.isclose(-3.2048, fec.compute_free_energy_difference().item(), rtol=1e-3)
-    fec = setup_mbar(name, env='droplet', data_path="data/droplet", max_snapshots_per_window=25)
-    np.isclose(-3.2048, fec.compute_free_energy_difference().item(), rtol=1e-2)
+    #fec = setup_mbar(name, env='droplet', data_path="data/droplet", max_snapshots_per_window=25)
+    #np.isclose(-3.2048, fec.compute_free_energy_difference().item(), rtol=1e-2)
 
 def test_change_stereobond():
     from ..utils import change_only_stereobond, get_nr_of_stereobonds
@@ -734,31 +712,35 @@ def test_plotting():
 
 
 def test_generating_droplet():
-    from neutromeratio.constants import kT
+    from ..constants import kT
+    from ..analysis import setup_system_and_energy_function
+    from ..utils import generate_tautomer_class_stereobond_aware
+    from ..ani import LinearAlchemicalSingleTopologyANI
     import numpy as np
 
     exp_results = pickle.load(open('data/exp_results.pickle', 'rb'))
 
     name = 'molDWRow_298'
-
+    diameter=16
     t1_smiles = exp_results[name]['t1-smiles']
     t2_smiles = exp_results[name]['t2-smiles']
 
     # generate both rdkit mol
-    t_type, tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles, nr_of_conformations=5)
+    t_type, tautomers, flipped = generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles, nr_of_conformations=5)
     tautomer = tautomers[0]
     tautomer.perform_tautomer_transformation()
     m = tautomer.add_droplet(tautomer.hybrid_topology,
                              tautomer.hybrid_coords,
-                             diameter=16 * unit.angstrom,
+                             diameter=diameter * unit.angstrom,
                              restrain_hydrogen_bonds=True,
+                             restrain_hydrogen_angles=False,
                              top_file=f"data/{name}_in_droplet.pdb")
 
     # define the alchemical atoms
     alchemical_atoms = [tautomer.hybrid_hydrogen_idx_at_lambda_1, tautomer.hybrid_hydrogen_idx_at_lambda_0]
 
     # extract hydrogen donor idx and hydrogen idx for from_mol
-    model = neutromeratio.ani.LinearAlchemicalSingleTopologyANI(alchemical_atoms=alchemical_atoms)
+    model = LinearAlchemicalSingleTopologyANI(alchemical_atoms=alchemical_atoms)
     model = model.to(device)
 
     # perform initial sampling
@@ -777,6 +759,24 @@ def test_generating_droplet():
     energy = energy_function.calculate_energy([tautomer.ligand_in_water_coordinates/unit.angstrom]*unit.angstrom)
     assert(is_quantity_close(energy.energy[0], (-15547479.771537919 * unit.kilojoule_per_mole), rtol=1e-7))
 
+    energy = energy_function.calculate_energy([tautomer.ligand_in_water_coordinates/unit.angstrom]*unit.angstrom)
+    assert(is_quantity_close(energy.energy[0], (-15547479.771537919 * unit.kilojoule_per_mole), rtol=1e-7))
+
+    tautomer.add_COM_for_hybrid_ligand(np.array([diameter/2, diameter/2, diameter/2]) * unit.angstrom)
+
+    for r in tautomer.solvent_restraints:
+        energy_function.add_restraint_to_lambda_protocol(r)
+
+    for r in tautomer.com_restraints:
+        energy_function.add_restraint_to_lambda_protocol(r)
+
+    energy = energy_function.calculate_energy([tautomer.ligand_in_water_coordinates/unit.angstrom]*unit.angstrom)
+    assert(is_quantity_close(energy.energy[0], (-15547319.00691153 * unit.kilojoule_per_mole), rtol=1e-7))
+    
+    
+    energy_function, tautomer, flipped = setup_system_and_energy_function(name=name, env='droplet', base_path='data', diameter=diameter)
+    energy = energy_function.calculate_energy([tautomer.ligand_in_water_coordinates/unit.angstrom]*unit.angstrom)
+    assert(is_quantity_close(energy.energy[0], (-15547319.00691153 * unit.kilojoule_per_mole), rtol=1e-7))
 
 @pytest.mark.skipif(
     os.environ.get("TRAVIS", None) == "true", reason="Psi4 import fails on travis."
@@ -802,10 +802,10 @@ def test_psi4():
 
 
 def test_parameter_gradient():
-    from ..constants import mols_with_charge, exclude_set_ANI, kT
+    from ..constants import mols_with_charge, exclude_set_ANI, kT, multiple_stereobonds
     from tqdm import tqdm
     from ..parameter_gradients import FreeEnergyCalculator
-    from ..analysis import setup_energy_function
+    from ..analysis import setup_system_and_energy_function
     
     # TODO: pkg_resources instead of filepath relative to execution directory
     exp_results = pickle.load(open('data/exp_results.pickle', 'rb'))
@@ -816,10 +816,10 @@ def test_parameter_gradient():
 
     # specify the system you want to simulate
     name = 'molDWRow_298'  #Experimental free energy difference: 1.132369 kcal/mol
-    if name in exclude_set_ANI + mols_with_charge:
+    if name in exclude_set_ANI + mols_with_charge + multiple_stereobonds:
         raise RuntimeError(f"{name} is part of the list of excluded molecules. Aborting")
 
-    energy_function, tautomer, flipped = setup_energy_function(name)
+    energy_function, tautomer, flipped = setup_system_and_energy_function(name, env='vacuum')
     
     x0 = tautomer.hybrid_coords
     potential_energy_trajs = []
@@ -877,12 +877,27 @@ def test_validate():
     names = ['SAMPLmol2']
     exp_results = pickle.load(open('data/exp_results.pickle', 'rb'))
 
+    env = 'vacuum'
     exp_values = get_experimental_values(names)
-    rmse = validate(names, data_path='./data/', thinning=10, max_snapshots_per_window=100)
-    assert (np.isclose(exp_values.item(), -10.2321, rtol=1e-3))
-    assert (np.isclose(rmse, 5.4302, rtol=1e-3))
+    rmse = validate(names, data_path='./data/vacuum', env=env, thinning=10, max_snapshots_per_window=100)
+    assert (np.isclose(exp_values.item(), -10.2321, rtol=1e-4))
+    assert (np.isclose(rmse, 5.4302, rtol=1e-4))
     # compare exp results to exp results to output of get_experimental_values
     assert(np.isclose((exp_results[names[0]]['energy'] * unit.kilocalorie_per_mole) / kT, exp_values, rtol=1e-3))
+
+def test_validate_droplet():
+    from ..parameter_gradients import validate, get_experimental_values
+    from ..constants import kT
+    names = ['molDWRow_298']
+    exp_results = pickle.load(open('data/exp_results.pickle', 'rb'))
+    env = 'droplet'
+    exp_values = get_experimental_values(names)
+    rmse = validate(names, data_path=f"./data/{env}", env=env, thinning=10, max_snapshots_per_window=7)
+    assert (np.isclose(exp_values.item(), 1.8994317488369707, rtol=1e-4))
+    assert (np.isclose(rmse, 0.28901004791259766, rtol=1e-4))
+    # compare exp results to exp results to output of get_experimental_values
+    assert(np.isclose((exp_results[names[0]]['energy'] * unit.kilocalorie_per_mole) / kT, exp_values, rtol=1e-3))
+
 
 @pytest.mark.skipif(
     os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
@@ -893,17 +908,40 @@ def test_postprocessing():
     from ..parameter_gradients import setup_mbar
     from glob import glob
 
+    env = 'vacuum'
     exp_results = pickle.load(open('data/exp_results.pickle', 'rb'))
     names = ['molDWRow_298', 'SAMPLmol2', 'SAMPLmol4']
-    fec_list = [setup_mbar(name, './data/', thinning = 50, max_snapshots_per_window = -1) for name in names]
+    fec_list = [setup_mbar(name, env=env, data_path='./data/vacuum', thinning = 50, max_snapshots_per_window = -1) for name in names]
 
     assert(len(fec_list) == 3)
     rmse = torch.sqrt(torch.mean((get_free_energy_differences(fec_list) - get_experimental_values(names))**2))
 
-    assert(np.isclose(fec_list[0].end_state_free_energy_difference[0], -1.2657010719456991, rtol=1.e-2))
-    assert(np.isclose(fec_list[1].end_state_free_energy_difference[0], -4.764917445894416, rtol=1.e-2))
-    assert(np.isclose(fec_list[2].end_state_free_energy_difference[0], 4.127431117241131, rtol=1.e-2))
-    assert(np.isclose(rmse.item(),  5.599380922019047, rtol=1.e-2))
+    assert(np.isclose(fec_list[0].end_state_free_energy_difference[0], -1.2657010719456991, rtol=1.e-4))
+    assert(np.isclose(fec_list[1].end_state_free_energy_difference[0], -4.764917445894416, rtol=1.e-4))
+    assert(np.isclose(fec_list[2].end_state_free_energy_difference[0], 4.127431117241131, rtol=1.e-4))
+    assert(np.isclose(rmse.item(),  5.599380922019047, rtol=1.e-4))
+
+
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
+def test_postprocessing_droplet():
+    from ..parameter_gradients import FreeEnergyCalculator, get_free_energy_differences, get_experimental_values
+    from ..constants import kT, device, exclude_set_ANI, mols_with_charge
+    from ..parameter_gradients import setup_mbar
+    from glob import glob
+
+    env = 'droplet'
+    exp_results = pickle.load(open('data/exp_results.pickle', 'rb'))
+    names = ['molDWRow_298']
+    fec_list = [setup_mbar(name, env=env, data_path='./data/droplet', thinning = 50, max_snapshots_per_window = 7) for name in names]
+
+    assert(len(fec_list) == 1)
+    rmse = torch.sqrt(torch.mean((get_free_energy_differences(fec_list) - get_experimental_values(names))**2))
+
+    assert(np.isclose(fec_list[0].end_state_free_energy_difference[0], -0.8977161347779476, rtol=1.e-4))
+    assert(np.isclose(rmse.item(),  1.0017156136308694, rtol=1.e-4))
+
 
 @pytest.mark.skipif(
     os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
@@ -913,7 +951,7 @@ def test_tweak_parameters():
     import os
     names = ['molDWRow_298', 'SAMPLmol2', 'SAMPLmol4']
 
-    rmse_training, rmse_val, rmse_test = tweak_parameters(names=names, batch_size=3, data_path='./data', nr_of_nn=8, max_epochs=2)
+    rmse_training, rmse_val, rmse_test = tweak_parameters(env='vacuum', names=names, batch_size=3, data_path='./data/vacuum', nr_of_nn=8, max_epochs=2)
     try:
         os.remove('best.pt')
         os.remove('latest.pt')
@@ -921,5 +959,28 @@ def test_tweak_parameters():
     except FileNotFoundError:
         pass
     
-    np.isclose(rmse_val[-1], rmse_test, rtol=1e-2)
-    np.isclose(rmse_val[-1], 5.279, rtol=1e-2)
+    np.isclose(rmse_val[-1], rmse_test, rtol=1e-4)
+    np.isclose(rmse_val[-1], 5.279, rtol=1e-4)
+
+
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
+def test_tweak_parameters_droplet():
+    from ..parameter_gradients import tweak_parameters
+    import os
+    names = ['molDWRow_298']
+
+    env = 'droplet'
+    rmse_training, rmse_val, rmse_test = tweak_parameters(env=env, max_snapshots_per_window=7, names=names, batch_size=1, data_path=f"./data/{env}", nr_of_nn=8, max_epochs=3)
+    try:
+        os.remove('best.pt')
+        os.remove('latest.pt')
+
+    except FileNotFoundError:
+        pass
+    
+    np.isclose(rmse_val[-1], rmse_test, rtol=1e-4)
+    np.isclose(rmse_val[-1], 0.49271440505981445, rtol=1e-4)
+    print(rmse_training, rmse_val, rmse_test)
+

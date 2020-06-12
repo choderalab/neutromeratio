@@ -148,7 +148,7 @@ class Tautomer(object):
                     coordinates: unit.quantity.Quantity,
                     diameter: unit.quantity.Quantity = (30.0 * unit.angstrom),
                     restrain_hydrogen_bonds=True,
-                    restrain_hydrogen_angles=True,
+                    restrain_hydrogen_angles=False,
                     top_file=None) -> md.Trajectory:
         """
         Adding a droplet with a given diameter around a small molecule.
@@ -170,7 +170,6 @@ class Tautomer(object):
         assert(type(diameter) == unit.Quantity)
         assert(type(topology) == md.Topology)
         assert(type(coordinates) == unit.Quantity)
-
         if restrain_hydrogen_bonds:
             logger.warning('Hydrogen bonds are restraint.')
 

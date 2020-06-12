@@ -204,7 +204,7 @@ def get_experimental_values(names:list)-> torch.Tensor:
     logger.debug(exp)
     return exp
 
-def validate(names: list, data_path: str, thinning: int, max_snapshots_per_window: int)->float:
+def validate(names: list, data_path: str, env: str, thinning: int, max_snapshots_per_window: int)->float:
     """
     Returns the RMSE between calculated and experimental free energy differences as float.
 
@@ -221,7 +221,7 @@ def validate(names: list, data_path: str, thinning: int, max_snapshots_per_windo
     e_exp = []
     it = tqdm(names)
     for idx, name in enumerate(it):
-        e_calc.append(get_free_energy_differences([setup_mbar(name, data_path, thinning, max_snapshots_per_window)])[0].item())
+        e_calc.append(get_free_energy_differences([setup_mbar(name, env, data_path, thinning, max_snapshots_per_window)])[0].item())
         e_exp.append(get_experimental_values([name])[0].item())
         current_rmse = calculate_rmse(torch.tensor(e_calc), torch.tensor(e_exp)).item()
         it.set_description(f"RMSE: {current_rmse}")
@@ -244,7 +244,7 @@ def chunks(lst, n):
     for i in range(0, len(lst), n):
         yield lst[i:i + n]
 
-def tweak_parameters(batch_size:int = 10, data_path:str = "../data/", nr_of_nn:int = 8, max_epochs:int = 10, thinning:int = 100, max_snapshots_per_window:int = 100, names:list = []):
+def tweak_parameters(env: str, batch_size:int = 10, data_path:str = "../data/", nr_of_nn:int = 8, max_epochs:int = 10, thinning:int = 100, max_snapshots_per_window:int = 100, names:list = []):
     """    
     Calculates the free energy of a staged free energy simulation, 
     tweaks the neural net parameter so that using reweighting the difference 
@@ -356,12 +356,12 @@ def tweak_parameters(batch_size:int = 10, data_path:str = "../data/", nr_of_nn:i
 
     # calculate the rmse on the current parameters for the validation set
     print('RMSE calulation for validation set')
-    rmse_validation.append(validate(names_validating, data_path = data_path, thinning=thinning, max_snapshots_per_window = max_snapshots_per_window))
+    rmse_validation.append(validate(names_validating, data_path = data_path, env=env, thinning=thinning, max_snapshots_per_window = max_snapshots_per_window))
     print(f"RMSE on validation set: {rmse_validation[-1]} at epoch {AdamW_scheduler.last_epoch + 1}")
     
     # calculate the rmse on the current parameters for the training set
     print('RMSE calulation for training set')
-    rmse_training.append(validate(names_training, data_path = data_path, thinning=thinning, max_snapshots_per_window = max_snapshots_per_window))
+    rmse_training.append(validate(names_training, data_path = data_path, env=env, thinning=thinning, max_snapshots_per_window = max_snapshots_per_window))
     print(f"RMSE on training set: {rmse_training[-1]} at epoch {AdamW_scheduler.last_epoch + 1}")
 
 
@@ -392,7 +392,7 @@ def tweak_parameters(batch_size:int = 10, data_path:str = "../data/", nr_of_nn:i
             # define setup_mbar function
 
             # get mbar instances in a list
-            fec_list = [setup_mbar(name, data_path, thinning=thinning, max_snapshots_per_window=max_snapshots_per_window) for name in names]
+            fec_list = [setup_mbar(name, env, data_path, thinning=thinning, max_snapshots_per_window=max_snapshots_per_window) for name in names]
 
             # calculate the free energies
             calc_free_energy_difference = get_free_energy_differences(fec_list)
@@ -414,7 +414,7 @@ def tweak_parameters(batch_size:int = 10, data_path:str = "../data/", nr_of_nn:i
             SGD.step()
 
         print('RMSE calulation for validation set')
-        rmse_validation.append(validate(names_validating, data_path = data_path, thinning=thinning, max_snapshots_per_window = max_snapshots_per_window))
+        rmse_validation.append(validate(names_validating, data_path = data_path, env=env, thinning=thinning, max_snapshots_per_window = max_snapshots_per_window))
         print(f"RMSE on validation set: {rmse_validation[-1]} at epoch {AdamW_scheduler.last_epoch + 1}")
         
         print('RMSE calulation for training set')
@@ -432,7 +432,7 @@ def tweak_parameters(batch_size:int = 10, data_path:str = "../data/", nr_of_nn:i
     
     # final rmsd calculation on test set
     print('RMSE calulation for test set')
-    rmse_test = validate(names_test, data_path = data_path, thinning=thinning, max_snapshots_per_window = max_snapshots_per_window)
+    rmse_test = validate(names_test, data_path = data_path, env=env, thinning=thinning, max_snapshots_per_window = max_snapshots_per_window)
     
     return rmse_training, rmse_validation, rmse_test
 
