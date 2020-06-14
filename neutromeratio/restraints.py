@@ -344,7 +344,7 @@ class CenterOfMassRestraint(PointAtomRestraint):
         assert(type(point) == unit.Quantity)
         super().__init__(sigma, point.value_in_unit(unit.angstrom), active_at)
         self.atom_idx = atom_idx
-        logger.info('Center Of Mass restraint added.')
+        logger.debug('Center Of Mass restraint added.')
 
         self.mass_list = []
         for i in atom_idx:

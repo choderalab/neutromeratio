@@ -171,12 +171,11 @@ class Tautomer(object):
         assert(type(topology) == md.Topology)
         assert(type(coordinates) == unit.Quantity)
         if restrain_hydrogen_bonds:
-            logger.warning('Hydrogen bonds are restraint.')
+            logger.debug('Hydrogen bonds are restraint.')
 
         if restrain_hydrogen_angles:
             logger.warning('HOH angles are restraint.')
 
-        logger.info('Adding droplet ...')
         # get topology from mdtraj to PDBfixer via pdb file
         radius = diameter.value_in_unit(unit.angstrom)/2
         center = np.array([radius, radius, radius])
@@ -190,6 +189,8 @@ class Tautomer(object):
             pdb_filepath = f"tmp{random.randint(1,10000000)}.pdb"
 
         if not os.path.exists(pdb_filepath):
+            logger.info(f"Generating droplet for {pdb_filepath}...")
+
             # mdtraj works with nanomter
             md.Trajectory(coordinates.value_in_unit(unit.nanometer), topology).save_pdb(pdb_filepath)
             pdb = PDBFixer(filename=pdb_filepath)
@@ -199,21 +200,19 @@ class Tautomer(object):
             l_in_nanometer = diameter.value_in_unit(unit.nanometer)
             pdb.positions = np.array(pdb.positions.value_in_unit(unit.nanometer)) + (l_in_nanometer/2)
             # add water
-            logger.info('Adding water ...')
-
             pdb.addSolvent(boxVectors=(Vec3(l_in_nanometer, 0.0, 0.0),
                                        Vec3(0.0, l_in_nanometer, 0.0), Vec3(0.0, 0.0, l_in_nanometer)))
             # get topology from PDBFixer to mdtraj # NOTE: a second tmpfile - not happy about this
             from simtk.openmm.app import PDBFile
             PDBFile.writeFile(pdb.topology, pdb.positions, open(pdb_filepath, 'w'))
             # load pdb in parmed
-            logger.info('Load with parmed ...')
+            logger.debug('Load with parmed ...')
             structure = pm.load_file(pdb_filepath)
             os.remove(pdb_filepath)
 
             # search for residues that are outside of the cutoff and delete them
             to_delete = []
-            logger.info('Flag residues ...')
+            logger.debug('Flag residues ...')
 
             for residue in structure.residues:
                 for atom in residue:
@@ -226,9 +225,8 @@ class Tautomer(object):
                     if dist > radius+1:  # NOTE: distance must be greater than radius + 1 Angstrom
                         to_delete.append(residue)
 
-            logger.info('Delete residues ...')
             for residue in list(set(to_delete)):
-                logging.info('Remove: {}'.format(residue))
+                logging.debug('Remove: {}'.format(residue))
                 structure.residues.remove(residue)
 
             structure.write_pdb(pdb_filepath)
@@ -263,7 +261,7 @@ class Tautomer(object):
                                                       radius=(diameter/2),
                                                       atom_idx=atom.index,
                                                       active_at=-1))
-                        print('Adding restraint to center to {}'.format(atom.index))
+                        logger.debug('Adding restraint to center to {}'.format(atom.index))
 
         if restrain_hydrogen_bonds or restrain_hydrogen_angles:
             for residue in traj.topology.residues:

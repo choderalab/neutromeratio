@@ -621,12 +621,6 @@ class LinearAlchemicalSingleTopologyANI(AlchemicalANI):
         state_0 = self.neural_networks((mod_species_0, mod_aevs_0))
         _, E_0 = self.energy_shifter((mod_species_0, state_0.energies))
 
-        assert (mod_species_0.size()[0] == species.size()[0])
-        assert(mod_species_0.size()[1] == species.size()[1] - 1)
-        assert (mod_coordinates_0.size()[0] == coordinates.size()[0])
-        assert(mod_coordinates_0.size()[1] == coordinates.size()[1] - 1)
-
-
         # neural net output given these AEVs
         mod_species_1 = torch.cat((species[:, :dummy_atom_1],  species[:, dummy_atom_1+1:]), dim=1)
         mod_coordinates_1 = torch.cat((coordinates[:, :dummy_atom_1],  coordinates[:, dummy_atom_1+1:]), dim=1)
@@ -635,6 +629,27 @@ class LinearAlchemicalSingleTopologyANI(AlchemicalANI):
         # neural net output given these modified AEVs
         state_1 = self.neural_networks((mod_species_1, mod_aevs_1))
         _, E_1 = self.energy_shifter((mod_species_1, state_1.energies))
+
+
+        if mod_species_0.size()[0] != species.size()[0] or mod_species_0.size()[1] != species.size()[1] - 1:
+            raise RuntimeError(f"Something went wrong for mod_species_0: {species}. Alchemical atoms: {dummy_atom_0} and {dummy_atom_1}. Species tensor size {mod_species_0.size()} is not equal mod species tensor {mod_species_0.size()}")
+        if mod_species_1.size()[0] != species.size()[0] or mod_species_1.size()[1] != species.size()[1] - 1:
+            raise RuntimeError(f"Something went wrong for mod_species_1: {species}. Alchemical atoms: {dummy_atom_0} and {dummy_atom_1}. Species tensor size {mod_species_0.size()} is not equal mod species tensor {mod_species_0.size()}")
+
+
+        assert (mod_species_0.size()[0] == species.size()[0])
+        assert(mod_species_0.size()[1] == species.size()[1] - 1)
+        assert (mod_coordinates_0.size()[0] == coordinates.size()[0])
+        assert(mod_coordinates_0.size()[1] == coordinates.size()[1] - 1)
+
+        assert (mod_coordinates_0.size()[0] == coordinates.size()[0])
+        assert(mod_coordinates_0.size()[1] == coordinates.size()[1] - 1)
+        assert (mod_coordinates_1.size()[0] == coordinates.size()[0])
+        assert(mod_coordinates_1.size()[1] == coordinates.size()[1] - 1)
+
+
+
+
 
         E = (lam * E_1) + ((1 - lam) * E_0)
         stddev = (lam * state_1.stddev) + ((1-lam) * state_0.stddev)

@@ -181,6 +181,25 @@ def test_tautomer_transformation():
     # test if droplet works
     t.add_droplet(t.final_state_ligand_topology, t.final_state_ligand_coords[0])
 
+def test_tautomer_transformation_for_all_systems():
+    from neutromeratio.tautomers import Tautomer
+    from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
+
+    with open('data/exp_results.pickle', 'rb') as f:
+        exp_results = pickle.load(f)
+
+
+    ###################################
+    ###################################
+    for name in sorted(exp_results):
+        if name in exclude_set_ANI + mols_with_charge + multiple_stereobonds:
+            continue
+        t1_smiles = exp_results[name]['t1-smiles']
+        t2_smiles = exp_results[name]['t2-smiles']
+
+        t_type, tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
+        t = tautomers[0]
+        t.perform_tautomer_transformation()
 
 
 def test_setup_tautomer_system_in_vaccum():
@@ -245,6 +264,53 @@ def test_setup_tautomer_system_in_droplet():
 
     finally:
         shutil.rmtree('pdbs')
+
+def test_setup_tautomer_system_in_droplet_for_all_systems():
+    from ..analysis import setup_system_and_energy_function
+    from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
+    import random, shutil
+
+    with open('data/exp_results.pickle', 'rb') as f:
+        exp_results = pickle.load(f)
+    names = []
+    for name in sorted(exp_results):
+        if name in exclude_set_ANI + mols_with_charge + multiple_stereobonds:
+            continue
+        names.append(name)
+
+    try:
+        os.mkdir('droplet_test')
+        lambda_value = 0.0
+        for name in names:
+            energy_function, tautomer, flipped = setup_system_and_energy_function(name=name, env='droplet', base_path=f'droplet_test/{name}', diameter=16)
+            x0 = tautomer.ligand_in_water_coordinates
+            energy_function.calculate_force(x0, lambda_value)
+    finally:
+        shutil.rmtree('droplet_test')
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="PDBs are not in repo."
+)
+def test_setup_tautomer_system_in_droplet_for_all_systems_with_pdbs():
+    from ..analysis import setup_system_and_energy_function
+    from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
+    import random, shutil
+
+    with open('data/exp_results.pickle', 'rb') as f:
+        exp_results = pickle.load(f)
+    names = []
+    for name in sorted(exp_results):
+        if name in exclude_set_ANI + mols_with_charge + multiple_stereobonds:
+            continue
+        names.append(name)
+
+    lambda_value = 0.0
+    for name in names:
+        print(name)
+        energy_function, tautomer, flipped = setup_system_and_energy_function(name=name, env='droplet', base_path=f'/home/mwieder/droplet_test/{name}', diameter=16)
+        x0 = tautomer.ligand_in_water_coordinates
+        energy_function.calculate_force(x0, lambda_value)
+
+
 
 def test_neutromeratio_energy_calculations_with_torchANI_model():
 
@@ -620,7 +686,6 @@ def test_change_stereobond():
     assert(stereo1 != stereo2)
 
 
-
 def test_tautomer_conformation():
     # name of the system
     name = 'molDWRow_298'
@@ -879,12 +944,15 @@ def test_validate():
 
     env = 'vacuum'
     exp_values = get_experimental_values(names)
-    rmse = validate(names, data_path='./data/vacuum', env=env, thinning=10, max_snapshots_per_window=100)
-    assert (np.isclose(exp_values.item(), -10.2321, rtol=1e-4))
+    rmse = validate(names, data_path=f"./data/{env}", env=env, thinning=10, max_snapshots_per_window=100)
+    assert (np.isclose(exp_values[0].item(), -10.2321, rtol=1e-4))
     assert (np.isclose(rmse, 5.4302, rtol=1e-4))
     # compare exp results to exp results to output of get_experimental_values
-    assert(np.isclose((exp_results[names[0]]['energy'] * unit.kilocalorie_per_mole) / kT, exp_values, rtol=1e-3))
+    assert(np.isclose((exp_results[names[0]]['energy'] * unit.kilocalorie_per_mole) / kT, exp_values[0].item(), rtol=1e-3))
 
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
 def test_validate_droplet():
     from ..parameter_gradients import validate, get_experimental_values
     from ..constants import kT
@@ -893,10 +961,10 @@ def test_validate_droplet():
     env = 'droplet'
     exp_values = get_experimental_values(names)
     rmse = validate(names, data_path=f"./data/{env}", env=env, thinning=10, max_snapshots_per_window=7)
-    assert (np.isclose(exp_values.item(), 1.8994317488369707, rtol=1e-4))
+    assert (np.isclose(exp_values[0].item(), 1.8994317488369707, rtol=1e-4))
     assert (np.isclose(rmse, 0.28901004791259766, rtol=1e-4))
     # compare exp results to exp results to output of get_experimental_values
-    assert(np.isclose((exp_results[names[0]]['energy'] * unit.kilocalorie_per_mole) / kT, exp_values, rtol=1e-3))
+    assert(np.isclose((exp_results[names[0]]['energy'] * unit.kilocalorie_per_mole) / kT, exp_values[0].item(), rtol=1e-3))
 
 
 @pytest.mark.skipif(
@@ -972,7 +1040,7 @@ def test_tweak_parameters_droplet():
     names = ['molDWRow_298']
 
     env = 'droplet'
-    rmse_training, rmse_val, rmse_test = tweak_parameters(env=env, max_snapshots_per_window=7, names=names, batch_size=1, data_path=f"./data/{env}", nr_of_nn=8, max_epochs=3)
+    rmse_training, rmse_val, rmse_test = tweak_parameters(env=env, max_snapshots_per_window=100, names=names, batch_size=1, data_path=f"./data/{env}", nr_of_nn=8, max_epochs=1)
     try:
         os.remove('best.pt')
         os.remove('latest.pt')
@@ -980,7 +1048,7 @@ def test_tweak_parameters_droplet():
     except FileNotFoundError:
         pass
     
-    np.isclose(rmse_val[-1], rmse_test, rtol=1e-4)
-    np.isclose(rmse_val[-1], 0.49271440505981445, rtol=1e-4)
+    np.isclose(rmse_val[-1], rmse_test)
+    np.isclose(rmse_val[-1], 0.49271440505981445)
     print(rmse_training, rmse_val, rmse_test)
 

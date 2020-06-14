@@ -72,15 +72,15 @@ class FreeEnergyCalculator():
             logger.debug(f"Snapshots per lambda {lam}: {len(ani_trajs[lam])}")
 
         assert (len(snapshots) > 20)
-        
+
         coordinates = [sample / unit.angstrom for sample in snapshots] * unit.angstrom
 
         logger.debug(f"len(coordinates): {len(coordinates)}")
-        logger.debug(f"coordinates: {coordinates[:5]}")
 
         # end-point energies
         lambda0_e = self.ani_model.calculate_energy(coordinates, lambda_value=0.).energy      
         lambda1_e = self.ani_model.calculate_energy(coordinates, lambda_value=1.).energy      
+        logger.debug(f"len(lambda0_e): {len(lambda0_e)}")
 
         def get_mix(lambda0, lambda1, lam=0.0):
             return (1 - lam) * np.array(lambda0) + lam * np.array(lambda1)
@@ -95,7 +95,7 @@ class FreeEnergyCalculator():
         del lambda1_e
 
         self.mbar = MBAR(u_kn, N_k)
-        self.snapshots = snapshots
+        self.coordinates = coordinates
 
 
     @property
@@ -118,9 +118,6 @@ class FreeEnergyCalculator():
         """compute perturbed free energies at new thermodynamic states l"""
         assert (type(u_ln) == torch.Tensor)
 
-        def torchify(x):
-            return torch.tensor(x, dtype=torch.double, requires_grad=True, device=device)
-
         states_with_samples = torch.tensor(self.mbar.N_k > 0, device=device)
         N_k = torch.tensor(self.mbar.N_k, dtype=torch.double, requires_grad=True, device=device)
         f_k = torchify(self.mbar.f_k)
@@ -137,7 +134,7 @@ class FreeEnergyCalculator():
     def form_u_ln(self):
 
         # bring list of unit'd coordinates in [N][K][3] * unit shape
-        coordinates = [sample / unit.angstrom for sample in self.snapshots] * unit.angstrom
+        coordinates = self.coordinates
         
         # TODO: vectorize!
         decomposed_energy_list_lamb0 = self.ani_model.calculate_energy(coordinates, lambda_value=0)      
@@ -161,6 +158,8 @@ class FreeEnergyCalculator():
         f_k = self.compute_perturbed_free_energies(u_ln)
         return f_k[1] - f_k[0]
 
+def torchify(x):
+    return torch.tensor(x, dtype=torch.double, requires_grad=True, device=device)
 
 def get_free_energy_differences(fec_list:list)-> torch.Tensor:
     """
@@ -193,16 +192,15 @@ def get_experimental_values(names:list)-> torch.Tensor:
     Returns:
         [torch.Tensor] -- experimental free energy in kT
     """
-    exp = torch.tensor([0.0] * len(names),
-                                device = device, dtype = torch.float64)
     data = pkg_resources.resource_stream(__name__, "data/exp_results.pickle")
     exp_results = pickle.load(data)
+    exp = []
 
     for idx, name in enumerate(names):
         e_in_kT = (exp_results[name]['energy'] * unit.kilocalorie_per_mole)/kT
-        exp[idx] = e_in_kT
+        exp.append(e_in_kT)
     logger.debug(exp)
-    return exp
+    return torchify(exp)
 
 def validate(names: list, data_path: str, env: str, thinning: int, max_snapshots_per_window: int)->float:
     """
@@ -389,8 +387,8 @@ def tweak_parameters(env: str, batch_size:int = 10, data_path:str = "../data/", 
         exp_free_energy_difference_batches = []
         for idx, names in enumerate(it):
             logger.debug(f"Batch names: {names}")
-            # define setup_mbar function
 
+            # define setup_mbar function
             # get mbar instances in a list
             fec_list = [setup_mbar(name, env, data_path, thinning=thinning, max_snapshots_per_window=max_snapshots_per_window) for name in names]
 
@@ -487,7 +485,7 @@ def setup_mbar(name:str, env:str = 'vacuum', data_path:str = "../data/", thinnin
         logger.debug(f"Nr of frames in trajectory: {len(traj)}")
         md_trajs.append(traj)
         f = open(f"{data_path}/{name}/{name}_lambda_{lam:0.4f}_energy_in_{env}.csv", 'r')
-        energies.append(np.array([float(e) * kT for e in f][::thinning])) 
+        energies.append(np.array([float(e) * kT for e in f][::thinning]))
         f.close()
 
     if (len(lambdas) < 5):
