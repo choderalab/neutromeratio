@@ -279,7 +279,7 @@ def test_setup_tautomer_system_in_droplet_for_all_systems():
         names.append(name)
 
     try:
-        os.mkdir('droplet_test')
+        os.mkdir('droplet_test', )
         lambda_value = 0.0
         for name in names:
             energy_function, tautomer, flipped = setup_system_and_energy_function(name=name, env='droplet', base_path=f'droplet_test/{name}', diameter=16)
@@ -310,33 +310,37 @@ def test_setup_tautomer_system_in_droplet_for_all_systems_with_pdbs():
         x0 = tautomer.ligand_in_water_coordinates
         energy_function.calculate_force(x0, lambda_value)
 
-
+def _get_traj(traj_path, top_path, remove_idx = None):
+    top = md.load(top_path).topology
+    traj = md.load(traj_path, top=top)
+    atoms = [a for a in range(top.n_atoms)]
+    if remove_idx:
+        print(atoms)
+        atoms.remove(remove_idx)
+        print(atoms)
+        traj = traj.atom_slice(atoms)
+    return traj, top
 
 def test_neutromeratio_energy_calculations_with_torchANI_model():
 
-    from neutromeratio.tautomers import Tautomer
-    from neutromeratio.constants import kT
+    from ..tautomers import Tautomer
+    from ..constants import kT
+    from ..analysis import setup_system_and_energy_function
     import numpy as np
 
     # read in exp_results.pickle
     with open('data/exp_results.pickle', 'rb') as f:
         exp_results = pickle.load(f)
 
+    # vacuum system
     # generate smiles
     name = 'molDWRow_298'
-    t1_smiles = exp_results[name]['t1-smiles']
-    t2_smiles = exp_results[name]['t2-smiles']
-
-    t_type, tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
-    tautomer = tautomers[0]
-    tautomer.perform_tautomer_transformation()
+    energy_function, tautomer, flipped = setup_system_and_energy_function(name=name, env='vacuum')
 
     # read in pregenerated traj
-    traj_path = 'neutromeratio/data/molDWRow_298_lambda_0.0000_kappa_0.0000.dcd'
-    top_path = 'neutromeratio/data/molDWRow_298_lambda_0.0000_kappa_0.0000.pdb'
-    traj = md.load(traj_path, top=md.load(top_path).topology)
-    traj = traj.atom_slice([a for a in range(len(tautomer.initial_state_ligand_atoms))])
-    # TODO: update this a bit
+    traj_path = 'data/vacuum/molDWRow_298/molDWRow_298_lambda_0.0000_in_vacuum.dcd'
+    top_path = 'data/vacuum/molDWRow_298/molDWRow_298.pdb'
+    traj, top = _get_traj(traj_path, top_path, tautomer.hybrid_hydrogen_idx_at_lambda_0)
     # overwrite the coordinates that rdkit generated with the first frame in the traj
     model = neutromeratio.ani.PureANI1ccx()
     torch.set_num_threads(1)
@@ -347,124 +351,180 @@ def test_neutromeratio_energy_calculations_with_torchANI_model():
     coordinates = [x.xyz[0] for x in traj[:10]] * unit.nanometer
     energy = energy_function.calculate_energy(coordinates)
 
-    # overwrite the coordinates that rdkit generated with the first frame in the traj
-    x0 = [x.xyz[0] for x in traj[0]] * unit.nanometer
-    model = neutromeratio.ani.PureANI1ccx()
-    torch.set_num_threads(1)
-    energy_function = neutromeratio.ANI1_force_and_energy(
-        model=model,
-        atoms=tautomer.initial_state_ligand_atoms,
-        mol=None)
+    assert(is_quantity_close(energy.energy[0].in_units_of(unit.kilojoule_per_mole), (-906555.29945346 * unit.kilojoule_per_mole), rtol=1e-5))
 
-    energy = energy_function.calculate_energy(x0)
-    energy.energy.value_in_unit(unit.kilojoule_per_mole)
-    assert(is_quantity_close(energy.energy, (-906911.9843514563 * unit.kilojoule_per_mole), rtol=1e-5))
-
-    tautomer = tautomers[1]
-    tautomer.perform_tautomer_transformation()
+    # droplet system
+    name = 'molDWRow_298'
+    energy_function, tautomer, flipped = setup_system_and_energy_function(name=name, env='droplet', diameter=16, base_path='data/droplet/molDWRow_298/')
 
     # read in pregenerated traj
-    traj_path = 'neutromeratio/data/molDWRow_298_lambda_0.0000_kappa_1.0000.dcd'
-    top_path = 'neutromeratio/data/molDWRow_298_lambda_0.0000_kappa_1.0000.pdb'
-    traj = md.load(traj_path, top=md.load(top_path).topology)
-    traj = traj.atom_slice([a for a in range(len(tautomer.initial_state_ligand_atoms))])
-
+    traj_path = 'data/droplet/molDWRow_298/molDWRow_298_lambda_0.0000_in_droplet.dcd'
+    top_path = 'data/droplet/molDWRow_298/molDWRow_298_in_droplet.pdb'
+    traj, top = _get_traj(traj_path, top_path, tautomer.hybrid_hydrogen_idx_at_lambda_0)
     # overwrite the coordinates that rdkit generated with the first frame in the traj
-    x0 = [x.xyz[0] for x in traj[0]] * unit.nanometer
     model = neutromeratio.ani.PureANI1ccx()
     torch.set_num_threads(1)
+    atoms = tautomer.ligand_in_water_atoms[:tautomer.hybrid_hydrogen_idx_at_lambda_0] + tautomer.ligand_in_water_atoms[tautomer.hybrid_hydrogen_idx_at_lambda_0 +1:]
+    assert ( len(tautomer.ligand_in_water_atoms) == len(atoms) +1)
     energy_function = neutromeratio.ANI1_force_and_energy(
         model=model,
-        atoms=tautomer.initial_state_ligand_atoms,
+        atoms=atoms,
         mol=None)
+    coordinates = [x.xyz[0] for x in traj[:10]] * unit.nanometer
+    energy = energy_function.calculate_energy(coordinates)
 
-    energy = energy_function.calculate_energy(x0)
-    assert(is_quantity_close(energy.energy, (-906920.2981953777 * unit.kilojoule_per_mole), rtol=1e-5))
+    assert(is_quantity_close(energy.energy[0].in_units_of(unit.kilojoule_per_mole), (-23572811.32262513 * unit.kilojoule_per_mole), rtol=1e-5))
 
 
 def test_neutromeratio_energy_calculations_LinearAlchemicalSingleTopologyANI_model():
     from ..tautomers import Tautomer
     import numpy as np
     from ..constants import kT
+    from ..analysis import setup_system_and_energy_function
 
     # read in exp_results.pickle
     with open('data/exp_results.pickle', 'rb') as f:
         exp_results = pickle.load(f)
-
-    # generate smiles
-    name = 'molDWRow_298'
-    t1_smiles = exp_results[name]['t1-smiles']
-    t2_smiles = exp_results[name]['t2-smiles']
-
-    t_type, tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
-    ######################################################################
-    ######################################################################
-    tautomer = tautomers[0]
-    tautomer.perform_tautomer_transformation()
-
-    # read in pregenerated traj
-    traj_path = 'neutromeratio/data/molDWRow_298_lambda_0.0000_kappa_0.0000.dcd'
-    top_path = 'neutromeratio/data/molDWRow_298_lambda_0.0000_kappa_0.0000.pdb'
-    traj = md.load(traj_path, top=md.load(top_path).topology)
-
-    # generate tautomer transformation
-    dummy_atoms = [tautomer.hybrid_hydrogen_idx_at_lambda_1, tautomer.hybrid_hydrogen_idx_at_lambda_0]
-    atoms = tautomer.hybrid_atoms
-    # overwrite the coordinates that rdkit generated with the first frame in the traj
-    model = neutromeratio.ani.LinearAlchemicalSingleTopologyANI(alchemical_atoms=dummy_atoms)
-    torch.set_num_threads(1)
-
-    energy_function = neutromeratio.ANI1_force_and_energy(
-        model=model,
-        atoms=atoms,
-        mol=None)
-
-    x0 = [x.xyz[0] for x in traj[0]] * unit.nanometer
-
-    energy = energy_function.calculate_energy(x0, lambda_value=1.0)
-    assert(is_quantity_close(energy.energy, (-906630.9281008451 * unit.kilojoule_per_mole), rtol=1e-9))
-    energy = energy_function.calculate_energy(x0, lambda_value=0.0)
-    assert(is_quantity_close(energy.energy, (-906911.9843514563 * unit.kilojoule_per_mole), rtol=1e-9))
-    ######################################################################
-    ######################################################################
-    tautomer = tautomers[1]
-    tautomer.perform_tautomer_transformation()
-
-    # read in pregenerated traj
-    traj_path = 'neutromeratio/data/molDWRow_298_lambda_0.0000_kappa_1.0000.dcd'
-    top_path = 'neutromeratio/data/molDWRow_298_lambda_0.0000_kappa_1.0000.pdb'
-    traj = md.load(traj_path, top=md.load(top_path).topology)
-
-    # generate tautomer transformation
-    dummy_atoms = [tautomer.hybrid_hydrogen_idx_at_lambda_1, tautomer.hybrid_hydrogen_idx_at_lambda_0]
-    atoms = tautomer.hybrid_atoms
-    # overwrite the coordinates that rdkit generated with the first frame in the traj
-    model = neutromeratio.ani.LinearAlchemicalSingleTopologyANI(alchemical_atoms=dummy_atoms)
-    torch.set_num_threads(1)
-
-    energy_function = neutromeratio.ANI1_force_and_energy(
-        model=model,
-        atoms=atoms,
-        mol=None)
-
-    x0 = [x.xyz[0] for x in traj[0]] * unit.nanometer
-
-    energy = energy_function.calculate_energy(x0, lambda_value=1.0)
-    assert(is_quantity_close(energy.energy, (-906700.3482745718 * unit.kilojoule_per_mole), rtol=1e-9))
-    energy = energy_function.calculate_energy(x0, lambda_value=0.0)
-    assert(is_quantity_close(energy.energy, (-906920.2981953777 * unit.kilojoule_per_mole), rtol=1e-9))
-
-    # test the batch coordinates -- traj is a list of unit'd coordinates
-    coordinates = [x.xyz[0] for x in traj[:10]] * unit.nanometer
-    energy=energy_function.calculate_energy(coordinates)
-    for e1, e2 in zip(energy.energy, [-906920.298,-906905.387,-906894.271,-906894.193,-906897.663,-906893.282,-906892.392,-906891.93,-906892.034,-906894.464] * unit.kilojoule_per_mole):
-        assert(is_quantity_close(e1, e2, rtol=1e-3))    
-    for e1, e2 in zip(energy.restraint_bias, [0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0] * unit.kilojoule_per_mole):
-        assert(is_quantity_close(e1, e2, rtol=1e-3))    
-    for e1, e2 in zip(energy.stddev, [3.74471131, 4.1930047 , 3.38845079, 3.93200761, 3.19887848,
-       4.02611676, 4.32329868, 2.92180683, 4.3240609 , 2.78107752]* unit.kilojoule_per_mole):
-        assert(is_quantity_close(e1, e2, rtol=1e-3))    
     
+    ######################################################################
+    #vacuum
+    ######################################################################
+    name = 'molDWRow_298'
+    energy_function, tautomer, flipped = setup_system_and_energy_function(name=name, env='vacuum')
+    # read in pregenerated traj
+    traj_path = 'data/vacuum/molDWRow_298/molDWRow_298_lambda_0.0000_in_vacuum.dcd'
+    top_path = 'data/vacuum/molDWRow_298/molDWRow_298.pdb'
+    traj, top = _get_traj(traj_path, top_path, None)
+
+    x0 = [x.xyz[0] for x in traj[:10]] * unit.nanometer
+
+    energy_1 = energy_function.calculate_energy(x0, lambda_value=1.0)
+    assert(is_quantity_close(energy_1.energy[0].in_units_of(unit.kilojoule_per_mole), (-906555.29945346 * unit.kilojoule_per_mole), rtol=1e-9))
+    for e1, e2 in zip(energy_1.energy, [-906555.29945346, -905750.20471091, -906317.24952004, -906545.17543265, -906581.65215098, -906618.2832786,  -906565.05631782, -905981.82167316, -904681.20632002, -904296.8214631] * unit.kilojoule_per_mole):
+        assert(is_quantity_close(e1, e2, rtol=1e-2))    
+
+     
+    energy_0 = energy_function.calculate_energy(x0, lambda_value=0.0)
+    assert(is_quantity_close(energy_0.energy[0].in_units_of(unit.kilojoule_per_mole), (-906912.01647632 * unit.kilojoule_per_mole), rtol=1e-9))
+    ######################################################################
+    # compare with ANI1ccx 
+    model = neutromeratio.ani.PureANI1ccx()
+    traj, top = _get_traj(traj_path, top_path, tautomer.hybrid_hydrogen_idx_at_lambda_1)
+
+    energy_function = neutromeratio.ANI1_force_and_energy(
+        model=model,
+        atoms=tautomer.final_state_ligand_atoms,
+        mol=None)
+
+    coordinates= [x.xyz[0] for x in traj[0]] * unit.nanometer
+    assert(len(tautomer.initial_state_ligand_atoms) == len(coordinates[0]))
+    assert(is_quantity_close(energy_0.energy[0] ,energy_function.calculate_energy(coordinates).energy))
+
+    model = neutromeratio.ani.PureANI1ccx()
+    traj, top = _get_traj(traj_path, top_path, tautomer.hybrid_hydrogen_idx_at_lambda_0)
+
+    energy_function = neutromeratio.ANI1_force_and_energy(
+        model=model,
+        atoms=tautomer.final_state_ligand_atoms,
+        mol=None)
+    
+    coordinates= [x.xyz[0] for x in traj[0]] * unit.nanometer
+    assert(len(tautomer.final_state_ligand_atoms) == len(coordinates[0]))
+    assert(is_quantity_close(energy_1.energy[0] ,energy_function.calculate_energy(coordinates).energy))
+    
+
+    ######################################################################
+    # droplet
+    ######################################################################
+    name = 'molDWRow_298'
+    energy_function, tautomer, flipped = setup_system_and_energy_function(name=name, env='droplet', base_path='data/droplet/molDWRow_298/')
+    # read in pregenerated traj
+    traj_path = 'data/droplet/molDWRow_298/molDWRow_298_lambda_0.0000_in_droplet.dcd'
+    top_path = 'data/droplet/molDWRow_298/molDWRow_298_in_droplet.pdb'
+    traj, top = _get_traj(traj_path, top_path, None)
+
+    # overwrite the coordinates that rdkit generated with the first frame in the traj
+    x0 = [x.xyz[0] for x in traj[:10]] * unit.nanometer
+    energy_1 = energy_function.calculate_energy(x0, lambda_value=1.0)
+    energy_0 = energy_function.calculate_energy(x0, lambda_value=0.0)
+
+    assert (len(tautomer.ligand_in_water_atoms) == len(x0[0]))
+    print(energy_1.energy.in_units_of(unit.kilojoule_per_mole))
+    assert(is_quantity_close(energy_1.energy[0].in_units_of(unit.kilojoule_per_mole), (-19315726.06245666 * unit.kilojoule_per_mole)))
+    for e1, e2 in zip(energy_1.energy, [-19315726.06245666, -19315256.09962566, -19315088.43724814, -19315112.60564135, -19314946.33834522, -19314914.87747808, -19314735.91894276, -19314755.86113816, -19314743.30816292, -19314796.88517484] * unit.kilojoule_per_mole):
+         assert(is_quantity_close(e1, e2))    
+
+     
+    assert(is_quantity_close(energy_0.energy[0].in_units_of(unit.kilojoule_per_mole), (-19316354.0420541 * unit.kilojoule_per_mole)))
+    ######################################################################
+    # compare with ANI1ccx -- test1
+    name = 'molDWRow_298'
+    energy_function, tautomer, flipped = setup_system_and_energy_function(name=name, env='droplet', base_path='data/droplet/molDWRow_298/', diameter=18)
+    # read in pregenerated traj
+    traj_path = 'data/droplet/molDWRow_298/molDWRow_298_lambda_0.0000_in_droplet.dcd'
+    top_path = 'data/droplet/molDWRow_298/molDWRow_298_in_droplet.pdb'
+    traj, top=_get_traj(traj_path, top_path, None)
+    # remove restraints
+    energy_function.list_of_lambda_restraints = []
+
+    # overwrite the coordinates that rdkit generated with the first frame in the traj
+    x0 = [x.xyz[0] for x in traj[:10]] * unit.nanometer
+    energy_1 = energy_function.calculate_energy(x0, lambda_value=1.0)
+    energy_0 = energy_function.calculate_energy(x0, lambda_value=0.0)
+
+
+    model = neutromeratio.ani.PureANI1ccx()
+    traj, top = _get_traj(traj_path, top_path, tautomer.hybrid_hydrogen_idx_at_lambda_1)
+    atoms = tautomer.ligand_in_water_atoms[:tautomer.hybrid_hydrogen_idx_at_lambda_1] + tautomer.ligand_in_water_atoms[tautomer.hybrid_hydrogen_idx_at_lambda_1 +1:]
+
+    energy_function = neutromeratio.ANI1_force_and_energy(
+        model=model,
+        atoms=atoms,
+        mol=None)
+    
+    coordinates = [x.xyz[0] for x in traj[:10]] * unit.nanometer
+    assert (len(atoms) == len(coordinates[0]))
+    
+    energies_ani1ccx_0 = energy_function.calculate_energy(coordinates)
+    assert(is_quantity_close(energy_0.energy[0].in_units_of(unit.kilojoule_per_mole), energies_ani1ccx_0.energy[0].in_units_of(unit.kilojoule_per_mole)))
+
+
+    ######################################################################
+    # compare with ANI1ccx -- test2
+    name = 'molDWRow_298'
+    energy_function, tautomer, flipped = setup_system_and_energy_function(name=name, env='droplet', base_path='data/droplet/molDWRow_298/', diameter=18)
+    # read in pregenerated traj
+    traj_path = 'data/droplet/molDWRow_298/molDWRow_298_lambda_0.0000_in_droplet.dcd'
+    top_path = 'data/droplet/molDWRow_298/molDWRow_298_in_droplet.pdb'
+    traj, top=_get_traj(traj_path, top_path, None)
+
+    # overwrite the coordinates that rdkit generated with the first frame in the traj
+    x0 = [x.xyz[0] for x in traj[:10]] * unit.nanometer
+    energy_1 = energy_function.calculate_energy(x0, lambda_value=1.0)
+    energy_0 = energy_function.calculate_energy(x0, lambda_value=0.0)
+
+
+    model = neutromeratio.ani.PureANI1ccx()
+    traj, top = _get_traj(traj_path, top_path, tautomer.hybrid_hydrogen_idx_at_lambda_1)
+    atoms = tautomer.ligand_in_water_atoms[:tautomer.hybrid_hydrogen_idx_at_lambda_1] + tautomer.ligand_in_water_atoms[tautomer.hybrid_hydrogen_idx_at_lambda_1 +1:]
+
+    energy_function = neutromeratio.ANI1_force_and_energy(
+        model=model,
+        atoms=atoms,
+        mol=None)
+    
+    coordinates = [x.xyz[0] for x in traj[:10]] * unit.nanometer
+    assert (len(atoms) == len(coordinates[0]))
+    
+    energies_ani1ccx_0 = energy_function.calculate_energy(coordinates)
+
+    #subtracting restraint energies
+    energy_0_minus_restraint = (energy_0.energy[0] - energy_0.restraint_bias[0]).in_units_of(unit.kilojoule_per_mole)
+
+    assert(is_quantity_close(energy_0_minus_restraint, energies_ani1ccx_0.energy[0].in_units_of(unit.kilojoule_per_mole)))
+    print(energy_0.restraint_bias[0].in_units_of(unit.kilojoule_per_mole))
+
+
 def test_restraint():
     from neutromeratio.tautomers import Tautomer
     with open('data/exp_results.pickle', 'rb') as f:
@@ -477,12 +537,6 @@ def test_restraint():
     t_type, tautomers, flipped = neutromeratio.utils.generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
     tautomer = tautomers[0]
     tautomer.perform_tautomer_transformation()
-
-    # read in pregenerated traj
-    traj_path = 'neutromeratio/data/molDWRow_298_lambda_0.0000_kappa_1.0000.dcd'
-    top_path = 'neutromeratio/data/molDWRow_298_lambda_0.0000_kappa_1.0000.pdb'
-    traj = md.load(traj_path, top=md.load(top_path).topology)
-    traj = traj.atom_slice([a for a in range(len(tautomer.initial_state_ligand_atoms))])
 
     atoms = tautomer.initial_state_ligand_atoms
     harmonic = neutromeratio.restraints.BondHarmonicRestraint(
@@ -514,9 +568,9 @@ def test_restraint_with_LinearAlchemicalSingleTopologyANI():
     tautomer.perform_tautomer_transformation()
 
     # read in pregenerated traj
-    traj_path = 'neutromeratio/data/molDWRow_298_lambda_0.0000_kappa_0.0000.dcd'
-    top_path = 'neutromeratio/data/molDWRow_298_lambda_0.0000_kappa_0.0000.pdb'
-    traj = md.load(traj_path, top=md.load(top_path).topology)
+    traj_path = 'data/vacuum/molDWRow_298/molDWRow_298_lambda_0.0000_in_vacuum.dcd'
+    top_path = 'data/vacuum/molDWRow_298/molDWRow_298.pdb'
+    traj, top = _get_traj(traj_path, top_path, None)
     x0 = [x.xyz[0] for x in traj[0]] * unit.nanometer
 
     # the first of the alchemical_atoms will be dummy at lambda 0, the second at lambda 1
@@ -534,7 +588,7 @@ def test_restraint_with_LinearAlchemicalSingleTopologyANI():
     energy_function.list_of_restraints = tautomer.ligand_restraints
 
     energy = energy_function.calculate_energy(x0,lambda_value=0.0)
-    assert (is_quantity_close(energy.energy, (-906911.9843514563 * unit.kilojoule_per_mole), rtol=1e-9))
+    assert (is_quantity_close(energy.energy.in_units_of(unit.kilojoule_per_mole), (-906912.01647632 * unit.kilojoule_per_mole), rtol=1e-9))
 
 
 def test_min_and_single_point_energy():
@@ -935,6 +989,99 @@ def test_parameter_gradient():
 
     assert(len(params) == 256)
     assert (none_counter == 64)
+
+# def test_batch_evaluation():
+#     import torchani
+#     import torch
+#     dummy_atoms = [18,11]
+#     dummy_atom_0 = dummy_atoms[0]
+#     dummy_atom_1 = dummy_atoms[1]
+    
+#     platform = 'cpu'
+#     device = torch.device(platform)
+#     model = torchani.models.ANI1ccx(periodic_table_index=True).to(device)
+#     species = torch.tensor([[3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 0, 0, 0, 0, 0, 0, 0, 0],
+#         [3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 0, 0, 0, 0, 0, 0, 0, 0],
+#         [3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 0, 0, 0, 0, 0, 0, 0, 0]])
+#     coordinates = torch.tensor([[
+#         [ 3.3667, -1.3534, -0.2151],
+#          [ 2.1693, -0.7303, -0.2695],
+#          [ 2.0410,  0.3389, -1.2001],
+#          [ 0.8414,  0.9801, -1.2700],
+#          [-0.2293,  0.5690, -0.4245],
+#          [-1.5006,  1.1873, -0.4417],
+#          [-2.4979,  0.7501,  0.3956],
+#          [-2.2525, -0.3256,  1.2808],
+#          [-1.0215, -0.9397,  1.3113],
+#          [ 0.0101, -0.5018,  0.4588],
+#          [ 1.2280, -1.1450,  0.5222],
+#          [ 3.2836, -2.0411,  0.4549],
+#          [ 2.8908,  0.6031, -1.8137],
+#          [ 0.6841,  1.8016, -1.9600],
+#          [-1.6717,  2.0108, -1.1273],
+#          [-3.4720,  1.2256,  0.3809],
+#          [-3.0429, -0.6676,  1.9400],
+#          [-0.8138, -1.7660,  1.9826],
+#          [ 0.8520, -2.3450,  0.4320]],
+
+#         [[ 2.5245, -1.7820,  0.3159],
+#          [ 1.2161, -1.2820,  0.1873],
+#          [ 1.1393, -0.0622, -0.5908],
+#          [-0.0588,  0.5212, -0.8536],
+#          [-1.2173, -0.0763, -0.2572],
+#          [-2.5815,  0.3677, -0.4455],
+#          [-3.5692, -0.1666,  0.3636],
+#          [-3.2956, -1.2785,  1.2252],
+#          [-2.0417, -1.7766,  1.3277],
+#          [-0.9797, -1.2005,  0.5879],
+#          [ 0.2381, -1.8436,  0.7317],
+#          [ 2.6697, -2.3239,  1.0490],
+#          [ 2.0792,  0.3567, -0.8440],
+#          [-0.1343,  1.3261, -1.5440],
+#          [-2.7322,  1.1943, -1.0819],
+#          [-4.5940,  0.1808,  0.2238],
+#          [-4.1530, -1.6016,  1.9153],
+#          [-1.7957, -2.5518,  2.0485],
+#          [ 0.1919, -1.1748,  1.3861]],
+
+#         [[ 1.7691, -1.9131, -1.5666],
+#          [ 0.6694, -1.5705, -0.8325],
+#          [ 0.6182, -0.3352, -0.1884],
+#          [-0.5756, -0.0549,  0.4466],
+#          [-1.6529, -0.9016,  0.4361],
+#          [-2.9512, -0.6538,  0.8638],
+#          [-3.9872, -1.5689,  0.7292],
+#          [-3.7526, -2.8525,  0.1963],
+#          [-2.4869, -3.1129, -0.2596],
+#          [-1.4161, -2.1854, -0.1682],
+#          [-0.2304, -2.5065, -0.7375],
+#          [ 1.6528, -2.7921, -1.8387],
+#          [ 1.3966,  0.4373, -0.1137],
+#          [-0.8139,  0.9295,  0.8645],
+#          [-3.1974,  0.1905,  1.4724],
+#          [-4.9270, -1.2479,  1.1801],
+#          [-4.3883, -3.7190,  0.2058],
+#          [-2.3433, -4.1077, -0.6724],
+#          [-1.4547, -1.9956, -0.8752]]], requires_grad=True)
+#     torch.set_num_threads(1)
+
+#     mod_coordinates_0 = torch.cat((coordinates[:, :dummy_atom_0],  coordinates[:, dummy_atom_0+1:]), dim=1)
+#     species = torch.tensor([[3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 0, 0, 0, 0, 0, 0, 0, 0],
+#         [3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 0, 0, 0, 0, 0, 0, 0, 0],
+#         [3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 0, 0, 0, 0, 0, 0, 0, 0]])
+
+#     atoms = 'NCCCCCCCCCOHHHHHHHH'
+#     # overwrite the coordinates that rdkit generated with the first frame in the traj
+#     alchemical_model = neutromeratio.ani.LinearAlchemicalSingleTopologyANI(alchemical_atoms=dummy_atoms)
+#     torch.set_num_threads(1)
+
+#     energy_function = neutromeratio.ANI1_force_and_energy(
+#         model=alchemical_model,
+#         atoms=atoms,
+#         mol=None)
+
+#     assert(model((species, coordinates)).energies == energy_function.calculate_energy(coordinates, lambda_value=1.0))
+
 
 def test_validate():
     from ..parameter_gradients import validate, get_experimental_values

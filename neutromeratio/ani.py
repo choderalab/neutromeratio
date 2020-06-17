@@ -349,8 +349,8 @@ class ANI1_force_and_energy(object):
         batch_species = torch.stack([self.species[0]] * nr_of_mols)
 
         assert (0.0 <= float(lambda_value) <= 1.0)
-        assert (batch_species.size()[0] == coordinates.size()[0])
-        assert (batch_species.size()[1] == coordinates.size()[1])
+        if (batch_species.size()[:2] != coordinates.size()[:2]):
+            raise RuntimeError(f'Dimensions of coordinates: {coordinates.size()} and batch_species: {batch_species.size()} are not the same.')
 
         _, energy_in_hartree, stddev_in_hartree = self.model((batch_species, coordinates * nm_to_angstroms, lambda_value))
 
@@ -606,9 +606,7 @@ class LinearAlchemicalSingleTopologyANI(AlchemicalANI):
 
         # species, AEVs of fully interacting system
         species, coordinates, lam = species_coordinates
-        # NOTE: I am not happy about this - the order at which
-        # the dummy atoms are set in alchemical_atoms determines
-        # what is real and what is dummy at lambda 1 - that seems awefully error prone
+        # setting dummy atoms
         dummy_atom_0 = self.alchemical_atoms[0]
         dummy_atom_1 = self.alchemical_atoms[1]
         
@@ -636,7 +634,6 @@ class LinearAlchemicalSingleTopologyANI(AlchemicalANI):
         if mod_species_1.size()[0] != species.size()[0] or mod_species_1.size()[1] != species.size()[1] - 1:
             raise RuntimeError(f"Something went wrong for mod_species_1: {species}. Alchemical atoms: {dummy_atom_0} and {dummy_atom_1}. Species tensor size {mod_species_0.size()} is not equal mod species tensor {mod_species_0.size()}")
 
-
         assert (mod_species_0.size()[0] == species.size()[0])
         assert(mod_species_0.size()[1] == species.size()[1] - 1)
         assert (mod_coordinates_0.size()[0] == coordinates.size()[0])
@@ -646,9 +643,6 @@ class LinearAlchemicalSingleTopologyANI(AlchemicalANI):
         assert(mod_coordinates_0.size()[1] == coordinates.size()[1] - 1)
         assert (mod_coordinates_1.size()[0] == coordinates.size()[0])
         assert(mod_coordinates_1.size()[1] == coordinates.size()[1] - 1)
-
-
-
 
 
         E = (lam * E_1) + ((1 - lam) * E_0)

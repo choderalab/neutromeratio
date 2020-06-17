@@ -385,6 +385,8 @@ def setup_system_and_energy_function(name: str, env:str, diameter:int=0, base_pa
         os.mkdir(base_path)
 
     if env == 'droplet':
+        if diameter < 5:
+            raise RuntimeError(f'Aborting. Droplet diameter with {diameter} A is too smapll.')
         m = tautomer.add_droplet(tautomer.hybrid_topology, 
                             tautomer.hybrid_coords, 
                             diameter=diameter * unit.angstrom,
