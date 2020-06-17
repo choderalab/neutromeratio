@@ -277,9 +277,9 @@ class Tautomer(object):
                             raise RuntimeError('Water should only consist of O and H atoms.')
                     if restrain_hydrogen_bonds:
                         self.solvent_restraints.append(BondFlatBottomRestraint(
-                            sigma=0.1 * unit.angstrom, atom_i_idx=oxygen_idx, atom_j_idx=hydrogen_idxs[0], atoms=self.ligand_in_water_atoms))
+                            sigma=0.2 * unit.angstrom, atom_i_idx=oxygen_idx, atom_j_idx=hydrogen_idxs[0], atoms=self.ligand_in_water_atoms))
                         self.solvent_restraints.append(BondFlatBottomRestraint(
-                            sigma=0.1 * unit.angstrom, atom_i_idx=oxygen_idx, atom_j_idx=hydrogen_idxs[1], atoms=self.ligand_in_water_atoms))
+                            sigma=0.2 * unit.angstrom, atom_i_idx=oxygen_idx, atom_j_idx=hydrogen_idxs[1], atoms=self.ligand_in_water_atoms))
                     if restrain_hydrogen_angles:
                         self.solvent_restraints.append(AngleHarmonicRestraint(
                             sigma=0.1 * unit.radian, atom_i_idx=hydrogen_idxs[0], atom_j_idx=oxygen_idx, atom_k_idx=hydrogen_idxs[1]))

@@ -287,6 +287,7 @@ def test_setup_tautomer_system_in_droplet_for_all_systems():
             energy_function.calculate_force(x0, lambda_value)
     finally:
         shutil.rmtree('droplet_test')
+
 @pytest.mark.skipif(
     os.environ.get("TRAVIS", None) == "true", reason="PDBs are not in repo."
 )
