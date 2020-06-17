@@ -361,7 +361,7 @@ def get_data_filename():
     return fn
 
 
-def setup_system_and_energy_function(name: str, env:str, diameter:int=0, base_path:str='.'):
+def setup_system_and_energy_function(name: str, env:str, diameter:int=16, base_path:str='.'):
     import os
 
     data = pkg_resources.resource_stream(__name__, "data/exp_results.pickle")
