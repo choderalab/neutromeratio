@@ -281,7 +281,7 @@ def test_setup_tautomer_system_in_droplet_for_all_systems():
     try:
         os.mkdir('droplet_test', )
         lambda_value = 0.0
-        for name in names:
+        for name in names[:20]:
             energy_function, tautomer, flipped = setup_system_and_energy_function(name=name, env='droplet', base_path=f'droplet_test/{name}', diameter=16)
             x0 = tautomer.ligand_in_water_coordinates
             energy_function.calculate_force(x0, lambda_value)
@@ -305,7 +305,7 @@ def test_setup_tautomer_system_in_droplet_for_all_systems_with_pdbs():
         names.append(name)
 
     lambda_value = 0.0
-    for name in names:
+    for name in names[:20]:
         print(name)
         energy_function, tautomer, flipped = setup_system_and_energy_function(name=name, env='droplet', base_path=f'/home/mwieder/droplet_test/{name}', diameter=16)
         x0 = tautomer.ligand_in_water_coordinates
@@ -438,7 +438,8 @@ def test_neutromeratio_energy_calculations_LinearAlchemicalSingleTopologyANI_mod
     # droplet
     ######################################################################
     name = 'molDWRow_298'
-    energy_function, tautomer, flipped = setup_system_and_energy_function(name=name, env='droplet', base_path='data/droplet/molDWRow_298/')
+    energy_function, tautomer, flipped = setup_system_and_energy_function(name=name, env='droplet', base_path='data/droplet/molDWRow_298/', diameter=18)
+
     # read in pregenerated traj
     traj_path = 'data/droplet/molDWRow_298/molDWRow_298_lambda_0.0000_in_droplet.dcd'
     top_path = 'data/droplet/molDWRow_298/molDWRow_298_in_droplet.pdb'
@@ -451,12 +452,15 @@ def test_neutromeratio_energy_calculations_LinearAlchemicalSingleTopologyANI_mod
 
     assert (len(tautomer.ligand_in_water_atoms) == len(x0[0]))
     print(energy_1.energy.in_units_of(unit.kilojoule_per_mole))
-    assert(is_quantity_close(energy_1.energy[0].in_units_of(unit.kilojoule_per_mole), (-19315726.06245666 * unit.kilojoule_per_mole)))
-    for e1, e2 in zip(energy_1.energy, [-19315726.06245666, -19315256.09962566, -19315088.43724814, -19315112.60564135, -19314946.33834522, -19314914.87747808, -19314735.91894276, -19314755.86113816, -19314743.30816292, -19314796.88517484] * unit.kilojoule_per_mole):
+    print(energy_1.energy.in_units_of(unit.kilojoule_per_mole))
+    print(energy_1.energy.in_units_of(unit.kilojoule_per_mole))
+
+    assert(is_quantity_close(energy_1.energy[0].in_units_of(unit.kilojoule_per_mole), (-23572807.12255169 * unit.kilojoule_per_mole)))
+    for e1, e2 in zip(energy_1.energy, [-23572807.122551697, -23572337.15972069, -23572169.49734318, -23572193.66573638, -23572027.39844025, -23571995.93757311, -23571816.9790378, -23571836.9212332, -23571824.36825795, -23571877.94526987] * unit.kilojoule_per_mole):
          assert(is_quantity_close(e1, e2))    
 
      
-    assert(is_quantity_close(energy_0.energy[0].in_units_of(unit.kilojoule_per_mole), (-19316354.0420541 * unit.kilojoule_per_mole)))
+    assert(is_quantity_close(energy_0.energy[0].in_units_of(unit.kilojoule_per_mole), (-23573435.102149136 * unit.kilojoule_per_mole)))
     ######################################################################
     # compare with ANI1ccx -- test1
     name = 'molDWRow_298'
@@ -1108,7 +1112,8 @@ def test_validate_droplet():
     exp_results = pickle.load(open('data/exp_results.pickle', 'rb'))
     env = 'droplet'
     exp_values = get_experimental_values(names)
-    rmse = validate(names, data_path=f"./data/{env}", env=env, thinning=10, max_snapshots_per_window=7)
+    diameter = 16
+    rmse = validate(names, data_path=f"./data/{env}", env=env, thinning=10, max_snapshots_per_window=7, diameter=diameter)
     assert (np.isclose(exp_values[0].item(), 1.8994317488369707, rtol=1e-4))
     assert (np.isclose(rmse, 0.28901004791259766, rtol=1e-4))
     # compare exp results to exp results to output of get_experimental_values
@@ -1150,7 +1155,8 @@ def test_postprocessing_droplet():
     env = 'droplet'
     exp_results = pickle.load(open('data/exp_results.pickle', 'rb'))
     names = ['molDWRow_298']
-    fec_list = [setup_mbar(name, env=env, data_path='./data/droplet', thinning = 50, max_snapshots_per_window = 7) for name in names]
+    diameter = 18
+    fec_list = [setup_mbar(name, env=env, diameter=diameter, data_path='./data/droplet', thinning = 50, max_snapshots_per_window = 7) for name in names]
 
     assert(len(fec_list) == 1)
     rmse = torch.sqrt(torch.mean((get_free_energy_differences(fec_list) - get_experimental_values(names))**2))
@@ -1188,7 +1194,8 @@ def test_tweak_parameters_droplet():
     names = ['molDWRow_298']
 
     env = 'droplet'
-    rmse_training, rmse_val, rmse_test = tweak_parameters(env=env, max_snapshots_per_window=100, names=names, batch_size=1, data_path=f"./data/{env}", nr_of_nn=8, max_epochs=1)
+    diameter = 18
+    rmse_training, rmse_val, rmse_test = tweak_parameters(env=env, max_snapshots_per_window=100, names=names, batch_size=1, data_path=f"./data/{env}", nr_of_nn=8, max_epochs=1, diameter=diameter)
     try:
         os.remove('best.pt')
         os.remove('latest.pt')
