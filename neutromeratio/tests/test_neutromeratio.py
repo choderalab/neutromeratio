@@ -184,14 +184,16 @@ def test_tautomer_transformation():
 def test_tautomer_transformation_for_all_systems():
     from neutromeratio.tautomers import Tautomer
     from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
+    import random
 
     with open('data/exp_results.pickle', 'rb') as f:
         exp_results = pickle.load(f)
 
-
+    name_list = list(exp_results.keys())
+    random.shuffle(name_list)
     ###################################
     ###################################
-    for name in sorted(exp_results):
+    for name in name_list[:10]:
         if name in exclude_set_ANI + mols_with_charge + multiple_stereobonds:
             continue
         t1_smiles = exp_results[name]['t1-smiles']
@@ -208,9 +210,9 @@ def test_setup_tautomer_system_in_vaccum():
     import random, shutil
     import parmed as pm
 
-    idx = 50
     with open('data/exp_results.pickle', 'rb') as f:
         exp_results = pickle.load(f)
+
     names = []
     for name in sorted(exp_results):
         if name in exclude_set_ANI + mols_with_charge + multiple_stereobonds:
@@ -218,15 +220,9 @@ def test_setup_tautomer_system_in_vaccum():
         names.append(name)
 
     lambda_value = 0.1
-    name = names[100]
+    random.shuffle(names)
     try:
-        energy_function, tautomer, flipped = setup_system_and_energy_function(name=name, env='vacuum', base_path='pdbs')
-        assert (tautomer.initial_state_ligand_atoms == 'NCNNCNHHHH')
-        x0 = tautomer.hybrid_coords
-        f = energy_function.calculate_force(x0, lambda_value)
-        for _ in range(10):
-            name = random.choice(names)
-            print(name)
+        for name in names[:10]:
             energy_function, tautomer, flipped = setup_system_and_energy_function(name=name, env='vacuum', base_path='pdbs')
             x0 = tautomer.hybrid_coords
             f = energy_function.calculate_force(x0, lambda_value)
@@ -238,7 +234,6 @@ def test_setup_tautomer_system_in_droplet():
     from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
     import random, shutil
 
-    idx = 50
     with open('data/exp_results.pickle', 'rb') as f:
         exp_results = pickle.load(f)
     names = []
@@ -248,16 +243,10 @@ def test_setup_tautomer_system_in_droplet():
         names.append(name)
 
     lambda_value = 0.1
-    name = names[100]
+    random.shuffle(names)
     try:
-        energy_function, tautomer, flipped = setup_system_and_energy_function(name=name, env='droplet', base_path='pdbs', diameter=10)
-        assert (tautomer.initial_state_ligand_atoms == 'NCNNCNHHHH')
-        x0 = tautomer.ligand_in_water_coordinates
-        energy_function.calculate_force(x0, lambda_value)
+        for name in names[:10]:
 
-        for _ in range(5):
-            name = random.choice(names)
-            print(name)
             energy_function, tautomer, flipped = setup_system_and_energy_function(name=name, env='droplet', base_path='pdbs', diameter=10)
             x0 = tautomer.ligand_in_water_coordinates
             energy_function.calculate_force(x0, lambda_value)
@@ -265,33 +254,10 @@ def test_setup_tautomer_system_in_droplet():
     finally:
         shutil.rmtree('pdbs')
 
-def test_setup_tautomer_system_in_droplet_for_all_systems():
-    from ..analysis import setup_system_and_energy_function
-    from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
-    import random, shutil
-
-    with open('data/exp_results.pickle', 'rb') as f:
-        exp_results = pickle.load(f)
-    names = []
-    for name in sorted(exp_results):
-        if name in exclude_set_ANI + mols_with_charge + multiple_stereobonds:
-            continue
-        names.append(name)
-
-    try:
-        os.mkdir('droplet_test', )
-        lambda_value = 0.0
-        for name in names[:20]:
-            energy_function, tautomer, flipped = setup_system_and_energy_function(name=name, env='droplet', base_path=f'droplet_test/{name}', diameter=16)
-            x0 = tautomer.ligand_in_water_coordinates
-            energy_function.calculate_force(x0, lambda_value)
-    finally:
-        shutil.rmtree('droplet_test')
-
 @pytest.mark.skipif(
     os.environ.get("TRAVIS", None) == "true", reason="PDBs are not in repo."
 )
-def test_setup_tautomer_system_in_droplet_for_all_systems_with_pdbs():
+def test_setup_tautomer_system_in_droplet_with_pdbs():
     from ..analysis import setup_system_and_energy_function
     from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
     import random, shutil
@@ -304,8 +270,9 @@ def test_setup_tautomer_system_in_droplet_for_all_systems_with_pdbs():
             continue
         names.append(name)
 
+    random.shuffle(names)
     lambda_value = 0.0
-    for name in names[:20]:
+    for name in names[:10]:
         print(name)
         energy_function, tautomer, flipped = setup_system_and_energy_function(name=name, env='droplet', base_path=f'/home/mwieder/droplet_test/{name}', diameter=16)
         x0 = tautomer.ligand_in_water_coordinates
