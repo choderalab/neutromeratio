@@ -206,6 +206,7 @@ def test_tautomer_transformation_for_all_systems():
 
 def test_setup_tautomer_system_in_vaccum():
     from ..analysis import setup_system_and_energy_function
+    from ..ani import AlchemicalANI1ccx, AlchemicalANI2x
     from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
     import random, shutil
     import parmed as pm
@@ -221,21 +222,29 @@ def test_setup_tautomer_system_in_vaccum():
 
     lambda_value = 0.1
     random.shuffle(names)
-    try:
-        for name in names[:10]:
-            energy_function, tautomer, flipped = setup_system_and_energy_function(name=name, env='vacuum', base_path='pdbs')
-            x0 = tautomer.hybrid_coords
-            f = energy_function.calculate_force(x0, lambda_value)
-    finally:
-        shutil.rmtree('pdbs')
+    for name in names[:10]:
+        energy_function, tautomer, flipped = setup_system_and_energy_function(name=name, env='vacuum', ANImodel=AlchemicalANI1ccx)
+        x0 = tautomer.hybrid_coords
+        f = energy_function.calculate_force(x0, lambda_value)
+
+    lambda_value = 0.1
+    random.shuffle(names)
+    for name in names[:10]:
+        energy_function, tautomer, flipped = setup_system_and_energy_function(name=name, env='vacuum', ANImodel=AlchemicalANI2x)
+        x0 = tautomer.hybrid_coords
+        f = energy_function.calculate_force(x0, lambda_value)
+
 
 def test_setup_tautomer_system_in_droplet():
     from ..analysis import setup_system_and_energy_function
+    from ..ani import AlchemicalANI1ccx, AlchemicalANI2x
+
     from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
     import random, shutil
 
     with open('data/exp_results.pickle', 'rb') as f:
         exp_results = pickle.load(f)
+    
     names = []
     for name in sorted(exp_results):
         if name in exclude_set_ANI + mols_with_charge + multiple_stereobonds:
@@ -247,20 +256,30 @@ def test_setup_tautomer_system_in_droplet():
     try:
         for name in names[:10]:
 
-            energy_function, tautomer, flipped = setup_system_and_energy_function(name=name, env='droplet', base_path='pdbs', diameter=10)
+            energy_function, tautomer, flipped = setup_system_and_energy_function(name=name, env='droplet', ANImodel=AlchemicalANI1ccx, base_path='pdbs', diameter=10)
             x0 = tautomer.ligand_in_water_coordinates
             energy_function.calculate_force(x0, lambda_value)
 
     finally:
         shutil.rmtree('pdbs')
 
-@pytest.mark.skipif(
-    os.environ.get("TRAVIS", None) == "true", reason="PDBs are not in repo."
-)
+    lambda_value = 0.1
+    random.shuffle(names)
+    try:
+        for name in names[:10]:
+
+            energy_function, tautomer, flipped = setup_system_and_energy_function(name=name, env='droplet', ANImodel=AlchemicalANI2x, base_path='pdbs', diameter=10)
+            x0 = tautomer.ligand_in_water_coordinates
+            energy_function.calculate_force(x0, lambda_value)
+
+    finally:
+        shutil.rmtree('pdbs')
+
 def test_setup_tautomer_system_in_droplet_with_pdbs():
     from ..analysis import setup_system_and_energy_function
     from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
     import random, shutil
+    from ..ani import AlchemicalANI1ccx, AlchemicalANI2x
 
     with open('data/exp_results.pickle', 'rb') as f:
         exp_results = pickle.load(f)
@@ -270,13 +289,13 @@ def test_setup_tautomer_system_in_droplet_with_pdbs():
             continue
         names.append(name)
 
-    random.shuffle(names)
     lambda_value = 0.0
     for name in names[:10]:
         print(name)
-        energy_function, tautomer, flipped = setup_system_and_energy_function(name=name, env='droplet', base_path=f'/home/mwieder/droplet_test/{name}', diameter=16)
+        energy_function, tautomer, flipped = setup_system_and_energy_function(name=name, env='droplet', ANImodel=AlchemicalANI2x, base_path=f'data/droplet_test/{name}', diameter=16)
         x0 = tautomer.ligand_in_water_coordinates
         energy_function.calculate_force(x0, lambda_value)
+
 
 def _get_traj(traj_path, top_path, remove_idx = None):
     top = md.load(top_path).topology
@@ -295,6 +314,7 @@ def test_neutromeratio_energy_calculations_with_torchANI_model():
     from ..constants import kT
     from ..analysis import setup_system_and_energy_function
     import numpy as np
+    from ..ani import AlchemicalANI1ccx, AlchemicalANI2x
 
     # read in exp_results.pickle
     with open('data/exp_results.pickle', 'rb') as f:
@@ -303,45 +323,70 @@ def test_neutromeratio_energy_calculations_with_torchANI_model():
     # vacuum system
     # generate smiles
     name = 'molDWRow_298'
-    energy_function, tautomer, flipped = setup_system_and_energy_function(name=name, env='vacuum')
+    energy_function, tautomer, flipped = setup_system_and_energy_function(name=name, ANImodel=AlchemicalANI1ccx, env='vacuum')
 
     # read in pregenerated traj
     traj_path = 'data/vacuum/molDWRow_298/molDWRow_298_lambda_0.0000_in_vacuum.dcd'
     top_path = 'data/vacuum/molDWRow_298/molDWRow_298.pdb'
     traj, top = _get_traj(traj_path, top_path, tautomer.hybrid_hydrogen_idx_at_lambda_0)
-    # overwrite the coordinates that rdkit generated with the first frame in the traj
-    model = neutromeratio.ani.PureANI1ccx()
+    coordinates = [x.xyz[0] for x in traj[:10]] * unit.nanometer
+    
+    model = neutromeratio.ani.ANI1ccx()
     torch.set_num_threads(1)
     energy_function = neutromeratio.ANI1_force_and_energy(
         model=model,
         atoms=tautomer.initial_state_ligand_atoms,
         mol=None)
-    coordinates = [x.xyz[0] for x in traj[:10]] * unit.nanometer
     energy = energy_function.calculate_energy(coordinates)
 
     assert(is_quantity_close(energy.energy[0].in_units_of(unit.kilojoule_per_mole), (-906555.29945346 * unit.kilojoule_per_mole), rtol=1e-5))
 
+    model = neutromeratio.ani.ANI2x()
+    torch.set_num_threads(1)
+    energy_function = neutromeratio.ANI1_force_and_energy(
+        model=model,
+        atoms=tautomer.initial_state_ligand_atoms,
+        mol=None)
+    energy = energy_function.calculate_energy(coordinates)
+
+    assert(is_quantity_close(energy.energy[0].in_units_of(unit.kilojoule_per_mole), (-907243.8987177598 * unit.kilojoule_per_mole), rtol=1e-5))
+
     # droplet system
     name = 'molDWRow_298'
-    energy_function, tautomer, flipped = setup_system_and_energy_function(name=name, env='droplet', diameter=16, base_path='data/droplet/molDWRow_298/')
+    energy_function, tautomer, flipped = setup_system_and_energy_function(name=name, ANImodel=AlchemicalANI1ccx, env='droplet', diameter=16, base_path='data/droplet/molDWRow_298/')
 
     # read in pregenerated traj
     traj_path = 'data/droplet/molDWRow_298/molDWRow_298_lambda_0.0000_in_droplet.dcd'
     top_path = 'data/droplet/molDWRow_298/molDWRow_298_in_droplet.pdb'
     traj, top = _get_traj(traj_path, top_path, tautomer.hybrid_hydrogen_idx_at_lambda_0)
     # overwrite the coordinates that rdkit generated with the first frame in the traj
-    model = neutromeratio.ani.PureANI1ccx()
     torch.set_num_threads(1)
+    coordinates = [x.xyz[0] for x in traj[:10]] * unit.nanometer
+
+    #ANI1ccx
+    model = neutromeratio.ani.ANI1ccx()
     atoms = tautomer.ligand_in_water_atoms[:tautomer.hybrid_hydrogen_idx_at_lambda_0] + tautomer.ligand_in_water_atoms[tautomer.hybrid_hydrogen_idx_at_lambda_0 +1:]
     assert ( len(tautomer.ligand_in_water_atoms) == len(atoms) +1)
     energy_function = neutromeratio.ANI1_force_and_energy(
         model=model,
         atoms=atoms,
         mol=None)
-    coordinates = [x.xyz[0] for x in traj[:10]] * unit.nanometer
     energy = energy_function.calculate_energy(coordinates)
 
     assert(is_quantity_close(energy.energy[0].in_units_of(unit.kilojoule_per_mole), (-23572811.32262513 * unit.kilojoule_per_mole), rtol=1e-5))
+
+    #ANI2x
+    model = neutromeratio.ani.ANI2x()
+    atoms = tautomer.ligand_in_water_atoms[:tautomer.hybrid_hydrogen_idx_at_lambda_0] + tautomer.ligand_in_water_atoms[tautomer.hybrid_hydrogen_idx_at_lambda_0 +1:]
+    assert ( len(tautomer.ligand_in_water_atoms) == len(atoms) +1)
+    energy_function = neutromeratio.ANI1_force_and_energy(
+        model=model,
+        atoms=atoms,
+        mol=None)
+    energy = energy_function.calculate_energy(coordinates)
+
+    assert(is_quantity_close(energy.energy[0].in_units_of(unit.kilojoule_per_mole), (-23577418.068709385 * unit.kilojoule_per_mole), rtol=1e-5))
+
 
 
 def test_neutromeratio_energy_calculations_LinearAlchemicalSingleTopologyANI_model():
@@ -349,6 +394,7 @@ def test_neutromeratio_energy_calculations_LinearAlchemicalSingleTopologyANI_mod
     import numpy as np
     from ..constants import kT
     from ..analysis import setup_system_and_energy_function
+    from ..ani import AlchemicalANI1ccx, AlchemicalANI2x
 
     # read in exp_results.pickle
     with open('data/exp_results.pickle', 'rb') as f:

@@ -21,7 +21,7 @@ from .constants import num_threads, kT, gas_constant, temperature, mols_with_cha
 from .tautomers import Tautomer
 from .parameter_gradients import FreeEnergyCalculator
 from .utils import generate_tautomer_class_stereobond_aware
-from .ani import LinearAlchemicalSingleTopologyANI, ANI1_force_and_energy
+from .ani import ANI1_force_and_energy, AlchemicalANI2x, AlchemicalANI1ccx, ANI
 from glob import glob
 
 
@@ -361,7 +361,7 @@ def get_data_filename():
     return fn
 
 
-def setup_system_and_energy_function(name: str, env:str, diameter:int=16, base_path:str='.'):
+def setup_system_and_energy_function(name: str, env:str, ANImodel:ANI, base_path:str=None, **kwargs):
     import os
 
     data = pkg_resources.resource_stream(__name__, "data/exp_results.pickle")
@@ -375,18 +375,23 @@ def setup_system_and_energy_function(name: str, env:str, diameter:int=16, base_p
     #######################
     
     ####################
-    # Set up the system, set the restraints and read in the dcd files
+    # Set up the system, set the restraints
     t_type, tautomers, flipped = generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
     tautomer = tautomers[0]
     tautomer.perform_tautomer_transformation()
-    base_path = os.path.abspath(base_path)
-    logger.debug(base_path)
-    if not os.path.exists(base_path):
-        os.mkdir(base_path)
+    
+    # if base_path is defined write out the topology
+    if base_path:
+        base_path = os.path.abspath(base_path)
+        logger.debug(base_path)
+        if not os.path.exists(base_path):
+            os.mkdir(base_path)
 
     if env == 'droplet':
-        if diameter < 5:
-            raise RuntimeError(f'Aborting. Droplet diameter with {diameter} A is too smapll.')
+        # for droplet topology is written in every case
+        if not kwargs['diameter']:
+            raise RuntimeError(f'Aborting. Droplet diameter needs to be specified.')
+        diameter = kwargs['diameter']
         m = tautomer.add_droplet(tautomer.hybrid_topology, 
                             tautomer.hybrid_coords, 
                             diameter=diameter * unit.angstrom,
@@ -394,20 +399,21 @@ def setup_system_and_energy_function(name: str, env:str, diameter:int=16, base_p
                             restrain_hydrogen_angles=False,
                             top_file=f"{base_path}/{name}_in_droplet.pdb")
     else:
-        pdb_filepath = f"{base_path}/{name}.pdb"
-        try:
-            traj = md.load(pdb_filepath)
-        except OSError:
-            coordinates = tautomer.hybrid_coords
-            traj = md.Trajectory(coordinates.value_in_unit(unit.nanometer), tautomer.hybrid_topology)
-            traj.save_pdb(pdb_filepath)
-        
-        # set coordinates #NOTE: note the xyz[0]
-        tautomer.hybrid_coords = traj.xyz[0] * unit.nanometer
+        if base_path:
+            # for vacuum only if base_path is defined
+            pdb_filepath = f"{base_path}/{name}.pdb"
+            try:
+                traj = md.load(pdb_filepath)
+            except OSError:
+                coordinates = tautomer.hybrid_coords
+                traj = md.Trajectory(coordinates.value_in_unit(unit.nanometer), tautomer.hybrid_topology)
+                traj.save_pdb(pdb_filepath)
+            tautomer.hybrid_coords = traj.xyz[0] * unit.nanometer
 
     # define the alchemical atoms
     alchemical_atoms = [tautomer.hybrid_hydrogen_idx_at_lambda_1, tautomer.hybrid_hydrogen_idx_at_lambda_0]
-    model = LinearAlchemicalSingleTopologyANI(alchemical_atoms=alchemical_atoms)
+    
+    model = ANImodel(alchemical_atoms=alchemical_atoms)
     model = model.to(device)
     torch.set_num_threads(num_threads)
 
@@ -433,10 +439,8 @@ def setup_system_and_energy_function(name: str, env:str, diameter:int=16, base_p
 
     if env == 'droplet':
         tautomer.add_COM_for_hybrid_ligand(np.array([diameter/2, diameter/2, diameter/2]) * unit.angstrom)
-
         for r in tautomer.solvent_restraints:
             energy_function.add_restraint_to_lambda_protocol(r)
-
         for r in tautomer.com_restraints:
             energy_function.add_restraint_to_lambda_protocol(r)
 

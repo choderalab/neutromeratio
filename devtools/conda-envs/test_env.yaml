@@ -36,6 +36,6 @@ dependencies:
     - lark-parser
     - six
     - torch
-    - torchani==1.2
+    - torchani==2.1.1
     - torchvision
     - codecov

@@ -486,12 +486,12 @@ class Tautomer(object):
         Generates a hybrid structure between two tautomers. The heavy atom frame is kept but a
         hydrogen is added to the tautomer acceptor heavy atom. 
         """
-        from .ani import PureANI1ccx
+        from .ani import ANI1ccx
         # add hybrid atoms
         hybrid_atoms = ligand_atoms + 'H'
 
         # generate 3D coordinates for hybrid atom
-        model = PureANI1ccx()
+        model = ANI1ccx()
         model = model.to(device)
 
         energy_function = ANI1_force_and_energy(
@@ -513,7 +513,7 @@ class Tautomer(object):
 
         for _ in range(100):
             hybrid_coord = hydrogen_mover._move_hydrogen_to_acceptor_idx(ligand_coords, override=False)
-            energy = energy_function.calculate_energy([hybrid_coord / unit.angstrom] * unit.angstrom , lambda_value=1.0)
+            energy = energy_function.calculate_energy([hybrid_coord / unit.angstrom] * unit.angstrom)
             if energy.energy < min_e:
                 min_e = energy.energy
                 min_coordinates = hybrid_coord
