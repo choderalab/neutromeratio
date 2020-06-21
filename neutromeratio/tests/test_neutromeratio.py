@@ -1354,7 +1354,6 @@ def test_experimental_values():
 
     assert(_get_names() == compare_get_names())
     names = _get_names()
-    energy_function.model.class_neural_network.parameters()
     assert(len(get_experimental_values(names)) == len(names))
 
 
@@ -1480,7 +1479,7 @@ def test_tweak_parameters():
         ['AlchemicalANI1ccx', 'AlchemicalANI2x', 'AlchemicalANI1x'])):
         rmse_training, rmse_val, rmse_test = tweak_parameters(
         env='vacuum',
-        latest_checkpoint = f"{model_name}.pt",
+        checkpoint_filename= f"{model_name}_vacuum.pt",
         names=names,
         ANImodel=model,
         batch_size=3,
@@ -1518,26 +1517,21 @@ def test_tweak_parameters_droplet():
     names = ['molDWRow_298']
     env = 'droplet'
     diameter = 18
-    for idx, model in enumerate([AlchemicalANI1ccx, AlchemicalANI2x, AlchemicalANI1x]):
-        try:
-            rmse_training, rmse_val, rmse_test = tweak_parameters(
-            env=env,
-            names=names,
-            ANImodel=model,
-            batch_size=1,
-            max_snapshots_per_window=100,
-            data_path=f'./data/{env}',
-            nr_of_nn=8,
-            max_epochs=1,
-            diameter=18)
+    for idx, (model, model_name) in enumerate(zip(
+        [AlchemicalANI1ccx, AlchemicalANI2x, AlchemicalANI1x],
+        ['AlchemicalANI1ccx', 'AlchemicalANI2x', 'AlchemicalANI1x'])):
+        rmse_training, rmse_val, rmse_test = tweak_parameters(
+        env=env,
+        names=names,
+        ANImodel=model,
+        batch_size=1,
+        max_snapshots_per_window=100,
+        checkpoint_filename= f"{model_name}_droplet.pt",
+        data_path=f'./data/{env}',
+        nr_of_nn=8,
+        max_epochs=1,
+        diameter=18)
 
-        finally:
-            try:
-                #os.remove('latest.pt')
-                os.remove('latest_at_0.pt')
-                os.remove('best.pt')
-            except FileNotFoundError:
-                pass
         if idx == 0:
             assert(np.isclose(rmse_val[-1], rmse_test))
             assert(np.isclose(rmse_val[-1], 2.3069503113753314))

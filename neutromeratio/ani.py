@@ -94,8 +94,6 @@ class ANI1x(ANI):
         super().__init__(info_file, periodic_table_index)
         if ANI1x.class_neural_network == None:
             ANI1x.class_neural_network = copy.deepcopy(self.neural_networks)
-        self.neural_networks = None
-        assert(self.neural_networks == None) 
 
     def forward(self, species_coordinates_lamb):
 
@@ -122,8 +120,6 @@ class ANI1ccx(ANI):
         super().__init__(info_file, periodic_table_index)
         if ANI1ccx.class_neural_network == None:
             ANI1ccx.class_neural_network = copy.deepcopy(self.neural_networks)
-        self.neural_networks = None
-        assert(self.neural_networks == None) 
 
     def forward(self, species_coordinates_lamb):
         try:
@@ -148,8 +144,6 @@ class ANI2x(ANI):
         super().__init__(info_file, periodic_table_index)
         if ANI2x.class_neural_network == None:
             ANI2x.class_neural_network = copy.deepcopy(self.neural_networks)
-        self.neural_networks = None
-        assert(self.neural_networks == None) 
 
     def forward(self, species_coordinates_lamb):
         try:
@@ -184,8 +178,8 @@ class AlchemicalANI1ccx(ANI1ccx):
         assert (len(alchemical_atoms) == 2)
         super().__init__(periodic_table_index)
         self.alchemical_atoms = alchemical_atoms
+        self.neural_networks = None
         assert(self.neural_networks == None) 
-
 
     def forward(self, species_coordinates_lamb):
         """
@@ -259,6 +253,7 @@ class AlchemicalANI1x(ANI1x):
         assert (len(alchemical_atoms) == 2)
         super().__init__(periodic_table_index)
         self.alchemical_atoms = alchemical_atoms
+        self.neural_networks = None
         assert(self.neural_networks == None) 
 
 
@@ -336,6 +331,7 @@ class AlchemicalANI2x(ANI2x):
         assert (len(alchemical_atoms) == 2)
         super().__init__(periodic_table_index)
         self.alchemical_atoms = alchemical_atoms
+        self.neural_networks = None
         assert(self.neural_networks == None) 
 
 
