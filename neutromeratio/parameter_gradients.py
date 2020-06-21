@@ -9,7 +9,7 @@ from pymbar.timeseries import detectEquilibration
 from simtk import unit
 from tqdm import tqdm
 from glob import glob
-from .ani import ANI1_force_and_energy
+from .ani import ANI1_force_and_energy, ANI
 from neutromeratio.constants import hartree_to_kJ_mol, device, platform, kT, exclude_set_ANI, mols_with_charge, multiple_stereobonds
 import torchani, torch
 import os
@@ -139,13 +139,10 @@ class FreeEnergyCalculator():
         # TODO: vectorize!
         decomposed_energy_list_lamb0 = self.ani_model.calculate_energy(coordinates, lambda_value=0)      
         u_0 = decomposed_energy_list_lamb0.energy_tensor
-        u0_stddev = decomposed_energy_list_lamb0.stddev
-
 
         # TODO: vectorize!
         decomposed_energy_list_lamb1 = self.ani_model.calculate_energy(coordinates, lambda_value=1)     
         u_1 = decomposed_energy_list_lamb1.energy_tensor
-        u1_stddev = decomposed_energy_list_lamb1.stddev
 
         u_ln = torch.stack([u_0, u_1])
         del decomposed_energy_list_lamb0
@@ -202,7 +199,7 @@ def get_experimental_values(names:list)-> torch.Tensor:
     logger.debug(exp)
     return torchify(exp)
 
-def validate(names: list, data_path: str, env: str, thinning: int, max_snapshots_per_window: int, diameter:int = 0)->float:
+def validate(names: list, model:ANI, data_path: str, env: str, thinning: int, max_snapshots_per_window: int, diameter:int = -1)->float:
     """
     Returns the RMSE between calculated and experimental free energy differences as float.
 
@@ -215,12 +212,26 @@ def validate(names: list, data_path: str, env: str, thinning: int, max_snapshots
     Returns:
         [type] -- returns the RMSE as float
     """
+    if env == 'droplet' and diameter == -1:
+        raise RuntimeError('Something went wrong.')
+
     e_calc = []
     e_exp = []
     it = tqdm(names)
     for idx, name in enumerate(it):
-        e_calc.append(get_free_energy_differences([setup_mbar(name, env, data_path, thinning, max_snapshots_per_window, diameter=diameter)])[0].item())
-        e_exp.append(get_experimental_values([name])[0].item())
+        e_calc.extend(
+            get_free_energy_differences(
+                [setup_mbar(
+            name=name,
+            ANImodel=model,
+            env=env,
+            data_path=data_path,
+            thinning=thinning,
+            max_snapshots_per_window=max_snapshots_per_window,
+            diameter=diameter)
+            ]))
+
+        e_exp.extend(get_experimental_values([name]))
         current_rmse = calculate_rmse(torch.tensor(e_calc), torch.tensor(e_exp)).item()
         it.set_description(f"RMSE: {current_rmse}")
         if current_rmse > 50:
@@ -245,7 +256,7 @@ def chunks(lst, n):
 def _log_dG():
     pass
 
-def tweak_parameters(env: str, diameter:int = 0, batch_size:int = 10, data_path:str = "../data/", nr_of_nn:int = 8, max_epochs:int = 10, thinning:int = 100, max_snapshots_per_window:int = 100, names:list = []):
+def tweak_parameters(ANImodel:ANI, env: str, latest_checkpoint :str, diameter:int = -1, batch_size:int = 10, data_path:str = "../data/", nr_of_nn:int = 8, max_epochs:int = 10, thinning:int = 100, max_snapshots_per_window:int = 100, names:list = []):
     """    
     Calculates the free energy of a staged free energy simulation, 
     tweaks the neural net parameter so that using reweighting the difference 
@@ -275,11 +286,11 @@ def tweak_parameters(env: str, diameter:int = 0, batch_size:int = 10, data_path:
     import random
     assert(int(batch_size) <= 10 and int(batch_size) >= 1)
     assert (int(nr_of_nn) <= 8 and int(nr_of_nn) >= 1)
-    if env == 'droplet' and diameter < 5:
+    if env == 'droplet' and diameter == -1:
         raise RuntimeError(f"Did you forget to pass the 'diamter' argument? Aborting.")
 
-    latest_checkpoint = 'latest.pt'
-    best_model_checkpoint = 'best.pt'
+    base = latest_checkpoint.split('.')[0]
+    best_model_checkpoint = f'{base}_best.pt'
 
     # save batch loss through epochs
     rmse_validation = []
@@ -288,9 +299,9 @@ def tweak_parameters(env: str, diameter:int = 0, batch_size:int = 10, data_path:
     # define which layer should be modified -- currently the last one
     layer = 6
     # take each of the networks from the ensemble of 8
-    AdamW, AdamW_scheduler, SGD, SGD_scheduler, model = _get_nn_layers(layer, nr_of_nn)
+    AdamW, AdamW_scheduler, SGD, SGD_scheduler = _get_nn_layers(layer, nr_of_nn, ANImodel)
 
-    _load_checkpoint(latest_checkpoint, model, AdamW, AdamW_scheduler, SGD, SGD_scheduler)
+    _load_checkpoint(latest_checkpoint, ANImodel, AdamW, AdamW_scheduler, SGD, SGD_scheduler)
 
     # get names of molecules we want to optimize
     names_list = _get_names()
@@ -316,13 +327,27 @@ def tweak_parameters(env: str, diameter:int = 0, batch_size:int = 10, data_path:
 
     # calculate the rmse on the current parameters for the validation set
     print('RMSE calulation for validation set')
-    rmse_validation_set = validate(names_validating, data_path = data_path, env=env, thinning=thinning, max_snapshots_per_window = max_snapshots_per_window, diameter=diameter)
+    rmse_validation_set = validate(
+        names_validating,
+        model=ANImodel,
+        data_path=data_path,
+        env=env,
+        thinning=thinning,
+        max_snapshots_per_window=max_snapshots_per_window,
+        diameter=diameter)
     rmse_validation.append(rmse_validation_set)
     print(f"RMSE on validation set: {rmse_validation[-1]} at epoch {AdamW_scheduler.last_epoch + 1}")
     
     # calculate the rmse on the current parameters for the training set
     print('RMSE calulation for training set')
-    rmse_training_set = validate(names_training, data_path = data_path, env=env, thinning=thinning, max_snapshots_per_window = max_snapshots_per_window, diameter=diameter)
+    rmse_training_set = validate(
+        names_training,
+        model=ANImodel,
+        data_path=data_path,
+        env=env,
+        thinning=thinning,
+        max_snapshots_per_window=max_snapshots_per_window,
+        diameter=diameter)
     rmse_training.append(rmse_training_set)
     print(f"RMSE on training set: {rmse_training[-1]} at epoch {AdamW_scheduler.last_epoch + 1}")
 
@@ -332,13 +357,12 @@ def tweak_parameters(env: str, diameter:int = 0, batch_size:int = 10, data_path:
         
         # get the learning group
         learning_rate = AdamW.param_groups[0]['lr']
-        
         if learning_rate < early_stopping_learning_rate:
             break
         
         # checkpoint -- if best parameters on validation set save parameters
         if AdamW_scheduler.is_better(rmse_validation[-1], AdamW_scheduler.best):
-            torch.save(model.state_dict(), best_model_checkpoint)
+            torch.save(ANImodel.class_neural_network.state_dict(), best_model_checkpoint)
 
         # define the stepsize 
         AdamW_scheduler.step(rmse_validation[-1])
@@ -353,7 +377,14 @@ def tweak_parameters(env: str, diameter:int = 0, batch_size:int = 10, data_path:
 
             # define setup_mbar function
             # get mbar instances in a list
-            fec_list = [setup_mbar(name, env, data_path, thinning=thinning, max_snapshots_per_window=max_snapshots_per_window, diameter=diameter) for name in names]
+            fec_list = [setup_mbar(
+                name=name,
+                ANImodel=ANImodel,
+                env=env,
+                data_path=data_path,
+                thinning=thinning,
+                max_snapshots_per_window=max_snapshots_per_window,
+                diameter=diameter) for name in names]
 
             # calculate the free energies
             calc_free_energy_difference = get_free_energy_differences(fec_list)
@@ -373,26 +404,44 @@ def tweak_parameters(env: str, diameter:int = 0, batch_size:int = 10, data_path:
             SGD.step()
 
         print('RMSE calulation for validation set')
-        rmse_validation.append(validate(names_validating, diameter=diameter, data_path = data_path, env=env, thinning=thinning, max_snapshots_per_window = max_snapshots_per_window))
+        rmse_validation.append(
+            validate(
+                names_validating,
+                model=ANImodel,
+                diameter=diameter,
+                data_path=data_path,
+                env=env,
+                thinning=thinning,
+                max_snapshots_per_window = max_snapshots_per_window))
         print(f"RMSE on validation set: {rmse_validation[-1]} at epoch {AdamW_scheduler.last_epoch + 1}")
         
         print('RMSE calulation for training set')
-        rmse_training.append(calculate_rmse(torch.tensor(calc_free_energy_difference_batches), torch.tensor(exp_free_energy_difference_batches)).item())
+        rmse_training.append(
+            calculate_rmse(
+                torch.tensor(calc_free_energy_difference_batches),
+                torch.tensor(exp_free_energy_difference_batches)).item())
         print(f"RMSE on training set: {rmse_training[-1]} at epoch {AdamW_scheduler.last_epoch + 1}")
+        _save_checkpoint(ANImodel, AdamW, AdamW_scheduler, SGD, SGD_scheduler, f"{base}_{AdamW_scheduler.last_epoch}.pt")
 
-    _save_checkpoint(model, AdamW, AdamW_scheduler, SGD, SGD_scheduler, latest_checkpoint)
-    _save_checkpoint(model, AdamW, AdamW_scheduler, SGD, SGD_scheduler, f"latest_at_{AdamW_scheduler.last_epoch}.pt")
+    _save_checkpoint(ANImodel, AdamW, AdamW_scheduler, SGD, SGD_scheduler, latest_checkpoint)
     
     
     # final rmsd calculation on test set
     print('RMSE calulation for test set')
-    rmse_test = validate(names_test, diameter=diameter, data_path = data_path, env=env, thinning=thinning, max_snapshots_per_window = max_snapshots_per_window)
+    rmse_test = validate(
+        model=ANImodel,
+        names=names_test,
+        diameter=diameter,
+        data_path=data_path,
+        env=env,
+        thinning=thinning,
+        max_snapshots_per_window = max_snapshots_per_window)
     
     return rmse_training, rmse_validation, rmse_test
 
 def _save_checkpoint(model, AdamW, AdamW_scheduler, SGD, SGD_scheduler, latest_checkpoint):
     torch.save({
-        'nn': model.state_dict(),
+        'nn': model.class_neural_network.state_dict(),
         'AdamW': AdamW.state_dict(),
         'SGD': SGD.state_dict(),
         'AdamW_scheduler': AdamW_scheduler.state_dict(),
@@ -404,18 +453,20 @@ def _load_checkpoint(latest_checkpoint, model, AdamW, AdamW_scheduler, SGD, SGD_
     # save checkpoint
     if os.path.isfile(latest_checkpoint):
         checkpoint = torch.load(latest_checkpoint)
-        model.load_state_dict(checkpoint['nn'])
+        model.class_neural_network.load_state_dict(checkpoint['nn'])
         AdamW.load_state_dict(checkpoint['AdamW'])
         SGD.load_state_dict(checkpoint['SGD'])
         AdamW_scheduler.load_state_dict(checkpoint['AdamW_scheduler'])
         SGD_scheduler.load_state_dict(checkpoint['SGD_scheduler'])
+    else:
+        raise RuntimeError(f"Checkoint {latest_checkpoint} does not exist.")
 
 
 
-def _get_nn_layers(layer:int, nr_of_nn:int):
+def _get_nn_layers(layer:int, nr_of_nn:int, ANImodel:ANI):
     weight_layers = []
     bias_layers = []
-    model = neutromeratio.ani.LinearAlchemicalSingleTopologyANI([0,0]).to(device).neural_networks
+    model = ANImodel([0,0]).to(device).class_neural_network
 
     for nn in model[:nr_of_nn]:
         weight_layers.extend(
@@ -435,14 +486,14 @@ def _get_nn_layers(layer:int, nr_of_nn:int):
             ]
         )
     # set up minimizer for weights
-    AdamW = torchani.optim.AdamW(weight_layers)
+    AdamW = torch.optim.AdamW(weight_layers)
     # set up minimizer for bias
     SGD = torch.optim.SGD(bias_layers, lr=1e-3)
 
     AdamW_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(AdamW, factor=0.5, patience=100, threshold=0)
     SGD_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(SGD, factor=0.5, patience=100, threshold=0)
 
-    return (AdamW, AdamW_scheduler, SGD, SGD_scheduler, model)
+    return (AdamW, AdamW_scheduler, SGD, SGD_scheduler)
 
 def _get_names():
     data = pkg_resources.resource_stream(__name__, "data/exp_results.pickle")
@@ -499,7 +550,7 @@ def tweak_parameters_with_kfold(env: str, batch_size:int = 10, data_path:str = "
     # define which layer should be modified -- currently the last one
     layer = 6
     # take each of the networks from the ensemble of 8
-    AdamW, AdamW_scheduler, SGD, SGD_scheduler, model = _get_nn_layers(layer, nr_of_nn)
+    AdamW, AdamW_scheduler, SGD, SGD_scheduler = _get_nn_layers(layer, nr_of_nn, ANImodel)
     logger.info(f"training starting from epoch {AdamW_scheduler.last_epoch + 1}")
     early_stopping_learning_rate = 1.0E-5
 
@@ -581,11 +632,13 @@ def tweak_parameters_with_kfold(env: str, batch_size:int = 10, data_path:str = "
 
 
 
-def setup_mbar(name:str, env:str = 'vacuum', data_path:str = "../data/", thinning:int = 50, max_snapshots_per_window:int = 200, diameter:int=16):
-    from neutromeratio.analysis import setup_system_and_energy_function
+def setup_mbar(name:str, ANImodel:ANI, env:str = 'vacuum',  data_path:str = "../data/", thinning:int = 50, max_snapshots_per_window:int = 200, diameter:int=-1):
+    from neutromeratio.analysis import setup_alchemical_system_and_energy_function
     import os
-    if env != 'vacuum' and env != 'droplet':
+    if not (env == 'vacuum' or env == 'droplet'):
         raise RuntimeError('Only keyword vacuum or droplet are allowed as environment.') 
+    if env == 'droplet' and diameter == -1:
+        raise RuntimeError('Something went wrong.')
 
     def parse_lambda_from_dcd_filename(dcd_filename):
         """parsed the dcd filename
@@ -610,7 +663,12 @@ def setup_mbar(name:str, env:str = 'vacuum', data_path:str = "../data/", thinnin
         raise RuntimeError(f"{name} is part of the list of excluded molecules. Aborting")
 
     #######################
-    energy_function, tautomer, flipped = setup_system_and_energy_function(name=name, env=env, diameter=diameter, base_path=f"{data_path}/{name}/")
+    energy_function, tautomer, flipped = setup_alchemical_system_and_energy_function(
+        name=name,
+        ANImodel=ANImodel,
+        env=env,
+        diameter=diameter,
+        base_path=f"{data_path}/{name}/")
     # and lambda values in list
     dcds = glob(f"{data_path}/{name}/*.dcd")
 

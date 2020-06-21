@@ -68,14 +68,14 @@ class Tautomer(object):
         initial_state_ani_input = self._from_mol_to_ani_input(self.initial_state_mol, enforceChirality)
         self.initial_state_ligand_atoms = initial_state_ani_input['ligand_atoms']
         self.initial_state_ligand_bonds = initial_state_ani_input['ligand_bonds']
-        self.initial_state_ligand_coords = initial_state_ani_input['ligand_coords']
+        self._initial_state_ligand_coords = initial_state_ani_input['ligand_coords']
         self.initial_state_ligand_topology: md.Topology = initial_state_ani_input['ligand_topology']
         self.initial_state_ase_mol: Atoms = initial_state_ani_input['ase_mol']
 
         final_state_ani_input = self._from_mol_to_ani_input(self.final_state_mol, enforceChirality)
         self.final_state_ligand_atoms = final_state_ani_input['ligand_atoms']
         self.final_state_ligand_bonds = final_state_ani_input['ligand_bonds']
-        self.final_state_ligand_coords = final_state_ani_input['ligand_coords']
+        self._final_state_ligand_coords = final_state_ani_input['ligand_coords']
         self.final_state_ligand_topology: md.Topology = final_state_ani_input['ligand_topology']
         self.final_state_ase_mol: Atoms = final_state_ani_input['ase_mol']
 
@@ -83,7 +83,7 @@ class Tautomer(object):
         self.hybrid_hydrogen_idx_at_lambda_1: int = -1  # the dummy hydrogen at lambda 0, real hydrogen at lambda 1!! BEWARE!!
         self.hybrid_atoms: str = ''
         self.hybrid_ligand_idxs:list = []
-        self.hybrid_coords: list = []
+        self._hybrid_coords: list = []
         self.hybrid_topology: md.Topology = md.Topology()
         self.heavy_atom_hydrogen_donor_idx: int = -1  # the heavy atom that losses the hydrogen
         self.hydrogen_idx: int = -1  # the tautomer hydrogen
@@ -91,7 +91,7 @@ class Tautomer(object):
         self.heavy_atom_hydrogen_acceptor_idx: int = -1  # the heavy atom that accepts the hydrogen
 
         self.ligand_in_water_atoms: str = ""
-        self.ligand_in_water_coordinates: list = []
+        self._ligand_in_water_coordinates: list = []
         self.ligand_in_water_topology: md.Topology = md.Topology()
 
         # restraints for the ligand system
@@ -237,7 +237,7 @@ class Tautomer(object):
             os.remove(pdb_filepath)
 
         # set coordinates #NOTE: note the xyz[0]
-        self.ligand_in_water_coordinates = traj.xyz[0] * unit.nanometer
+        self._ligand_in_water_coordinates = traj.xyz[0] * unit.nanometer
 
         # generate atom string
         atom_list = []
@@ -284,7 +284,7 @@ class Tautomer(object):
                         self.solvent_restraints.append(AngleHarmonicRestraint(
                             sigma=0.1 * unit.radian, atom_i_idx=hydrogen_idxs[0], atom_j_idx=oxygen_idx, atom_k_idx=hydrogen_idxs[1]))
         # return a mdtraj object for visual check
-        return md.Trajectory(self.ligand_in_water_coordinates.value_in_unit(unit.nanometer),
+        return md.Trajectory(self._ligand_in_water_coordinates.value_in_unit(unit.nanometer),
                              self.ligand_in_water_topology)
 
     def add_COM_for_hybrid_ligand(self, center):
@@ -311,7 +311,7 @@ class Tautomer(object):
         self._perform_tautomer_transformation(m1, m2, self.initial_state_ligand_bonds)
         #TODO: fix this!
         self._generate_hybrid_structure(self.initial_state_ligand_atoms,
-                                        self.initial_state_ligand_coords[0], self.initial_state_ligand_topology)
+                                        self._initial_state_ligand_coords[0], self.initial_state_ligand_topology)
 
     def _from_mol_to_ani_input(self, mol: Chem.Mol, enforceChirality: bool):
         """
@@ -337,8 +337,10 @@ class Tautomer(object):
             for a in mol.GetAtoms():
                 pos = mol.GetConformer(conf_idx).GetAtomPosition(a.GetIdx())
                 tmp_coord_list.append([pos.x, pos.y, pos.z])
-            coord_list.append(np.array(tmp_coord_list))
-        coord_list = coord_list * unit.angstrom 
+            coord_list.append(tmp_coord_list)
+        coord_list = np.asarray(coord_list)
+        assert (coord_list.shape == (mol.GetNumConformers(), mol.GetNumAtoms(), 3))
+        coord_list *= unit.angstrom
 
         # generate bond list of heavy atoms to hydrogens
         bond_list = []
@@ -518,8 +520,13 @@ class Tautomer(object):
                 min_e = energy.energy
                 min_coordinates = hybrid_coord
 
-        self.hybrid_hydrogen_idx_at_lambda_1 = len(hybrid_atoms) - 1 # this is not the dummy hydrogen at lambda_1! it is the real hydrogen at lambda 1!
-        self.hybrid_coords = min_coordinates
+        self.hybrid_hydrogen_idx_at_lambda_1 = len(hybrid_atoms) - 1 # this is the real hydrogen at lambda 1!
+        
+        d_ = np.array([min_coordinates.value_in_unit(unit.angstrom)])
+        
+        assert(d_.shape == (1,len(hybrid_atoms), 3))
+       
+        self._hybrid_coords = d_ * unit.angstrom
 
         # add restraint between dummy atom and heavy atom
         self.hybrid_ligand_restraints.append(BondFlatBottomRestraint(
@@ -530,6 +537,63 @@ class Tautomer(object):
         dummy_atom = hybrid_topology.add_atom('H', md.element.hydrogen, hybrid_topology.residue(-1))
         hybrid_topology.add_bond(hybrid_topology.atom(self.heavy_atom_hydrogen_acceptor_idx), dummy_atom)
         self.hybrid_topology = hybrid_topology
+
+    def get_final_state_ligand_coords(self, id: int):
+
+        x0 = self._final_state_ligand_coords.value_in_unit(unit.angstrom)
+        
+        assert (x0.shape[0] >= id)
+        
+        x0 = np.array([x0[id]])
+        print(x0.shape)
+        print(x0)
+        assert (x0.shape == (1,len(self.final_state_ligand_atoms),3))
+
+        return x0  * unit.angstrom
+
+    def get_nr_of_final_state_ligand_coords(self):
+        x = self._final_state_ligand_coords.value_in_unit(unit.angstrom)
+        return x.shape[0]
+
+
+    def get_nr_of_initial_state_ligand_coords(self):
+        x = self._initial_state_ligand_coords.value_in_unit(unit.angstrom)
+        return x.shape[0]
+
+    def get_initial_state_ligand_coords(self, id: int):
+
+        x0 = self._initial_state_ligand_coords.value_in_unit(unit.angstrom)
+
+        assert (x0.shape[0] >= id)
+        
+        x0 = np.array([x0[id]])
+        print(x0.shape)
+        print(x0)
+        assert (x0.shape == (1,len(self.initial_state_ligand_atoms),3))
+
+        return x0  * unit.angstrom
+
+    def get_hybrid_coordinates(self):
+        assert(type(self._hybrid_coords) == unit.Quantity)
+
+        return self._hybrid_coords
+
+    def set_hybrid_coordinates(self, x):
+        print(x)
+        print(x.shape)
+        assert(type(x) == unit.Quantity)
+
+        return self._hybrid_coords
+
+
+    def get_ligand_in_water_coordinates(self):
+        assert(type(self._ligand_in_water_coordinates) == unit.Quantity)
+        x0 = self._ligand_in_water_coordinates.value_in_unit(unit.angstrom)
+        x0 = np.array([x0])
+
+        assert (x0.shape == (1,len(self.ligand_in_water_atoms),3))
+        return x0 * unit.angstrom
+
 
     def generate_mining_minima_structures(self, rmsd_threshold: float = 0.1, include_entropy_correction: bool = False) -> (list, unit.Quantity, list):
         """
@@ -550,7 +614,7 @@ class Tautomer(object):
             list of energies for the different minimum conformations
         """
 
-        from .ani import PureANI1ccx
+        from .ani import ANI1ccx
         from .analysis import prune_conformers, calculate_weighted_energy
 
         bw_energies = []
@@ -559,16 +623,17 @@ class Tautomer(object):
         all_energies = []
         all_conformations = []
 
-        for ase_mol, rdkit_mol, ligand_atoms, ligand_coords, top, entropy_correction in zip(
+        for ase_mol, rdkit_mol, ligand_atoms, get_ligand_coords, top, entropy_correction, get_nr_of_confs in zip(
             [self.initial_state_ase_mol, self.final_state_ase_mol],
             [copy.deepcopy(self.initial_state_mol), copy.deepcopy(self.final_state_mol)],
             [self.initial_state_ligand_atoms, self.final_state_ligand_atoms],
-            [self.initial_state_ligand_coords, self.final_state_ligand_coords],
+            [self.get_initial_state_ligand_coords, self.get_final_state_ligand_coords],
             [self.initial_state_ligand_topology, self.final_state_ligand_topology],
-                [self.initial_state_entropy_correction, self.final_state_entropy_correction]):
+            [self.initial_state_entropy_correction, self.final_state_entropy_correction],
+            [self.get_nr_of_initial_state_ligand_coords, self.get_nr_of_final_state_ligand_coords]):
             
             print('Mining Minima starting ...')
-            model = PureANI1ccx()
+            model = ANI1ccx()
             model = model.to(device)
 
             energy_function = ANI1_force_and_energy(
@@ -578,12 +643,12 @@ class Tautomer(object):
             )
 
             energies:list = []
-            for n_conf, coords in enumerate(ligand_coords):
+            for conf_id in range(get_nr_of_confs()):
                 # minimize
-                print(f"Conf: {n_conf}")
-                minimized_coords, _ = energy_function.minimize(coords)
-                energy = energy_function.calculate_energy(
-                    [minimized_coords/unit.angstrom] * unit.angstrom)
+                print(f"Conf: {conf_id}")
+                minimized_coords, _ = energy_function.minimize(get_ligand_coords(conf_id))
+                # minimized_coords have dimensions [1][N_atoms][3]
+                energy = energy_function.calculate_energy(minimized_coords)
                 try:
                     thermochemistry_correction = energy_function.get_thermo_correction(minimized_coords)
                 except ValueError:
@@ -597,11 +662,11 @@ class Tautomer(object):
 
                 # update the coordinates in the rdkit mol
                 for atom in rdkit_mol.GetAtoms():
-                    conf = rdkit_mol.GetConformer(n_conf)
+                    conf = rdkit_mol.GetConformer(conf_id)
                     new_coords = Geometry.rdGeometry.Point3D()
-                    new_coords.x = (minimized_coords[atom.GetIdx()][0]).value_in_unit(unit.angstrom)
-                    new_coords.y = minimized_coords[atom.GetIdx()][1].value_in_unit(unit.angstrom)
-                    new_coords.z = minimized_coords[atom.GetIdx()][2].value_in_unit(unit.angstrom)
+                    new_coords.x = minimized_coords[0][atom.GetIdx()][0].value_in_unit(unit.angstrom)
+                    new_coords.y = minimized_coords[0][atom.GetIdx()][1].value_in_unit(unit.angstrom)
+                    new_coords.z = minimized_coords[0][atom.GetIdx()][2].value_in_unit(unit.angstrom)
                     conf.SetAtomPosition(atom.GetIdx(), new_coords)
 
             # aligne the molecules

@@ -21,7 +21,7 @@ from .constants import num_threads, kT, gas_constant, temperature, mols_with_cha
 from .tautomers import Tautomer
 from .parameter_gradients import FreeEnergyCalculator
 from .utils import generate_tautomer_class_stereobond_aware
-from .ani import ANI1_force_and_energy, AlchemicalANI2x, AlchemicalANI1ccx, ANI
+from .ani import ANI1_force_and_energy, AlchemicalANI2x, AlchemicalANI1ccx, ANI, AlchemicalANI1x
 from glob import glob
 
 
@@ -254,8 +254,8 @@ def compare_confomer_generator_and_trajectory_minimum_structures(results_path: s
     mol.RemoveAllConformers()
 
     # generate energy function, use atom symbols of rdkti mol
-    from .ani import PureANI1ccx, ANI1_force_and_energy
-    model = PureANI1ccx()
+    from .ani import ANI1ccx, ANI1_force_and_energy
+    model = ANI1ccx()
     energy_function = ANI1_force_and_energy(model=model,
                                             atoms=[a.GetSymbol() for a in mol.GetAtoms()],
                                             mol=None)
@@ -361,8 +361,11 @@ def get_data_filename():
     return fn
 
 
-def setup_system_and_energy_function(name: str, env:str, ANImodel:ANI, base_path:str=None, **kwargs):
+def setup_alchemical_system_and_energy_function(name: str, env:str, ANImodel:ANI, base_path:str=None, diameter:int=-1):
+    
     import os
+    if not (issubclass(ANImodel, (AlchemicalANI2x, AlchemicalANI1ccx, AlchemicalANI1x))):
+        raise RuntimeError('Only Alchemical ANI objects allowed! Aborting.')
 
     data = pkg_resources.resource_stream(__name__, "data/exp_results.pickle")
     exp_results = pickle.load(data)
@@ -388,12 +391,11 @@ def setup_system_and_energy_function(name: str, env:str, ANImodel:ANI, base_path
             os.mkdir(base_path)
 
     if env == 'droplet':
+        if diameter == -1:
+            raise RuntimeError('Droplet is not specified. Aborting.')
         # for droplet topology is written in every case
-        if not kwargs['diameter']:
-            raise RuntimeError(f'Aborting. Droplet diameter needs to be specified.')
-        diameter = kwargs['diameter']
         m = tautomer.add_droplet(tautomer.hybrid_topology, 
-                            tautomer.hybrid_coords, 
+                            tautomer.get_hybrid_coordinates(), 
                             diameter=diameter * unit.angstrom,
                             restrain_hydrogen_bonds=True,
                             restrain_hydrogen_angles=False,
@@ -405,10 +407,10 @@ def setup_system_and_energy_function(name: str, env:str, ANImodel:ANI, base_path
             try:
                 traj = md.load(pdb_filepath)
             except OSError:
-                coordinates = tautomer.hybrid_coords
+                coordinates = tautomer.get_hybrid_coordinates()
                 traj = md.Trajectory(coordinates.value_in_unit(unit.nanometer), tautomer.hybrid_topology)
                 traj.save_pdb(pdb_filepath)
-            tautomer.hybrid_coords = traj.xyz[0] * unit.nanometer
+            tautomer.set_hybrid_coordinates(traj.xyz[0] * unit.nanometer)
 
     # define the alchemical atoms
     alchemical_atoms = [tautomer.hybrid_hydrogen_idx_at_lambda_1, tautomer.hybrid_hydrogen_idx_at_lambda_0]
