@@ -361,6 +361,12 @@ def get_data_filename():
     return fn
 
 
+def _get_exp_results():
+    data = pkg_resources.resource_stream(__name__, "data/exp_results.pickle")
+    exp_results = pickle.load(data)
+    return exp_results
+
+
 def setup_alchemical_system_and_energy_function(
     name: str,
     env: str,
@@ -372,9 +378,7 @@ def setup_alchemical_system_and_energy_function(
     if not (issubclass(ANImodel, (AlchemicalANI2x, AlchemicalANI1ccx, AlchemicalANI1x))):
         raise RuntimeError('Only Alchemical ANI objects allowed! Aborting.')
 
-    data = pkg_resources.resource_stream(__name__, "data/exp_results.pickle")
-    exp_results = pickle.load(data)
-
+    exp_results = _get_exp_results()
     t1_smiles = exp_results[name]['t1-smiles']
     t2_smiles = exp_results[name]['t2-smiles']
     

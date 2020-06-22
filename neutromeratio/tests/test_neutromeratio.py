@@ -18,7 +18,6 @@ from openmmtools.utils import is_quantity_close
 import pandas as pd
 from rdkit import Chem
 
-
 def test_equ():
     assert(1.0 == 1.0)
 

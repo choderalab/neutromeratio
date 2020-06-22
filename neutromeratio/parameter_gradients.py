@@ -187,8 +187,8 @@ def get_experimental_values(names:list)-> torch.Tensor:
     Returns:
         [torch.Tensor] -- experimental free energy in kT
     """
-    data = pkg_resources.resource_stream(__name__, "data/exp_results.pickle")
-    exp_results = pickle.load(data)
+    from neutromeratio.analysis import _get_exp_results
+    exp_results = _get_exp_results()
     exp = []
 
     for idx, name in enumerate(names):
@@ -706,7 +706,7 @@ def tweak_parameters_for_list(ANImodel: ANI,
 
 
 def setup_mbar(name:str, ANImodel:ANI, env:str = 'vacuum',  data_path:str = "../data/", thinning:int = 50, max_snapshots_per_window:int = 200, diameter:int=-1):
-    from neutromeratio.analysis import setup_alchemical_system_and_energy_function
+    from neutromeratio.analysis import setup_alchemical_system_and_energy_function, _get_exp_results
     import os
     if not (env == 'vacuum' or env == 'droplet'):
         raise RuntimeError('Only keyword vacuum or droplet are allowed as environment.') 
@@ -726,8 +726,7 @@ def setup_mbar(name:str, ANImodel:ANI, env:str = 'vacuum',  data_path:str = "../
         lam = l[-3]
         return float(lam)
     
-    data = pkg_resources.resource_stream(__name__, "data/exp_results.pickle")
-    exp_results = pickle.load(data)
+    exp_results = _get_exp_results()
     data_path = os.path.abspath(data_path)
     if not os.path.exists(data_path):
         raise RuntimeError(f"{data_path} does not exist!")
