@@ -534,8 +534,10 @@ def _load_checkpoint(latest_checkpoint, model, AdamW, AdamW_scheduler, SGD, SGD_
 def _get_nn_layers(layer: int, nr_of_nn: int, ANImodel: ANI, elements:str='CHON'):
     
     if elements == 'CHON':
+        logger.info('Using `CHON` elements.')
         return (_get_nn_layers_CHON(layer, nr_of_nn, ANImodel))
     elif elements == 'CN':
+        logger.info('Using `CN` elements.')
         return (_get_nn_layers_CN(layer, nr_of_nn, ANImodel))
     else:
         raise RuntimeError('Only `CHON` or `CN` as atoms allowed. Aborting.')
