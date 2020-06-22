@@ -331,7 +331,7 @@ def test_setup_tautomer_system_in_vaccum():
 def test_setup_tautomer_system_in_droplet():
     from ..analysis import setup_alchemical_system_and_energy_function
     from ..ani import AlchemicalANI1ccx, AlchemicalANI2x
-
+    # NOTE: Sometimes this test fails?
     from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
     import random, shutil
 
@@ -1263,7 +1263,7 @@ def test_validate():
     from ..constants import kT
     from ..ani import AlchemicalANI1ccx, AlchemicalANI1x, AlchemicalANI2x
     
-    names = ['SAMPLmol2']
+    names = ['molDWRow_298', 'SAMPLmol2', 'SAMPLmol4']
     exp_results = pickle.load(open('data/exp_results.pickle', 'rb'))
 
     env = 'vacuum'
@@ -1275,13 +1275,21 @@ def test_validate():
             names,
             model = model,
             data_path=f"./data/{env}",
-            env=env, thinning=10,
+            env=env,
+            thinning=10,
             max_snapshots_per_window=100)
-        assert (np.isclose(exp_values[0].item(), -10.2321))
-        assert(np.isclose((exp_results[names[0]]['energy'] * unit.kilocalorie_per_mole) / kT, exp_values[0].item()))
+        assert(np.isclose((exp_results[names[2]]['energy'] * unit.kilocalorie_per_mole) / kT, exp_values[2].item()))
         rmse_list.append(rmse)
-    for e1, e2 in zip(rmse_list  , [5.430235840281697, 1.3288482837524072, 0.9337240259863862]):
+
+
+    for e1, e2 in zip(exp_values.tolist()  , [1.8994317488369707, -10.232118388886946, -3.858011851547537]):
+        print(exp_values.tolist())
+        print(rmse_list)
         assert(np.isclose(e1, e2))
+
+    for e1, e2 in zip(rmse_list  , [5.620566368103027, 6.238292694091797, 5.566655158996582]):
+        assert(np.isclose(e1, e2))
+
 
 @pytest.mark.skipif(
     os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."

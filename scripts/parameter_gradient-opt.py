@@ -5,6 +5,7 @@ import sys
 split = pickle.load(open('split.dict', 'rb'))
 names = neutromeratio.parameter_gradients._get_names()
 model_name = 'AlchemicalANI1ccx'
+assert(len(sys.argv) == 3)
 env = sys.argv[1]
 fold = int(sys.argv[2])
 
@@ -13,6 +14,10 @@ names_validating = [names[i] for i in split[fold][1]]
 
 assert((len(names_training) + len(names_validating)) == len(names))
 assert (11 > fold > 0)
+
+for n in ['molDWRow_1636', 'molDWRow_1250', 'molDWRow_1228']:
+    names_training.remove(n)
+    names_validating.remove(n) 
 
 max_epochs = 0
 for _ in range(5):
@@ -26,7 +31,7 @@ for _ in range(5):
         batch_size=1,
         max_snapshots_per_window=100,
         checkpoint_filename= f"parameters_{model_name}_fold_{fold}_{env}.pt",
-        data_path=f'./data/{env}',
+        data_path=f'/data/shared/projects/neutromeratio/data/equilibrium_sampling/waterbox-18A-V2/',
         nr_of_nn=8,
         max_epochs=max_epochs,
         diameter=18)

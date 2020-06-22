@@ -172,7 +172,6 @@ def get_free_energy_differences(fec_list:list)-> torch.Tensor:
     calc = []
 
     for idx, fec in enumerate(fec_list):
-        #return torch.tensor([5.0], device=device)
         if fec.flipped:
             deltaF = fec.compute_free_energy_difference() * -1.
         else:
@@ -219,19 +218,19 @@ def validate(names: list, model:ANI, data_path: str, env: str, thinning: int, ma
     e_exp = []
     it = tqdm(names)
     for idx, name in enumerate(it):
-        e_calc.extend(
+        e_calc.append(
             get_free_energy_differences(
                 [setup_mbar(
-            name=name,
-            ANImodel=model,
-            env=env,
-            data_path=data_path,
-            thinning=thinning,
-            max_snapshots_per_window=max_snapshots_per_window,
-            diameter=diameter)
-            ]))
+                    name=name,
+                    ANImodel=model,
+                    env=env,
+                    data_path=data_path,
+                    thinning=thinning,
+                    max_snapshots_per_window=max_snapshots_per_window,
+                    diameter=diameter)
+            ])[0].item())
 
-        e_exp.extend(get_experimental_values([name]))
+        e_exp.append(get_experimental_values([name])[0].item())
         current_rmse = calculate_rmse(torch.tensor(e_calc), torch.tensor(e_exp)).item()
         it.set_description(f"RMSE: {current_rmse}")
         if current_rmse > 50:
@@ -454,8 +453,7 @@ def _perform_training(ANImodel: ANI,
         _save_checkpoint(ANImodel, AdamW, AdamW_scheduler, SGD, SGD_scheduler, f"{base}_{AdamW_scheduler.last_epoch}.pt")
     
     _save_checkpoint(ANImodel, AdamW, AdamW_scheduler, SGD, SGD_scheduler, checkpoint_filename)
-
-    
+  
     return rmse_training, rmse_validation
 
 
@@ -497,12 +495,12 @@ def _tweak_parameters(
 
         calc_free_energy_difference_batches.extend([e.item() for e in calc_free_energy_difference])
         exp_free_energy_difference_batches.extend([e.item() for e in exp_free_energy_difference])
-        
         AdamW.zero_grad()
         SGD.zero_grad()
         loss.backward()
         AdamW.step()
         SGD.step()
+        del(calc_free_energy_difference)
     return calc_free_energy_difference_batches, exp_free_energy_difference_batches
 
 
@@ -657,8 +655,7 @@ def tweak_parameters_for_list(ANImodel: ANI,
                     max_snapshots_per_window=max_snapshots_per_window,
                     rmse_validation=rmse_validation
                     )
-
-    
+  
         
     return rmse_training, rmse_validation
 
