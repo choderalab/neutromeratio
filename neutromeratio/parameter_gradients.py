@@ -701,7 +701,7 @@ def tweak_parameters_for_list(ANImodel: ANI,
                     rmse_training=rmse_training,
                     checkpoint_filename=checkpoint_filename,
                     max_epochs=max_epochs,
-                    elements=elements
+                    elements=elements,
                     env=env,
                     diameter=diameter,
                     batch_size=batch_size,
