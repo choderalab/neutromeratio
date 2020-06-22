@@ -361,7 +361,12 @@ def get_data_filename():
     return fn
 
 
-def setup_alchemical_system_and_energy_function(name: str, env:str, ANImodel:ANI, base_path:str=None, diameter:int=-1):
+def setup_alchemical_system_and_energy_function(
+    name: str,
+    env: str,
+    ANImodel: ANI,
+    base_path: str = None,
+    diameter:int=-1):
     
     import os
     if not (issubclass(ANImodel, (AlchemicalANI2x, AlchemicalANI1ccx, AlchemicalANI1x))):

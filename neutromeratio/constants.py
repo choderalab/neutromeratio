@@ -1,15 +1,19 @@
 import sys
 import numpy as np
+import logging
+import pickle
 
 import torch
 from openmmtools.constants import kB
 from simtk import unit
+import pkg_resources
 
+logger = logging.getLogger(__name__)
 platform = 'cpu'
 temperature = 300 * unit.kelvin
 kT = kB * temperature
 device = torch.device(platform)
-num_threads = 4
+num_threads = 1
 
 torch.set_num_threads(num_threads)
 
@@ -322,3 +326,16 @@ multiple_stereobonds = ['molDWRow_1637',
 'molDWRow_865',
 'molDWRow_866',
 'molDWRow_867']
+
+
+def _get_names():
+    data = pkg_resources.resource_stream(__name__, "data/exp_results.pickle")
+    logger.debug(f"data-filename: {data}")
+    exp_results = pickle.load(data)
+
+    names_list = []
+    for n in sorted(exp_results.keys()):
+        if n in exclude_set_ANI + mols_with_charge + multiple_stereobonds:
+            continue
+        names_list.append(n)
+    return names_list

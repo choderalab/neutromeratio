@@ -10,13 +10,12 @@ from simtk import unit
 from tqdm import tqdm
 from glob import glob
 from .ani import ANI1_force_and_energy, ANI
-from neutromeratio.constants import hartree_to_kJ_mol, device, platform, kT, exclude_set_ANI, mols_with_charge, multiple_stereobonds
+from neutromeratio.constants import _get_names, hartree_to_kJ_mol, device, platform, kT, exclude_set_ANI, mols_with_charge, multiple_stereobonds
 import torchani, torch
 import os
 import neutromeratio
 import pickle
 import mdtraj as md
-import pkg_resources
 
 logger = logging.getLogger(__name__)
 
@@ -605,17 +604,6 @@ def _get_nn_layers_CHON(layer:int, nr_of_nn:int, ANImodel:ANI):
 
     return (AdamW, AdamW_scheduler, SGD, SGD_scheduler)
 
-def _get_names():
-    data = pkg_resources.resource_stream(__name__, "data/exp_results.pickle")
-    logger.debug(f"data-filename: {data}")
-    exp_results = pickle.load(data)
-
-    names_list = []
-    for n in exp_results.keys():
-        if n in exclude_set_ANI + mols_with_charge + multiple_stereobonds:
-            continue
-        names_list.append(n)
-    return names_list
 
 
 

@@ -22,22 +22,6 @@ from rdkit import Chem
 def test_equ():
     assert(1.0 == 1.0)
 
-def _get_names():
-    from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
-
-    with open('data/exp_results.pickle', 'rb') as f:
-        exp_results = pickle.load(f)
-
-    names = []
-    for name in sorted(exp_results):
-        if name in exclude_set_ANI + mols_with_charge + multiple_stereobonds:
-            continue
-        names.append(name)
-    return names
-
-
-
-
 def test_neutromeratio_imported():
     """Sample test, will always pass so long as import statement worked"""
     assert "neutromeratio" in sys.modules
@@ -197,7 +181,8 @@ def test_tautomer_transformation():
 
 def test_tautomer_transformation_for_all_systems():
     from neutromeratio.tautomers import Tautomer
-    from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
+    from ..constants import  exclude_set_ANI, mols_with_charge, multiple_stereobonds
+    from ..constants import _get_names
     import random
    
     with open('data/exp_results.pickle', 'rb') as f:
@@ -224,7 +209,8 @@ def test_species_conversion():
     import random, shutil
     import parmed as pm
     import numpy as np
-  
+    from ..constants import _get_names
+
     with open('data/exp_results.pickle', 'rb') as f:
         exp_results = pickle.load(f)
 
@@ -302,6 +288,7 @@ def test_setup_tautomer_system_in_vaccum():
     from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
     import random, shutil
     import parmed as pm
+    from ..constants import _get_names
 
     names = _get_names()
     lambda_value = 0.1
@@ -334,6 +321,7 @@ def test_setup_tautomer_system_in_droplet():
     # NOTE: Sometimes this test fails?
     from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
     import random, shutil
+    from ..constants import _get_names
 
     names = _get_names()
     lambda_value = 0.1
@@ -377,6 +365,7 @@ def test_setup_tautomer_system_in_droplet_with_pdbs():
     from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
     import random, shutil
     from ..ani import AlchemicalANI1ccx, AlchemicalANI2x
+    from ..constants import _get_names
 
     names = _get_names()
     lambda_value = 0.0
@@ -813,7 +802,8 @@ def test_thermochemistry():
 def test_euqilibrium():
     from ..analysis import setup_alchemical_system_and_energy_function
     from ..equilibrium import LangevinDynamics
-    from ..ani import AlchemicalANI1ccx, ANI1ccx
+    from ..ani import AlchemicalANI1ccx
+    from ..constants import _get_names
     # name of the system
     name = 'molDWRow_298'
     # number of steps
@@ -1348,7 +1338,9 @@ def test_calculate_rmse():
 
 
 def test_experimental_values():
-    from ..parameter_gradients import _get_names, get_experimental_values
+    from ..parameter_gradients import get_experimental_values
+    from ..constants import _get_names
+
     def compare_get_names():
         from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
         with open('data/exp_results.pickle', 'rb') as f:
