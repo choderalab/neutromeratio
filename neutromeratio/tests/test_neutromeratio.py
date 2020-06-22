@@ -340,37 +340,37 @@ def test_setup_tautomer_system_in_droplet():
     random.shuffle(names)
     try:
         for name in names[:10]:
-
+            print(name)
             energy_function, tautomer, flipped = setup_alchemical_system_and_energy_function(
                 name=name,
                 env='droplet',
                 ANImodel=AlchemicalANI1ccx,
-                base_path='pdbs',
+                base_path='pdbs-ani1ccx',
                 diameter=10)
             x0 = tautomer.get_ligand_in_water_coordinates()
             energy_function.calculate_force(x0, lambda_value)
             energy_function.calculate_energy(x0, lambda_value)
 
     finally:
-        shutil.rmtree('pdbs')
+        shutil.rmtree('pdbs-ani1ccx')
 
     lambda_value = 0.1
     random.shuffle(names)
     try:
         for name in names[:10]:
-
+            print(name)
             energy_function, tautomer, flipped = setup_alchemical_system_and_energy_function(
                 name=name,
                 env='droplet',
                 ANImodel=AlchemicalANI2x,
-                base_path='pdbs',
+                base_path='pdbs-ani2x',
                 diameter=10)
             x0 = tautomer.get_ligand_in_water_coordinates()
             energy_function.calculate_force(x0, lambda_value)
             energy_function.calculate_energy(x0, lambda_value)
 
     finally:
-        shutil.rmtree('pdbs')
+        shutil.rmtree('pdbs-ani2x')
 
 def test_setup_tautomer_system_in_droplet_with_pdbs():
     from ..analysis import setup_alchemical_system_and_energy_function

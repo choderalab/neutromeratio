@@ -255,7 +255,19 @@ def chunks(lst, n):
 def _log_dG():
     pass
 
-def tweak_parameters(ANImodel:ANI, env: str, checkpoint_filename :str, diameter:int = -1, batch_size:int = 10, data_path:str = "../data/", nr_of_nn:int = 8, max_epochs:int = 10, thinning:int = 100, max_snapshots_per_window:int = 100, names:list = []):
+def tweak_parameters(
+    ANImodel: ANI,
+    env: str,
+    checkpoint_filename: str,
+    diameter: int = -1,
+    batch_size: int = 10,
+    elements:str = 'CHON',
+    data_path: str = "../data/",
+    nr_of_nn: int = 8,
+    max_epochs: int = 10,
+    thinning: int = 100,
+    max_snapshots_per_window: int = 100,
+    names:list = []):
     """    
     Calculates the free energy of a staged free energy simulation, 
     tweaks the neural net parameter so that using reweighting the difference 
@@ -347,6 +359,7 @@ def tweak_parameters(ANImodel:ANI, env: str, checkpoint_filename :str, diameter:
                     checkpoint_filename=checkpoint_filename,
                     max_epochs=max_epochs,
                     env=env,
+                    elements=elements,
                     diameter=diameter,
                     batch_size=batch_size,
                     data_path=data_path,
@@ -354,8 +367,7 @@ def tweak_parameters(ANImodel:ANI, env: str, checkpoint_filename :str, diameter:
                     max_snapshots_per_window=max_snapshots_per_window,
                     rmse_validation=rmse_validation
                     )
-    
-    
+        
     # final rmsd calculation on test set
     print('RMSE calulation for test set')
     rmse_test = validate(
@@ -387,6 +399,7 @@ def _perform_training(ANImodel: ANI,
                     rmse_training: list,
                     checkpoint_filename: str,
                     max_epochs: int,
+                    elements:str,
                     env:str,
                     diameter:int,
                     batch_size:int,
@@ -397,7 +410,7 @@ def _perform_training(ANImodel: ANI,
 
 
     early_stopping_learning_rate = 1.0E-5
-    AdamW, AdamW_scheduler, SGD, SGD_scheduler = _get_nn_layers(layer, nr_of_nn, ANImodel)
+    AdamW, AdamW_scheduler, SGD, SGD_scheduler = _get_nn_layers(layer, nr_of_nn, ANImodel, elements=elements)
     _load_checkpoint(checkpoint_filename, ANImodel, AdamW, AdamW_scheduler, SGD, SGD_scheduler)
 
     logger.info(f"training starting from epoch {AdamW_scheduler.last_epoch + 1}")
@@ -518,8 +531,47 @@ def _load_checkpoint(latest_checkpoint, model, AdamW, AdamW_scheduler, SGD, SGD_
         logger.info(f"Checkoint {latest_checkpoint} does not exist.")
 
 
+def _get_nn_layers(layer: int, nr_of_nn: int, ANImodel: ANI, elements:str='CHON'):
+    
+    if elements == 'CHON':
+        return (_get_nn_layers_CHON(layer, nr_of_nn, ANImodel))
+    elif elements == 'CN':
+        return (_get_nn_layers_CN(layer, nr_of_nn, ANImodel))
+    else:
+        raise RuntimeError('Only `CHON` or `CN` as atoms allowed. Aborting.')
 
-def _get_nn_layers(layer:int, nr_of_nn:int, ANImodel:ANI):
+def _get_nn_layers_CN(layer:int, nr_of_nn:int, ANImodel:ANI):
+    weight_layers = []
+    bias_layers = []
+    model = ANImodel([0,0]).to(device).class_neural_network
+
+    for nn in model[:nr_of_nn]:
+        weight_layers.extend(
+            [
+        {'params' : [nn.C[layer].weight], 'weight_decay': 0.000001},
+        {'params' : [nn.N[layer].weight], 'weight_decay': 0.000001},
+            ]
+        )
+        bias_layers.extend(
+            [
+        {'params' : [nn.C[layer].bias]},
+        {'params' : [nn.N[layer].bias]},
+            ]
+        )
+    # set up minimizer for weights
+    AdamW = torch.optim.AdamW(weight_layers)
+    # set up minimizer for bias
+    SGD = torch.optim.SGD(bias_layers, lr=1e-3)
+
+    AdamW_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(AdamW, factor=0.5, patience=100, threshold=0)
+    SGD_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(SGD, factor=0.5, patience=100, threshold=0)
+
+    return (AdamW, AdamW_scheduler, SGD, SGD_scheduler)
+
+
+
+
+def _get_nn_layers_CHON(layer:int, nr_of_nn:int, ANImodel:ANI):
     weight_layers = []
     bias_layers = []
     model = ANImodel([0,0]).to(device).class_neural_network
@@ -574,7 +626,8 @@ def tweak_parameters_for_list(ANImodel: ANI,
             nr_of_nn: int = 8,
             max_epochs: int = 10,
             thinning: int = 100,
-            max_snapshots_per_window: int = 100,
+            elements:str = 'CHON',
+            max_snapshots_per_window:int = 100,
             names_training: list = [],
             names_validating:list = []):
     """    
@@ -639,7 +692,8 @@ def tweak_parameters_for_list(ANImodel: ANI,
     print(f"RMSE on training set: {rmse_training[-1]} at first epoch")
     
     ### main training loop 
-    rmse_training, rmse_validation = _perform_training(layer=layer,
+    rmse_training, rmse_validation = _perform_training(
+                    layer=layer,
                     ANImodel=ANImodel,
                     nr_of_nn=nr_of_nn,
                     names_training=names_training,
@@ -647,6 +701,7 @@ def tweak_parameters_for_list(ANImodel: ANI,
                     rmse_training=rmse_training,
                     checkpoint_filename=checkpoint_filename,
                     max_epochs=max_epochs,
+                    elements=elements
                     env=env,
                     diameter=diameter,
                     batch_size=batch_size,
