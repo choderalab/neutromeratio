@@ -1246,6 +1246,106 @@ def test_parameter_gradient():
         if not (none_counter == 64 or none_counter == 256):
             raise RuntimeError()
 
+def test_fec():
+    from ..parameter_gradients import get_free_energy_differences
+    from ..constants import kT, device, exclude_set_ANI, mols_with_charge
+    from ..parameter_gradients import setup_mbar
+    from glob import glob
+    from ..ani import AlchemicalANI1ccx, AlchemicalANI1x, AlchemicalANI2x
+    import numpy as np
+
+    env = 'vacuum'
+    names = ['molDWRow_298', 'SAMPLmol2']
+
+
+    for idx, model in enumerate([AlchemicalANI1ccx, AlchemicalANI1x, AlchemicalANI2x ]):
+
+        if idx == 0:
+            fec_list = [setup_mbar(
+                name,
+                ANImodel=model,
+                env=env,
+                data_path='./data/vacuum',
+                thinning=50,
+                max_snapshots_per_window=80) for name in names
+                ]
+
+            assert(len(fec_list) == 3)
+            fec = get_free_energy_differences(fec_list)
+            for e1, e2 in zip(fec, [1.6811, -4.1881, 4.2047]):
+                assert(np.isclose(e1.item(),e2, rtol=1e-4)) 
+
+            fec = setup_mbar(
+                'molDWRow_298',
+                ANImodel=model,
+                env=env,
+                data_path='./data/vacuum',
+                thinning=50,
+                max_snapshots_per_window=80)
+            assert(np.isclose(fec.end_state_free_energy_difference[0], fec.compute_free_energy_difference().item(), rtol=1e-5))
+
+        if idx == 1:
+            fec_list = [setup_mbar(
+                name,
+                ANImodel=model,
+                env=env,
+                data_path='./data/vacuum',
+                thinning=50,
+                max_snapshots_per_window=80) for name in names
+                ]
+
+            assert(len(fec_list) == 3)
+            fec = get_free_energy_differences(fec_list)
+            print(fec)
+            for e1, e2 in zip(fec, [10.6626, -8.6866,  0.7953]):
+                assert(np.isclose(e1.item(),e2, rtol=1e-4)) 
+
+
+        if idx == 2:
+            fec_list = [setup_mbar(
+                name,
+                ANImodel=model,
+                env=env,
+                data_path='./data/vacuum',
+                thinning=50,
+                max_snapshots_per_window=80) for name in names
+                ]
+
+            assert(len(fec_list) == 3)
+            fec = get_free_energy_differences(fec_list)
+            print(fec)
+            for e1, e2 in zip(fec, [10.6626, -8.6866,  0.7953]):
+                assert(np.isclose(e1.item(),e2)) 
+
+
+def test_ess():
+    from ..parameter_gradients import get_free_energy_differences
+    from ..parameter_gradients import setup_mbar
+    from ..ani import AlchemicalANI1ccx
+    import numpy as np
+
+    env = 'vacuum'
+    name = 'molDWRow_298'
+
+
+    model = AlchemicalANI1ccx
+
+    fec = setup_mbar(
+        name,
+        ANImodel=model,
+        env=env,
+        data_path='./data/vacuum',
+        thinning=50,
+        max_snapshots_per_window=80)
+
+    fec_value = get_free_energy_differences([fec])[0]
+    assert(np.isclose(fec_value.item(),1.6811, rtol=1e-4)) 
+
+
+    u_ln = fec.form_u_ln()
+    f_k = fec.compute_perturbed_free_energies(u_ln)
+    print(f_k)
+
 
 def test_validate():
     from ..parameter_gradients import validate, get_experimental_values
@@ -1462,6 +1562,13 @@ def test_postprocessing_droplet():
             assert(np.isclose(fec_list[0].end_state_free_energy_difference[0].item(), -9.44050575256994))
             assert(np.isclose(rmse.item(),  7.5411))
 
+def _remove_files(name, max_epochs=1):
+    os.remove(f'{name}_vacuum.pt')
+    for i in range(1, max_epochs):
+        os.remove(f'{name}_vacuum_{i}.pt')
+    os.remove(f'{name}_vacuum_best.pt')
+
+
 
 @pytest.mark.skipif(
     os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
@@ -1472,7 +1579,7 @@ def test_tweak_parameters():
     from ..ani import AlchemicalANI1ccx, AlchemicalANI1x, AlchemicalANI2x
 
     names = ['molDWRow_298', 'SAMPLmol2', 'SAMPLmol4']
-    
+    max_epochs=4
     for idx, (model, model_name) in enumerate(zip(
         [AlchemicalANI1ccx, AlchemicalANI2x, AlchemicalANI1x],
         ['AlchemicalANI1ccx', 'AlchemicalANI2x', 'AlchemicalANI1x'])):
@@ -1484,25 +1591,29 @@ def test_tweak_parameters():
         batch_size=3,
         data_path='./data/vacuum',
         nr_of_nn=8,
-        max_epochs=4)
+        max_epochs=max_epochs)
 
         if idx == 0:
             print(rmse_val)
             assert (np.isclose(rmse_val[-1], rmse_test))
             assert (np.isclose(rmse_val[0],  5.2791108646881595))
             assert (np.isclose(rmse_val[-1], 1.8193169327567817))
+            _remove_files(model_name, max_epochs)
+
         if idx == 1:
             print(rmse_val)
             assert(np.isclose(rmse_val[-1], rmse_test))
             assert (np.isclose(rmse_val[0],  6.1999655423957245))
             assert (np.isclose(rmse_val[-1], 4.0203778950267886))
-     
+            _remove_files(model_name, max_epochs)
+
         if idx == 2:
             print(rmse_val)
             assert(np.isclose(rmse_val[-1], rmse_test))
             assert (np.isclose(rmse_val[0],  5.753421084877726))
             assert (np.isclose(rmse_val[-1], 1.7020229838659942))
-            
+            _remove_files(model_name, max_epochs)
+
 
 
 @pytest.mark.skipif(
@@ -1516,6 +1627,7 @@ def test_tweak_parameters_droplet():
     names = ['molDWRow_298']
     env = 'droplet'
     diameter = 18
+    max_epochs=2
     for idx, (model, model_name) in enumerate(zip(
         [AlchemicalANI1ccx, AlchemicalANI2x, AlchemicalANI1x],
         ['AlchemicalANI1ccx', 'AlchemicalANI2x', 'AlchemicalANI1x'])):
@@ -1528,12 +1640,14 @@ def test_tweak_parameters_droplet():
         checkpoint_filename= f"{model_name}_droplet.pt",
         data_path=f'./data/{env}',
         nr_of_nn=8,
-        max_epochs=1,
+        max_epochs=max_epochs,
         diameter=18)
 
         if idx == 0:
             assert(np.isclose(rmse_val[-1], rmse_test))
-            assert(np.isclose(rmse_val[-1], 2.3069503113753314))
+            assert (np.isclose(rmse_val[-1], 2.3069503113753314))
+            _remove_files(model_name, max_epochs)
+
             print(rmse_training, rmse_val, rmse_test)
 
         elif idx == 1:

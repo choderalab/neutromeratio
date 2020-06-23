@@ -53,24 +53,24 @@ energy_function, tautomer, flipped = setup_alchemical_system_and_energy_function
 energy_and_force = lambda x: energy_function.calculate_force(x, lambda_value)
 
 if env == 'droplet':
-    x0 = tautomer.get_lig
+    x0 = tautomer.get_ligand_in_water_coordinates()
     langevin = neutromeratio.LangevinDynamics(atoms=tautomer.ligand_in_water_atoms,
                                         energy_and_force=energy_and_force)
 elif env == 'vacuum':
-    x0 = tautomer.hybrid_coords
+    x0 = tautomer.get_hybrid_coordinates()
     langevin = neutromeratio.LangevinDynamics(atoms=tautomer.hybrid_atoms,
                                         energy_and_force=energy_and_force)
 else:
     raise RuntimeError()
 
 x0, e_history = energy_function.minimize(x0, maxiter=5000, lambda_value=lambda_value)
-equilibrium_samples, energies, restraint_bias, stddev, ensemble_bias = langevin.run_dynamics(x0,
+equilibrium_samples, energies, restraint_contribution = langevin.run_dynamics(x0,
                                                                     n_steps=n_steps,
                                                                     stepsize=0.5*unit.femtosecond,
                                                                     progress_bar=False)
 
 # save equilibrium energy values 
-for global_list, poperty_name in zip([energies, stddev, restraint_bias, ensemble_bias], ['energy', 'stddev', 'restraint_bias', 'ensemble_bias']):
+for global_list, poperty_name in zip([energies, restraint_contribution], ['energy', 'restraint_energy_contribution']):
     f = open(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_{poperty_name}_in_{env}.csv", 'w+')
     for e in global_list[::20]:
         e_unitless = e / kT

@@ -533,7 +533,7 @@ class ANI1_force_and_energy(object):
             G = thermo.get_gibbs_energy(temperature=temperature.value_in_unit(
                 unit.kelvin), pressure=pressure.value_in_unit(unit.pascal))
         except ValueError as verror:
-            print(verror)
+            logger.critical(verror)
             vib.clean()
             raise verror
         # removes the vib tmp files
@@ -586,7 +586,7 @@ class ANI1_force_and_energy(object):
         self.memory_of_energy:list = []
         self.memory_of_restrain_contribution:list = []
         
-        print("Begin minimizing...")
+        logger.info("Begin minimizing...")
         f = optimize.minimize(self._traget_energy_function, x, method='BFGS',
                               jac=True, args=(lambda_value),
                               options={'maxiter': maxiter, 'disp': True})
@@ -709,7 +709,6 @@ class ANI1_force_and_energy(object):
         F : unit'd
         """
         x = np.asarray([x.reshape(-1, 3)]) * unit.angstrom
-        print(x.shape)
         force_energy = self.calculate_force(x, lambda_value)
         F_flat = -np.array(force_energy.force.value_in_unit(unit.kilojoule_per_mole/unit.angstrom).flatten(), dtype=np.float64)
         self.memory_of_energy.append(force_energy.energy)

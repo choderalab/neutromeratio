@@ -545,8 +545,8 @@ class Tautomer(object):
         assert (x0.shape[0] >= id)
         
         x0 = np.array([x0[id]])
-        print(x0.shape)
-        print(x0)
+        logger.debug(x0.shape)
+        logger.debug(x0)
         assert (x0.shape == (1,len(self.final_state_ligand_atoms),3))
 
         return x0  * unit.angstrom
@@ -567,8 +567,8 @@ class Tautomer(object):
         assert (x0.shape[0] >= id)
         
         x0 = np.array([x0[id]])
-        print(x0.shape)
-        print(x0)
+        logger.debug(x0.shape)
+        logger.debug(x0)
         assert (x0.shape == (1,len(self.initial_state_ligand_atoms),3))
 
         return x0  * unit.angstrom
@@ -579,8 +579,8 @@ class Tautomer(object):
         return self._hybrid_coords
 
     def set_hybrid_coordinates(self, x):
-        print(x)
-        print(x.shape)
+        logger.debug(x.shape)
+        logger.debug(x)
         assert(type(x) == unit.Quantity)
 
         return self._hybrid_coords

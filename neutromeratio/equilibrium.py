@@ -137,7 +137,7 @@ class LangevinDynamics(object):
                 trange.set_postfix({'|force|': norm_F})
             # check positions and forces are finite
             if (not np.isfinite(x).all()) or (not np.isfinite(norm_F)):
-                print("Numerical instability encountered!")
+                logger.critical("Numerical instability encountered!")
                 return traj, energy
             traj.append(x)
         return traj, energy, restraint_contribution

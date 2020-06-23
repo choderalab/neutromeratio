@@ -50,6 +50,7 @@ class FreeEnergyCalculator():
         self.potential_energy_trajs = potential_energy_trajs  # for detecting equilibrium
         self.lambdas = lambdas
         self.n_atoms = n_atoms
+        self.reweighting_f_k = []
 
         ani_trajs = {}
         for lam, traj, potential_energy in zip(self.lambdas, md_trajs, self.potential_energy_trajs):
@@ -113,7 +114,7 @@ class FreeEnergyCalculator():
         results = self.mbar.getFreeEnergyDifferences(return_dict=True)
         return results['Delta_f'][0, -1], results['dDelta_f'][0, -1]
 
-    def compute_perturbed_free_energies(self, u_ln):
+    def _compute_perturbed_free_energies(self, u_ln):
         """compute perturbed free energies at new thermodynamic states l"""
         assert (type(u_ln) == torch.Tensor)
 
@@ -151,7 +152,8 @@ class FreeEnergyCalculator():
 
     def compute_free_energy_difference(self):
         u_ln = self.form_u_ln()
-        f_k = self.compute_perturbed_free_energies(u_ln)
+        f_k = self._compute_perturbed_free_energies(u_ln)
+        self.reweighting_f_k = f_k
         return f_k[1] - f_k[0]
 
 def torchify(x):
@@ -197,6 +199,13 @@ def get_experimental_values(names:list)-> torch.Tensor:
     logger.debug(exp)
     return torchify(exp)
 
+
+def get_effective_sample_size(fec: FreeEnergyCalculator):
+    
+    pass
+
+
+
 def validate(names: list, model:ANI, data_path: str, env: str, thinning: int, max_snapshots_per_window: int, diameter:int = -1)->float:
     """
     Returns the RMSE between calculated and experimental free energy differences as float.
@@ -217,17 +226,15 @@ def validate(names: list, model:ANI, data_path: str, env: str, thinning: int, ma
     e_exp = []
     it = tqdm(names)
     for idx, name in enumerate(it):
-        e_calc.append(
-            get_free_energy_differences(
-                [setup_mbar(
+        fec_list = [setup_mbar(
                     name=name,
                     ANImodel=model,
                     env=env,
                     data_path=data_path,
                     thinning=thinning,
                     max_snapshots_per_window=max_snapshots_per_window,
-                    diameter=diameter)
-            ])[0].item())
+                    diameter=diameter)]
+        e_calc.append(get_free_energy_differences(fec_list)[0].item())
 
         e_exp.append(get_experimental_values([name])[0].item())
         current_rmse = calculate_rmse(torch.tensor(e_calc), torch.tensor(e_exp)).item()
@@ -455,13 +462,13 @@ def _perform_training(ANImodel: ANI,
                 thinning=thinning,
                 max_snapshots_per_window = max_snapshots_per_window))
         
-        print(f"RMSE on validation set: {rmse_validation[-1]} at epoch {AdamW_scheduler.last_epoch + 1}")
+        print(f"RMSE on validation set: {rmse_validation[-1]} at epoch {AdamW_scheduler.last_epoch}")
        
         rmse_training.append(
             calculate_rmse(
                 torch.tensor(calc_free_energy_difference_batches),
                 torch.tensor(exp_free_energy_difference_batches)).item())
-        print(f"RMSE on training set: {rmse_training[-1]} at epoch {AdamW_scheduler.last_epoch + 1}")
+        print(f"RMSE on training set: {rmse_training[-1]} at epoch {AdamW_scheduler.last_epoch}")
         _save_checkpoint(ANImodel, AdamW, AdamW_scheduler, SGD, SGD_scheduler, f"{base}_{AdamW_scheduler.last_epoch}.pt")
     
     _save_checkpoint(ANImodel, AdamW, AdamW_scheduler, SGD, SGD_scheduler, checkpoint_filename)
