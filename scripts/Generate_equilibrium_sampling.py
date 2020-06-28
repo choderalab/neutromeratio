@@ -43,6 +43,9 @@ name, lambda_value = protocol[idx-1]
 print(name)
 print(lambda_value)
 
+base_path = f"{base_path}/{name}"
+os.mkdirs(base_path, exist_ok=True)
+
 energy_function, tautomer, flipped = setup_alchemical_system_and_energy_function(
     name=name,
     ANImodel=AlchemicalANI1ccx,
@@ -71,7 +74,7 @@ equilibrium_samples, energies, restraint_contribution = langevin.run_dynamics(x0
 
 # save equilibrium energy values 
 for global_list, poperty_name in zip([energies, restraint_contribution], ['energy', 'restraint_energy_contribution']):
-    f = open(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_{poperty_name}_in_{env}.csv", 'w+')
+    f = open(f"{base_path}/{name}_lambda_{lambda_value:0.4f}_{poperty_name}_in_{env}.csv", 'w+')
     for e in global_list[::20]:
         e_unitless = e / kT
         f.write('{}\n'.format(e_unitless))
@@ -83,4 +86,4 @@ if env == 'vacuum':
 else:
     ani_traj = md.Trajectory(equilibrium_samples[::20], tautomer.ligand_in_water_topology)
 
-ani_traj.save(f"{base_path}/{name}/{name}_lambda_{lambda_value:0.4f}_in_{env}.dcd", force_overwrite=True)
+ani_traj.save(f"{base_path}/{name}_lambda_{lambda_value:0.4f}_in_{env}.dcd", force_overwrite=True)

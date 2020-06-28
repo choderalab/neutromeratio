@@ -87,78 +87,120 @@ class ANI(torchani.models.BuiltinEnsemble):
 
 class ANI1x(ANI):
 
-    class_neural_network = None
+    tweaked_neural_network = None
+    original_neural_network = None
 
     def __init__(self, periodic_table_index:bool=False):
         info_file = 'ani-1x_8x.info'
         super().__init__(info_file, periodic_table_index)
-        if ANI1x.class_neural_network == None:
-            ANI1x.class_neural_network = copy.deepcopy(self.neural_networks)
+        if ANI1x.tweaked_neural_network == None:
+            ANI1x.tweaked_neural_network = copy.deepcopy(self.neural_networks)
+        if ANI1x.original_neural_network == None:
+            ANI1x.original_neural_network = copy.deepcopy(self.neural_networks)
 
     def forward(self, species_coordinates_lamb):
 
-        try:
-            assert(len(species_coordinates_lamb) == 3)
-            species, coordinates, lam = species_coordinates_lamb
-        except AssertionError:
-            assert(len(species_coordinates_lamb) == 2)
+        if len(species_coordinates_lamb) == 4:
+            species, coordinates, lam, original_parameters = species_coordinates_lamb
+        elif len(species_coordinates_lamb ) == 3:
+            species, coordinates, original_parameters = species_coordinates_lamb
+        elif len(species_coordinates_lamb ) == 2:
             species, coordinates = species_coordinates_lamb    
-        
+            original_parameters = True
+        else:
+            raise RuntimeError(f'Too many arguments in {species_coordinates_lamb}')
+
+        if original_parameters:
+            logger.debug('Using original neural network parameters.')
+            nn = self.original_neural_network
+        else:
+            nn = self.tweaked_neural_network
+            logger.debug('Using possibly tweaked neural network parameters.')
+
         species_coordinates = (species, coordinates)       
         if self.periodic_table_index:
             species_coordinates = self.species_converter(species_coordinates)
         species_aevs = self.aev_computer(species_coordinates, cell=None, pbc=None)
-        species_energies = self.class_neural_network(species_aevs)
+        species_energies = nn(species_aevs)
         return self.energy_shifter(species_energies)
 
 
 class ANI1ccx(ANI):
 
-    class_neural_network = None
+    tweaked_neural_network = None
+    original_neural_network = None
+
     def __init__(self, periodic_table_index:bool=False):
         info_file = 'ani-1ccx_8x.info'
         super().__init__(info_file, periodic_table_index)
-        if ANI1ccx.class_neural_network == None:
-            ANI1ccx.class_neural_network = copy.deepcopy(self.neural_networks)
+        if ANI1ccx.tweaked_neural_network == None:
+            ANI1ccx.tweaked_neural_network = copy.deepcopy(self.neural_networks)
+        if ANI1ccx.original_neural_network == None:
+            ANI1ccx.original_neural_network = copy.deepcopy(self.neural_networks)
+
 
     def forward(self, species_coordinates_lamb):
-        try:
-            assert(len(species_coordinates_lamb) == 3)
-            species, coordinates, lam = species_coordinates_lamb
-        except AssertionError:
-            assert(len(species_coordinates_lamb) == 2)
-            species, coordinates = species_coordinates_lamb
+        if len(species_coordinates_lamb) == 4:
+            species, coordinates, lam, original_parameters = species_coordinates_lamb
+        elif len(species_coordinates_lamb ) == 3:
+            species, coordinates, original_parameters = species_coordinates_lamb
+        elif len(species_coordinates_lamb ) == 2:
+            species, coordinates = species_coordinates_lamb    
+            original_parameters = True           
+        else:
+            raise RuntimeError(f'Too many arguments in {species_coordinates_lamb}')
+
+        if original_parameters:
+            logger.debug('Using original neural network parameters.')
+            nn = self.original_neural_network
+        else:
+            nn = self.tweaked_neural_network
+            logger.debug('Using possibly tweaked neural network parameters.')
+
 
         species_coordinates = (species, coordinates)
         if self.periodic_table_index:
             species_coordinates = self.species_converter(species_coordinates)
         species_aevs = self.aev_computer(species_coordinates, cell=None, pbc=None)
-        species_energies = self.class_neural_network(species_aevs)
+        species_energies = nn(species_aevs)
         return self.energy_shifter(species_energies)
 
 class ANI2x(ANI):
-    class_neural_network = None
+    tweaked_neural_network = None
+    original_neural_network = None
 
     def __init__(self, periodic_table_index:bool=False):
         info_file = 'ani-2x_8x.info'
         super().__init__(info_file, periodic_table_index)
-        if ANI2x.class_neural_network == None:
-            ANI2x.class_neural_network = copy.deepcopy(self.neural_networks)
+        if ANI2x.tweaked_neural_network == None:
+            ANI2x.tweaked_neural_network = copy.deepcopy(self.neural_networks)
+        if ANI2x.original_neural_network == None:
+            ANI2x.original_neural_network = copy.deepcopy(self.neural_networks)
 
     def forward(self, species_coordinates_lamb):
-        try:
-            assert(len(species_coordinates_lamb) == 3)
-            species, coordinates, lam = species_coordinates_lamb
-        except AssertionError:
-            assert(len(species_coordinates_lamb) == 2)
+        if len(species_coordinates_lamb) == 4:
+            species, coordinates, lam, original_parameters = species_coordinates_lamb
+        elif len(species_coordinates_lamb ) == 3:
+            species, coordinates, original_parameters = species_coordinates_lamb
+        elif len(species_coordinates_lamb ) == 2:
             species, coordinates = species_coordinates_lamb    
+            original_parameters = True
+        else:
+            raise RuntimeError(f'Too many arguments in {species_coordinates_lamb}')
 
+
+        if original_parameters:
+            logger.debug('Using original neural network parameters.')
+            nn = self.original_neural_network
+        else:
+            nn = self.tweaked_neural_network
+            logger.debug('Using possibly tweaked neural network parameters.')
 
         species_coordinates = (species, coordinates)       
         if self.periodic_table_index:
             species_coordinates = self.species_converter(species_coordinates)
         species_aevs = self.aev_computer(species_coordinates, cell=None, pbc=None)
-        species_energies = self.class_neural_network(species_aevs)
+        species_energies = nn(species_aevs)
         return self.energy_shifter(species_energies)
 
 class AlchemicalANI1ccx(ANI1ccx):
@@ -196,9 +238,15 @@ class AlchemicalANI1ccx(ANI1ccx):
             energy in hartree
 
         """
-        assert(len(species_coordinates_lamb) == 3)
-        species, coordinates, lam = species_coordinates_lamb
+        species, coordinates, lam, original_parameters = species_coordinates_lamb
         species_coordinates = (species, coordinates)
+    
+        if original_parameters:
+            logger.debug('Using original neural network parameters.')
+            nn = self.original_neural_network
+        else:
+            nn = self.tweaked_neural_network
+            logger.debug('Using possibly tweaked neural network parameters.')
         
         # setting dummy atoms
         dummy_atom_0 = self.alchemical_atoms[0]
@@ -210,7 +258,7 @@ class AlchemicalANI1ccx(ANI1ccx):
         _, mod_aevs_0 = self.aev_computer((mod_species_0, mod_coordinates_0))
 
         # neural net output given these modified AEVs
-        state_0 = self.class_neural_network((mod_species_0, mod_aevs_0))
+        state_0 = nn((mod_species_0, mod_aevs_0))
         _, E_0 = self.energy_shifter((mod_species_0, state_0.energies))
 
         # neural net output given these AEVs
@@ -219,7 +267,7 @@ class AlchemicalANI1ccx(ANI1ccx):
         _, mod_aevs_1 = self.aev_computer((mod_species_1, mod_coordinates_1))
 
         # neural net output given these modified AEVs
-        state_1 = self.class_neural_network((mod_species_1, mod_aevs_1))
+        state_1 = nn((mod_species_1, mod_aevs_1))
         _, E_1 = self.energy_shifter((mod_species_1, state_1.energies))
 
 
@@ -272,9 +320,15 @@ class AlchemicalANI1x(ANI1x):
             energy in hartree
 
         """
-        assert(len(species_coordinates_lamb) == 3)
-        species, coordinates, lam = species_coordinates_lamb
+        species, coordinates, lam, original_parameters = species_coordinates_lamb
         species_coordinates = (species, coordinates)
+    
+        if original_parameters:
+            logger.debug('Using original neural network parameters.')
+            nn = self.original_neural_network
+        else:
+            nn = self.tweaked_neural_network
+            logger.debug('Using possibly tweaked neural network parameters.')
     
 
         # setting dummy atoms
@@ -288,7 +342,7 @@ class AlchemicalANI1x(ANI1x):
         _, mod_aevs_0 = self.aev_computer((mod_species_0, mod_coordinates_0))
 
         # neural net output given these modified AEVs
-        state_0 = self.class_neural_network((mod_species_0, mod_aevs_0))
+        state_0 = nn((mod_species_0, mod_aevs_0))
         _, E_0 = self.energy_shifter((mod_species_0, state_0.energies))
 
         # neural net output given these AEVs
@@ -297,7 +351,7 @@ class AlchemicalANI1x(ANI1x):
         _, mod_aevs_1 = self.aev_computer((mod_species_1, mod_coordinates_1))
 
         # neural net output given these modified AEVs
-        state_1 = self.class_neural_network((mod_species_1, mod_aevs_1))
+        state_1 = nn((mod_species_1, mod_aevs_1))
         _, E_1 = self.energy_shifter((mod_species_1, state_1.energies))
 
 
@@ -350,14 +404,17 @@ class AlchemicalANI2x(ANI2x):
             energy in hartree
 
         """
-        assert(len(species_coordinates_lamb) == 3)
-        species, coordinates, lam = species_coordinates_lamb
+        assert(len(species_coordinates_lamb) == 4)
+        species, coordinates, lam, original_parameters = species_coordinates_lamb
         species_coordinates = (species, coordinates)
     
-        # species, AEVs of fully interacting system
-        #species_aevs = self.aev_computer(species_coordinates, cell=None, pbc=None)
-        #pecies_energies = self.neural_networks(species_aevs)
-        #return self.energy_shifter(species_energies)
+        if original_parameters:
+            logger.debug('Using original neural network parameters.')
+            nn = self.original_neural_network
+        else:
+            nn = self.tweaked_neural_network
+            logger.debug('Using possibly tweaked neural network parameters.')
+
 
         # setting dummy atoms
         dummy_atom_0 = self.alchemical_atoms[0]
@@ -370,7 +427,7 @@ class AlchemicalANI2x(ANI2x):
         _, mod_aevs_0 = self.aev_computer((mod_species_0, mod_coordinates_0))
 
         # neural net output given these modified AEVs
-        state_0 = self.class_neural_network((mod_species_0, mod_aevs_0))
+        state_0 = nn((mod_species_0, mod_aevs_0))
         _, E_0 = self.energy_shifter((mod_species_0, state_0.energies))
 
         # neural net output given these AEVs
@@ -379,7 +436,7 @@ class AlchemicalANI2x(ANI2x):
         _, mod_aevs_1 = self.aev_computer((mod_species_1, mod_coordinates_1))
 
         # neural net output given these modified AEVs
-        state_1 = self.class_neural_network((mod_species_1, mod_aevs_1))
+        state_1 = nn((mod_species_1, mod_aevs_1))
         _, E_1 = self.energy_shifter((mod_species_1, state_1.energies))
 
 
@@ -631,7 +688,7 @@ class ANI1_force_and_energy(object):
         coordinates = torch.tensor(x,
                                    requires_grad=True, device=self.device, dtype=torch.float32)
 
-        energy_in_kT, restraint_energy_contribution_in_kT = self._calculate_energy(coordinates, lambda_value)
+        energy_in_kT, restraint_energy_contribution_in_kT = self._calculate_energy(coordinates, lambda_value, original_neural_network=True)
 
         # derivative of E (kJ_mol) w.r.t. coordinates (in nm)
         derivative = torch.autograd.grad(((energy_in_kT  *kT).value_in_unit(unit.kilojoule_per_mole)).sum(), coordinates)[0]
@@ -648,7 +705,7 @@ class ANI1_force_and_energy(object):
                 restraint_energy_contribution_in_kT.item() *kT,
         )
 
-    def _calculate_energy(self, coordinates: torch.Tensor, lambda_value: float) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    def _calculate_energy(self, coordinates: torch.Tensor, lambda_value: float, original_neural_network:bool) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Helpter function to return energies as tensor.
         Given a coordinate set the energy is calculated.
@@ -676,10 +733,12 @@ class ANI1_force_and_energy(object):
         batch_species = torch.stack([self.species[0]] * nr_of_mols)
 
         assert (0.0 <= float(lambda_value) <= 1.0)
+        assert (isinstance(original_neural_network, bool))
+        
         if (batch_species.size()[:2] != coordinates.size()[:2]):
             raise RuntimeError(f'Dimensions of coordinates: {coordinates.size()} and batch_species: {batch_species.size()} are not the same.')
 
-        _, energy_in_hartree = self.model((batch_species, coordinates * nm_to_angstroms, lambda_value))
+        _, energy_in_hartree = self.model((batch_species, coordinates * nm_to_angstroms, lambda_value, original_neural_network))
 
         # convert energy from hartree to kT
         energy_in_kT = energy_in_hartree * hartree_to_kT
@@ -715,7 +774,7 @@ class ANI1_force_and_energy(object):
         self.memory_of_restrain_contribution.append(force_energy.restraint_energy_contribution_in_kT)
         return (force_energy.energy.value_in_unit(unit.kilojoule_per_mole), F_flat)
 
-    def calculate_energy(self, coordinate_list:unit.Quantity, lambda_value: float = 0.0):
+    def calculate_energy(self, coordinate_list:unit.Quantity, lambda_value: float = 0.0, original_neural_network:bool=True):
         """
         Given a coordinate set (x) the energy is calculated in kJ/mol.
 
@@ -739,7 +798,7 @@ class ANI1_force_and_energy(object):
 
         logger.debug(f"coordinates tensor: {coordinates.size()}")
         energy_in_kT, restraint_energy_contribution_in_kT = self._calculate_energy(
-            coordinates, lambda_value)
+            coordinates, lambda_value, original_neural_network)
 
         energy = np.array([e.item() for e in energy_in_kT]) * kT
         restraint_energy_contribution_in_kT = np.array([e.item() for e in restraint_energy_contribution_in_kT]) *kT 

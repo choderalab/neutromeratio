@@ -275,7 +275,7 @@ def test_tochani_neutromeratio_sync():
         e1 = energy_torchani.item()
         print('Energy:', energy_torchani.item())
 
-        energy_neutromeratio = model_neutromeratio((species, coordinates)).energies
+        energy_neutromeratio = model_neutromeratio((species, coordinates, True)).energies
         print('Energy:', energy_neutromeratio.item())
         e2 = energy_neutromeratio.item()
         assert(e1 == e2)
@@ -799,76 +799,89 @@ def test_thermochemistry():
 
 
 def test_euqilibrium():
+    # test the langevin dynamics with different neural net potentials 
     from ..analysis import setup_alchemical_system_and_energy_function
     from ..equilibrium import LangevinDynamics
-    from ..ani import AlchemicalANI1ccx
+    from ..ani import AlchemicalANI1ccx, AlchemicalANI2x
     from ..constants import _get_names
+    
     # name of the system
     name = 'molDWRow_298'
     # number of steps
     n_steps = 50
 
-    exp_results = pickle.load(open('data/exp_results.pickle', 'rb'))
-    energy_function, tautomer, flipped = setup_alchemical_system_and_energy_function(
-        name=name,
-        ANImodel=AlchemicalANI1ccx,
-        env='vacuum',
-        base_path='pdbs')
+    for model in [AlchemicalANI2x, AlchemicalANI1ccx]:
+        energy_function, tautomer, flipped = setup_alchemical_system_and_energy_function(
+            name=name,
+            ANImodel=model,
+            env='vacuum',
+            base_path='pdbs')
 
-    
-    x0 = tautomer.get_hybrid_coordinates() # format [1][K][3] * unit
-    x0, hist_e = energy_function.minimize(x0)
+        
+        x0 = tautomer.get_hybrid_coordinates() # format [1][K][3] * unit
+        x0, hist_e = energy_function.minimize(x0)
 
-    energy_and_force = lambda x : energy_function.calculate_force(x, 1.0)
+        energy_and_force = lambda x : energy_function.calculate_force(x, 1.0)
 
-    langevin = LangevinDynamics(
-        atoms=tautomer.hybrid_atoms,
-        energy_and_force=energy_and_force,
-        )
+        langevin = LangevinDynamics(
+            atoms=tautomer.hybrid_atoms,
+            energy_and_force=energy_and_force,
+            )
 
-    equilibrium_samples, energies, restraint_contribution = langevin.run_dynamics(
-        x0,
-        n_steps=n_steps,
-        stepsize=1.0 * unit.femtosecond,
-        progress_bar=True)
+        equilibrium_samples, energies, restraint_contribution = langevin.run_dynamics(
+            x0,
+            n_steps=n_steps,
+            stepsize=1.0 * unit.femtosecond,
+            progress_bar=True)
 
-    energy_and_force = lambda x : energy_function.calculate_force(x, 0.0)
+        energy_and_force = lambda x : energy_function.calculate_force(x, 0.0)
 
-    langevin = LangevinDynamics(
-        atoms=tautomer.hybrid_atoms,
-        energy_and_force=energy_and_force
-        )
+        langevin = LangevinDynamics(
+            atoms=tautomer.hybrid_atoms,
+            energy_and_force=energy_and_force
+            )
 
-    equilibrium_samples, energies, restraint_contribution = langevin.run_dynamics(
-        x0,
-        n_steps=n_steps,
-        stepsize=1.0*unit.femtosecond,
-        progress_bar=True)
+        equilibrium_samples, energies, restraint_contribution = langevin.run_dynamics(
+            x0,
+            n_steps=n_steps,
+            stepsize=1.0*unit.femtosecond,
+            progress_bar=True)
 
 def test_setup_energy_function():
+    # test the seupup of the energy function with different alchemical potentials
     from ..analysis import setup_alchemical_system_and_energy_function
     from ..ani import AlchemicalANI2x, ANI1ccx
     name = 'molDWRow_298'
+
     energy_function, tautomer, flipped = setup_alchemical_system_and_energy_function(
         name=name,
         env='vacuum',
         ANImodel=AlchemicalANI2x)
     assert (flipped == True)
-    failed= False
+    
+    failed = False
     try:
+        # this should to fail
         energy_function, tautomer, flipped = setup_alchemical_system_and_energy_function(
         name=name,
         env='vacuum',
         ANImodel=ANI1ccx)
     except RuntimeError:
+        failed = True
         pass
+
+    # make sure that setup_alchemical_system_and_energy_function has failed with non-alchemical potential
+    assert(failed == True)
 
 
 
 def test_setup_mbar():
+    # test the setup mbar function with different models, environments and potentials
     from ..parameter_gradients import setup_mbar
-    name = 'molDWRow_298'
     from ..ani import AlchemicalANI2x, AlchemicalANI1x, AlchemicalANI1ccx
+
+
+    name = 'molDWRow_298'
 
     # vacuum
     fec = setup_mbar(
@@ -902,8 +915,8 @@ def test_setup_mbar():
         diameter=18,
         data_path="data/droplet",
         ANImodel=AlchemicalANI1ccx,
-        max_snapshots_per_window=10)
-    assert(np.isclose(-0.08912905684103345, fec.compute_free_energy_difference().item()))
+        max_snapshots_per_window=5)
+    assert(np.isclose(-1.2634050657376676, fec.compute_free_energy_difference().item()))
 
     fec = setup_mbar(
         name,
@@ -911,8 +924,8 @@ def test_setup_mbar():
         diameter=18,
         data_path="data/droplet",
         ANImodel=AlchemicalANI2x,
-        max_snapshots_per_window=10)
-    assert(np.isclose(-13.960592533603968, fec.compute_free_energy_difference().item()))
+        max_snapshots_per_window=5)
+    assert(np.isclose(-15.113147129933576, fec.compute_free_energy_difference().item()))
 
     fec = setup_mbar(
         name,
@@ -920,8 +933,8 @@ def test_setup_mbar():
         diameter=18,
         data_path="data/droplet",
         ANImodel=AlchemicalANI1x,
-        max_snapshots_per_window=10)
-    assert(np.isclose(-8.629639608991532, fec.compute_free_energy_difference().item()))
+        max_snapshots_per_window=5)
+    assert(np.isclose(-10.161515967765098, fec.compute_free_energy_difference().item()))
 
 def test_change_stereobond():
     from ..utils import change_only_stereobond, get_nr_of_stereobonds
@@ -1162,13 +1175,13 @@ def test_io_checkpoints():
         ['AlchemicalANI1ccx', 'AlchemicalANI2x', 'AlchemicalANI1x'])):
         # test that _load_checkpoint works
         AdamW, AdamW_scheduler, SGD, SGD_scheduler = _get_nn_layers(layer=6, nr_of_nn=8, ANImodel=model)
-        params1 = list(model.class_neural_network.parameters())[6][0].tolist()
+        params1 = list(model.tweaked_neural_network.parameters())[6][0].tolist()
         _load_checkpoint(f'data/{model_name}_3.pt', model, AdamW, AdamW_scheduler, SGD, SGD_scheduler)
-        params2 = list(model.class_neural_network.parameters())[6][0].tolist()
+        params2 = list(model.tweaked_neural_network.parameters())[6][0].tolist()
         assert (params1 != params2)
         # test that new instances have the same parameters
         m = model([0,0])
-        params3 = list(m.class_neural_network.parameters())[6][0].tolist()
+        params3 = list(m.tweaked_neural_network.parameters())[6][0].tolist()
         assert (params2 == params3)
 
 
@@ -1235,7 +1248,7 @@ def test_parameter_gradient():
         print(f"Free energy difference {(deltaF.item() * kT).value_in_unit(unit.kilocalorie_per_mole)} kcal/mol")
 
         deltaF.backward()  # no errors or warnings
-        params = list(energy_function.model.class_neural_network.parameters())
+        params = list(energy_function.model.tweaked_neural_network.parameters())
         none_counter = 0
         for p in params:
             if(p.grad == None):  # some are None!
@@ -1270,7 +1283,7 @@ def test_fec():
                 max_snapshots_per_window=80) for name in names
                 ]
 
-            assert(len(fec_list) == 3)
+            assert(len(fec_list) == 2)
             fec = get_free_energy_differences(fec_list)
             for e1, e2 in zip(fec, [1.6811, -4.1881, 4.2047]):
                 assert(np.isclose(e1.item(),e2, rtol=1e-4)) 
@@ -1294,28 +1307,12 @@ def test_fec():
                 max_snapshots_per_window=80) for name in names
                 ]
 
-            assert(len(fec_list) == 3)
+            assert(len(fec_list) == 2)
             fec = get_free_energy_differences(fec_list)
             print(fec)
             for e1, e2 in zip(fec, [10.6626, -8.6866,  0.7953]):
                 assert(np.isclose(e1.item(),e2, rtol=1e-4)) 
 
-
-        if idx == 2:
-            fec_list = [setup_mbar(
-                name,
-                ANImodel=model,
-                env=env,
-                data_path='./data/vacuum',
-                thinning=50,
-                max_snapshots_per_window=80) for name in names
-                ]
-
-            assert(len(fec_list) == 3)
-            fec = get_free_energy_differences(fec_list)
-            print(fec)
-            for e1, e2 in zip(fec, [10.6626, -8.6866,  0.7953]):
-                assert(np.isclose(e1.item(),e2)) 
 
 
 def test_ess():

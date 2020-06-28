@@ -50,7 +50,6 @@ class FreeEnergyCalculator():
         self.potential_energy_trajs = potential_energy_trajs  # for detecting equilibrium
         self.lambdas = lambdas
         self.n_atoms = n_atoms
-        self.reweighting_f_k = []
 
         ani_trajs = {}
         for lam, traj, potential_energy in zip(self.lambdas, md_trajs, self.potential_energy_trajs):
@@ -78,8 +77,8 @@ class FreeEnergyCalculator():
         logger.debug(f"len(coordinates): {len(coordinates)}")
 
         # end-point energies
-        lambda0_e = self.ani_model.calculate_energy(coordinates, lambda_value=0.).energy      
-        lambda1_e = self.ani_model.calculate_energy(coordinates, lambda_value=1.).energy      
+        lambda0_e = self.ani_model.calculate_energy(coordinates, lambda_value=0., original_neural_network=True).energy      
+        lambda1_e = self.ani_model.calculate_energy(coordinates, lambda_value=1., original_neural_network=True).energy      
         logger.debug(f"len(lambda0_e): {len(lambda0_e)}")
 
         def get_mix(lambda0, lambda1, lam=0.0):
@@ -119,6 +118,7 @@ class FreeEnergyCalculator():
         assert (type(u_ln) == torch.Tensor)
 
         states_with_samples = torch.tensor(self.mbar.N_k > 0, device=device)
+        #Note: Use mbar estimate with orginal parameter set!
         N_k = torch.tensor(self.mbar.N_k, dtype=torch.double, requires_grad=True, device=device)
         f_k = torchify(self.mbar.f_k)
         u_kn = torchify(self.mbar.u_kn)
@@ -131,17 +131,17 @@ class FreeEnergyCalculator():
         B = - u_ln - log_denominator_n
         return - torch.logsumexp(B, dim=1)
 
-    def form_u_ln(self):
+    def _form_u_ln(self):
 
         # bring list of unit'd coordinates in [N][K][3] * unit shape
         coordinates = self.coordinates
         
-        # TODO: vectorize!
-        decomposed_energy_list_lamb0 = self.ani_model.calculate_energy(coordinates, lambda_value=0)      
+        #Note: Use class neural network here (that might or might not be modified)!
+        decomposed_energy_list_lamb0 = self.ani_model.calculate_energy(coordinates, lambda_value=0., original_neural_network=False)      
         u_0 = decomposed_energy_list_lamb0.energy_tensor
 
-        # TODO: vectorize!
-        decomposed_energy_list_lamb1 = self.ani_model.calculate_energy(coordinates, lambda_value=1)     
+        #Note: Use class neural network here (that might or might not be modified)!
+        decomposed_energy_list_lamb1 = self.ani_model.calculate_energy(coordinates, lambda_value=1., original_neural_network=False)     
         u_1 = decomposed_energy_list_lamb1.energy_tensor
 
         u_ln = torch.stack([u_0, u_1])
@@ -151,7 +151,7 @@ class FreeEnergyCalculator():
         return u_ln
 
     def compute_free_energy_difference(self):
-        u_ln = self.form_u_ln()
+        u_ln = self._form_u_ln()
         f_k = self._compute_perturbed_free_energies(u_ln)
         self.reweighting_f_k = f_k
         return f_k[1] - f_k[0]
@@ -389,7 +389,7 @@ def tweak_parameters(
 
 def _save_checkpoint(model, AdamW, AdamW_scheduler, SGD, SGD_scheduler, latest_checkpoint):
     torch.save({
-        'nn': model.class_neural_network.state_dict(),
+        'nn': model.tweaked_neural_network.state_dict(),
         'AdamW': AdamW.state_dict(),
         'SGD': SGD.state_dict(),
         'AdamW_scheduler': AdamW_scheduler.state_dict(),
@@ -416,8 +416,8 @@ def _perform_training(ANImodel: ANI,
 
 
     early_stopping_learning_rate = 1.0E-5
-    AdamW, AdamW_scheduler, SGD, SGD_scheduler = _get_nn_layers(layer, nr_of_nn, ANImodel, elements=elements)
     _load_checkpoint(checkpoint_filename, ANImodel, AdamW, AdamW_scheduler, SGD, SGD_scheduler)
+    AdamW, AdamW_scheduler, SGD, SGD_scheduler = _get_nn_layers(layer, nr_of_nn, ANImodel, elements=elements)
 
     logger.info(f"training starting from epoch {AdamW_scheduler.last_epoch + 1}")
 
@@ -434,7 +434,7 @@ def _perform_training(ANImodel: ANI,
         
         # checkpoint -- if best parameters on validation set save parameters
         if AdamW_scheduler.is_better(rmse_validation[-1], AdamW_scheduler.best):
-            torch.save(ANImodel.class_neural_network.state_dict(), best_model_checkpoint)
+            torch.save(ANImodel.tweaked_neural_network.state_dict(), best_model_checkpoint)
 
         # define the stepsize 
         AdamW_scheduler.step(rmse_validation[-1])
@@ -528,7 +528,7 @@ def _load_checkpoint(latest_checkpoint, model, AdamW, AdamW_scheduler, SGD, SGD_
     # save checkpoint
     if os.path.isfile(latest_checkpoint):
         checkpoint = torch.load(latest_checkpoint)
-        model.class_neural_network.load_state_dict(checkpoint['nn'])
+        model.tweaked_neural_network.load_state_dict(checkpoint['nn'])
         AdamW.load_state_dict(checkpoint['AdamW'])
         SGD.load_state_dict(checkpoint['SGD'])
         AdamW_scheduler.load_state_dict(checkpoint['AdamW_scheduler'])
@@ -551,7 +551,7 @@ def _get_nn_layers(layer: int, nr_of_nn: int, ANImodel: ANI, elements:str='CHON'
 def _get_nn_layers_CN(layer:int, nr_of_nn:int, ANImodel:ANI):
     weight_layers = []
     bias_layers = []
-    model = ANImodel([0,0]).to(device).class_neural_network
+    model = ANImodel([0,0]).to(device).tweaked_neural_network
 
     for nn in model[:nr_of_nn]:
         weight_layers.extend(
@@ -582,7 +582,7 @@ def _get_nn_layers_CN(layer:int, nr_of_nn:int, ANImodel:ANI):
 def _get_nn_layers_CHON(layer:int, nr_of_nn:int, ANImodel:ANI):
     weight_layers = []
     bias_layers = []
-    model = ANImodel([0,0]).to(device).class_neural_network
+    model = ANImodel([0,0]).to(device).tweaked_neural_network
 
     for nn in model[:nr_of_nn]:
         weight_layers.extend(
