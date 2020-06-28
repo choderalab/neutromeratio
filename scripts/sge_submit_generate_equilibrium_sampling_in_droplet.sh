@@ -3,11 +3,11 @@
 #$ -m e
 #$ -j y
 #$ -p -700
-#$ -pe smp 1
+#$ -pe smp 2
 #$ -o /data/cluster/projects/SGE_LOG/
 
 idx=${1} 
-n_steps=10000 
+n_steps=200000
 env='droplet'
 potential_name='ANI1ccx'
 
@@ -20,6 +20,7 @@ echo ${env}
 conda activate ani36v3
 # nr of jobs: 10080
 diameter_in_angstrom=18 #Angstrom
-base_path="/data/shared/projects/neutromeratio/data/equilibrium_sampling/${potential_name}waterbox-${diameter_in_angstrom}A/${name}"
+base_path="/data/shared/projects/neutromeratio/data/equilibrium_sampling/ANI2x-droplet-${diameter_in_angstrom}A_${n_steps}/"
+mkdir -p ${base_path}
 cd /home/mwieder/Work/Projects/neutromeratio/scripts
 python Generate_equilibrium_sampling.py ${idx} ${n_steps} ${base_path} ${env} ${diameter_in_angstrom} 

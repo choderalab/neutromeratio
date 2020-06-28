@@ -1,16 +1,8 @@
 from simtk import unit
 import numpy as np
-from tqdm import tqdm
 import mdtraj as md
-import nglview
-from rdkit import Chem
-from rdkit.Chem import AllChem
 import neutromeratio
-import matplotlib.pyplot as plt
-import pickle
-import torchani
-import torch
-from neutromeratio.constants import _get_names, device, platform, kT, exclude_set_ANI, mols_with_charge, multiple_stereobonds
+from neutromeratio.constants import _get_names, device, platform, kT
 import sys
 import os
 from neutromeratio.analysis import setup_alchemical_system_and_energy_function
@@ -50,7 +42,7 @@ energy_function, tautomer, flipped = setup_alchemical_system_and_energy_function
     name=name,
     ANImodel=AlchemicalANI1ccx,
     env=env,
-    diameter=diameter_in_angstrom
+    diameter=diameter_in_angstrom,
     base_path=base_path)
 
 energy_and_force = lambda x: energy_function.calculate_force(x, lambda_value)
