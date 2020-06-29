@@ -425,7 +425,6 @@ def setup_alchemical_system_and_energy_function(
     alchemical_atoms = [tautomer.hybrid_hydrogen_idx_at_lambda_1, tautomer.hybrid_hydrogen_idx_at_lambda_0]
     
     model = ANImodel(alchemical_atoms=alchemical_atoms).to(device)
-    torch.set_num_threads(num_threads)
 
     # setup energy function
     if env == 'vacuum':

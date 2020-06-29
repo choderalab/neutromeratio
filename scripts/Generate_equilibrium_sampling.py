@@ -5,6 +5,7 @@ import neutromeratio
 from neutromeratio.constants import _get_names, device, platform, kT
 import sys
 import os
+import torch
 from neutromeratio.analysis import setup_alchemical_system_and_energy_function
 from neutromeratio.ani import AlchemicalANI2x
 
@@ -33,7 +34,7 @@ if not (env in ('droplet','vacuum')):
     raise RuntimeError('Env must be `droplet` or `vacuum`. Aborting.')
 # diameter
 if env == 'droplet':
-    diameter_in_angstrom = int(sys.argv[5])
+    diameter_in_angstrom = int(sys.argv[6])
     if not diameter_in_angstrom or diameter_in_angstrom < 1:
         raise RuntimeError('Diameter must be above 1 Angstrom')
 
@@ -69,6 +70,9 @@ elif env == 'vacuum':
                                         energy_and_force=energy_and_force)
 else:
     raise RuntimeError()
+
+torch.set_num_threads(1)
+
 
 x0, e_history = energy_function.minimize(x0, maxiter=5000, lambda_value=lambda_value)
 equilibrium_samples, energies, restraint_contribution = langevin.run_dynamics(x0,

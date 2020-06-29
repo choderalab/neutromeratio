@@ -1656,10 +1656,12 @@ def test_tweak_parameters():
 
         if idx == 0:
             print(rmse_val)
-            assert (np.isclose(rmse_val[-1], rmse_test))
-            assert (np.isclose(rmse_val[0],  5.2791108646881595))
-            assert (np.isclose(rmse_val[-1], 1.8193169327567817))
-            _remove_files(model_name, max_epochs)
+            try:
+                assert (np.isclose(rmse_val[-1], rmse_test))
+                assert (np.isclose(rmse_val[0],  5.2791108646881595))
+                assert (np.isclose(rmse_val[-1], 2.09078049659729))
+            finally:
+                _remove_files(model_name, max_epochs)
 
         if idx == 1:
             print(rmse_val)

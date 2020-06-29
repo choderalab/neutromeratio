@@ -1,6 +1,7 @@
 import neutromeratio
 import pickle
 import sys
+import torch
 
 split = pickle.load(open('split.dict', 'rb'))
 names = neutromeratio.parameter_gradients._get_names()
@@ -36,7 +37,7 @@ for n in ['molDWRow_1636', 'molDWRow_1250', 'molDWRow_1228']:
     if n in names_validating:
         names_validating.remove(n)
 
-
+torch.set_num_threads(4)
 max_epochs = 0
 for _ in range(5):
     max_epochs += 10
