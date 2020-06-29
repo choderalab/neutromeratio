@@ -159,7 +159,7 @@ class FreeEnergyCalculator():
 def torchify(x):
     return torch.tensor(x, dtype=torch.double, requires_grad=True, device=device)
 
-def get_free_energy_differences(fec_list:list)-> torch.Tensor:
+def get_perturbed_free_energy_differences(fec_list:list)-> torch.Tensor:
     """
     Gets a list of fec instances and returns a torch.tensor with 
     the computed free energy differences.
@@ -180,6 +180,7 @@ def get_free_energy_differences(fec_list:list)-> torch.Tensor:
         calc.append(deltaF)
     logger.debug(calc)
     return torch.stack([e for e in calc])
+
 
 
 def get_experimental_values(names:list)-> torch.Tensor:
@@ -234,7 +235,7 @@ def validate(names: list, model:ANI, data_path: str, env: str, thinning: int, ma
                     thinning=thinning,
                     max_snapshots_per_window=max_snapshots_per_window,
                     diameter=diameter)]
-        e_calc.append(get_free_energy_differences(fec_list)[0].item())
+        e_calc.append(get_perturbed_free_energy_differences(fec_list)[0].item())
 
         e_exp.append(get_experimental_values([name])[0].item())
         current_rmse = calculate_rmse(torch.tensor(e_calc), torch.tensor(e_exp)).item()
@@ -272,6 +273,7 @@ def tweak_parameters(
     nr_of_nn: int = 8,
     max_epochs: int = 10,
     thinning: int = 100,
+    load_checkpoint:bool = True,
     max_snapshots_per_window: int = 100,
     names:list = []):
     """    
@@ -369,6 +371,7 @@ def tweak_parameters(
                     diameter=diameter,
                     batch_size=batch_size,
                     data_path=data_path,
+                    load_checkpoint=load_checkpoint,
                     thinning=thinning,
                     max_snapshots_per_window=max_snapshots_per_window,
                     rmse_validation=rmse_validation
@@ -411,13 +414,15 @@ def _perform_training(ANImodel: ANI,
                     batch_size:int,
                     data_path:str,
                     thinning:int,
-                    max_snapshots_per_window:int,
+                    max_snapshots_per_window: int,
+                    load_checkpoint:bool,
                     rmse_validation):
 
 
     early_stopping_learning_rate = 1.0E-5
-    _load_checkpoint(checkpoint_filename, ANImodel, AdamW, AdamW_scheduler, SGD, SGD_scheduler)
     AdamW, AdamW_scheduler, SGD, SGD_scheduler = _get_nn_layers(layer, nr_of_nn, ANImodel, elements=elements)
+    if load_checkpoint:
+        _load_checkpoint(checkpoint_filename, ANImodel, AdamW, AdamW_scheduler, SGD, SGD_scheduler)
 
     logger.info(f"training starting from epoch {AdamW_scheduler.last_epoch + 1}")
 
@@ -505,7 +510,7 @@ def _tweak_parameters(
             diameter=diameter) for name in names]
 
         # calculate the free energies
-        calc_free_energy_difference = get_free_energy_differences(fec_list)
+        calc_free_energy_difference = get_perturbed_free_energy_differences(fec_list)
         # obtain the experimental free energies
         exp_free_energy_difference = get_experimental_values(names)
         # calculate the loss as MSE
@@ -514,11 +519,13 @@ def _tweak_parameters(
 
         calc_free_energy_difference_batches.extend([e.item() for e in calc_free_energy_difference])
         exp_free_energy_difference_batches.extend([e.item() for e in exp_free_energy_difference])
+        # optimization steps
         AdamW.zero_grad()
         SGD.zero_grad()
         loss.backward()
         AdamW.step()
         SGD.step()
+        
         del(calc_free_energy_difference)
     return calc_free_energy_difference_batches, exp_free_energy_difference_batches
 
@@ -551,7 +558,7 @@ def _get_nn_layers(layer: int, nr_of_nn: int, ANImodel: ANI, elements:str='CHON'
 def _get_nn_layers_CN(layer:int, nr_of_nn:int, ANImodel:ANI):
     weight_layers = []
     bias_layers = []
-    model = ANImodel([0,0]).to(device).tweaked_neural_network
+    model = ANImodel.tweaked_neural_network
 
     for nn in model[:nr_of_nn]:
         weight_layers.extend(
@@ -582,7 +589,7 @@ def _get_nn_layers_CN(layer:int, nr_of_nn:int, ANImodel:ANI):
 def _get_nn_layers_CHON(layer:int, nr_of_nn:int, ANImodel:ANI):
     weight_layers = []
     bias_layers = []
-    model = ANImodel([0,0]).to(device).tweaked_neural_network
+    model = ANImodel.tweaked_neural_network
 
     for nn in model[:nr_of_nn]:
         weight_layers.extend(
@@ -624,7 +631,8 @@ def tweak_parameters_for_list(ANImodel: ANI,
             max_epochs: int = 10,
             thinning: int = 100,
             elements:str = 'CHON',
-            max_snapshots_per_window:int = 100,
+            max_snapshots_per_window: int = 100,
+            load_checkpoint:bool = True,
             names_training: list = [],
             names_validating:list = []):
     """    
@@ -704,6 +712,7 @@ def tweak_parameters_for_list(ANImodel: ANI,
                     batch_size=batch_size,
                     data_path=data_path,
                     thinning=thinning,
+                    load_checkpoint=load_checkpoint,
                     max_snapshots_per_window=max_snapshots_per_window,
                     rmse_validation=rmse_validation
                     )

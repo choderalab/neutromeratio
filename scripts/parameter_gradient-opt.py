@@ -4,13 +4,25 @@ import sys
 
 split = pickle.load(open('split.dict', 'rb'))
 names = neutromeratio.parameter_gradients._get_names()
-model_name = 'AlchemicalANI1ccx'
 
-assert(len(sys.argv) == 5)
+assert(len(sys.argv) == 6)
 env = sys.argv[1]
 fold = int(sys.argv[2])
 elements = sys.argv[3]
 data_path = sys.argv[4]
+model_name = str(sys.argv[5])
+
+if model_name == 'ANI2x':
+    model = neutromeratio.ani.AlchemicalANI2x
+    print(f'Using {model_name}.')
+elif model_name == 'ANI1ccx':
+    model = neutromeratio.ani.AlchemicalANI1ccx
+    print(f'Using {model_name}.')
+elif model_name == 'ANI1x':
+    model = neutromeratio.ani.AlchemicalANI1x
+    print(f'Using {model_name}.')
+else:
+    raise RuntimeError(f'Unknown model name: {model_name}')
 
 names_training = [names[i] for i in split[fold][0]]
 names_validating = [names[i] for i in split[fold][1]]
@@ -33,7 +45,7 @@ for _ in range(5):
         env=env,
         names_training = names_training,
         names_validating = names_validating,
-        ANImodel=neutromeratio.ani.AlchemicalANI1ccx,
+        ANImodel=model,
         batch_size=1,
         max_snapshots_per_window=100,
         checkpoint_filename= f"parameters_{model_name}_fold_{fold}_{env}.pt",

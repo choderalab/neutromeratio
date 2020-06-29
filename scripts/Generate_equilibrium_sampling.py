@@ -6,18 +6,30 @@ from neutromeratio.constants import _get_names, device, platform, kT
 import sys
 import os
 from neutromeratio.analysis import setup_alchemical_system_and_energy_function
-from neutromeratio.ani import AlchemicalANI1ccx, AlchemicalANI1x, AlchemicalANI2x
+from neutromeratio.ani import AlchemicalANI2x
 
-# name of the system
 idx = int(sys.argv[1])
-# number of steps
 n_steps = int(sys.argv[2])
-# where to write the results
-base_path = str(sys.argv[3])
-# env
+base_path = str(sys.argv[3]) # where to write the results
 env = str(sys.argv[4])
+model_name = str(sys.argv[5])
 
-if not (env == 'droplet' or env == 'vacuum'):
+
+if model_name == 'ANI2x':
+    model = neutromeratio.ani.AlchemicalANI2x
+    print(f'Using {model_name}.')
+elif model_name == 'ANI1ccx':
+    model = neutromeratio.ani.AlchemicalANI1ccx
+    print(f'Using {model_name}.')
+elif model_name == 'ANI1x':
+    model = neutromeratio.ani.AlchemicalANI1x
+    print(f'Using {model_name}.')
+else:
+    raise RuntimeError(f'Unknown model name: {model_name}')
+
+
+
+if not (env in ('droplet','vacuum')):
     raise RuntimeError('Env must be `droplet` or `vacuum`. Aborting.')
 # diameter
 if env == 'droplet':
@@ -36,11 +48,11 @@ print(name)
 print(lambda_value)
 
 base_path = f"{base_path}/{name}"
-os.mkdirs(base_path, exist_ok=True)
+os.makedirs(base_path, exist_ok=True)
 
 energy_function, tautomer, flipped = setup_alchemical_system_and_energy_function(
     name=name,
-    ANImodel=AlchemicalANI1ccx,
+    ANImodel=model,
     env=env,
     diameter=diameter_in_angstrom,
     base_path=base_path)

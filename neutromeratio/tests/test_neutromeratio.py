@@ -1173,13 +1173,14 @@ def test_io_checkpoints():
     for idx, (model, model_name) in enumerate(zip(
         [AlchemicalANI1ccx, AlchemicalANI2x, AlchemicalANI1x],
         ['AlchemicalANI1ccx', 'AlchemicalANI2x', 'AlchemicalANI1x'])):
-        # test that _load_checkpoint works
-        AdamW, AdamW_scheduler, SGD, SGD_scheduler = _get_nn_layers(layer=6, nr_of_nn=8, ANImodel=model)
+        # initial parameters
         params1 = list(model.tweaked_neural_network.parameters())[6][0].tolist()
         _load_checkpoint(f'data/{model_name}_3.pt', model, AdamW, AdamW_scheduler, SGD, SGD_scheduler)
+        # load parameters
         params2 = list(model.tweaked_neural_network.parameters())[6][0].tolist()
+        # make sure somehting happend
         assert (params1 != params2)
-        # test that new instances have the same parameters
+        # test that new instances have the new parameters
         m = model([0,0])
         params3 = list(m.tweaked_neural_network.parameters())[6][0].tolist()
         assert (params2 == params3)
@@ -1260,7 +1261,7 @@ def test_parameter_gradient():
             raise RuntimeError()
 
 def test_fec():
-    from ..parameter_gradients import get_free_energy_differences
+    from ..parameter_gradients import get_perturbed_free_energy_differences
     from ..constants import kT, device, exclude_set_ANI, mols_with_charge
     from ..parameter_gradients import setup_mbar
     from glob import glob
@@ -1284,7 +1285,7 @@ def test_fec():
                 ]
 
             assert(len(fec_list) == 2)
-            fec = get_free_energy_differences(fec_list)
+            fec = get_perturbed_free_energy_differences(fec_list)
             for e1, e2 in zip(fec, [1.6811, -4.1881, 4.2047]):
                 assert(np.isclose(e1.item(),e2, rtol=1e-4)) 
 
@@ -1308,7 +1309,7 @@ def test_fec():
                 ]
 
             assert(len(fec_list) == 2)
-            fec = get_free_energy_differences(fec_list)
+            fec = get_perturbed_free_energy_differences(fec_list)
             print(fec)
             for e1, e2 in zip(fec, [10.6626, -8.6866,  0.7953]):
                 assert(np.isclose(e1.item(),e2, rtol=1e-4)) 
@@ -1316,7 +1317,7 @@ def test_fec():
 
 
 def test_ess():
-    from ..parameter_gradients import get_free_energy_differences
+    from ..parameter_gradients import get_perturbed_free_energy_differences
     from ..parameter_gradients import setup_mbar
     from ..ani import AlchemicalANI1ccx
     import numpy as np
@@ -1335,7 +1336,7 @@ def test_ess():
         thinning=50,
         max_snapshots_per_window=80)
 
-    fec_value = get_free_energy_differences([fec])[0]
+    fec_value = get_perturbed_free_energy_differences([fec])[0]
     assert(np.isclose(fec_value.item(),1.6811, rtol=1e-4)) 
 
 
@@ -1458,7 +1459,7 @@ def test_experimental_values():
     os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
 )
 def test_postprocessing_vacuum():
-    from ..parameter_gradients import FreeEnergyCalculator, get_free_energy_differences, get_experimental_values
+    from ..parameter_gradients import FreeEnergyCalculator, get_perturbed_free_energy_differences, get_experimental_values
     from ..constants import kT, device, exclude_set_ANI, mols_with_charge
     from ..parameter_gradients import setup_mbar
     from glob import glob
@@ -1483,7 +1484,7 @@ def test_postprocessing_vacuum():
                 ]
 
             assert(len(fec_list) == 3)
-            rmse = torch.sqrt(torch.mean((get_free_energy_differences(fec_list) - get_experimental_values(names))**2))
+            rmse = torch.sqrt(torch.mean((get_perturbed_free_energy_differences(fec_list) - get_experimental_values(names))**2))
 
             for fec, e2 in zip(fec_list, [-1.6810929923704085, -4.188073638773016, 4.204731217059692]):
                 assert(np.isclose(fec.end_state_free_energy_difference[0], e2))        
@@ -1499,7 +1500,7 @@ def test_postprocessing_vacuum():
                 ]
 
             assert(len(fec_list) == 3)
-            rmse = torch.sqrt(torch.mean((get_free_energy_differences(fec_list) - get_experimental_values(names))**2))
+            rmse = torch.sqrt(torch.mean((get_perturbed_free_energy_differences(fec_list) - get_experimental_values(names))**2))
             for fec, e2 in zip(fec_list, [-10.66262771398729, -8.686569970980049, 0.7953468826010761]):
                 assert(np.isclose(fec.end_state_free_energy_difference[0], e2))        
             assert (np.isclose(rmse.item(), 5.797587743882695))
@@ -1513,7 +1514,7 @@ def test_postprocessing_vacuum():
                 max_snapshots_per_window=20) for name in names
                 ]
             assert(len(fec_list) == 3)
-            rmse = torch.sqrt(torch.mean((get_free_energy_differences(fec_list) - get_experimental_values(names))**2))
+            rmse = torch.sqrt(torch.mean((get_perturbed_free_energy_differences(fec_list) - get_experimental_values(names))**2))
             for fec, e2 in zip(fec_list, [-9.315819213339221, -8.6642235039061, 1.9593356145740617]):
                 assert(np.isclose(fec.end_state_free_energy_difference[0], e2))        
             assert (np.isclose(rmse.item(), 5.516720914206936))
@@ -1523,7 +1524,7 @@ def test_postprocessing_vacuum():
     os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
 )
 def test_postprocessing_droplet():
-    from ..parameter_gradients import FreeEnergyCalculator, get_free_energy_differences, get_experimental_values
+    from ..parameter_gradients import FreeEnergyCalculator, get_perturbed_free_energy_differences, get_experimental_values
     from ..constants import kT, device, exclude_set_ANI, mols_with_charge
     from ..parameter_gradients import setup_mbar
     from glob import glob
@@ -1548,14 +1549,14 @@ def test_postprocessing_droplet():
 
         if idx == 0:
             assert(len(fec_list) == 1)
-            rmse = torch.sqrt(torch.mean((get_free_energy_differences(fec_list) - get_experimental_values(names))**2))
+            rmse = torch.sqrt(torch.mean((get_perturbed_free_energy_differences(fec_list) - get_experimental_values(names))**2))
 
             assert(np.isclose(fec_list[0].end_state_free_energy_difference[0].item(), -0.8977326773089036))
             assert(np.isclose(rmse.item(),  1.001699072319491))
         
         elif idx == 1:
             assert(len(fec_list) == 1)
-            rmse = torch.sqrt(torch.mean((get_free_energy_differences(fec_list) - get_experimental_values(names))**2))
+            rmse = torch.sqrt(torch.mean((get_perturbed_free_energy_differences(fec_list) - get_experimental_values(names))**2))
             assert(np.isclose(fec_list[0].end_state_free_energy_difference[0].item(), -9.44050575256994))
             assert(np.isclose(rmse.item(),  7.5411))
 
@@ -1564,6 +1565,69 @@ def _remove_files(name, max_epochs=1):
     for i in range(1, max_epochs):
         os.remove(f'{name}_vacuum_{i}.pt')
     os.remove(f'{name}_vacuum_best.pt')
+
+
+
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
+def test_tweak_parameters_and_class_nn():
+    # the tweaked parameters are stored as class variables
+    # this can lead to some tricky situations.
+    # It also means that whenever any optimization is performed, 
+    # every new instance of the class has the new parameters
+    from ..parameter_gradients import tweak_parameters
+    import os
+    from ..ani import AlchemicalANI1ccx
+
+    names = ['molDWRow_298']
+    max_epochs = 3
+
+    # start with model 1
+    model1 = AlchemicalANI1ccx([0,0])
+    # save parameters at the beginning
+    params_at_start_model1 = list(model1.tweaked_neural_network.parameters())[6][0].tolist()
+    original_parameters_model1 = list(model1.original_neural_network.parameters())[6][0].tolist()
+
+    # tweak parameters
+    model, model_name = (AlchemicalANI1ccx, 'AlchemicalANI1ccx')
+    rmse_training, rmse_val, rmse_test = tweak_parameters(
+    env='vacuum',
+    checkpoint_filename= f"{model_name}_vacuum.pt",
+    names=names,
+    ANImodel=model,
+    max_snapshots_per_window=50,
+    batch_size=1,
+    data_path='./data/vacuum',
+    nr_of_nn=8,
+    load_checkpoint=False,
+    max_epochs=max_epochs)
+
+    _remove_files(model_name, max_epochs)
+    # get new tweaked parameters
+    params_at_end_model1 = list(model1.tweaked_neural_network.parameters())[6][0].tolist()
+    # make sure that somethign happend while tweaking
+    assert (params_at_start_model1 != params_at_end_model1)
+    # make sure that the starting parameters were the original paramters
+    assert (params_at_start_model1 == original_parameters_model1)
+
+    # initialize second model
+    model2 = AlchemicalANI1ccx([0, 0])
+    # get original parameters
+    original_parameters_model2 = list(model2.original_neural_network.parameters())[6][0].tolist()
+    # get tweaked parameters
+    params_at_start_model2 = list(model2.tweaked_neural_network.parameters())[6][0].tolist()
+    # tweaked parameters at start of model2 should be the same as at end of model1
+    assert (params_at_start_model2 == params_at_end_model1)
+    # tweaked parameters at start of model 1 are different than at start of model2
+    assert (params_at_start_model1 != params_at_start_model2)
+    # original parameters are the same
+    assert (original_parameters_model1 == original_parameters_model2)
+
+
+
+
+
 
 
 
