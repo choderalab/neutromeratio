@@ -26,7 +26,7 @@ class FreeEnergyCalculator():
                  potential_energy_trajs: list,
                  lambdas: list,
                  n_atoms: int,
-                 max_snapshots_per_window=50,
+                 max_snapshots_per_window:int=200,
                  ):
         """
         Uses mbar to calculate the free energy difference between trajectories.
@@ -61,6 +61,22 @@ class FreeEnergyCalculator():
             further_thinning = max(int(len(snapshots) / max_snapshots_per_window), 1)
             snapshots = snapshots[::further_thinning][:max_snapshots_per_window]
             ani_trajs[lam] = snapshots
+            
+            
+            # test that we have a lower number of snapshots than max_snapshots_per_window
+            if max_snapshots_per_window == -1:
+                logger.debug(f"There are {len(snapshots)} snapshots per lambda state")
+            
+            if max_snapshots_per_window != -1 and (len(snapshots) > max_snapshots_per_window):
+                raise RuntimeError(f'There are {len(snapshots)} snapshots per lambda state (max: {max_snapshots_per_window}). Aborting.')
+
+            # test that we have not less than 90% of max_snapshots_per_window
+            if max_snapshots_per_window != -1 and  len(snapshots) < (int(max_snapshots_per_window * 0.8)):
+                raise RuntimeError(f'There are only {len(snapshots)} snapshots per lambda state. Aborting.')
+            # test that we have not less than 90% of max_snapshots_per_window
+            if len(snapshots) < 60:
+                logger.critical(f'There are only {len(snapshots)} snapshots per lambda state. Be careful.')
+
         
         snapshots = []
         N_k = []
@@ -70,7 +86,7 @@ class FreeEnergyCalculator():
             snapshots.extend(ani_trajs[lam])
             logger.debug(f"Snapshots per lambda {lam}: {len(ani_trajs[lam])}")
 
-        assert (len(snapshots) > 20)
+        assert (len(snapshots) > 100)
 
         coordinates = [sample / unit.angstrom for sample in snapshots] * unit.angstrom
 
@@ -207,7 +223,12 @@ def get_effective_sample_size(fec: FreeEnergyCalculator):
 
 
 
-def validate(names: list, model:ANI, data_path: str, env: str, thinning: int, max_snapshots_per_window: int, diameter:int = -1)->float:
+def validate(names: list,
+    model: ANI,
+    data_path: str,
+    env: str,
+    max_snapshots_per_window: int,
+    diameter:int = -1)->float:
     """
     Returns the RMSE between calculated and experimental free energy differences as float.
 
@@ -232,7 +253,6 @@ def validate(names: list, model:ANI, data_path: str, env: str, thinning: int, ma
                     ANImodel=model,
                     env=env,
                     data_path=data_path,
-                    thinning=thinning,
                     max_snapshots_per_window=max_snapshots_per_window,
                     diameter=diameter)]
         e_calc.append(get_perturbed_free_energy_differences(fec_list)[0].item())
@@ -265,6 +285,7 @@ def _log_dG():
 def tweak_parameters(
     ANImodel: ANI,
     env: str,
+    max_snapshots_per_window: int,
     checkpoint_filename: str,
     diameter: int = -1,
     batch_size: int = 10,
@@ -272,9 +293,7 @@ def tweak_parameters(
     data_path: str = "../data/",
     nr_of_nn: int = 8,
     max_epochs: int = 10,
-    thinning: int = 100,
     load_checkpoint:bool = True,
-    max_snapshots_per_window: int = 100,
     names:list = []):
     """    
     Calculates the free energy of a staged free energy simulation, 
@@ -339,7 +358,6 @@ def tweak_parameters(
         model=ANImodel,
         data_path=data_path,
         env=env,
-        thinning=thinning,
         max_snapshots_per_window=max_snapshots_per_window,
         diameter=diameter)
     rmse_validation.append(rmse_validation_set)
@@ -351,7 +369,6 @@ def tweak_parameters(
         model=ANImodel,
         data_path=data_path,
         env=env,
-        thinning=thinning,
         max_snapshots_per_window=max_snapshots_per_window,
         diameter=diameter)
     rmse_training.append(rmse_training_set)
@@ -372,7 +389,6 @@ def tweak_parameters(
                     batch_size=batch_size,
                     data_path=data_path,
                     load_checkpoint=load_checkpoint,
-                    thinning=thinning,
                     max_snapshots_per_window=max_snapshots_per_window,
                     rmse_validation=rmse_validation
                     )
@@ -385,7 +401,6 @@ def tweak_parameters(
         diameter=diameter,
         data_path=data_path,
         env=env,
-        thinning=thinning,
         max_snapshots_per_window = max_snapshots_per_window)
     
     return rmse_training, rmse_validation, rmse_test
@@ -413,7 +428,6 @@ def _perform_training(ANImodel: ANI,
                     diameter:int,
                     batch_size:int,
                     data_path:str,
-                    thinning:int,
                     max_snapshots_per_window: int,
                     load_checkpoint:bool,
                     rmse_validation):
@@ -454,7 +468,6 @@ def _perform_training(ANImodel: ANI,
             diameter=diameter,
             batch_size=batch_size,
             data_path=data_path,
-            thinning=thinning,
             max_snapshots_per_window=max_snapshots_per_window)
 
         rmse_validation.append(
@@ -464,7 +477,6 @@ def _perform_training(ANImodel: ANI,
                 diameter=diameter,
                 data_path=data_path,
                 env=env,
-                thinning=thinning,
                 max_snapshots_per_window = max_snapshots_per_window))
         
         print(f"RMSE on validation set: {rmse_validation[-1]} at epoch {AdamW_scheduler.last_epoch}")
@@ -490,7 +502,6 @@ def _tweak_parameters(
                         diameter: int,
                         batch_size: int ,
                         data_path: str ,
-                        thinning: int,
                         max_snapshots_per_window:int):
     # iterate over batches of molecules
     it = tqdm(chunks(names_training, batch_size))
@@ -505,7 +516,6 @@ def _tweak_parameters(
             ANImodel=ANImodel,
             env=env,
             data_path=data_path,
-            thinning=thinning,
             max_snapshots_per_window=max_snapshots_per_window,
             diameter=diameter) for name in names]
 
@@ -624,15 +634,14 @@ def _get_nn_layers_CHON(layer:int, nr_of_nn:int, ANImodel:ANI):
 def tweak_parameters_for_list(ANImodel: ANI,
             env: str,
             checkpoint_filename: str,
+            max_snapshots_per_window: int,           
             diameter: int = -1,
             batch_size: int = 10,
             data_path: str = "../data/",
             nr_of_nn: int = 8,
             max_epochs: int = 10,
-            thinning: int = 100,
             elements:str = 'CHON',
-            max_snapshots_per_window: int = 100,
-            load_checkpoint:bool = True,
+            load_checkpoint: bool = True,
             names_training: list = [],
             names_validating:list = []):
     """    
@@ -662,6 +671,7 @@ def tweak_parameters_for_list(ANImodel: ANI,
 
     assert(int(batch_size) <= 10 and int(batch_size) >= 1)
     assert (int(nr_of_nn) <= 8 and int(nr_of_nn) >= 1)
+    
     if env == 'droplet' and diameter == -1:
         raise RuntimeError(f"Did you forget to pass the 'diamter' argument? Aborting.")
 
@@ -678,7 +688,6 @@ def tweak_parameters_for_list(ANImodel: ANI,
         model=ANImodel,
         data_path=data_path,
         env=env,
-        thinning=thinning,
         max_snapshots_per_window=max_snapshots_per_window,
         diameter=diameter)
     rmse_validation.append(rmse_validation_set)
@@ -690,7 +699,6 @@ def tweak_parameters_for_list(ANImodel: ANI,
         model=ANImodel,
         data_path=data_path,
         env=env,
-        thinning=thinning,
         max_snapshots_per_window=max_snapshots_per_window,
         diameter=diameter)
     rmse_training.append(rmse_training_set)
@@ -711,7 +719,6 @@ def tweak_parameters_for_list(ANImodel: ANI,
                     diameter=diameter,
                     batch_size=batch_size,
                     data_path=data_path,
-                    thinning=thinning,
                     load_checkpoint=load_checkpoint,
                     max_snapshots_per_window=max_snapshots_per_window,
                     rmse_validation=rmse_validation
@@ -721,7 +728,13 @@ def tweak_parameters_for_list(ANImodel: ANI,
     return rmse_training, rmse_validation
 
 
-def setup_mbar(name:str, ANImodel:ANI, env:str = 'vacuum',  data_path:str = "../data/", thinning:int = 50, max_snapshots_per_window:int = 200, diameter:int=-1):
+def setup_mbar(
+    name: str,
+    max_snapshots_per_window: int,
+    ANImodel: ANI,
+    env: str = 'vacuum',
+    data_path: str = "../data/",
+    diameter:int=-1):
     from neutromeratio.analysis import setup_alchemical_system_and_energy_function, _get_exp_results
     import os
     if not (env == 'vacuum' or env == 'droplet'):
@@ -773,11 +786,11 @@ def setup_mbar(name:str, ANImodel:ANI, env:str = 'vacuum',  data_path:str = "../
     for dcd_filename in dcds:
         lam = parse_lambda_from_dcd_filename(dcd_filename)
         lambdas.append(lam)
-        traj = md.load_dcd(dcd_filename, top=top)[::thinning]
+        traj = md.load_dcd(dcd_filename, top=top)
         logger.debug(f"Nr of frames in trajectory: {len(traj)}")
         md_trajs.append(traj)
         f = open(f"{data_path}/{name}/{name}_lambda_{lam:0.4f}_energy_in_{env}.csv", 'r')
-        energies.append(np.array([float(e) * kT for e in f][::thinning]))
+        energies.append(np.array([float(e) * kT for e in f]))
         f.close()
 
     if (len(lambdas) < 5):

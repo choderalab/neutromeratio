@@ -78,7 +78,7 @@ x0, e_history = energy_function.minimize(x0, maxiter=5000, lambda_value=lambda_v
 equilibrium_samples, energies, restraint_contribution = langevin.run_dynamics(x0,
                                                                     n_steps=n_steps,
                                                                     stepsize=0.5*unit.femtosecond,
-                                                                    progress_bar=False)
+                                                                    progress_bar=True)
 
 # save equilibrium energy values 
 for global_list, poperty_name in zip([energies, restraint_contribution], ['energy', 'restraint_energy_contribution']):

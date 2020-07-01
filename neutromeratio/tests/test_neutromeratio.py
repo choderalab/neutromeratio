@@ -1173,6 +1173,9 @@ def test_io_checkpoints():
     for idx, (model, model_name) in enumerate(zip(
         [AlchemicalANI1ccx, AlchemicalANI2x, AlchemicalANI1x],
         ['AlchemicalANI1ccx', 'AlchemicalANI2x', 'AlchemicalANI1x'])):
+        # set tweaked parameters
+        model = model([0,0])
+        AdamW, AdamW_scheduler, SGD, SGD_scheduler = _get_nn_layers(6, 8, model)
         # initial parameters
         params1 = list(model.tweaked_neural_network.parameters())[6][0].tolist()
         _load_checkpoint(f'data/{model_name}_3.pt', model, AdamW, AdamW_scheduler, SGD, SGD_scheduler)
@@ -1345,6 +1348,26 @@ def test_ess():
     print(f_k)
 
 
+def test_max_nr_of_snapshots():
+    from ..parameter_gradients import validate
+    from ..ani import AlchemicalANI1ccx, AlchemicalANI1x, AlchemicalANI2x
+
+    names = ['molDWRow_298', 'SAMPLmol2', 'SAMPLmol4']
+    exp_results = pickle.load(open('data/exp_results.pickle', 'rb'))
+
+    env = 'vacuum'
+    
+    model = AlchemicalANI1ccx
+
+    for nr_of_snapshots in [100,150,200]:
+        rmse = validate(
+            names,
+            model = model,
+            data_path=f"./data/{env}",
+            env=env,
+            max_snapshots_per_window=nr_of_snapshots)
+
+
 def test_validate():
     from ..parameter_gradients import validate, get_experimental_values
     from ..constants import kT
@@ -1363,7 +1386,6 @@ def test_validate():
             model = model,
             data_path=f"./data/{env}",
             env=env,
-            thinning=10,
             max_snapshots_per_window=100)
         assert(np.isclose((exp_results[names[2]]['energy'] * unit.kilocalorie_per_mole) / kT, exp_values[2].item()))
         rmse_list.append(rmse)
@@ -1374,7 +1396,7 @@ def test_validate():
         print(rmse_list)
         assert(np.isclose(e1, e2))
 
-    for e1, e2 in zip(rmse_list  , [5.620566368103027, 6.238292694091797, 5.566655158996582]):
+    for e1, e2 in zip(rmse_list  , [5.662402629852295, 6.238292694091797, 5.566655158996582]):
         assert(np.isclose(e1, e2))
 
 
@@ -1561,10 +1583,10 @@ def test_postprocessing_droplet():
             assert(np.isclose(rmse.item(),  7.5411))
 
 def _remove_files(name, max_epochs=1):
-    os.remove(f'{name}_vacuum.pt')
+    os.remove(f'{name}.pt')
     for i in range(1, max_epochs):
-        os.remove(f'{name}_vacuum_{i}.pt')
-    os.remove(f'{name}_vacuum_best.pt')
+        os.remove(f'{name}_{i}.pt')
+    os.remove(f'{name}_best.pt')
 
 
 
@@ -1603,7 +1625,7 @@ def test_tweak_parameters_and_class_nn():
     load_checkpoint=False,
     max_epochs=max_epochs)
 
-    _remove_files(model_name, max_epochs)
+    _remove_files(model_name+'_vacuum', max_epochs)
     # get new tweaked parameters
     params_at_end_model1 = list(model1.tweaked_neural_network.parameters())[6][0].tolist()
     # make sure that somethign happend while tweaking
@@ -1661,21 +1683,26 @@ def test_tweak_parameters():
                 assert (np.isclose(rmse_val[0],  5.2791108646881595))
                 assert (np.isclose(rmse_val[-1], 2.09078049659729))
             finally:
-                _remove_files(model_name, max_epochs)
+                _remove_files(model_name+'_vacuum', max_epochs)
 
         if idx == 1:
             print(rmse_val)
-            assert(np.isclose(rmse_val[-1], rmse_test))
-            assert (np.isclose(rmse_val[0],  6.1999655423957245))
-            assert (np.isclose(rmse_val[-1], 4.0203778950267886))
-            _remove_files(model_name, max_epochs)
+            try:
+
+                assert(np.isclose(rmse_val[-1], rmse_test))
+                assert (np.isclose(rmse_val[0],  6.1999655423957245))
+                assert (np.isclose(rmse_val[-1], 4.347472667694092))
+            finally:
+                _remove_files(model_name+'_vacuum', max_epochs)
 
         if idx == 2:
             print(rmse_val)
-            assert(np.isclose(rmse_val[-1], rmse_test))
-            assert (np.isclose(rmse_val[0],  5.753421084877726))
-            assert (np.isclose(rmse_val[-1], 1.7020229838659942))
-            _remove_files(model_name, max_epochs)
+            try:
+                assert(np.isclose(rmse_val[-1], rmse_test))
+                assert (np.isclose(rmse_val[0],  5.753421084877726))
+                assert (np.isclose(rmse_val[-1], 1.6856083869934082))
+            finally:
+                _remove_files(model_name+'_vacuum', max_epochs)
 
 
 
@@ -1707,18 +1734,25 @@ def test_tweak_parameters_droplet():
         diameter=18)
 
         if idx == 0:
-            assert(np.isclose(rmse_val[-1], rmse_test))
-            assert (np.isclose(rmse_val[-1], 2.3069503113753314))
-            _remove_files(model_name, max_epochs)
-
-            print(rmse_training, rmse_val, rmse_test)
+            try:
+                assert(np.isclose(rmse_val[-1], rmse_test))
+                assert (np.isclose(rmse_val[-1], 3.70445561408996))
+            finally:
+                _remove_files(model_name+'_droplet', max_epochs)
+                print(rmse_training, rmse_val, rmse_test)
 
         elif idx == 1:
-            assert(np.isclose(rmse_val[-1], rmse_test))
-            assert(np.isclose(rmse_val[-1], 16.059447235919407))
-            print(rmse_training, rmse_val, rmse_test)
+            try:
+                assert(np.isclose(rmse_val[-1], rmse_test))
+                assert(np.isclose(rmse_val[-1], 16.059447235919407))
+            finally:
+                _remove_files(model_name+'_droplet', max_epochs)
+                print(rmse_training, rmse_val, rmse_test)
 
         elif idx == 2:
-            assert(np.isclose(rmse_val[-1], rmse_test))
-            assert(np.isclose(rmse_val[-1], 11.08650664572978))
-            print(rmse_training, rmse_val, rmse_test)
+            try:
+                assert(np.isclose(rmse_val[-1], rmse_test))
+                assert(np.isclose(rmse_val[-1], 11.08650664572978))
+            finally:
+                _remove_files(model_name+'_droplet', max_epochs)
+                print(rmse_training, rmse_val, rmse_test)
