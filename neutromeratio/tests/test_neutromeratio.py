@@ -317,7 +317,7 @@ def test_setup_tautomer_system_in_vaccum():
 def test_setup_tautomer_system_in_droplet():
     from ..analysis import setup_alchemical_system_and_energy_function
     from ..ani import AlchemicalANI1ccx, AlchemicalANI2x
-    # NOTE: Sometimes this test fails?
+    # NOTE: Sometimes this test fails? something wrong with molDWRow_68?
     from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
     import random, shutil
     from ..constants import _get_names
@@ -808,9 +808,9 @@ def test_euqilibrium():
     # name of the system
     name = 'molDWRow_298'
     # number of steps
-    n_steps = 50
+    n_steps = 100
 
-    for model in [AlchemicalANI2x, AlchemicalANI1ccx]:
+    for model_name, model in zip(['AlchemicalANI2x', 'AlchemicalANI1ccx'], [AlchemicalANI2x, AlchemicalANI1ccx]):
         energy_function, tautomer, flipped = setup_alchemical_system_and_energy_function(
             name=name,
             ANImodel=model,
@@ -821,6 +821,7 @@ def test_euqilibrium():
         x0 = tautomer.get_hybrid_coordinates() # format [1][K][3] * unit
         x0, hist_e = energy_function.minimize(x0)
 
+        # lambda=1.0
         energy_and_force = lambda x : energy_function.calculate_force(x, 1.0)
 
         langevin = LangevinDynamics(
@@ -834,6 +835,12 @@ def test_euqilibrium():
             stepsize=1.0 * unit.femtosecond,
             progress_bar=True)
 
+        equilibrium_samples = [x[0].value_in_unit(unit.nanometer) for x in equilibrium_samples]
+        traj = md.Trajectory(equilibrium_samples, tautomer.hybrid_topology)
+        traj.save(f'test_{model_name}.dcd', force_overwrite=True)
+        traj[0].save('test.pdb')
+
+        # lambda=0.0
         energy_and_force = lambda x : energy_function.calculate_force(x, 0.0)
 
         langevin = LangevinDynamics(
@@ -890,7 +897,7 @@ def test_setup_mbar():
         data_path="data/vacuum",
         ANImodel=AlchemicalANI1ccx,
         max_snapshots_per_window=100)
-    assert(np.isclose(-1.0895475203534453, fec.compute_free_energy_difference().item()))
+    assert(np.isclose(-0.2159245230162501, fec.compute_free_energy_difference().item()))
 
     fec = setup_mbar(
         name,
@@ -898,7 +905,7 @@ def test_setup_mbar():
         data_path="data/vacuum",
         ANImodel=AlchemicalANI2x,
         max_snapshots_per_window=100)
-    assert(np.isclose(-8.619615842323634, fec.compute_free_energy_difference().item()))
+    assert(np.isclose(-7.981541822664637, fec.compute_free_energy_difference().item()))
 
     fec = setup_mbar(
         name,
@@ -906,7 +913,7 @@ def test_setup_mbar():
         data_path="data/vacuum",
         ANImodel=AlchemicalANI1x,
         max_snapshots_per_window=100)
-    assert(np.isclose(-10.0108206297922, fec.compute_free_energy_difference().item()))
+    assert(np.isclose(-8.916705062503821, fec.compute_free_energy_difference().item()))
 
     # droplet
     fec = setup_mbar(
@@ -916,7 +923,7 @@ def test_setup_mbar():
         data_path="data/droplet",
         ANImodel=AlchemicalANI1ccx,
         max_snapshots_per_window=5)
-    assert(np.isclose(-1.2634050657376676, fec.compute_free_energy_difference().item()))
+    assert(np.isclose(-2.98460385357465, fec.compute_free_energy_difference().item()))
 
     fec = setup_mbar(
         name,
@@ -925,7 +932,7 @@ def test_setup_mbar():
         data_path="data/droplet",
         ANImodel=AlchemicalANI2x,
         max_snapshots_per_window=5)
-    assert(np.isclose(-15.113147129933576, fec.compute_free_energy_difference().item()))
+    assert(np.isclose(-17.272504578897816, fec.compute_free_energy_difference().item()))
 
     fec = setup_mbar(
         name,
@@ -934,7 +941,7 @@ def test_setup_mbar():
         data_path="data/droplet",
         ANImodel=AlchemicalANI1x,
         max_snapshots_per_window=5)
-    assert(np.isclose(-10.161515967765098, fec.compute_free_energy_difference().item()))
+    assert(np.isclose(-11.757199183202063, fec.compute_free_energy_difference().item()))
 
 def test_change_stereobond():
     from ..utils import change_only_stereobond, get_nr_of_stereobonds
@@ -1283,7 +1290,6 @@ def test_fec():
                 ANImodel=model,
                 env=env,
                 data_path='./data/vacuum',
-                thinning=50,
                 max_snapshots_per_window=80) for name in names
                 ]
 
@@ -1297,7 +1303,6 @@ def test_fec():
                 ANImodel=model,
                 env=env,
                 data_path='./data/vacuum',
-                thinning=50,
                 max_snapshots_per_window=80)
             assert(np.isclose(fec.end_state_free_energy_difference[0], fec.compute_free_energy_difference().item(), rtol=1e-5))
 
@@ -1307,7 +1312,6 @@ def test_fec():
                 ANImodel=model,
                 env=env,
                 data_path='./data/vacuum',
-                thinning=50,
                 max_snapshots_per_window=80) for name in names
                 ]
 
@@ -1359,7 +1363,7 @@ def test_max_nr_of_snapshots():
     
     model = AlchemicalANI1ccx
 
-    for nr_of_snapshots in [100,150,200]:
+    for nr_of_snapshots in [80,120,150]:
         rmse = validate(
             names,
             model = model,
@@ -1565,22 +1569,21 @@ def test_postprocessing_droplet():
                 ANImodel=model,
                 diameter=diameter,
                 data_path='./data/droplet',
-                thinning=50,
-                max_snapshots_per_window=7) for name in names
+                max_snapshots_per_window=5) for name in names
                 ]
 
         if idx == 0:
             assert(len(fec_list) == 1)
             rmse = torch.sqrt(torch.mean((get_perturbed_free_energy_differences(fec_list) - get_experimental_values(names))**2))
 
-            assert(np.isclose(fec_list[0].end_state_free_energy_difference[0].item(), -0.8977326773089036))
-            assert(np.isclose(rmse.item(),  1.001699072319491))
+            assert(np.isclose(fec_list[0].end_state_free_energy_difference[0].item(), -2.9846038540980344))
+            assert(np.isclose(rmse.item(),  1.0851721047376792))
         
         elif idx == 1:
             assert(len(fec_list) == 1)
             rmse = torch.sqrt(torch.mean((get_perturbed_free_energy_differences(fec_list) - get_experimental_values(names))**2))
-            assert(np.isclose(fec_list[0].end_state_free_energy_difference[0].item(), -9.44050575256994))
-            assert(np.isclose(rmse.item(),  7.5411))
+            assert(np.isclose(fec_list[0].end_state_free_energy_difference[0].item(), -11.757199182855562))
+            assert(np.isclose(rmse.item(),  9.8578))
 
 def _remove_files(name, max_epochs=1):
     os.remove(f'{name}.pt')
@@ -1726,7 +1729,7 @@ def test_tweak_parameters_droplet():
         names=names,
         ANImodel=model,
         batch_size=1,
-        max_snapshots_per_window=100,
+        max_snapshots_per_window=5,
         checkpoint_filename= f"{model_name}_droplet.pt",
         data_path=f'./data/{env}',
         nr_of_nn=8,

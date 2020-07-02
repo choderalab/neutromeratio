@@ -3,7 +3,7 @@
 #$ -m e
 #$ -j y
 #$ -p -700
-#$ -pe smp 2
+#$ -pe smp 1
 #$ -o /data/cluster/projects/SGE_LOG/
 
 idx=${1} 

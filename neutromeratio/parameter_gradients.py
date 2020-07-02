@@ -74,7 +74,7 @@ class FreeEnergyCalculator():
             if max_snapshots_per_window != -1 and  len(snapshots) < (int(max_snapshots_per_window * 0.8)):
                 raise RuntimeError(f'There are only {len(snapshots)} snapshots per lambda state. Aborting.')
             # test that we have not less than 90% of max_snapshots_per_window
-            if len(snapshots) < 60:
+            if len(snapshots) < 40:
                 logger.critical(f'There are only {len(snapshots)} snapshots per lambda state. Be careful.')
 
         
@@ -86,7 +86,8 @@ class FreeEnergyCalculator():
             snapshots.extend(ani_trajs[lam])
             logger.debug(f"Snapshots per lambda {lam}: {len(ani_trajs[lam])}")
 
-        assert (len(snapshots) > 100)
+        if (len(snapshots) < 100):
+            logger.critical(f"Total number of snapshots is {len(snapshots)} -- is this enough?")
 
         coordinates = [sample / unit.angstrom for sample in snapshots] * unit.angstrom
 
