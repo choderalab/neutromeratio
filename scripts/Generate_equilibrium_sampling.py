@@ -88,7 +88,7 @@ for global_list, poperty_name in zip([energies, restraint_contribution], ['energ
         f.write('{}\n'.format(e_unitless))
     f.close()   
 
-equilibrium_samples = [x.value_in_unit(unit.nanometer) for x in equilibrium_samples]
+equilibrium_samples = [x[0].value_in_unit(unit.nanometer) for x in equilibrium_samples]
 if env == 'vacuum':
     ani_traj = md.Trajectory(equilibrium_samples[::20], tautomer.hybrid_topology)
 else:

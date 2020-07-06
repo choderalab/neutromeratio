@@ -48,14 +48,12 @@ class DecomposedEnergy(NamedTuple):
     """Returned by _calculate_energy()
 
     energy: unit'd
-    restraint_bias: unit'd (energy contribution of all restraints)
-    stddev: unit'd
-    ensemble_bias: unit'd
+    restraint_energy_contribution_in_kT: unit'd
     energy_tensor: in kT
     """
 
     energy: unit.Quantity
-    restraint_energy_contribution_in_kT: unit.Quantity
+    restraint_energy_contribution: unit.Quantity
     energy_tensor: Tensor
 
 
@@ -801,5 +799,5 @@ class ANI1_force_and_energy(object):
             coordinates, lambda_value, original_neural_network)
 
         energy = np.array([e.item() for e in energy_in_kT]) * kT
-        restraint_energy_contribution_in_kT = np.array([e.item() for e in restraint_energy_contribution_in_kT]) *kT 
-        return DecomposedEnergy(energy, restraint_energy_contribution_in_kT, energy_in_kT)
+        restraint_energy_contribution = np.array([e.item() for e in restraint_energy_contribution_in_kT]) *kT 
+        return DecomposedEnergy(energy, restraint_energy_contribution, energy_in_kT)

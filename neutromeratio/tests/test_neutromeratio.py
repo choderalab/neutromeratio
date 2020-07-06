@@ -1285,17 +1285,38 @@ def test_fec():
     for idx, model in enumerate([AlchemicalANI1ccx, AlchemicalANI1x, AlchemicalANI2x ]):
 
         if idx == 0:
+            #testing fec
+            bulk_energy_calculation=True
             fec_list = [setup_mbar(
                 name,
                 ANImodel=model,
                 env=env,
+                bulk_energy_calculation=bulk_energy_calculation,
                 data_path='./data/vacuum',
                 max_snapshots_per_window=80) for name in names
                 ]
 
             assert(len(fec_list) == 2)
             fec = get_perturbed_free_energy_differences(fec_list)
-            for e1, e2 in zip(fec, [1.6811, -4.1881, 4.2047]):
+            print(fec)
+            for e1, e2 in zip(fec, [1.2104192392435253, -5.316053972628578]):
+                assert(np.isclose(e1.item(),e2, rtol=1e-4)) 
+
+            # testing fec
+            bulk_energy_calculation=False
+            fec_list = [setup_mbar(
+                 name,
+                ANImodel=model,
+                env=env,
+                bulk_energy_calculation=bulk_energy_calculation,
+                data_path='./data/vacuum',
+                max_snapshots_per_window=80) for name in names
+                ]
+
+            assert(len(fec_list) == 2)
+            fec = get_perturbed_free_energy_differences(fec_list)
+            print(fec)
+            for e1, e2 in zip(fec, [1.2104192392435253, -5.316053972628578]):
                 assert(np.isclose(e1.item(),e2, rtol=1e-4)) 
 
             fec = setup_mbar(
@@ -1307,20 +1328,38 @@ def test_fec():
             assert(np.isclose(fec.end_state_free_energy_difference[0], fec.compute_free_energy_difference().item(), rtol=1e-5))
 
         if idx == 1:
+            bulk_energy_calculation=False
             fec_list = [setup_mbar(
                 name,
                 ANImodel=model,
                 env=env,
+                bulk_energy_calculation=bulk_energy_calculation,
                 data_path='./data/vacuum',
-                max_snapshots_per_window=80) for name in names
+                max_snapshots_per_window=100) for name in names
                 ]
 
             assert(len(fec_list) == 2)
             fec = get_perturbed_free_energy_differences(fec_list)
             print(fec)
-            for e1, e2 in zip(fec, [10.6626, -8.6866,  0.7953]):
+            for e1, e2 in zip(fec, [10.2015, -9.9199]):
                 assert(np.isclose(e1.item(),e2, rtol=1e-4)) 
 
+        if idx == 2:
+            bulk_energy_calculation=False
+            fec_list = [setup_mbar(
+                name,
+                ANImodel=model,
+                env=env,
+                bulk_energy_calculation=bulk_energy_calculation,
+                data_path='./data/vacuum',
+                max_snapshots_per_window=100) for name in names
+                ]
+
+            assert(len(fec_list) == 2)
+            fec = get_perturbed_free_energy_differences(fec_list)
+            print(fec)
+            for e1, e2 in zip(fec, [7.6806, -9.6556]):
+                assert(np.isclose(e1.item(),e2, rtol=1e-4)) 
 
 
 def test_ess():

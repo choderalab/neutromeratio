@@ -23,6 +23,7 @@ class FreeEnergyCalculator():
     def __init__(self,
                  ani_model: ANI1_force_and_energy,
                  md_trajs: list,
+                 bulk_energy_calculation:bool,
                  potential_energy_trajs: list,
                  lambdas: list,
                  n_atoms: int,
@@ -94,12 +95,25 @@ class FreeEnergyCalculator():
         logger.debug(f"len(coordinates): {len(coordinates)}")
 
         # end-point energies
-        lambda0_e = self.ani_model.calculate_energy(coordinates, lambda_value=0., original_neural_network=True).energy      
-        lambda1_e = self.ani_model.calculate_energy(coordinates, lambda_value=1., original_neural_network=True).energy      
-        logger.debug(f"len(lambda0_e): {len(lambda0_e)}")
+        if bulk_energy_calculation:
+            lambda0_e = self.ani_model.calculate_energy(coordinates, lambda_value=0., original_neural_network=True).energy      
+            lambda1_e = self.ani_model.calculate_energy(coordinates, lambda_value=1., original_neural_network=True).energy      
+        else:
+            lambda0_e = []
+            lambda1_e = []
+            for coord in coordinates:
+                # getting coord from [N][3] to [1][N][3]
+                coord = np.array([coord/unit.angstrom]) * unit.angstrom
+                e0 = self.ani_model.calculate_energy(coord, lambda_value=0., original_neural_network=True).energy
+                lambda0_e.append(e0[0]/kT)
+                e1 = self.ani_model.calculate_energy(coord, lambda_value=1., original_neural_network=True).energy
+                lambda1_e.append(e1[0]/kT)
+            lambda0_e = np.array(lambda0_e) * kT
+            lambda1_e = np.array(lambda1_e) * kT
 
+        logger.debug(f"len(lambda0_e): {len(lambda0_e)}")
         def get_mix(lambda0, lambda1, lam=0.0):
-            return (1 - lam) * np.array(lambda0) + lam * np.array(lambda1)
+            return (1 - lam) * lambda0 + lam * lambda1
 
         logger.debug('Nr of atoms: {}'.format(n_atoms))
 
@@ -154,17 +168,12 @@ class FreeEnergyCalculator():
         coordinates = self.coordinates
         
         #Note: Use class neural network here (that might or might not be modified)!
-        decomposed_energy_list_lamb0 = self.ani_model.calculate_energy(coordinates, lambda_value=0., original_neural_network=False)      
-        u_0 = decomposed_energy_list_lamb0.energy_tensor
+        u_0 = self.ani_model.calculate_energy(coordinates, lambda_value=0., original_neural_network=False).energy_tensor      
 
         #Note: Use class neural network here (that might or might not be modified)!
-        decomposed_energy_list_lamb1 = self.ani_model.calculate_energy(coordinates, lambda_value=1., original_neural_network=False)     
-        u_1 = decomposed_energy_list_lamb1.energy_tensor
+        u_1 = self.ani_model.calculate_energy(coordinates, lambda_value=1., original_neural_network=False).energy_tensor     
 
-        u_ln = torch.stack([u_0, u_1])
-        del decomposed_energy_list_lamb0
-        del decomposed_energy_list_lamb1
-        
+        u_ln = torch.stack([u_0, u_1])       
         return u_ln
 
     def compute_free_energy_difference(self):
@@ -733,11 +742,14 @@ def setup_mbar(
     name: str,
     max_snapshots_per_window: int,
     ANImodel: ANI,
+    bulk_energy_calculation:bool,
     env: str = 'vacuum',
     data_path: str = "../data/",
-    diameter:int=-1):
+    diameter: int = -1):
+    
     from neutromeratio.analysis import setup_alchemical_system_and_energy_function, _get_exp_results
     import os
+    
     if not (env == 'vacuum' or env == 'droplet'):
         raise RuntimeError('Only keyword vacuum or droplet are allowed as environment.') 
     if env == 'droplet' and diameter == -1:
@@ -806,6 +818,7 @@ def setup_mbar(
                                 potential_energy_trajs=energies,
                                 lambdas=lambdas,
                                 n_atoms=len(tautomer.hybrid_atoms),
+                                bulk_energy_calculation=bulk_energy_calculation,
                                 max_snapshots_per_window=max_snapshots_per_window)
 
     fec.flipped = flipped
