@@ -1323,42 +1323,43 @@ def test_fec():
                 'molDWRow_298',
                 ANImodel=model,
                 env=env,
+                bulk_energy_calculation=True,
                 data_path='./data/vacuum',
                 max_snapshots_per_window=80)
             assert(np.isclose(fec.end_state_free_energy_difference[0], fec.compute_free_energy_difference().item(), rtol=1e-5))
 
         if idx == 1:
-            bulk_energy_calculation=False
+            bulk_energy_calculation=True
             fec_list = [setup_mbar(
                 name,
                 ANImodel=model,
                 env=env,
                 bulk_energy_calculation=bulk_energy_calculation,
                 data_path='./data/vacuum',
-                max_snapshots_per_window=100) for name in names
+                max_snapshots_per_window=60) for name in names
                 ]
 
             assert(len(fec_list) == 2)
             fec = get_perturbed_free_energy_differences(fec_list)
             print(fec)
-            for e1, e2 in zip(fec, [10.2015, -9.9199]):
+            for e1, e2 in zip(fec, [10.3192, -9.7464]):
                 assert(np.isclose(e1.item(),e2, rtol=1e-4)) 
 
         if idx == 2:
-            bulk_energy_calculation=False
+            bulk_energy_calculation=True
             fec_list = [setup_mbar(
                 name,
                 ANImodel=model,
                 env=env,
                 bulk_energy_calculation=bulk_energy_calculation,
                 data_path='./data/vacuum',
-                max_snapshots_per_window=100) for name in names
+                max_snapshots_per_window=60) for name in names
                 ]
 
             assert(len(fec_list) == 2)
             fec = get_perturbed_free_energy_differences(fec_list)
             print(fec)
-            for e1, e2 in zip(fec, [7.6806, -9.6556]):
+            for e1, e2 in zip(fec, [8.8213, -9.6649]):
                 assert(np.isclose(e1.item(),e2, rtol=1e-4)) 
 
 
