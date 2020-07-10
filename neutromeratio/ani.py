@@ -42,13 +42,13 @@ class DecomposedForce(NamedTuple):
     """
     force: unit.Quantity
     energy: unit.Quantity
-    restraint_energy_contribution_in_kT: unit.Quantity
+    restraint_energy_contribution: unit.Quantity
 
 class DecomposedEnergy(NamedTuple):
     """Returned by _calculate_energy()
 
     energy: unit'd
-    restraint_energy_contribution_in_kT: unit'd
+    restraint_energy_contribution: unit'd
     energy_tensor: in kT
     """
 
@@ -686,7 +686,7 @@ class ANI1_force_and_energy(object):
         coordinates = torch.tensor(x,
                                    requires_grad=True, device=self.device, dtype=torch.float32)
 
-        energy_in_kT, restraint_energy_contribution_in_kT = self._calculate_energy(coordinates, lambda_value, original_neural_network=True)
+        energy_in_kT, restraint_energy_contribution = self._calculate_energy(coordinates, lambda_value, original_neural_network=True)
 
         # derivative of E (kJ_mol) w.r.t. coordinates (in nm)
         derivative = torch.autograd.grad(((energy_in_kT  *kT).value_in_unit(unit.kilojoule_per_mole)).sum(), coordinates)[0]
@@ -700,7 +700,7 @@ class ANI1_force_and_energy(object):
 
         return DecomposedForce((F) * (unit.kilojoule_per_mole / unit.nanometer),
                 energy_in_kT.item() *kT,
-                restraint_energy_contribution_in_kT.item() *kT,
+                restraint_energy_contribution.item() *kT,
         )
 
     def _calculate_energy(self, coordinates: torch.Tensor, lambda_value: float, original_neural_network:bool) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -741,12 +741,12 @@ class ANI1_force_and_energy(object):
         # convert energy from hartree to kT
         energy_in_kT = energy_in_hartree * hartree_to_kT
 
-        restraint_energy_contribution_in_kT = self._compute_restraint_bias(
+        restraint_energy_contribution = self._compute_restraint_bias(
             coordinates, lambda_value=lambda_value)
 
-        energy_in_kT += restraint_energy_contribution_in_kT
+        energy_in_kT += restraint_energy_contribution
 
-        return energy_in_kT, restraint_energy_contribution_in_kT
+        return energy_in_kT, restraint_energy_contribution
 
 
     def _traget_energy_function(self, x, lambda_value: float = 0.0):
@@ -769,7 +769,7 @@ class ANI1_force_and_energy(object):
         force_energy = self.calculate_force(x, lambda_value)
         F_flat = -np.array(force_energy.force.value_in_unit(unit.kilojoule_per_mole/unit.angstrom).flatten(), dtype=np.float64)
         self.memory_of_energy.append(force_energy.energy)
-        self.memory_of_restrain_contribution.append(force_energy.restraint_energy_contribution_in_kT)
+        self.memory_of_restrain_contribution.append(force_energy.restraint_energy_contribution)
         return (force_energy.energy.value_in_unit(unit.kilojoule_per_mole), F_flat)
 
     def calculate_energy(self, coordinate_list:unit.Quantity, lambda_value: float = 0.0, original_neural_network:bool=True):
@@ -795,9 +795,9 @@ class ANI1_force_and_energy(object):
                                    requires_grad=True, device=self.device, dtype=torch.float32)
 
         logger.debug(f"coordinates tensor: {coordinates.size()}")
-        energy_in_kT, restraint_energy_contribution_in_kT = self._calculate_energy(
+        energy_in_kT, restraint_energy_contribution = self._calculate_energy(
             coordinates, lambda_value, original_neural_network)
 
         energy = np.array([e.item() for e in energy_in_kT]) * kT
-        restraint_energy_contribution = np.array([e.item() for e in restraint_energy_contribution_in_kT]) *kT 
+        restraint_energy_contribution = np.array([e.item() for e in restraint_energy_contribution]) *kT 
         return DecomposedEnergy(energy, restraint_energy_contribution, energy_in_kT)

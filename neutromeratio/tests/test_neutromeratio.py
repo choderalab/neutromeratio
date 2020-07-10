@@ -640,7 +640,7 @@ def test_neutromeratio_energy_calculations_LinearAlchemicalSingleTopologyANI_mod
     energies_ani1ccx_0 = energy_function.calculate_energy(coordinates)
 
     #subtracting restraint energies
-    energy_0_minus_restraint = (energy_0.energy[0] - energy_0.restraint_energy_contribution_in_kT[0]).in_units_of(unit.kilojoule_per_mole)
+    energy_0_minus_restraint = (energy_0.energy[0] - energy_0.restraint_energy_contribution[0]).in_units_of(unit.kilojoule_per_mole)
     assert(is_quantity_close(energy_0_minus_restraint, energies_ani1ccx_0.energy[0].in_units_of(unit.kilojoule_per_mole)))
 
 
@@ -896,24 +896,27 @@ def test_setup_mbar():
         env='vacuum',
         data_path="data/vacuum",
         ANImodel=AlchemicalANI1ccx,
+        bulk_energy_calculation=False,
         max_snapshots_per_window=100)
-    assert(np.isclose(-0.2159245230162501, fec.compute_free_energy_difference().item()))
+    assert(np.isclose(-0.2159245230162501, fec.end_state_free_energy_difference[0]))
 
     fec = setup_mbar(
         name,
         env='vacuum',
         data_path="data/vacuum",
         ANImodel=AlchemicalANI2x,
+        bulk_energy_calculation=False,
         max_snapshots_per_window=100)
-    assert(np.isclose(-7.981541822664637, fec.compute_free_energy_difference().item()))
+    assert(np.isclose(-7.981541822664637, fec.end_state_free_energy_difference[0]))
 
     fec = setup_mbar(
         name,
         env='vacuum',
         data_path="data/vacuum",
         ANImodel=AlchemicalANI1x,
+        bulk_energy_calculation=False,
         max_snapshots_per_window=100)
-    assert(np.isclose(-8.916705062503821, fec.compute_free_energy_difference().item()))
+    assert(np.isclose(-8.916705062503821, fec.end_state_free_energy_difference[0]))
 
     # droplet
     fec = setup_mbar(
@@ -922,8 +925,9 @@ def test_setup_mbar():
         diameter=18,
         data_path="data/droplet",
         ANImodel=AlchemicalANI1ccx,
-        max_snapshots_per_window=5)
-    assert(np.isclose(-2.98460385357465, fec.compute_free_energy_difference().item()))
+        bulk_energy_calculation=False,
+        max_snapshots_per_window=50)
+    assert(np.isclose(-2.943846274310164, fec.end_state_free_energy_difference[0]))
 
     fec = setup_mbar(
         name,
@@ -931,8 +935,9 @@ def test_setup_mbar():
         diameter=18,
         data_path="data/droplet",
         ANImodel=AlchemicalANI2x,
-        max_snapshots_per_window=5)
-    assert(np.isclose(-17.272504578897816, fec.compute_free_energy_difference().item()))
+        bulk_energy_calculation=False,
+        max_snapshots_per_window=50)
+    assert(np.isclose(-15.878144843280154, fec.end_state_free_energy_difference[0]))
 
     fec = setup_mbar(
         name,
@@ -940,8 +945,9 @@ def test_setup_mbar():
         diameter=18,
         data_path="data/droplet",
         ANImodel=AlchemicalANI1x,
-        max_snapshots_per_window=5)
-    assert(np.isclose(-11.757199183202063, fec.compute_free_energy_difference().item()))
+        bulk_energy_calculation=False,
+        max_snapshots_per_window=50)
+    assert(np.isclose(-11.071049647338729, fec.end_state_free_energy_difference[0]))
 
 def test_change_stereobond():
     from ..utils import change_only_stereobond, get_nr_of_stereobonds
@@ -1246,6 +1252,7 @@ def test_parameter_gradient():
                                 md_trajs=ani_trajs,
                                 potential_energy_trajs=potential_energy_trajs,
                                 lambdas=lambdas,
+                                bulk_energy_calculation=False,
                                 n_atoms=len(tautomer.hybrid_atoms),
                                 max_snapshots_per_window=-1)
 
@@ -1269,6 +1276,19 @@ def test_parameter_gradient():
             raise RuntimeError() 
         if not (none_counter == 64 or none_counter == 256):
             raise RuntimeError()
+
+
+
+def test_thinning():
+    from glob import glob
+    dcds = glob(f"data/droplet/molDWRow_298/*dcd")
+    top = f"data/droplet/molDWRow_298/molDWRow_298_in_droplet.pdb"
+    print(dcds)
+    for f in dcds:
+        print(f)
+        traj = md.load_dcd(f, top=top)
+        print(len(traj))
+    #raise RuntimeError('t')
 
 def test_fec():
     from ..parameter_gradients import get_perturbed_free_energy_differences
@@ -1380,7 +1400,6 @@ def test_ess():
         ANImodel=model,
         env=env,
         data_path='./data/vacuum',
-        thinning=50,
         max_snapshots_per_window=80)
 
     fec_value = get_perturbed_free_energy_differences([fec])[0]
@@ -1409,7 +1428,8 @@ def test_max_nr_of_snapshots():
             model = model,
             data_path=f"./data/{env}",
             env=env,
-            max_snapshots_per_window=nr_of_snapshots)
+            bulk_energy_calculation=True,
+            max_snapshots_per_window=100)
 
 
 def test_validate():
@@ -1430,17 +1450,18 @@ def test_validate():
             model = model,
             data_path=f"./data/{env}",
             env=env,
+            bulk_energy_calculation=False,
             max_snapshots_per_window=100)
         assert(np.isclose((exp_results[names[2]]['energy'] * unit.kilocalorie_per_mole) / kT, exp_values[2].item()))
         rmse_list.append(rmse)
 
 
+    print(exp_values.tolist())
+    print(rmse_list)
     for e1, e2 in zip(exp_values.tolist()  , [1.8994317488369707, -10.232118388886946, -3.858011851547537]):
-        print(exp_values.tolist())
-        print(rmse_list)
         assert(np.isclose(e1, e2))
 
-    for e1, e2 in zip(rmse_list  , [5.662402629852295, 6.238292694091797, 5.566655158996582]):
+    for e1, e2 in zip(rmse_list  , [5.662402629852295, 5.6707963943481445, 4.7712321281433105]):
         assert(np.isclose(e1, e2))
 
 
@@ -1468,12 +1489,14 @@ def test_validate_droplet():
             data_path=f"./data/{env}",
             model=model,
             env=env,
-            thinning=10,
-            max_snapshots_per_window=7,
+            bulk_energy_calculation=False,
+            max_snapshots_per_window=20,
             diameter=diameter)
         rmse_list.append(rmse)
 
+    print(rmse_list)
     for e1, e2 in zip(rmse_list  , [0.2889864338136634, 13.469154493717424, 7.909838568006453]):
+        
         assert(np.isclose(e1, e2))
 
 

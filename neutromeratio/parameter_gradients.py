@@ -236,6 +236,7 @@ def get_effective_sample_size(fec: FreeEnergyCalculator):
 def validate(names: list,
     model: ANI,
     data_path: str,
+    bulk_energy_calculation:bool,
     env: str,
     max_snapshots_per_window: int,
     diameter:int = -1)->float:
@@ -262,6 +263,7 @@ def validate(names: list,
                     name=name,
                     ANImodel=model,
                     env=env,
+                    bulk_energy_calculation=bulk_energy_calculation,
                     data_path=data_path,
                     max_snapshots_per_window=max_snapshots_per_window,
                     diameter=diameter)]
