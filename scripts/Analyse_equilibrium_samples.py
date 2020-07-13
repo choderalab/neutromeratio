@@ -15,8 +15,7 @@ from neutromeratio.ani import AlchemicalANI1ccx
 idx = int(sys.argv[1])
 # where to write the results
 base_path = str(sys.argv[2])
-# env
-env = str(sys.argv[3])
+# envenv = str(sys.argv[3])
 #######################
 #######################
 # read in exp results, smiles and names
