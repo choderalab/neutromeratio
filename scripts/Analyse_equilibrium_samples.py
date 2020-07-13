@@ -27,7 +27,9 @@ names = _get_names()
 
 name = names[idx-1]
 print(name)
+print(base_path)
 if env == 'droplet':
+    print('Env: droplet.')
     fec = setup_mbar(name=name, 
                     data_path=base_path,
                     ANImodel=AlchemicalANI1ccx,
@@ -36,6 +38,7 @@ if env == 'droplet':
                     max_snapshots_per_window=500,
                     diameter=18)
 elif env == 'vacuum':
+    print('Env: vacuum.')
     fec = setup_mbar(name=name, 
                     data_path=base_path,
                     ANImodel=AlchemicalANI1ccx,
