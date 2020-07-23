@@ -148,15 +148,14 @@ class FreeEnergyCalculator():
         """compute perturbed free energies at new thermodynamic states l"""
         assert (type(u_ln) == torch.Tensor)
 
-        states_with_samples = torch.tensor(self.mbar.N_k > 0, device=device)
         #Note: Use mbar estimate with orginal parameter set!
         N_k = torch.tensor(self.mbar.N_k, dtype=torch.double, requires_grad=True, device=device)
         f_k = torchify(self.mbar.f_k)
         u_kn = torchify(self.mbar.u_kn)
 
-        log_q_k = f_k[states_with_samples] - u_kn[states_with_samples].T
+        log_q_k = f_k - u_kn.T
         # TODO: double check that torch.logsumexp(x + torch.log(b)) is the same as scipy.special.logsumexp(x, b=b)
-        A = log_q_k + torch.log(N_k[states_with_samples])
+        A = log_q_k + torch.log(N_k)
         log_denominator_n = torch.logsumexp(A, dim=1)
 
         B = - u_ln - log_denominator_n
@@ -179,7 +178,6 @@ class FreeEnergyCalculator():
     def compute_free_energy_difference(self):
         u_ln = self._form_u_ln()
         f_k = self._compute_perturbed_free_energies(u_ln)
-        self.reweighting_f_k = f_k
         return f_k[1] - f_k[0]
 
 def torchify(x):
@@ -253,7 +251,7 @@ def validate(names: list,
         [type] -- returns the RMSE as float
     """
     if env == 'droplet' and diameter == -1:
-        raise RuntimeError('Something went wrong.')
+        raise RuntimeError(f'Something went wrong. Diameter is set for {diameter}. Aborting.')
 
     e_calc = []
     e_exp = []
@@ -267,11 +265,13 @@ def validate(names: list,
                     data_path=data_path,
                     max_snapshots_per_window=max_snapshots_per_window,
                     diameter=diameter)]
+        
         e_calc.append(get_perturbed_free_energy_differences(fec_list)[0].item())
-
         e_exp.append(get_experimental_values([name])[0].item())
         current_rmse = calculate_rmse(torch.tensor(e_calc), torch.tensor(e_exp)).item()
+
         it.set_description(f"RMSE: {current_rmse}")
+
         if current_rmse > 50:
             logger.critical(f"RMSE above 50 with {current_rmse}: {name}")
             logger.critical(names)
@@ -294,7 +294,12 @@ def chunks(lst, n):
 def _log_dG():
     pass
 
-def tweak_parameters(
+
+
+
+
+
+def tweak_parameters_with_split(
     ANImodel: ANI,
     env: str,
     max_snapshots_per_window: int,
@@ -305,37 +310,39 @@ def tweak_parameters(
     data_path: str = "../data/",
     nr_of_nn: int = 8,
     max_epochs: int = 10,
+    bulk_energy_calculation:bool = True,
     load_checkpoint:bool = True,
     names:list = []):
-    """    
+    
+
+    """
     Calculates the free energy of a staged free energy simulation, 
     tweaks the neural net parameter so that using reweighting the difference 
     between the experimental and calculated free energy is minimized.
 
-    Much of this code is taken from:
-    https://aiqm.github.io/torchani/examples/nnp_training.html
-    but instead of training on atomic energies the training is 
-    performed on relative free energies.
+    Parameters:
+        ANImode [ANI]: The ANI model object (not instance)
+        emv [str]: either 'vacuum' or droplet
+        max_snapshots_per_window [int]: how many snapshots should be considered per lambda state
+        checkpoint_filename [str]: filename to save checkpoint files
+        diameter [int] [opt]: diameter in Angstrom for droplet
+        batch_size [int] [opt]
+        elements [str] [opt]:  
 
-    The function is set up to be called from the notebook or scripts folder.  
 
-    Keyword Arguments:
-        batch_size {int} -- how many molecules should be used to calculate the MSE
-        data_path {str} -- should point to where the dcd files are located (default: {"../data/"})
-        nr_of_nn {int} -- number of neural networks that should be tweeked, maximum 8  (default: {8})
-        max_epochs {int} -- (default: {10})
-        thinning {int} -- nth frame taken from simulation (default: {100})
-        max_snapshots_per_window {int} -- total number of frames taken from simulation (default: {100})
-        names {list} -- only used for tests -- this loads specific molecules (default: {[]})
+    Raises:
+        RuntimeError: [description]
 
     Returns:
-        (list, list, float) -- rmse on validation set, rmse on training set, rmse on test set
+        [type]: [description]
     """
 
     from sklearn.model_selection import train_test_split
     import random
+   
     assert(int(batch_size) <= 10 and int(batch_size) >= 1)
     assert (int(nr_of_nn) <= 8 and int(nr_of_nn) >= 1)
+
     if env == 'droplet' and diameter == -1:
         raise RuntimeError(f"Did you forget to pass the 'diamter' argument? Aborting.")
 
@@ -359,51 +366,22 @@ def tweak_parameters(
 
 
     # save batch loss through epochs
-    rmse_validation = []
-    rmse_training = []
+    rmse_training, rmse_validation = setup_and_perform_parameter_retraining(
+            ANImodel=ANImodel,
+            env=env,
+            checkpoint_filename=checkpoint_filename,
+            max_snapshots_per_window=max_snapshots_per_window,           
+            diameter=diameter,
+            batch_size=batch_size,
+            data_path=data_path,
+            nr_of_nn=nr_of_nn,
+            max_epochs=max_epochs,
+            elements=elements,
+            load_checkpoint=load_checkpoint,
+            bulk_energy_calculation=bulk_energy_calculation,
+            names_training= names_training,
+            names_validating= names_validating)
 
-    # define which layer should be modified -- currently the last one
-    layer = 6
-    # calculate the rmse on the current parameters for the validation set
-    rmse_validation_set = validate(
-        names_validating,
-        model=ANImodel,
-        data_path=data_path,
-        env=env,
-        max_snapshots_per_window=max_snapshots_per_window,
-        diameter=diameter)
-    rmse_validation.append(rmse_validation_set)
-    print(f"RMSE on validation set: {rmse_validation[-1]} at first epoch")
-    
-    # calculate the rmse on the current parameters for the training set
-    rmse_training_set = validate(
-        names_training,
-        model=ANImodel,
-        data_path=data_path,
-        env=env,
-        max_snapshots_per_window=max_snapshots_per_window,
-        diameter=diameter)
-    rmse_training.append(rmse_training_set)
-    print(f"RMSE on training set: {rmse_training[-1]} at first epoch")
-    
-    ### main training loop 
-    rmse_training, rmse_validation = _perform_training(layer=layer,
-                    ANImodel=ANImodel,
-                    nr_of_nn=nr_of_nn,
-                    names_training=names_training,
-                    names_validating=names_validating,
-                    rmse_training=rmse_training,
-                    checkpoint_filename=checkpoint_filename,
-                    max_epochs=max_epochs,
-                    env=env,
-                    elements=elements,
-                    diameter=diameter,
-                    batch_size=batch_size,
-                    data_path=data_path,
-                    load_checkpoint=load_checkpoint,
-                    max_snapshots_per_window=max_snapshots_per_window,
-                    rmse_validation=rmse_validation
-                    )
         
     # final rmsd calculation on test set
     print('RMSE calulation for test set')
@@ -412,6 +390,7 @@ def tweak_parameters(
         names=names_test,
         diameter=diameter,
         data_path=data_path,
+        bulk_energy_calculation=bulk_energy_calculation,
         env=env,
         max_snapshots_per_window = max_snapshots_per_window)
     
@@ -428,14 +407,14 @@ def _save_checkpoint(model, AdamW, AdamW_scheduler, SGD, SGD_scheduler, latest_c
 
 
 def _perform_training(ANImodel: ANI,
-                    layer: int,
                     nr_of_nn:int,
                     names_training: list,
                     names_validating: list,
                     rmse_training: list,
                     checkpoint_filename: str,
                     max_epochs: int,
-                    elements:str,
+                    elements: str,
+                    bulk_energy_calculation:bool,
                     env:str,
                     diameter:int,
                     batch_size:int,
@@ -446,7 +425,8 @@ def _perform_training(ANImodel: ANI,
 
 
     early_stopping_learning_rate = 1.0E-5
-    AdamW, AdamW_scheduler, SGD, SGD_scheduler = _get_nn_layers(layer, nr_of_nn, ANImodel, elements=elements)
+    AdamW, AdamW_scheduler, SGD, SGD_scheduler = _get_nn_layers(nr_of_nn, ANImodel, elements=elements)
+    
     if load_checkpoint:
         _load_checkpoint(checkpoint_filename, ANImodel, AdamW, AdamW_scheduler, SGD, SGD_scheduler)
 
@@ -470,6 +450,8 @@ def _perform_training(ANImodel: ANI,
         # define the stepsize 
         AdamW_scheduler.step(rmse_validation[-1])
         SGD_scheduler.step(rmse_validation[-1])
+
+
         loss = torch.tensor(0.0)
         calc_free_energy_difference_batches, exp_free_energy_difference_batches = _tweak_parameters(
             names_training=names_training,
@@ -477,6 +459,7 @@ def _perform_training(ANImodel: ANI,
             AdamW=AdamW,
             SGD=SGD,
             env=env,
+            bulk_energy_calculation=bulk_energy_calculation,
             diameter=diameter,
             batch_size=batch_size,
             data_path=data_path,
@@ -488,6 +471,7 @@ def _perform_training(ANImodel: ANI,
                 model=ANImodel,
                 diameter=diameter,
                 data_path=data_path,
+                bulk_energy_calculation=bulk_energy_calculation,
                 env=env,
                 max_snapshots_per_window = max_snapshots_per_window))
         
@@ -512,6 +496,7 @@ def _tweak_parameters(
                         SGD,
                         env: str,
                         diameter: int,
+                        bulk_energy_calculation:bool,
                         batch_size: int ,
                         data_path: str ,
                         max_snapshots_per_window:int):
@@ -528,6 +513,7 @@ def _tweak_parameters(
             ANImodel=ANImodel,
             env=env,
             data_path=data_path,
+            bulk_energy_calculation=bulk_energy_calculation,
             max_snapshots_per_window=max_snapshots_per_window,
             diameter=diameter) for name in names]
 
@@ -566,20 +552,21 @@ def _load_checkpoint(latest_checkpoint, model, AdamW, AdamW_scheduler, SGD, SGD_
         logger.info(f"Checkoint {latest_checkpoint} does not exist.")
 
 
-def _get_nn_layers(layer: int, nr_of_nn: int, ANImodel: ANI, elements:str='CHON'):
+def _get_nn_layers(nr_of_nn: int, ANImodel: ANI, elements:str='CHON'):
     
     if elements == 'CHON':
         logger.info('Using `CHON` elements.')
-        return (_get_nn_layers_CHON(layer, nr_of_nn, ANImodel))
+        return (_get_nn_layers_CHON(nr_of_nn, ANImodel))
     elif elements == 'CN':
         logger.info('Using `CN` elements.')
-        return (_get_nn_layers_CN(layer, nr_of_nn, ANImodel))
+        return (_get_nn_layers_CN(nr_of_nn, ANImodel))
     else:
         raise RuntimeError('Only `CHON` or `CN` as atoms allowed. Aborting.')
 
-def _get_nn_layers_CN(layer:int, nr_of_nn:int, ANImodel:ANI):
+def _get_nn_layers_CN(nr_of_nn:int, ANImodel:ANI):
     weight_layers = []
     bias_layers = []
+    layer = 6
     model = ANImodel.tweaked_neural_network
 
     for nn in model[:nr_of_nn]:
@@ -608,11 +595,11 @@ def _get_nn_layers_CN(layer:int, nr_of_nn:int, ANImodel:ANI):
 
 
 
-def _get_nn_layers_CHON(layer:int, nr_of_nn:int, ANImodel:ANI):
+def _get_nn_layers_CHON(nr_of_nn:int, ANImodel:ANI):
     weight_layers = []
     bias_layers = []
     model = ANImodel.tweaked_neural_network
-
+    layer = 6
     for nn in model[:nr_of_nn]:
         weight_layers.extend(
             [
@@ -643,7 +630,8 @@ def _get_nn_layers_CHON(layer:int, nr_of_nn:int, ANImodel:ANI):
 
 
 
-def tweak_parameters_for_list(ANImodel: ANI,
+def setup_and_perform_parameter_retraining(
+            ANImodel: ANI,
             env: str,
             checkpoint_filename: str,
             max_snapshots_per_window: int,           
@@ -654,13 +642,10 @@ def tweak_parameters_for_list(ANImodel: ANI,
             max_epochs: int = 10,
             elements:str = 'CHON',
             load_checkpoint: bool = True,
+            bulk_energy_calculation:bool = True,
             names_training: list = [],
             names_validating:list = []):
     """    
-    Calculates the free energy of a staged free energy simulation, 
-    tweaks the neural net parameter so that using reweighting the difference 
-    between the experimental and calculated free energy is minimized.
-
     Much of this code is taken from:
     https://aiqm.github.io/torchani/examples/nnp_training.html
     but instead of training on atomic energies the training is 
@@ -691,17 +676,16 @@ def tweak_parameters_for_list(ANImodel: ANI,
     rmse_validation = []
     rmse_training = []
 
-    # define which layer should be modified -- currently the last one
-    layer = 6
-
     # calculate the rmse on the current parameters for the validation set
     rmse_validation_set = validate(
         names_validating,
         model=ANImodel,
         data_path=data_path,
+        bulk_energy_calculation=bulk_energy_calculation,
         env=env,
         max_snapshots_per_window=max_snapshots_per_window,
         diameter=diameter)
+
     rmse_validation.append(rmse_validation_set)
     print(f"RMSE on validation set: {rmse_validation[-1]} at first epoch")
     
@@ -710,15 +694,16 @@ def tweak_parameters_for_list(ANImodel: ANI,
         names_training,
         model=ANImodel,
         data_path=data_path,
+        bulk_energy_calculation=bulk_energy_calculation,
         env=env,
         max_snapshots_per_window=max_snapshots_per_window,
         diameter=diameter)
+
     rmse_training.append(rmse_training_set)
     print(f"RMSE on training set: {rmse_training[-1]} at first epoch")
     
     ### main training loop 
     rmse_training, rmse_validation = _perform_training(
-                    layer=layer,
                     ANImodel=ANImodel,
                     nr_of_nn=nr_of_nn,
                     names_training=names_training,
@@ -728,6 +713,7 @@ def tweak_parameters_for_list(ANImodel: ANI,
                     max_epochs=max_epochs,
                     elements=elements,
                     env=env,
+                    bulk_energy_calculation=bulk_energy_calculation,
                     diameter=diameter,
                     batch_size=batch_size,
                     data_path=data_path,

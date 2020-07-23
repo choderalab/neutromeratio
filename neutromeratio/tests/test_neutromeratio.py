@@ -1399,15 +1399,14 @@ def test_ess():
         name,
         ANImodel=model,
         env=env,
+        bulk_energy_calculation=False,
         data_path='./data/vacuum',
         max_snapshots_per_window=80)
 
     fec_value = get_perturbed_free_energy_differences([fec])[0]
-    assert(np.isclose(fec_value.item(),1.6811, rtol=1e-4)) 
 
-
-    u_ln = fec.form_u_ln()
-    f_k = fec.compute_perturbed_free_energies(u_ln)
+    u_ln = fec._form_u_ln()
+    f_k = fec._compute_perturbed_free_energies(u_ln)
     print(f_k)
 
 
@@ -1429,7 +1428,8 @@ def test_max_nr_of_snapshots():
             data_path=f"./data/{env}",
             env=env,
             bulk_energy_calculation=True,
-            max_snapshots_per_window=100)
+            max_snapshots_per_window=nr_of_snapshots)
+
 
 
 def test_validate():
@@ -1496,7 +1496,6 @@ def test_validate_droplet():
 
     print(rmse_list)
     for e1, e2 in zip(rmse_list  , [0.2889864338136634, 13.469154493717424, 7.909838568006453]):
-        
         assert(np.isclose(e1, e2))
 
 
@@ -1574,10 +1573,11 @@ def test_postprocessing_vacuum():
 
             assert(len(fec_list) == 3)
             rmse = torch.sqrt(torch.mean((get_perturbed_free_energy_differences(fec_list) - get_experimental_values(names))**2))
-
             for fec, e2 in zip(fec_list, [-1.6810929923704085, -4.188073638773016, 4.204731217059692]):
                 assert(np.isclose(fec.end_state_free_energy_difference[0], e2))        
             assert (np.isclose(rmse.item(), 5.819105731540382))
+        
+        
         elif idx == 1:
             fec_list = [setup_mbar(
                 name,
@@ -1713,7 +1713,37 @@ def test_tweak_parameters_and_class_nn():
     assert (original_parameters_model1 == original_parameters_model2)
 
 
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
+def test_tweak_parameters_sequentially():
+    from ..parameter_gradients import _tweak_parameters, _get_nn_layers
+    import os
+    from ..ani import AlchemicalANI1ccx
 
+    names = ['molDWRow_298']
+    max_epochs = 1
+    elements = 'CHON'
+    nr_of_nn = 8
+    env = 'vacuum'
+    
+    # to initiallize class model
+    m = AlchemicalANI1ccx([0,0])
+
+    AdamW, AdamW_scheduler, SGD, SGD_scheduler = _get_nn_layers(nr_of_nn=nr_of_nn, ANImodel=AlchemicalANI1ccx, elements=elements)
+
+    _tweak_parameters(
+        ANImodel=AlchemicalANI1ccx,
+        names_training=names,
+        AdamW=AdamW,
+        SGD=SGD,
+        env=env,
+        bulk_energy_calculation=False,
+        diameter=-1,
+        batch_size=1,
+        data_path='./data/vacuum',
+        max_snapshots_per_window=100
+    )
 
 
 
@@ -1723,7 +1753,7 @@ def test_tweak_parameters_and_class_nn():
     os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
 )
 def test_tweak_parameters():
-    from ..parameter_gradients import tweak_parameters
+    from ..parameter_gradients import tweak_parameters_with_split
     import os
     from ..ani import AlchemicalANI1ccx, AlchemicalANI1x, AlchemicalANI2x
 
@@ -1732,22 +1762,26 @@ def test_tweak_parameters():
     for idx, (model, model_name) in enumerate(zip(
         [AlchemicalANI1ccx, AlchemicalANI2x, AlchemicalANI1x],
         ['AlchemicalANI1ccx', 'AlchemicalANI2x', 'AlchemicalANI1x'])):
-        rmse_training, rmse_val, rmse_test = tweak_parameters(
+
+        
+        rmse_training, rmse_val, rmse_test = tweak_parameters_with_split(
         env='vacuum',
         checkpoint_filename= f"{model_name}_vacuum.pt",
         names=names,
         ANImodel=model,
         batch_size=3,
         data_path='./data/vacuum',
+        max_snapshots_per_window=50,
         nr_of_nn=8,
+        bulk_energy_calculation=True,
         max_epochs=max_epochs)
 
         if idx == 0:
             print(rmse_val)
             try:
                 assert (np.isclose(rmse_val[-1], rmse_test))
-                assert (np.isclose(rmse_val[0],  5.2791108646881595))
-                assert (np.isclose(rmse_val[-1], 2.09078049659729))
+                assert (np.isclose(rmse_val[0],  5.3938140869140625))
+                assert (np.isclose(rmse_val[-1], 2.098975658416748))
             finally:
                 _remove_files(model_name+'_vacuum', max_epochs)
 
@@ -1756,8 +1790,8 @@ def test_tweak_parameters():
             try:
 
                 assert(np.isclose(rmse_val[-1], rmse_test))
-                assert (np.isclose(rmse_val[0],  6.1999655423957245))
-                assert (np.isclose(rmse_val[-1], 4.347472667694092))
+                assert (np.isclose(rmse_val[0],  5.187891006469727))
+                assert (np.isclose(rmse_val[-1], 2.672308921813965))
             finally:
                 _remove_files(model_name+'_vacuum', max_epochs)
 
@@ -1765,8 +1799,8 @@ def test_tweak_parameters():
             print(rmse_val)
             try:
                 assert(np.isclose(rmse_val[-1], rmse_test))
-                assert (np.isclose(rmse_val[0],  5.753421084877726))
-                assert (np.isclose(rmse_val[-1], 1.6856083869934082))
+                assert (np.isclose(rmse_val[0],  4.582426071166992))
+                assert (np.isclose(rmse_val[-1], 2.2336010932922363))
             finally:
                 _remove_files(model_name+'_vacuum', max_epochs)
 
