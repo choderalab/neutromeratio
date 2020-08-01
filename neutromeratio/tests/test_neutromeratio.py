@@ -798,7 +798,7 @@ def test_thermochemistry():
             energy_function.get_thermo_correction(x0) # x has [1][K][3] dimenstion -- N: number of mols, K: number of atoms
 
 
-def test_euqilibrium():
+def test_equilibrium():
     # test the langevin dynamics with different neural net potentials 
     from ..analysis import setup_alchemical_system_and_energy_function
     from ..equilibrium import LangevinDynamics
@@ -1159,7 +1159,7 @@ def test_generating_droplet():
     os.environ.get("TRAVIS", None) == "true", reason="Psi4 import fails on travis."
 )
 def test_psi4():
-    from neutromeratio import qm
+    from neutromeratio import qmpsi4
     exp_results = pickle.load(open('data/exp_results.pickle', 'rb'))
 
     name = 'molDWRow_298'
@@ -1177,6 +1177,80 @@ def test_psi4():
     psi4_mol = qm.mol2psi4(mol, 1)
     qm.optimize(psi4_mol)
 
+
+def test_orca_input_generation():
+    from neutromeratio import qmorca
+    name = 'molDWRow_298'
+   
+    
+    exp_results = pickle.load(open('data/exp_results.pickle', 'rb'))
+    t1_smiles = exp_results[name]['t1-smiles']
+    t2_smiles = exp_results[name]['t2-smiles']
+
+    qm_results = pickle.load(open('data/results/qm_results.pickle', 'rb'))
+    mol = qm_results[name][t1_smiles]['vac'][0]
+    orca_input = qmorca.generate_orca_script_for_solvation_free_energy(mol, 0)
+    print(orca_input)
+
+
+def test_running_orca():
+    from neutromeratio import qmorca
+    name = 'molDWRow_298'
+   
+    
+    exp_results = pickle.load(open('data/exp_results.pickle', 'rb'))
+    t1_smiles = exp_results[name]['t1-smiles']
+    t2_smiles = exp_results[name]['t2-smiles']
+
+    qm_results = pickle.load(open('data/results/qm_results.pickle', 'rb'))
+    mol = qm_results[name][t1_smiles]['vac'][0]
+    orca_input = qmorca.generate_orca_script_for_solvation_free_energy(mol, 0)
+    f = open('tmp.inp', 'w+')
+    f.write(orca_input)
+    f.close()
+    out = qmorca.run_orca('tmp.inp')
+
+
+def test_solvate_orca():
+    from neutromeratio import qmorca
+    import re
+    from simtk import unit
+    from ..constants import hartree_to_kJ_mol
+    name = 'molDWRow_298'
+    
+    exp_results = pickle.load(open('data/exp_results.pickle', 'rb'))
+    t1_smiles = exp_results[name]['t1-smiles']
+    t2_smiles = exp_results[name]['t2-smiles']
+
+    qm_results = pickle.load(open('data/results/qm_results.pickle', 'rb'))
+    mol = qm_results[name][t1_smiles]['vac'][0]
+    orca_input = qmorca.generate_orca_script_for_solvation_free_energy(mol, 0)
+    f = open('tmp.inp', 'w+')
+    f.write(orca_input)
+    f.close()
+    rc, output, err = qmorca.run_orca('tmp.inp')
+    
+    output_str = output.decode('UTF-8')
+
+    try:
+        #Total Energy after SMD CDS correction : 
+        found = re.search('Total Energy after SMD CDS correction =\s*([-+]?\d*\.\d+|\d+)\s*Eh', output_str).group(1)
+    except AttributeError:
+        found = '' # apply your error handling
+
+    if not found:
+        print(found)
+        print(output_str)
+        raise RuntimeError('Something not working. Aborting')
+    
+    
+    print(found)
+    print(output_str)
+    raise RuntimeError('Something not working. Aborting')
+
+    E_in_solvent = (float(found) * hartree_to_kJ_mol) * unit.kilojoule_per_mole
+    print(E_in_solvent)
+    assert(E_in_solvent == -907364.6683318849 * unit.kilojoule_per_mole)
 
 def test_io_checkpoints():
     from ..parameter_gradients import _save_checkpoint, _load_checkpoint, _get_nn_layers

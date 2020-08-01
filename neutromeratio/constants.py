@@ -28,6 +28,7 @@ force_unit = unit.kilojoule_per_mole / unit.nanometer
 # ANI-1 units and conversion factors
 ani_distance_unit = unit.angstrom
 hartree_to_kJ_mol = 2625.499638
+hartree_to_kcal_mol = 627.50946900
 ani_energy_unit = hartree_to_kJ_mol * unit.kilojoule_per_mole  # simtk.unit doesn't have hartree?
 kJ_mol_to_kT = (1. * unit.kilojoule_per_mole)/kT # 0.40090737504650614
 kT_to_kJ_mol = (1./ kJ_mol_to_kT) #1/0.40090737504650614

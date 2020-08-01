@@ -489,8 +489,7 @@ def _perform_training(ANImodel: ANI,
     return rmse_training, rmse_validation
 
 
-def _tweak_parameters(
-                        names_training: list,
+def _tweak_parameters(  names_training: list,
                         ANImodel: ANI,
                         AdamW,
                         SGD,
@@ -499,7 +498,41 @@ def _tweak_parameters(
                         bulk_energy_calculation:bool,
                         batch_size: int ,
                         data_path: str ,
-                        max_snapshots_per_window:int):
+                        max_snapshots_per_window: int):
+    """
+    _tweak_parameters 
+
+    Parameters
+    ----------
+    names_training : list
+        names used for training
+    ANImodel : ANI
+        the ANI class used for energy calculation
+    AdamW : 
+        AdamW instance
+    SGD : [type]
+        SGD instance
+    env : str
+        either 'droplet' or vacuum
+    diameter : int
+        diameter of droplet or -1
+    bulk_energy_calculation : bool
+        controls if the energy calculation should be performed in bluk (parallel) or sequential
+    batch_size : int
+        the number of molecules used to calculate the loss
+    data_path : str
+        the location where the trajectories are saved
+    max_snapshots_per_window : int
+        the number of snapshots per lambda state to consider
+
+    Returns
+    -------
+    [type]
+        [description]
+    """                        
+
+
+    
     # iterate over batches of molecules
     it = tqdm(chunks(names_training, batch_size))
     calc_free_energy_difference_batches = []
