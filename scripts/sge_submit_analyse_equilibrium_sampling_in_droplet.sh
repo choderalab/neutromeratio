@@ -9,7 +9,8 @@
 idx=${1} 
 hostname
 env='droplet'
-base_path="/data/shared/projects/neutromeratio/data/equilibrium_sampling/"
+diameter=18
+base_path="/data/shared/projects/neutromeratio/data/equilibrium_sampling/waterbox-${diameter}A-V2/${name}"
 
 echo 'Idx: '${idx}
 echo 'Base path: '${base_path}

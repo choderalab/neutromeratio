@@ -13,6 +13,10 @@ elements = sys.argv[3]
 data_path = sys.argv[4]
 model_name = str(sys.argv[5])
 
+max_snapshots_per_window=200
+print(f'Max nr of snapshots: {max_snapshots_per_window}')
+
+
 if model_name == 'ANI2x':
     model = neutromeratio.ani.AlchemicalANI2x
     print(f'Using {model_name}.')
@@ -31,11 +35,12 @@ names_validating = [names[i] for i in split[fold][1]]
 assert((len(names_training) + len(names_validating)) == len(names))
 assert (11 > fold >= 0)
 
-for n in ['molDWRow_1636', 'molDWRow_1250', 'molDWRow_1228']:
-    if n in names_training:
-        names_training.remove(n)
-    if n in names_validating:
-        names_validating.remove(n)
+if env == 'droplet':
+    for n in ['molDWRow_1636', 'molDWRow_1250', 'molDWRow_1228']:
+        if n in names_training:
+            names_training.remove(n)
+        if n in names_validating:
+            names_validating.remove(n)
 
 torch.set_num_threads(4)
 max_epochs = 0
@@ -48,7 +53,7 @@ for _ in range(5):
         names_validating = names_validating,
         ANImodel=model,
         batch_size=1,
-        max_snapshots_per_window=100,
+        max_snapshots_per_window=max_snapshots_per_window,
         checkpoint_filename= f"parameters_{model_name}_fold_{fold}_{env}.pt",
         data_path=data_path,
         nr_of_nn=8,
