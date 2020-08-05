@@ -888,18 +888,19 @@ def test_memory_issue():
     from ..ani import AlchemicalANI2x, ANI1ccx
     from glob import glob
     from ..constants import device
-
     import torchani
+
+    # either use neutromeratio ANI object
     nn = ANI1ccx(periodic_table_index=True).to(device)
+    # or torchani ANI object
     nn = torchani.models.ANI1ccx(periodic_table_index=True).to(device)
    
+    # read in trajs
     name = 'molDWRow_298'
     data_path = 'data/droplet/'
     max_snapshots_per_window = 100
-    
     dcds = glob(f"{data_path}/{name}/*.dcd")
 
-    lambdas = []
     md_trajs = []
     energies = []
 
@@ -915,26 +916,22 @@ def test_memory_issue():
         coordinates = [sample / unit.angstrom for sample in snapshots] * unit.angstrom
         md_trajs.append(coordinates)
 
+    # generate species
     for a in traj.topology.atoms:
         species.append(a.element.symbol)
 
     element_index = { 'C' : 6, 'N' : 7, 'O' : 8, 'H' : 1}
     species = [element_index[e] for e in species]
+    
+    # calcualte energies
     for traj in md_trajs:
         
         coordinates = torch.tensor(traj.value_in_unit(unit.nanometer),
                                 requires_grad=True, device=device, dtype=torch.float32)
 
         species_tensor = torch.tensor([species] * len(coordinates), device=device)
-
-        print(species_tensor.size())
-        print(coordinates.size())
-
         energy = nn((species_tensor, coordinates)).energies
-
         energies.append(energy)
-        print(energies)
-        print('finished')
 
 def test_setup_mbar():
     # test the setup mbar function with different models, environments and potentials
