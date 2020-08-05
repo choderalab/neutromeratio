@@ -882,6 +882,60 @@ def test_setup_energy_function():
 
 
 
+def test_memory_issue():
+    # test the seupup of the energy function with different alchemical potentials
+    from ..analysis import setup_alchemical_system_and_energy_function
+    from ..ani import AlchemicalANI2x, ANI1ccx
+    from glob import glob
+    from ..constants import device
+
+    import torchani
+    nn = ANI1ccx(periodic_table_index=True).to(device)
+    nn = torchani.models.ANI1ccx(periodic_table_index=True).to(device)
+   
+    name = 'molDWRow_298'
+    data_path = 'data/droplet/'
+    max_snapshots_per_window = 100
+    
+    dcds = glob(f"{data_path}/{name}/*.dcd")
+
+    lambdas = []
+    md_trajs = []
+    energies = []
+
+    # read in all the frames from the trajectories
+    top = f"{data_path}/{name}/{name}_in_droplet.pdb"
+
+    species = []
+    for dcd_filename in dcds:
+        traj = md.load_dcd(dcd_filename, top=top)
+        snapshots = traj.xyz * unit.nanometer
+        further_thinning = max(int(len(snapshots) / max_snapshots_per_window), 1)
+        snapshots = snapshots[::further_thinning][:max_snapshots_per_window]
+        coordinates = [sample / unit.angstrom for sample in snapshots] * unit.angstrom
+        md_trajs.append(coordinates)
+
+    for a in traj.topology.atoms:
+        species.append(a.element.symbol)
+
+    element_index = { 'C' : 6, 'N' : 7, 'O' : 8, 'H' : 1}
+    species = [element_index[e] for e in species]
+    for traj in md_trajs:
+        
+        coordinates = torch.tensor(traj.value_in_unit(unit.nanometer),
+                                requires_grad=True, device=device, dtype=torch.float32)
+
+        species_tensor = torch.tensor([species] * len(coordinates), device=device)
+
+        print(species_tensor.size())
+        print(coordinates.size())
+
+        energy = nn((species_tensor, coordinates)).energies
+
+        energies.append(energy)
+        print(energies)
+        print('finished')
+
 def test_setup_mbar():
     # test the setup mbar function with different models, environments and potentials
     from ..parameter_gradients import setup_mbar
@@ -1177,7 +1231,6 @@ def test_psi4():
     psi4_mol = qm.mol2psi4(mol, 1)
     qm.optimize(psi4_mol)
 
-
 def test_orca_input_generation():
     from neutromeratio import qmorca
     name = 'molDWRow_298'
@@ -1192,7 +1245,9 @@ def test_orca_input_generation():
     orca_input = qmorca.generate_orca_script_for_solvation_free_energy(mol, 0)
     print(orca_input)
 
-
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Orca not installed."
+)
 def test_running_orca():
     from neutromeratio import qmorca
     name = 'molDWRow_298'
@@ -1246,7 +1301,6 @@ def test_solvate_orca():
     
     print(found)
     print(output_str)
-    raise RuntimeError('Something not working. Aborting')
 
     E_in_solvent = (float(found) * hartree_to_kJ_mol) * unit.kilojoule_per_mole
     print(E_in_solvent)
@@ -1495,7 +1549,7 @@ def test_max_nr_of_snapshots():
     
     model = AlchemicalANI1ccx
 
-    for nr_of_snapshots in [80,120,150]:
+    for nr_of_snapshots in [20, 80,120,150]:
         rmse = validate(
             names,
             model = model,
@@ -1503,6 +1557,8 @@ def test_max_nr_of_snapshots():
             env=env,
             bulk_energy_calculation=True,
             max_snapshots_per_window=nr_of_snapshots)
+         
+        
 
 
 
