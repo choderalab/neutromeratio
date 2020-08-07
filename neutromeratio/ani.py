@@ -772,7 +772,11 @@ class ANI1_force_and_energy(object):
         self.memory_of_restrain_contribution.append(force_energy.restraint_energy_contribution)
         return (force_energy.energy.value_in_unit(unit.kilojoule_per_mole), F_flat)
 
-    def calculate_energy(self, coordinate_list:unit.Quantity, lambda_value: float = 0.0, original_neural_network:bool=True):
+    def calculate_energy(self, 
+                         coordinate_list:unit.Quantity, 
+                         lambda_value: float = 0.0, 
+                         original_neural_network:bool=True, 
+                         requires_grad:bool=True):
         """
         Given a coordinate set (x) the energy is calculated in kJ/mol.
 
@@ -792,7 +796,7 @@ class ANI1_force_and_energy(object):
         logger.debug(f'Batch-size: {len(coordinate_list)}')
         
         coordinates = torch.tensor(coordinate_list.value_in_unit(unit.nanometer),
-                                   requires_grad=True, device=self.device, dtype=torch.float32)
+                                   requires_grad=requires_grad, device=self.device, dtype=torch.float32)
 
         logger.debug(f"coordinates tensor: {coordinates.size()}")
         energy_in_kT, restraint_energy_contribution = self._calculate_energy(

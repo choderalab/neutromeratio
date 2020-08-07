@@ -898,7 +898,7 @@ def test_memory_issue():
     # read in trajs
     name = 'molDWRow_298'
     data_path = 'data/droplet/'
-    max_snapshots_per_window = 100
+    max_snapshots_per_window = 10
     dcds = glob(f"{data_path}/{name}/*.dcd")
 
     md_trajs = []
@@ -925,13 +925,39 @@ def test_memory_issue():
     
     # calcualte energies
     for traj in md_trajs:
-        
-        coordinates = torch.tensor(traj.value_in_unit(unit.nanometer),
-                                requires_grad=True, device=device, dtype=torch.float32)
+        for xyz in traj:
+            coordinates = torch.tensor([xyz.value_in_unit(unit.nanometer)],
+                                requires_grad=False, device=device, dtype=torch.float32)
 
-        species_tensor = torch.tensor([species] * len(coordinates), device=device)
-        energy = nn((species_tensor, coordinates)).energies
+            species_tensor = torch.tensor([species] * len(coordinates), device=device, requires_grad=False)
+            energy = nn((species_tensor, coordinates)).energies
+            print(energy)
         energies.append(energy)
+
+
+def calculate_single_energy():
+    import torch
+    import torchani
+
+    torch.set_num_threads(1)
+    n_snapshots, n_atoms = 1, 50
+
+    device = torch.device('cpu')
+    model = torchani.models.ANI1ccx(periodic_table_index=True).to(device)
+
+    element_index = {'C': 6, 'N': 7, 'O': 8, 'H': 1}
+    species = [element_index[e] for e in 'CH' * n_atoms][:n_atoms]
+    species_tensor = torch.tensor([species] * n_snapshots, device=device)
+
+
+    # condition 1: computing n_snapshots energies
+    print('computing once')
+    coordinates = torch.tensor(torch.randn((n_snapshots, n_atoms, 3)),
+                               requires_grad=True, device=device, dtype=torch.float32)
+    energy = model((species_tensor, coordinates)).energies
+
+    print(energy)
+
 
 def test_setup_mbar():
     # test the setup mbar function with different models, environments and potentials
@@ -1694,15 +1720,16 @@ def test_postprocessing_vacuum():
                 ANImodel=model,
                 env=env,
                 data_path='./data/vacuum',
-                thinning=50,
+                bulk_energy_calculation=True,
                 max_snapshots_per_window=80) for name in names
                 ]
 
             assert(len(fec_list) == 3)
             rmse = torch.sqrt(torch.mean((get_perturbed_free_energy_differences(fec_list) - get_experimental_values(names))**2))
-            for fec, e2 in zip(fec_list, [-1.6810929923704085, -4.188073638773016, 4.204731217059692]):
+            print([e.end_state_free_energy_difference[0] for e in fec_list])
+            for fec, e2 in zip(fec_list, [-1.2104192392489894, -5.31605397264069, 4.055934972298076]):
                 assert(np.isclose(fec.end_state_free_energy_difference[0], e2))        
-            assert (np.isclose(rmse.item(), 5.819105731540382))
+            assert (np.isclose(rmse.item(), 5.393606768321977))
         
         
         elif idx == 1:
@@ -1711,29 +1738,32 @@ def test_postprocessing_vacuum():
                 ANImodel=model,
                 env=env,
                 data_path='./data/vacuum',
-                thinning=50,
+                bulk_energy_calculation=True,
                 max_snapshots_per_window=80) for name in names
                 ]
 
             assert(len(fec_list) == 3)
             rmse = torch.sqrt(torch.mean((get_perturbed_free_energy_differences(fec_list) - get_experimental_values(names))**2))
-            for fec, e2 in zip(fec_list, [-10.66262771398729, -8.686569970980049, 0.7953468826010761]):
+            print([e.end_state_free_energy_difference[0] for e in fec_list])
+            for fec, e2 in zip(fec_list, [-10.201508376053313, -9.919852168528479, 0.6758425107641388]):
                 assert(np.isclose(fec.end_state_free_energy_difference[0], e2))        
-            assert (np.isclose(rmse.item(), 5.797587743882695))
+            assert (np.isclose(rmse.item(), 5.464364003709803))
+
         elif idx == 2:           
             fec_list = [setup_mbar(
                 name,
                 ANImodel=model,
                 env=env,
                 data_path='./data/vacuum',
-                thinning=50,
-                max_snapshots_per_window=20) for name in names
+                bulk_energy_calculation=True,
+                max_snapshots_per_window=50) for name in names
                 ]
             assert(len(fec_list) == 3)
             rmse = torch.sqrt(torch.mean((get_perturbed_free_energy_differences(fec_list) - get_experimental_values(names))**2))
-            for fec, e2 in zip(fec_list, [-9.315819213339221, -8.6642235039061, 1.9593356145740617]):
+            print([e.end_state_free_energy_difference[0] for e in fec_list])
+            for fec, e2 in zip(fec_list, [-7.6805827500672805, -9.655550628208003, 2.996804928927007]):
                 assert(np.isclose(fec.end_state_free_energy_difference[0], e2))        
-            assert (np.isclose(rmse.item(), 5.516720914206936))
+            assert (np.isclose(rmse.item(), 5.1878913627689895))
 
 
 @pytest.mark.skipif(
@@ -1752,27 +1782,29 @@ def test_postprocessing_droplet():
         exp_results = pickle.load(open('data/exp_results.pickle', 'rb'))
         names = ['molDWRow_298']
         diameter = 18
+        
         fec_list = [
             setup_mbar(
                 name,
-                env=env,
                 ANImodel=model,
-                diameter=diameter,
+                env=env,
+                diameter=18,
+                bulk_energy_calculation=False,
                 data_path='./data/droplet',
-                max_snapshots_per_window=5) for name in names
+                max_snapshots_per_window=20) for name in names
                 ]
 
         if idx == 0:
             assert(len(fec_list) == 1)
             rmse = torch.sqrt(torch.mean((get_perturbed_free_energy_differences(fec_list) - get_experimental_values(names))**2))
 
-            assert(np.isclose(fec_list[0].end_state_free_energy_difference[0].item(), -2.9846038540980344))
-            assert(np.isclose(rmse.item(),  1.0851721047376792))
+            assert(np.isclose(fec_list[0].end_state_free_energy_difference[0].item(), -4.987183082930629))
+            assert(np.isclose(rmse.item(),  5.992548148031282))
         
         elif idx == 1:
             assert(len(fec_list) == 1)
             rmse = torch.sqrt(torch.mean((get_perturbed_free_energy_differences(fec_list) - get_experimental_values(names))**2))
-            assert(np.isclose(fec_list[0].end_state_free_energy_difference[0].item(), -11.757199182855562))
+            assert(np.isclose(fec_list[0].end_state_free_energy_difference[0].item(), -13.765576744789922))
             assert(np.isclose(rmse.item(),  9.8578))
 
 def _remove_files(name, max_epochs=1):
@@ -1840,40 +1872,6 @@ def test_tweak_parameters_and_class_nn():
     assert (original_parameters_model1 == original_parameters_model2)
 
 
-@pytest.mark.skipif(
-    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
-)
-def test_tweak_parameters_sequentially():
-    from ..parameter_gradients import _tweak_parameters, _get_nn_layers
-    import os
-    from ..ani import AlchemicalANI1ccx
-
-    names = ['molDWRow_298']
-    max_epochs = 1
-    elements = 'CHON'
-    nr_of_nn = 8
-    env = 'vacuum'
-    
-    # to initiallize class model
-    m = AlchemicalANI1ccx([0,0])
-
-    AdamW, AdamW_scheduler, SGD, SGD_scheduler = _get_nn_layers(nr_of_nn=nr_of_nn, ANImodel=AlchemicalANI1ccx, elements=elements)
-
-    _tweak_parameters(
-        ANImodel=AlchemicalANI1ccx,
-        names_training=names,
-        AdamW=AdamW,
-        SGD=SGD,
-        env=env,
-        bulk_energy_calculation=False,
-        diameter=-1,
-        batch_size=1,
-        data_path='./data/vacuum',
-        max_snapshots_per_window=100
-    )
-
-
-
 
 
 @pytest.mark.skipif(
@@ -1937,7 +1935,7 @@ def test_tweak_parameters():
     os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
 )
 def test_tweak_parameters_droplet():
-    from ..parameter_gradients import tweak_parameters
+    from ..parameter_gradients import setup_and_perform_parameter_retraining
     import os
     from ..ani import AlchemicalANI1ccx, AlchemicalANI1x, AlchemicalANI2x
 
@@ -1948,7 +1946,7 @@ def test_tweak_parameters_droplet():
     for idx, (model, model_name) in enumerate(zip(
         [AlchemicalANI1ccx, AlchemicalANI2x, AlchemicalANI1x],
         ['AlchemicalANI1ccx', 'AlchemicalANI2x', 'AlchemicalANI1x'])):
-        rmse_training, rmse_val, rmse_test = tweak_parameters(
+        rmse_training, rmse_val = setup_and_perform_parameter_retraining(
         env=env,
         names=names,
         ANImodel=model,
