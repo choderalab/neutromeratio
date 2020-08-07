@@ -36,18 +36,24 @@ assert((len(names_training) + len(names_validating)) == len(names))
 assert (11 > fold >= 0)
 
 if env == 'droplet':
+    bulk_energy_calculation = False
+    torch.set_num_threads(4)
+
     for n in ['molDWRow_1636', 'molDWRow_1250', 'molDWRow_1228']:
         if n in names_training:
             names_training.remove(n)
         if n in names_validating:
             names_validating.remove(n)
 
-torch.set_num_threads(4)
+else:
+    torch.set_num_threads(1)
+    bulk_energy_calculation = True
+
 max_epochs = 0
 for _ in range(5):
     max_epochs += 10
 
-    rmse_training, rmse_validation = neutromeratio.parameter_gradients.tweak_parameters_for_list(
+    rmse_training, rmse_validation = neutromeratio.parameter_gradients.setup_and_perform_parameter_retraining(
         env=env,
         names_training = names_training,
         names_validating = names_validating,
@@ -57,6 +63,7 @@ for _ in range(5):
         checkpoint_filename= f"parameters_{model_name}_fold_{fold}_{env}.pt",
         data_path=data_path,
         nr_of_nn=8,
+        bulk_energy_calculation=bulk_energy_calculation,
         elements=elements,
         max_epochs=max_epochs,
         diameter=18)
