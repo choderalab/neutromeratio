@@ -96,17 +96,29 @@ class FreeEnergyCalculator():
 
         # end-point energies
         if bulk_energy_calculation:
-            lambda0_e = self.ani_model.calculate_energy(coordinates, lambda_value=0., original_neural_network=True).energy      
-            lambda1_e = self.ani_model.calculate_energy(coordinates, lambda_value=1., original_neural_network=True).energy      
+            lambda0_e = self.ani_model.calculate_energy(coordinates, 
+                                                        lambda_value=0., 
+                                                        original_neural_network=True,
+                                                        requires_grad=False).energy      
+            lambda1_e = self.ani_model.calculate_energy(coordinates, 
+                                                        lambda_value=1., 
+                                                        original_neural_network=True,
+                                                        requires_grad=False).energy      
         else:
             lambda0_e = []
             lambda1_e = []
             for coord in coordinates:
                 # getting coord from [N][3] to [1][N][3]
                 coord = np.array([coord/unit.angstrom]) * unit.angstrom
-                e0 = self.ani_model.calculate_energy(coord, lambda_value=0., original_neural_network=True).energy
+                e0 = self.ani_model.calculate_energy(coord, 
+                                                     lambda_value=0., 
+                                                     original_neural_network=True,
+                                                     requires_grad=False).energy
                 lambda0_e.append(e0[0]/kT)
-                e1 = self.ani_model.calculate_energy(coord, lambda_value=1., original_neural_network=True).energy
+                e1 = self.ani_model.calculate_energy(coord, 
+                                                     lambda_value=1., 
+                                                     original_neural_network=True,
+                                                     requires_grad=False).energy
                 lambda1_e.append(e1[0]/kT)
             lambda0_e = np.array(lambda0_e) * kT
             lambda1_e = np.array(lambda1_e) * kT
@@ -167,10 +179,16 @@ class FreeEnergyCalculator():
         coordinates = self.coordinates
         
         #Note: Use class neural network here (that might or might not be modified)!
-        u_0 = self.ani_model.calculate_energy(coordinates, lambda_value=0., original_neural_network=False).energy_tensor      
+        u_0 = self.ani_model.calculate_energy(coordinates, 
+                                              lambda_value=0., 
+                                              original_neural_network=False,
+                                              requires_grad=False).energy_tensor      
 
         #Note: Use class neural network here (that might or might not be modified)!
-        u_1 = self.ani_model.calculate_energy(coordinates, lambda_value=1., original_neural_network=False).energy_tensor     
+        u_1 = self.ani_model.calculate_energy(coordinates, 
+                                              lambda_value=1., 
+                                              original_neural_network=False,
+                                              requires_grad=False).energy_tensor     
 
         u_ln = torch.stack([u_0, u_1])       
         return u_ln
@@ -268,7 +286,7 @@ def validate(names: list,
         
         e_calc.append(get_perturbed_free_energy_differences(fec_list)[0].item())
         e_exp.append(get_experimental_values([name])[0].item())
-        current_rmse = calculate_rmse(torch.tensor(e_calc), torch.tensor(e_exp)).item()
+        current_rmse = calculate_rmse(torch.tensor(e_calc, device=device), torch.tensor(e_exp, device=device)).item()
 
         it.set_description(f"RMSE: {current_rmse}")
 
@@ -276,7 +294,7 @@ def validate(names: list,
             logger.critical(f"RMSE above 50 with {current_rmse}: {name}")
             logger.critical(names)
             
-    return calculate_rmse(torch.tensor(e_calc), torch.tensor(e_exp)).item()
+    return calculate_rmse(torch.tensor(e_calc, device=device), torch.tensor(e_exp, device=device)).item()
 
 def calculate_mse(t1: torch.Tensor, t2: torch.Tensor):
     assert (t1.size() == t2.size())
@@ -452,7 +470,6 @@ def _perform_training(ANImodel: ANI,
         SGD_scheduler.step(rmse_validation[-1])
 
 
-        loss = torch.tensor(0.0)
         calc_free_energy_difference_batches, exp_free_energy_difference_batches = _tweak_parameters(
             names_training=names_training,
             ANImodel=ANImodel,
