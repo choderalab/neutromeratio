@@ -77,7 +77,7 @@ class ANI(torchani.models.BuiltinEnsemble):
         species_to_tensor = consts.species_to_tensor
         neural_networks = torchani.neurochem.load_model_ensemble(consts.species,
                                                         ensemble_prefix, ensemble_size)
-        return (species_converter, aev_computer, neural_networks,
+        return (species_converter, aev_computer, neural_networks.to(device),
                    energy_shifter, species_to_tensor, consts, sae_dict, periodic_table_index)
 
 
