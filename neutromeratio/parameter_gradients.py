@@ -62,6 +62,7 @@ class FreeEnergyCalculator():
             further_thinning = max(int(len(snapshots) / max_snapshots_per_window), 1)
             snapshots = snapshots[::further_thinning][:max_snapshots_per_window]
             ani_trajs[lam] = snapshots
+            logger.info(len(snapshots))
             
             
             # test that we have a lower number of snapshots than max_snapshots_per_window
@@ -71,10 +72,10 @@ class FreeEnergyCalculator():
             if max_snapshots_per_window != -1 and (len(snapshots) > max_snapshots_per_window):
                 raise RuntimeError(f'There are {len(snapshots)} snapshots per lambda state (max: {max_snapshots_per_window}). Aborting.')
 
-            # test that we have not less than 90% of max_snapshots_per_window
+            # test that we have not less than 80% of max_snapshots_per_window
             if max_snapshots_per_window != -1 and  len(snapshots) < (int(max_snapshots_per_window * 0.8)):
                 raise RuntimeError(f'There are only {len(snapshots)} snapshots per lambda state. Aborting.')
-            # test that we have not less than 90% of max_snapshots_per_window
+            # test that we have not less than 40 snapshots
             if len(snapshots) < 40:
                 logger.critical(f'There are only {len(snapshots)} snapshots per lambda state. Be careful.')
 
