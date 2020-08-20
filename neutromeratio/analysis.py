@@ -17,11 +17,11 @@ import torch
 from rdkit.Chem import rdFMCS
 import pkg_resources
 
-from .constants import kT, gas_constant, temperature, mols_with_charge, exclude_set_ANI, multiple_stereobonds, device
+from .constants import num_threads, kT, gas_constant, temperature, mols_with_charge, exclude_set_ANI, multiple_stereobonds, device
 from .tautomers import Tautomer
 from .parameter_gradients import FreeEnergyCalculator
 from .utils import generate_tautomer_class_stereobond_aware
-from .ani import LinearAlchemicalSingleTopologyANI, ANI1_force_and_energy
+from .ani import ANI1_force_and_energy, AlchemicalANI2x, AlchemicalANI1ccx, ANI, AlchemicalANI1x
 from glob import glob
 
 
@@ -113,8 +113,6 @@ def prune_conformers(mol: Chem.Mol, energies: list, rmsd_threshold: float) -> (C
     increasing energy.
     """
     from typing import List
-    print(mol)
-    print(energies)
     rmsd = get_conformer_rmsd(mol)
     sort = np.argsort([x.value_in_unit(unit.kilocalorie_per_mole)
                        for x in energies])  # sort by increasing energy
@@ -142,9 +140,9 @@ def prune_conformers(mol: Chem.Mol, energies: list, rmsd_threshold: float) -> (C
     new_mol.RemoveAllConformers()
     conf_ids = [conf.GetId() for conf in mol.GetConformers()]
     filtered_energies = []
-    print(f"keep: {keep}")
+    logger.debug(f"keep: {keep}")
     for i in keep:
-        print(i)
+        logger.debug(i)
         conf = mol.GetConformer(conf_ids[i])
         filtered_energies.append(energies[i])
         new_mol.AddConformer(conf, assignId=True)
@@ -256,8 +254,8 @@ def compare_confomer_generator_and_trajectory_minimum_structures(results_path: s
     mol.RemoveAllConformers()
 
     # generate energy function, use atom symbols of rdkti mol
-    from .ani import PureANI1ccx, ANI1_force_and_energy
-    model = PureANI1ccx()
+    from .ani import ANI1ccx, ANI1_force_and_energy
+    model = ANI1ccx()
     energy_function = ANI1_force_and_energy(model=model,
                                             atoms=[a.GetSymbol() for a in mol.GetAtoms()],
                                             mol=None)
@@ -363,41 +361,89 @@ def get_data_filename():
     return fn
 
 
-def setup_energy_function(name: str):
-
+def _get_exp_results():
     data = pkg_resources.resource_stream(__name__, "data/exp_results.pickle")
     exp_results = pickle.load(data)
+    return exp_results
 
+
+def setup_alchemical_system_and_energy_function(
+    name: str,
+    env: str,
+    ANImodel: ANI,
+    checkpoint_file: str = '',
+    base_path: str = None,
+    diameter:int=-1):
+    
+    import os
+    if not (issubclass(ANImodel, (AlchemicalANI2x, AlchemicalANI1ccx, AlchemicalANI1x))):
+        raise RuntimeError('Only Alchemical ANI objects allowed! Aborting.')
+
+    exp_results = _get_exp_results()
     t1_smiles = exp_results[name]['t1-smiles']
     t2_smiles = exp_results[name]['t2-smiles']
     
     #######################
-    logger.info(f"Experimental free energy difference: {exp_results[name]['energy']} kcal/mol")
+    logger.debug(f"Experimental free energy difference: {exp_results[name]['energy']} kcal/mol")
     #######################
     
     ####################
-    # Set up the system, set the restraints and read in the dcd files
+    # Set up the system, set the restraints
     t_type, tautomers, flipped = generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
     tautomer = tautomers[0]
     tautomer.perform_tautomer_transformation()
+    
+    # if base_path is defined write out the topology
+    if base_path:
+        base_path = os.path.abspath(base_path)
+        logger.debug(base_path)
+        if not os.path.exists(base_path):
+            os.makedirs(base_path)
 
-    atoms = tautomer.hybrid_atoms
+    if env == 'droplet':
+        if diameter == -1:
+            raise RuntimeError('Droplet is not specified. Aborting.')
+        # for droplet topology is written in every case
+        m = tautomer.add_droplet(tautomer.hybrid_topology, 
+                            tautomer.get_hybrid_coordinates(), 
+                            diameter=diameter * unit.angstrom,
+                            restrain_hydrogen_bonds=True,
+                            restrain_hydrogen_angles=False,
+                            top_file=f"{base_path}/{name}_in_droplet.pdb")
+    else:
+        if base_path:
+            # for vacuum only if base_path is defined
+            pdb_filepath = f"{base_path}/{name}.pdb"
+            try:
+                traj = md.load(pdb_filepath)
+            except OSError:
+                coordinates = tautomer.get_hybrid_coordinates()
+                traj = md.Trajectory(coordinates.value_in_unit(unit.nanometer), tautomer.hybrid_topology)
+                traj.save_pdb(pdb_filepath)
+            tautomer.set_hybrid_coordinates(traj.xyz[0] * unit.nanometer)
 
     # define the alchemical atoms
     alchemical_atoms = [tautomer.hybrid_hydrogen_idx_at_lambda_1, tautomer.hybrid_hydrogen_idx_at_lambda_0]
-    model = LinearAlchemicalSingleTopologyANI(alchemical_atoms=alchemical_atoms)
-    model = model.to(device)
-    torch.set_num_threads(1)
-    # extract hydrogen donor idx and hydrogen idx for from_mol
+       
+    model = ANImodel(alchemical_atoms=alchemical_atoms).to(device)
+    # if specified, load nn parameters
+    if checkpoint_file:
+        logger.debug('Loading nn parameters ...')
+        model.load_nn_parameters(checkpoint_file)
 
-    # perform initial sampling
-    energy_function = ANI1_force_and_energy(
-        model=model,
-        atoms=atoms,
-        mol=None,
-        per_atom_thresh=10.4 * unit.kilojoule_per_mole,
-        adventure_mode=True
-    )
+    # setup energy function
+    if env == 'vacuum':
+        energy_function = ANI1_force_and_energy(
+            model=model,
+            atoms=tautomer.hybrid_atoms,
+            mol=None,
+        )
+    else:
+        energy_function = ANI1_force_and_energy(
+            model=model,
+            atoms=tautomer.ligand_in_water_atoms,
+            mol=None,
+        )
 
     # add restraints
     for r in tautomer.ligand_restraints:
@@ -405,63 +451,13 @@ def setup_energy_function(name: str):
     for r in tautomer.hybrid_ligand_restraints:
         energy_function.add_restraint_to_lambda_protocol(r)
 
+    if env == 'droplet':
+        tautomer.add_COM_for_hybrid_ligand(np.array([diameter/2, diameter/2, diameter/2]) * unit.angstrom)
+        for r in tautomer.solvent_restraints:
+            energy_function.add_restraint_to_lambda_protocol(r)
+        for r in tautomer.com_restraints:
+            energy_function.add_restraint_to_lambda_protocol(r)
+
     return energy_function, tautomer, flipped
 
 
-def setup_mbar(name:str, data_path:str = "../data/", thinning:int = 50, max_snapshots_per_window:int = 200):
-    
-   
-    def parse_lambda_from_dcd_filename(dcd_filename):
-        """parsed the dcd filename
-
-        Arguments:
-            dcd_filename {str} -- how is the dcd file called?
-
-        Returns:
-            [float] -- lambda value
-        """
-        l = dcd_filename[:dcd_filename.find(f"_energy_in_vacuum")].split('_')
-        lam = l[-3]
-        return float(lam)
-    
-    data = pkg_resources.resource_stream(__name__, "data/exp_results.pickle")
-    exp_results = pickle.load(data)
-
-    if name in exclude_set_ANI + mols_with_charge + multiple_stereobonds:
-        raise RuntimeError(f"{name} is part of the list of excluded molecules. Aborting")
-
-    #######################
-    energy_function, tautomer, flipped = setup_energy_function(name)
-    # and lambda values in list
-    dcds = glob(f"{data_path}/{name}/*.dcd")
-
-    lambdas = []
-    md_trajs = []
-    energies = []
-
-    # read in all the frames from the trajectories
-    for dcd_filename in dcds:
-        lam = parse_lambda_from_dcd_filename(dcd_filename)
-        lambdas.append(lam)
-        traj = md.load_dcd(dcd_filename, top=tautomer.hybrid_topology)[::thinning]
-        logger.debug(f"Nr of frames in trajectory: {len(traj)}")
-        md_trajs.append(traj)
-        f = open(f"{data_path}/{name}/{name}_lambda_{lam:0.4f}_energy_in_vacuum.csv", 'r')
-        energies.append(np.array([float(e) * kT for e in f][::thinning])) 
-        f.close()
-
-    assert (len(lambdas) > 5)
-    assert(len(lambdas) == len(energies))
-    assert(len(lambdas) == len(md_trajs))
-
-    # calculate free energy in kT
-    fec = FreeEnergyCalculator(ani_model=energy_function,
-                                md_trajs=md_trajs,
-                                potential_energy_trajs=energies,
-                                lambdas=lambdas,
-                                n_atoms=len(tautomer.hybrid_atoms),
-                                max_snapshots_per_window=max_snapshots_per_window)
-
-    fec.flipped = flipped
-
-    return fec

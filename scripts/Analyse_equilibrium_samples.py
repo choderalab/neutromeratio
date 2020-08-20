@@ -1,46 +1,69 @@
-import operator
 import neutromeratio
-from openmmtools.constants import kB
 from simtk import unit
 import numpy as np
 import pickle
-import mdtraj as md
-import matplotlib.pyplot as plt
 import sys
 import torch
-from neutromeratio.parameter_gradients import FreeEnergyCalculator
-from neutromeratio.constants import kT, device, exclude_set_ANI, mols_with_charge
+from neutromeratio.parameter_gradients import FreeEnergyCalculator, setup_mbar
+from neutromeratio.constants import kT, device, exclude_set_ANI, mols_with_charge, _get_names
 from glob import glob
-
+from neutromeratio.ani import AlchemicalANI1ccx, AlchemicalANI2x
 #######################
 #######################
 # job idx
 idx = int(sys.argv[1])
 # where to write the results
 base_path = str(sys.argv[2])
+env = str(sys.argv[3])
+potential_name = str(sys.argv[4])
 #######################
 #######################
 # read in exp results, smiles and names
 exp_results = pickle.load(open('../data/exp_results.pickle', 'rb'))
 
 # name of the system
-protocoll = []
-for name in sorted(exp_results):
-    if name in exclude_set_ANI + mols_with_charge:
-        continue
-    protocoll.append(name)
+names = _get_names()
 
-name = protocoll[idx-1]
+name = names[idx-1]
 print(name)
-fec_list, model = neutromeratio.analysis.setup_mbar([name], base_path, 100)
+print(base_path)
+print(potential_name)
 
-fec = fec_list[0]
+if potential_name == 'ANI1ccx':
+    AlchemicalANI = AlchemicalANI1ccx
+elif potential_name == 'ANI2x':
+    AlchemicalANI = AlchemicalANI2x
+else:
+    raise RuntimeError('Potential needs to be either ANI1ccx or ANI2x')
+
+
+
+if env == 'droplet':
+    print('Env: droplet.')
+    fec = setup_mbar(name=name, 
+                    data_path=base_path,
+                    ANImodel=AlchemicalANI,
+                    bulk_energy_calculation=False,
+                    env='droplet',
+                    max_snapshots_per_window=300,
+                    diameter=18)
+elif env == 'vacuum':
+    print('Env: vacuum.')
+    fec = setup_mbar(name=name, 
+                    data_path=base_path,
+                    ANImodel=AlchemicalANI,
+                    bulk_energy_calculation=True,
+                    env='vacuum',
+                    max_snapshots_per_window=300
+    )
+else:
+    raise RuntimeError('No env specified. Aborting.')
 
 DeltaF_ji, dDeltaF_ji = fec.end_state_free_energy_difference
 if fec.flipped:
     DeltaF_ji *= -1
+print(DeltaF_ji)
 
-print(fec.end_state_free_energy_difference)
-f = open(f"{base_path}/results_in_kT.csv", 'a+')
+f = open(f"{base_path}/{potential_name}_{env}_rfe_results_in_kT_300snapshots.csv", 'a+')
 f.write(f"{name}, {DeltaF_ji}, {dDeltaF_ji}\n")
 f.close()

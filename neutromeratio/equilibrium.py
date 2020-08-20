@@ -93,8 +93,8 @@ class LangevinDynamics(object):
 
         v0 = np.random.randn(len(sigma_v), 3) * sigma_v[:, None]
         # convert initial state numpy arrays with correct attached units
-        x = np.array(x0.value_in_unit(distance_unit)) * distance_unit
-        v = np.array(v0.value_in_unit(speed_unit)) * speed_unit
+        x = np.array(x0.value_in_unit(distance_unit)) * distance_unit #x.shape =[N_atoms][3]
+        v = np.array(v0.value_in_unit(speed_unit)) * speed_unit #v.shape = [N_atoms][3]
 
         # traj is accumulated as a list of arrays with attached units
         traj = [x]
@@ -104,15 +104,11 @@ class LangevinDynamics(object):
         b = np.sqrt(1 - np.exp(-2 * collision_rate * stepsize))
 
         # compute force on initial configuration
-        F, E, B, S, P = self.energy_and_force(x0)
+        F, E, R, = self.energy_and_force(x0)  # F.shape = [N_atoms][3]
         # energy is saved as a list
         energy = [E]
-        # restraint_bias is saved as a list
-        restraint_bias = [B]
-        # stddev is saved
-        stddev = [S]
-        # penerlty is saved
-        ensemble_bias = [P]
+        # contribution is saved as a list
+        restraint_contribution = [R]
 
         trange = range(n_steps)
         if progress_bar:
@@ -123,16 +119,14 @@ class LangevinDynamics(object):
             # v
             v += (stepsize * 0.5) * F / masses[:, None]
             # r
-            x += (stepsize * 0.5) * v
+            x[0] += (stepsize * 0.5) * v  # NOTE: x.shape = [1][n_atoms][3], but v.shape = [n_atoms][3]
             # o
             v = (a * v) + (b * sigma_v[:, None] * np.random.randn(*x.shape))
             # r
             x += (stepsize * 0.5) * v
-            F, E, B, S, P = self.energy_and_force(x)
+            F, E, R = self.energy_and_force(x)
             energy.append(E)
-            restraint_bias.append(B)
-            stddev.append(S)
-            ensemble_bias.append(P)
+            restraint_contribution.append(R)
 
             # v
             v += (stepsize * 0.5) * F / masses[:, None]
@@ -143,10 +137,11 @@ class LangevinDynamics(object):
                 trange.set_postfix({'|force|': norm_F})
             # check positions and forces are finite
             if (not np.isfinite(x).all()) or (not np.isfinite(norm_F)):
-                print("Numerical instability encountered!")
+                logger.critical("Numerical instability encountered!")
                 return traj, energy
             traj.append(x)
-        return traj, energy, restraint_bias, stddev, ensemble_bias
+
+        return traj, energy, restraint_contribution
 
 
 def use_precalculated_md_and_performe_mc(top: str,
