@@ -68,12 +68,15 @@ class ANI(torchani.models.BuiltinEnsemble):
         super().__init__(*self._from_neurochem_resources(nn_path, periodic_table_index))
 
     
-    def load_nn_parameters(self, checkpoint_path:str ):
-        if os.path.isfile(checkpoint_path):
-            checkpoint = torch.load(checkpoint_path)
-            self.tweaked_neural_network.load_state_dict(checkpoint['nn'])
+    def load_nn_parameters(self, parameter_path:str, extract_from_checkpoint:bool=False):
+        if os.path.isfile(parameter_path):
+            parameters = torch.load(parameter_path)
+            if extract_from_checkpoint:
+                self.tweaked_neural_network.load_state_dict(parameters['nn'])
+            else:
+                self.tweaked_neural_network.load_state_dict(parameters)
         else:
-            logger.info(f"Checkoint {checkpoint_path} does not exist.")
+            logger.info(f"Parameter file {parameters} does not exist.")
 
     
     def _from_neurochem_resources(self, info_file_path, periodic_table_index):
