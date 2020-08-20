@@ -371,6 +371,7 @@ def setup_alchemical_system_and_energy_function(
     name: str,
     env: str,
     ANImodel: ANI,
+    checkpoint_file: str = '',
     base_path: str = None,
     diameter:int=-1):
     
@@ -397,7 +398,7 @@ def setup_alchemical_system_and_energy_function(
         base_path = os.path.abspath(base_path)
         logger.debug(base_path)
         if not os.path.exists(base_path):
-            os.mkdir(base_path)
+            os.makedirs(base_path)
 
     if env == 'droplet':
         if diameter == -1:
@@ -423,8 +424,12 @@ def setup_alchemical_system_and_energy_function(
 
     # define the alchemical atoms
     alchemical_atoms = [tautomer.hybrid_hydrogen_idx_at_lambda_1, tautomer.hybrid_hydrogen_idx_at_lambda_0]
-    
+       
     model = ANImodel(alchemical_atoms=alchemical_atoms).to(device)
+    # if specified, load nn parameters
+    if checkpoint_file:
+        logger.debug('Loading nn parameters ...')
+        model.load_nn_parameters(checkpoint_file)
 
     # setup energy function
     if env == 'vacuum':

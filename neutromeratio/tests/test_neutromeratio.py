@@ -1338,13 +1338,14 @@ def test_io_checkpoints():
         [AlchemicalANI1ccx, AlchemicalANI2x, AlchemicalANI1x],
         ['AlchemicalANI1ccx', 'AlchemicalANI2x', 'AlchemicalANI1x'])):
         # set tweaked parameters
-        model = model([0,0])
-        AdamW, AdamW_scheduler, SGD, SGD_scheduler = _get_nn_layers(6, 8, model)
+        print(model_name)
+        model_instance = model([0,0])
+        AdamW, AdamW_scheduler, SGD, SGD_scheduler = _get_nn_layers(8, model_instance)
         # initial parameters
         params1 = list(model.tweaked_neural_network.parameters())[6][0].tolist()
-        _load_checkpoint(f'data/{model_name}_3.pt', model, AdamW, AdamW_scheduler, SGD, SGD_scheduler)
+        _load_checkpoint(f'data/{model_name}_3.pt', model_instance, AdamW, AdamW_scheduler, SGD, SGD_scheduler)
         # load parameters
-        params2 = list(model.tweaked_neural_network.parameters())[6][0].tolist()
+        params2 = list(model_instance.tweaked_neural_network.parameters())[6][0].tolist()
         # make sure somehting happend
         assert (params1 != params2)
         # test that new instances have the new parameters
@@ -1352,6 +1353,31 @@ def test_io_checkpoints():
         params3 = list(m.tweaked_neural_network.parameters())[6][0].tolist()
         assert (params2 == params3)
 
+
+def test_load_parameters():
+    from ..parameter_gradients import _save_checkpoint, _load_checkpoint, _get_nn_layers
+    from ..ani import AlchemicalANI1ccx, AlchemicalANI1x, AlchemicalANI2x
+    
+    # specify the system you want to simulate
+    for idx, (model, model_name) in enumerate(zip(
+        [AlchemicalANI1ccx, AlchemicalANI2x, AlchemicalANI1x],
+        ['AlchemicalANI1ccx', 'AlchemicalANI2x', 'AlchemicalANI1x'])):
+        # set tweaked parameters
+        print(model_name)
+        model_instance = model([0,0])
+        # initial parameters
+        params1 = list(model_instance.original_neural_network.parameters())[6][0].tolist()
+        params2 = list(model_instance.tweaked_neural_network.parameters())[6][0].tolist()
+        assert (params1 == params2)
+        # make sure somehting happend
+        model_instance.load_nn_parameters(f'data/{model_name}_3.pt')
+        params1 = list(model_instance.original_neural_network.parameters())[6][0].tolist()
+        params2 = list(model_instance.tweaked_neural_network.parameters())[6][0].tolist()
+        assert (params1 != params2)
+        # test that new instances have the new parameters
+        m = model([0,0])
+        params3 = list(m.tweaked_neural_network.parameters())[6][0].tolist()
+        assert (params2 == params3)
 
 
 def test_parameter_gradient():
