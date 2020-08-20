@@ -68,6 +68,14 @@ class ANI(torchani.models.BuiltinEnsemble):
         super().__init__(*self._from_neurochem_resources(nn_path, periodic_table_index))
 
     
+    def load_nn_parameters(self, checkpoint_path:str ):
+        if os.path.isfile(checkpoint_path):
+            checkpoint = torch.load(checkpoint_path)
+            self.tweaked_neural_network.load_state_dict(checkpoint['nn'])
+        else:
+            logger.info(f"Checkoint {checkpoint_path} does not exist.")
+
+    
     def _from_neurochem_resources(self, info_file_path, periodic_table_index):
         consts, sae_file, ensemble_prefix, ensemble_size = self._parse_neurochem_resources(info_file_path)
 
@@ -80,21 +88,6 @@ class ANI(torchani.models.BuiltinEnsemble):
         return (species_converter, aev_computer, neural_networks.to(device),
                    energy_shifter, species_to_tensor, consts, sae_dict, periodic_table_index)
 
-
-
-
-class ANI1x(ANI):
-
-    tweaked_neural_network = None
-    original_neural_network = None
-
-    def __init__(self, periodic_table_index:bool=False):
-        info_file = 'ani-1x_8x.info'
-        super().__init__(info_file, periodic_table_index)
-        if ANI1x.tweaked_neural_network == None:
-            ANI1x.tweaked_neural_network = copy.deepcopy(self.neural_networks)
-        if ANI1x.original_neural_network == None:
-            ANI1x.original_neural_network = copy.deepcopy(self.neural_networks)
 
     def forward(self, species_coordinates_lamb):
 
@@ -121,6 +114,22 @@ class ANI1x(ANI):
         species_aevs = self.aev_computer(species_coordinates, cell=None, pbc=None)
         species_energies = nn(species_aevs)
         return self.energy_shifter(species_energies)
+
+
+class ANI1x(ANI):
+
+    tweaked_neural_network = None
+    original_neural_network = None
+
+    def __init__(self, periodic_table_index:bool=False):
+        info_file = 'ani-1x_8x.info'
+        super().__init__(info_file, periodic_table_index)
+        if ANI1x.tweaked_neural_network == None:
+            ANI1x.tweaked_neural_network = copy.deepcopy(self.neural_networks)
+        if ANI1x.original_neural_network == None:
+            ANI1x.original_neural_network = copy.deepcopy(self.neural_networks)
+
+
 
 
 class ANI1ccx(ANI):
@@ -137,31 +146,6 @@ class ANI1ccx(ANI):
             ANI1ccx.original_neural_network = copy.deepcopy(self.neural_networks)
 
 
-    def forward(self, species_coordinates_lamb):
-        if len(species_coordinates_lamb) == 4:
-            species, coordinates, lam, original_parameters = species_coordinates_lamb
-        elif len(species_coordinates_lamb ) == 3:
-            species, coordinates, original_parameters = species_coordinates_lamb
-        elif len(species_coordinates_lamb ) == 2:
-            species, coordinates = species_coordinates_lamb    
-            original_parameters = True           
-        else:
-            raise RuntimeError(f'Too many arguments in {species_coordinates_lamb}')
-
-        if original_parameters:
-            logger.debug('Using original neural network parameters.')
-            nn = self.original_neural_network
-        else:
-            nn = self.tweaked_neural_network
-            logger.debug('Using possibly tweaked neural network parameters.')
-
-
-        species_coordinates = (species, coordinates)
-        if self.periodic_table_index:
-            species_coordinates = self.species_converter(species_coordinates)
-        species_aevs = self.aev_computer(species_coordinates, cell=None, pbc=None)
-        species_energies = nn(species_aevs)
-        return self.energy_shifter(species_energies)
 
 class ANI2x(ANI):
     tweaked_neural_network = None
@@ -175,31 +159,6 @@ class ANI2x(ANI):
         if ANI2x.original_neural_network == None:
             ANI2x.original_neural_network = copy.deepcopy(self.neural_networks)
 
-    def forward(self, species_coordinates_lamb):
-        if len(species_coordinates_lamb) == 4:
-            species, coordinates, lam, original_parameters = species_coordinates_lamb
-        elif len(species_coordinates_lamb ) == 3:
-            species, coordinates, original_parameters = species_coordinates_lamb
-        elif len(species_coordinates_lamb ) == 2:
-            species, coordinates = species_coordinates_lamb    
-            original_parameters = True
-        else:
-            raise RuntimeError(f'Too many arguments in {species_coordinates_lamb}')
-
-
-        if original_parameters:
-            logger.debug('Using original neural network parameters.')
-            nn = self.original_neural_network
-        else:
-            nn = self.tweaked_neural_network
-            logger.debug('Using possibly tweaked neural network parameters.')
-
-        species_coordinates = (species, coordinates)       
-        if self.periodic_table_index:
-            species_coordinates = self.species_converter(species_coordinates)
-        species_aevs = self.aev_computer(species_coordinates, cell=None, pbc=None)
-        species_energies = nn(species_aevs)
-        return self.energy_shifter(species_energies)
 
 class AlchemicalANI1ccx(ANI1ccx):
 

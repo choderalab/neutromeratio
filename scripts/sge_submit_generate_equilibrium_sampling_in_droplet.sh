@@ -20,7 +20,7 @@ echo 'Using potential ' ${potential_name}
 conda activate ani36v3
 # nr of jobs: 10080
 diameter_in_angstrom=18 #Angstrom
-base_path="/data/shared/projects/neutromeratio/data/equilibrium_sampling/ANI2x-droplet-${diameter_in_angstrom}A_${n_steps}/"
+base_path="/data/shared/projects/neutromeratio/data/equilibrium_sampling/${potential_name}-${env}-${diameter}A-100ps"
 mkdir -p ${base_path}
 cd /home/mwieder/Work/Projects/neutromeratio/scripts
 python Generate_equilibrium_sampling.py ${idx} ${n_steps} ${base_path} ${env} ${potential_name} ${diameter_in_angstrom} 

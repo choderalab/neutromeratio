@@ -39,11 +39,11 @@ if env == 'droplet':
     bulk_energy_calculation = False
     torch.set_num_threads(4)
 
-    for n in ['molDWRow_1636', 'molDWRow_1250', 'molDWRow_1228']:
-        if n in names_training:
-            names_training.remove(n)
-        if n in names_validating:
-            names_validating.remove(n)
+#    for n in ['molDWRow_1636', 'molDWRow_1250', 'molDWRow_1228']:
+#        if n in names_training:
+#            names_training.remove(n)
+#        if n in names_validating:
+#            names_validating.remove(n)
 
 else:
     torch.set_num_threads(1)

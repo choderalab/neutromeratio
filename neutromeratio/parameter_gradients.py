@@ -167,7 +167,6 @@ class FreeEnergyCalculator():
         u_kn = torchify(self.mbar.u_kn)
 
         log_q_k = f_k - u_kn.T
-        # TODO: double check that torch.logsumexp(x + torch.log(b)) is the same as scipy.special.logsumexp(x, b=b)
         A = log_q_k + torch.log(N_k)
         log_denominator_n = torch.logsumexp(A, dim=1)
 
@@ -760,6 +759,7 @@ def setup_and_perform_parameter_retraining(
                     names_training=names_training,
                     names_validating=names_validating,
                     rmse_training=rmse_training,
+                    rmse_validation=rmse_validation,
                     checkpoint_filename=checkpoint_filename,
                     max_epochs=max_epochs,
                     elements=elements,
@@ -770,7 +770,6 @@ def setup_and_perform_parameter_retraining(
                     data_path=data_path,
                     load_checkpoint=load_checkpoint,
                     max_snapshots_per_window=max_snapshots_per_window,
-                    rmse_validation=rmse_validation
                     )
   
         

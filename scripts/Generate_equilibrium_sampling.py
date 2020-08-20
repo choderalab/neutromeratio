@@ -37,6 +37,8 @@ if env == 'droplet':
     diameter_in_angstrom = int(sys.argv[6])
     if not diameter_in_angstrom or diameter_in_angstrom < 1:
         raise RuntimeError('Diameter must be above 1 Angstrom')
+else:
+    diameter_in_angstrom = -1
 
 protocol = []
 names = neutromeratio.parameter_gradients._get_names()

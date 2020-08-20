@@ -9,8 +9,9 @@
 idx=${1} 
 hostname
 env='vacuum'
-base_path="/data/shared/projects/neutromeratio/data/equilibrium_sampling/"
-
+potential_name='ANI1ccx'
+echo 'Using potential ' ${potential_name}
+base_path="/data/shared/projects/neutromeratio/data/equilibrium_sampling/${potential_name}_${env}-200ps-p2"
 echo 'Idx: '${idx}
 echo 'Base path: '${base_path}
 
@@ -18,4 +19,4 @@ echo 'Base path: '${base_path}
 conda activate ani36v3-only-dev
 # nr of jobs: 400
 cd /home/mwieder/Work/Projects/neutromeratio/scripts
-python Analyse_equilibrium_samples.py ${idx} ${base_path} ${env}
+python Analyse_equilibrium_samples.py ${idx} ${base_path} ${env} ${potential_name}

@@ -7,15 +7,15 @@ import torch
 from neutromeratio.parameter_gradients import FreeEnergyCalculator, setup_mbar
 from neutromeratio.constants import kT, device, exclude_set_ANI, mols_with_charge, _get_names
 from glob import glob
-from neutromeratio.ani import AlchemicalANI1ccx
-
+from neutromeratio.ani import AlchemicalANI1ccx, AlchemicalANI2x
 #######################
 #######################
 # job idx
 idx = int(sys.argv[1])
 # where to write the results
 base_path = str(sys.argv[2])
-# envenv = str(sys.argv[3])
+env = str(sys.argv[3])
+potential_name = str(sys.argv[4])
 #######################
 #######################
 # read in exp results, smiles and names
@@ -27,23 +27,34 @@ names = _get_names()
 name = names[idx-1]
 print(name)
 print(base_path)
+print(potential_name)
+
+if potential_name == 'ANI1ccx':
+    AlchemicalANI = AlchemicalANI1ccx
+elif potential_name == 'ANI2x':
+    AlchemicalANI = AlchemicalANI2x
+else:
+    raise RuntimeError('Potential needs to be either ANI1ccx or ANI2x')
+
+
+
 if env == 'droplet':
     print('Env: droplet.')
     fec = setup_mbar(name=name, 
                     data_path=base_path,
-                    ANImodel=AlchemicalANI1ccx,
+                    ANImodel=AlchemicalANI,
                     bulk_energy_calculation=False,
                     env='droplet',
-                    max_snapshots_per_window=500,
+                    max_snapshots_per_window=300,
                     diameter=18)
 elif env == 'vacuum':
     print('Env: vacuum.')
     fec = setup_mbar(name=name, 
                     data_path=base_path,
-                    ANImodel=AlchemicalANI1ccx,
-                    bulk_energy_calculation=False,
+                    ANImodel=AlchemicalANI,
+                    bulk_energy_calculation=True,
                     env='vacuum',
-                    max_snapshots_per_window=500
+                    max_snapshots_per_window=300
     )
 else:
     raise RuntimeError('No env specified. Aborting.')
@@ -53,6 +64,6 @@ if fec.flipped:
     DeltaF_ji *= -1
 print(DeltaF_ji)
 
-f = open(f"{base_path}/AlchemicalANI1ccx_{env}_rfe_results_in_kT_500snapshots.csv", 'a+')
+f = open(f"{base_path}/{potential_name}_{env}_rfe_results_in_kT_300snapshots.csv", 'a+')
 f.write(f"{name}, {DeltaF_ji}, {dDeltaF_ji}\n")
 f.close()
