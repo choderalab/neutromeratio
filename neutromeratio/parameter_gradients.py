@@ -782,6 +782,7 @@ def setup_mbar(
     ANImodel: ANI,
     bulk_energy_calculation:bool,
     env: str = 'vacuum',
+    checkpoint_file: str = '',
     data_path: str = "../data/",
     diameter: int = -1):
     
@@ -818,6 +819,7 @@ def setup_mbar(
     energy_function, tautomer, flipped = setup_alchemical_system_and_energy_function(
         name=name,
         ANImodel=ANImodel,
+        checkpoint_file=checkpoint_file,
         env=env,
         diameter=diameter,
         base_path=f"{data_path}/{name}/")
