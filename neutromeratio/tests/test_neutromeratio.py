@@ -883,12 +883,12 @@ def test_setup_energy_function():
 
 
 def test_memory_issue():
-    # test the seupup of the energy function with different alchemical potentials
+    # test the seup of the energy function with different alchemical potentials
     from ..analysis import setup_alchemical_system_and_energy_function
     from ..ani import AlchemicalANI2x, ANI1ccx
     from glob import glob
     from ..constants import device
-    import torchani
+    import torchani, torch
 
     # either use neutromeratio ANI object
     nn = ANI1ccx(periodic_table_index=True).to(device)
@@ -1370,7 +1370,7 @@ def test_load_parameters():
         params2 = list(model_instance.tweaked_neural_network.parameters())[6][0].tolist()
         assert (params1 == params2)
         # make sure somehting happend
-        model_instance.load_nn_parameters(f'data/{model_name}_3.pt')
+        model_instance.load_nn_parameters(f'data/{model_name}_3.pt', extract_from_checkpoint=True)
         params1 = list(model_instance.original_neural_network.parameters())[6][0].tolist()
         params2 = list(model_instance.tweaked_neural_network.parameters())[6][0].tolist()
         assert (params1 != params2)
@@ -1588,7 +1588,7 @@ def test_ess():
 
 
 def test_max_nr_of_snapshots():
-    from ..parameter_gradients import validate
+    from ..parameter_gradients import calculate_rmse_between_exp_and_calc
     from ..ani import AlchemicalANI1ccx, AlchemicalANI1x, AlchemicalANI2x
 
     names = ['molDWRow_298', 'SAMPLmol2', 'SAMPLmol4']
@@ -1599,7 +1599,7 @@ def test_max_nr_of_snapshots():
     model = AlchemicalANI1ccx
 
     for nr_of_snapshots in [20, 80,120,150]:
-        rmse = validate(
+        rmse = calculate_rmse_between_exp_and_calc(
             names,
             model = model,
             data_path=f"./data/{env}",
@@ -1611,8 +1611,8 @@ def test_max_nr_of_snapshots():
 
 
 
-def test_validate():
-    from ..parameter_gradients import validate, get_experimental_values
+def test_calculate_rmse_between_exp_and_calc():
+    from ..parameter_gradients import calculate_rmse_between_exp_and_calc, get_experimental_values
     from ..constants import kT
     from ..ani import AlchemicalANI1ccx, AlchemicalANI1x, AlchemicalANI2x
     
@@ -1624,7 +1624,7 @@ def test_validate():
     
     rmse_list = []
     for model in [AlchemicalANI1ccx, AlchemicalANI2x, AlchemicalANI1x]:
-        rmse = validate(
+        rmse = calculate_rmse_between_exp_and_calc(
             names,
             model = model,
             data_path=f"./data/{env}",
@@ -1647,8 +1647,8 @@ def test_validate():
 @pytest.mark.skipif(
     os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
 )
-def test_validate_droplet():
-    from ..parameter_gradients import validate, get_experimental_values
+def test_calculate_rmse_between_exp_and_calc_droplet():
+    from ..parameter_gradients import calculate_rmse_between_exp_and_calc, get_experimental_values
     from ..constants import kT
     from ..ani import AlchemicalANI1ccx, AlchemicalANI1x, AlchemicalANI2x
 
@@ -1663,13 +1663,13 @@ def test_validate_droplet():
 
     for model in [AlchemicalANI1ccx, AlchemicalANI2x, AlchemicalANI1x]:
 
-        rmse = validate(
+        rmse = calculate_rmse_between_exp_and_calc(
             names=names,
             data_path=f"./data/{env}",
             model=model,
             env=env,
             bulk_energy_calculation=False,
-            max_snapshots_per_window=20,
+            max_snapshots_per_window=10,
             diameter=diameter)
         rmse_list.append(rmse)
 
@@ -1817,7 +1817,7 @@ def test_postprocessing_droplet():
                 diameter=18,
                 bulk_energy_calculation=False,
                 data_path='./data/droplet',
-                max_snapshots_per_window=20) for name in names
+                max_snapshots_per_window=10) for name in names
                 ]
 
         if idx == 0:

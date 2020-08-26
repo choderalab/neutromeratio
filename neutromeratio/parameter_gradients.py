@@ -28,6 +28,7 @@ class FreeEnergyCalculator():
                  lambdas: list,
                  n_atoms: int,
                  max_snapshots_per_window:int=200,
+                 pickle_path:str='',
                  ):
         """
         Uses mbar to calculate the free energy difference between trajectories.
@@ -41,105 +42,108 @@ class FreeEnergyCalculator():
             energy trace of trajectories
         lambdas : list
             all lambda states
-        n_atoms : int
-            number of atoms
         """
+        def get_mix(lambda0, lambda1, lam=0.0):
+            return (1 - lam) * lambda0 + lam * lambda1
+      
         K = len(lambdas)
         assert (len(md_trajs) == K)
         assert (len(potential_energy_trajs) == K)
         self.ani_model = ani_model
         self.potential_energy_trajs = potential_energy_trajs  # for detecting equilibrium
         self.lambdas = lambdas
-        self.n_atoms = n_atoms
 
-        ani_trajs = {}
-        for lam, traj, potential_energy in zip(self.lambdas, md_trajs, self.potential_energy_trajs):
-            # detect equilibrium
-            equil, g = detectEquilibration(np.array([e/kT for e in potential_energy]))[:2]
-            # thinn snapshots and return max_snapshots_per_window confs
-            quarter_traj_limit = int(len(traj) / 4)
-            snapshots = traj[min(quarter_traj_limit, equil):].xyz * unit.nanometer
-            further_thinning = max(int(len(snapshots) / max_snapshots_per_window), 1)
-            snapshots = snapshots[::further_thinning][:max_snapshots_per_window]
-            ani_trajs[lam] = snapshots
-            logger.info(len(snapshots))
+        if pickle_path and os.path.isfile((pickle_path)):
+            p = pickle.load(open(pickle_path, 'rb'))
+            self.mbar = p['MBAR']
+            self.coordinates = p['coordinates']
+
+        else:
+            ani_trajs = {}
+            for lam, traj, potential_energy in zip(self.lambdas, md_trajs, self.potential_energy_trajs):
+                # detect equilibrium
+                equil, g = detectEquilibration(np.array([e/kT for e in potential_energy]))[:2]
+                # thinn snapshots and return max_snapshots_per_window confs
+                quarter_traj_limit = int(len(traj) / 4)
+                snapshots = traj[min(quarter_traj_limit, equil):].xyz * unit.nanometer
+                further_thinning = max(int(len(snapshots) / max_snapshots_per_window), 1)
+                snapshots = snapshots[::further_thinning][:max_snapshots_per_window]
+                ani_trajs[lam] = snapshots
+                logger.info(len(snapshots))
+                
+                
+                # test that we have a lower number of snapshots than max_snapshots_per_window
+                if max_snapshots_per_window == -1:
+                    logger.debug(f"There are {len(snapshots)} snapshots per lambda state")
+                
+                if max_snapshots_per_window != -1 and (len(snapshots) > max_snapshots_per_window):
+                    raise RuntimeError(f'There are {len(snapshots)} snapshots per lambda state (max: {max_snapshots_per_window}). Aborting.')
+
+                # test that we have not less than 80% of max_snapshots_per_window
+                if max_snapshots_per_window != -1 and  len(snapshots) < (int(max_snapshots_per_window * 0.8)):
+                    raise RuntimeError(f'There are only {len(snapshots)} snapshots per lambda state. Aborting.')
+                # test that we have not less than 40 snapshots
+                if len(snapshots) < 40:
+                    logger.critical(f'There are only {len(snapshots)} snapshots per lambda state. Be careful.')
+
             
-            
-            # test that we have a lower number of snapshots than max_snapshots_per_window
-            if max_snapshots_per_window == -1:
-                logger.debug(f"There are {len(snapshots)} snapshots per lambda state")
-            
-            if max_snapshots_per_window != -1 and (len(snapshots) > max_snapshots_per_window):
-                raise RuntimeError(f'There are {len(snapshots)} snapshots per lambda state (max: {max_snapshots_per_window}). Aborting.')
+            snapshots = []
+            N_k = []
+            for lam in sorted(self.lambdas):
+                logger.debug(f"lamb: {lam}")
+                N_k.append(len(ani_trajs[lam]))
+                snapshots.extend(ani_trajs[lam])
+                logger.debug(f"Snapshots per lambda {lam}: {len(ani_trajs[lam])}")
 
-            # test that we have not less than 80% of max_snapshots_per_window
-            if max_snapshots_per_window != -1 and  len(snapshots) < (int(max_snapshots_per_window * 0.8)):
-                raise RuntimeError(f'There are only {len(snapshots)} snapshots per lambda state. Aborting.')
-            # test that we have not less than 40 snapshots
-            if len(snapshots) < 40:
-                logger.critical(f'There are only {len(snapshots)} snapshots per lambda state. Be careful.')
+            if (len(snapshots) < 100):
+                logger.critical(f"Total number of snapshots is {len(snapshots)} -- is this enough?")
 
-        
-        snapshots = []
-        N_k = []
-        for lam in sorted(self.lambdas):
-            logger.debug(f"lamb: {lam}")
-            N_k.append(len(ani_trajs[lam]))
-            snapshots.extend(ani_trajs[lam])
-            logger.debug(f"Snapshots per lambda {lam}: {len(ani_trajs[lam])}")
+            coordinates = [sample / unit.angstrom for sample in snapshots] * unit.angstrom
 
-        if (len(snapshots) < 100):
-            logger.critical(f"Total number of snapshots is {len(snapshots)} -- is this enough?")
+            logger.debug(f"len(coordinates): {len(coordinates)}")
 
-        coordinates = [sample / unit.angstrom for sample in snapshots] * unit.angstrom
-
-        logger.debug(f"len(coordinates): {len(coordinates)}")
-
-        # end-point energies
-        if bulk_energy_calculation:
-            lambda0_e = self.ani_model.calculate_energy(coordinates, 
+            # end-point energies
+            if bulk_energy_calculation:
+                lambda0_e = self.ani_model.calculate_energy(coordinates, 
+                                                            lambda_value=0., 
+                                                            original_neural_network=True,
+                                                            requires_grad=False).energy      
+                lambda1_e = self.ani_model.calculate_energy(coordinates, 
+                                                            lambda_value=1., 
+                                                            original_neural_network=True,
+                                                            requires_grad=False).energy      
+            else:
+                lambda0_e = []
+                lambda1_e = []
+                for coord in coordinates:
+                    # getting coord from [N][3] to [1][N][3]
+                    coord = np.array([coord/unit.angstrom]) * unit.angstrom
+                    e0 = self.ani_model.calculate_energy(coord, 
                                                         lambda_value=0., 
                                                         original_neural_network=True,
-                                                        requires_grad=False).energy      
-            lambda1_e = self.ani_model.calculate_energy(coordinates, 
+                                                        requires_grad=False).energy
+                    lambda0_e.append(e0[0]/kT)
+                    e1 = self.ani_model.calculate_energy(coord, 
                                                         lambda_value=1., 
                                                         original_neural_network=True,
-                                                        requires_grad=False).energy      
-        else:
-            lambda0_e = []
-            lambda1_e = []
-            for coord in coordinates:
-                # getting coord from [N][3] to [1][N][3]
-                coord = np.array([coord/unit.angstrom]) * unit.angstrom
-                e0 = self.ani_model.calculate_energy(coord, 
-                                                     lambda_value=0., 
-                                                     original_neural_network=True,
-                                                     requires_grad=False).energy
-                lambda0_e.append(e0[0]/kT)
-                e1 = self.ani_model.calculate_energy(coord, 
-                                                     lambda_value=1., 
-                                                     original_neural_network=True,
-                                                     requires_grad=False).energy
-                lambda1_e.append(e1[0]/kT)
-            lambda0_e = np.array(lambda0_e) * kT
-            lambda1_e = np.array(lambda1_e) * kT
+                                                        requires_grad=False).energy
+                    lambda1_e.append(e1[0]/kT)
+                lambda0_e = np.array(lambda0_e) * kT
+                lambda1_e = np.array(lambda1_e) * kT
 
-        logger.debug(f"len(lambda0_e): {len(lambda0_e)}")
-        def get_mix(lambda0, lambda1, lam=0.0):
-            return (1 - lam) * lambda0 + lam * lambda1
+            logger.debug(f"len(lambda0_e): {len(lambda0_e)}")
 
-        logger.debug('Nr of atoms: {}'.format(n_atoms))
+            u_kn = np.stack(
+                [get_mix(lambda0_e/kT, lambda1_e/kT, lam) for lam in sorted(self.lambdas)]
+            )
+            
+            del lambda0_e
+            del lambda1_e
 
-        u_kn = np.stack(
-            [get_mix(lambda0_e/kT, lambda1_e/kT, lam) for lam in sorted(self.lambdas)]
-        )
-        
-        del lambda0_e
-        del lambda1_e
-
-        self.mbar = MBAR(u_kn, N_k)
-        self.coordinates = coordinates
-
+            self.mbar = MBAR(u_kn, N_k)
+            self.coordinates = coordinates
+            p = {'MBAR' : self.mbar, 'coordinates' : self.coordinates}
+            pickle.dump(p, open(pickle_path, 'wb'))
 
     @property
     def free_energy_differences(self):
@@ -162,10 +166,11 @@ class FreeEnergyCalculator():
         assert (type(u_ln) == torch.Tensor)
 
         #Note: Use mbar estimate with orginal parameter set!
-        N_k = torch.tensor(self.mbar.N_k, dtype=torch.double, requires_grad=True, device=device)
-        f_k = torchify(self.mbar.f_k)
-        u_kn = torchify(self.mbar.u_kn)
+        N_k = torch.tensor(self.mbar.N_k, dtype=torch.double, requires_grad=False, device=device)
+        f_k = torch.tensor(self.mbar.f_k, dtype=torch.double, requires_grad=False, device=device)
+        u_kn = torch.tensor(self.mbar.u_kn, dtype=torch.double, requires_grad=False, device=device)
 
+        # importance weighting
         log_q_k = f_k - u_kn.T
         A = log_q_k + torch.log(N_k)
         log_denominator_n = torch.logsumexp(A, dim=1)
@@ -249,7 +254,7 @@ def get_effective_sample_size(fec: FreeEnergyCalculator):
 
 
 
-def validate(names: list,
+def calculate_rmse_between_exp_and_calc(names: list,
     model: ANI,
     data_path: str,
     bulk_energy_calculation:bool,
@@ -274,7 +279,7 @@ def validate(names: list,
     e_calc = []
     e_exp = []
     it = tqdm(names)
-    for idx, name in enumerate(it):
+    for name in it:
         fec_list = [setup_mbar(
                     name=name,
                     ANImodel=model,
@@ -286,13 +291,17 @@ def validate(names: list,
         
         e_calc.append(get_perturbed_free_energy_differences(fec_list)[0].item())
         e_exp.append(get_experimental_values([name])[0].item())
-        current_rmse = calculate_rmse(torch.tensor(e_calc, device=device), torch.tensor(e_exp, device=device)).item()
+        #current_rmse = calculate_rmse(torch.tensor(e_calc, device=device), torch.tensor(e_exp, device=device)).item()
 
-        it.set_description(f"RMSE: {current_rmse}")
 
-        if current_rmse > 50:
-            logger.critical(f"RMSE above 50 with {current_rmse}: {name}")
-            logger.critical(names)
+
+
+
+        #it.set_description(f"RMSE: {current_rmse}")
+
+        #if current_rmse > 50:
+        #    logger.critical(f"RMSE above 50 with {current_rmse}: {name}")
+        #    logger.critical(names)
             
     return calculate_rmse(torch.tensor(e_calc, device=device), torch.tensor(e_exp, device=device)).item()
 
@@ -403,7 +412,7 @@ def tweak_parameters_with_split(
         
     # final rmsd calculation on test set
     print('RMSE calulation for test set')
-    rmse_test = validate(
+    rmse_test = calculate_rmse_between_exp_and_calc(
         model=ANImodel,
         names=names_test,
         diameter=diameter,
@@ -483,7 +492,7 @@ def _perform_training(ANImodel: ANI,
             max_snapshots_per_window=max_snapshots_per_window)
 
         rmse_validation.append(
-            validate(
+            calculate_rmse_between_exp_and_calc(
                 names_validating,
                 model=ANImodel,
                 diameter=diameter,
@@ -727,7 +736,7 @@ def setup_and_perform_parameter_retraining(
     rmse_training = []
 
     # calculate the rmse on the current parameters for the validation set
-    rmse_validation_set = validate(
+    rmse_validation_set = calculate_rmse_between_exp_and_calc(
         names_validating,
         model=ANImodel,
         data_path=data_path,
@@ -740,7 +749,7 @@ def setup_and_perform_parameter_retraining(
     print(f"RMSE on validation set: {rmse_validation[-1]} at first epoch")
     
     # calculate the rmse on the current parameters for the training set
-    rmse_training_set = validate(
+    rmse_training_set = calculate_rmse_between_exp_and_calc(
         names_training,
         model=ANImodel,
         data_path=data_path,
@@ -786,7 +795,7 @@ def setup_mbar(
     data_path: str = "../data/",
     diameter: int = -1):
     
-    from neutromeratio.analysis import setup_alchemical_system_and_energy_function, _get_exp_results
+    from neutromeratio.analysis import setup_alchemical_system_and_energy_function
     import os
     
     if not (env == 'vacuum' or env == 'droplet'):
@@ -807,7 +816,6 @@ def setup_mbar(
         lam = l[-3]
         return float(lam)
     
-    exp_results = _get_exp_results()
     data_path = os.path.abspath(data_path)
     if not os.path.exists(data_path):
         raise RuntimeError(f"{data_path} does not exist!")
@@ -857,10 +865,10 @@ def setup_mbar(
                                 md_trajs=md_trajs,
                                 potential_energy_trajs=energies,
                                 lambdas=lambdas,
+                                pickle_path=f"{data_path}/{name}/{name}_{ANImodel}_{max_snapshots_per_window}.pickle",
                                 n_atoms=len(tautomer.hybrid_atoms),
                                 bulk_energy_calculation=bulk_energy_calculation,
                                 max_snapshots_per_window=max_snapshots_per_window)
 
     fec.flipped = flipped
-
     return fec

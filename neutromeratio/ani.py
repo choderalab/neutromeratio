@@ -67,7 +67,7 @@ class ANI(torchani.models.BuiltinEnsemble):
         """
         super().__init__(*self._from_neurochem_resources(nn_path, periodic_table_index))
 
-    
+   
     def load_nn_parameters(self, parameter_path:str, extract_from_checkpoint:bool=False):
         if os.path.isfile(parameter_path):
             parameters = torch.load(parameter_path)
@@ -132,6 +132,8 @@ class ANI1x(ANI):
         if ANI1x.original_neural_network == None:
             ANI1x.original_neural_network = copy.deepcopy(self.neural_networks)
 
+    def neural_net_name(self):
+        return 'ANI1x'
 
 
 
@@ -148,6 +150,8 @@ class ANI1ccx(ANI):
         if ANI1ccx.original_neural_network == None:
             ANI1ccx.original_neural_network = copy.deepcopy(self.neural_networks)
 
+    def neural_net_name(self):
+        return 'ANI1ccx'
 
 
 class ANI2x(ANI):
@@ -162,6 +166,8 @@ class ANI2x(ANI):
         if ANI2x.original_neural_network == None:
             ANI2x.original_neural_network = copy.deepcopy(self.neural_networks)
 
+    def neural_net_name(self):
+        return 'ANI2x'
 
 class AlchemicalANI1ccx(ANI1ccx):
 
@@ -182,6 +188,10 @@ class AlchemicalANI1ccx(ANI1ccx):
         self.alchemical_atoms = alchemical_atoms
         self.neural_networks = None
         assert(self.neural_networks == None) 
+
+    def neural_net_name(self):
+        return 'AlchemicalANI1ccx'
+
 
     def forward(self, species_coordinates_lamb):
         """
@@ -263,6 +273,8 @@ class AlchemicalANI1x(ANI1x):
         self.alchemical_atoms = alchemical_atoms
         self.neural_networks = None
         assert(self.neural_networks == None) 
+    def neural_net_name(self):
+        return 'AlchemicalANI1x'
 
 
     def forward(self, species_coordinates_lamb):
@@ -348,6 +360,8 @@ class AlchemicalANI2x(ANI2x):
         self.neural_networks = None
         assert(self.neural_networks == None) 
 
+    def neural_net_name(self):
+        return 'AlchemicalANI2x'
 
     def forward(self, species_coordinates_lamb):
         """
@@ -496,21 +510,6 @@ class ANI1_force_and_energy(object):
                 raise RuntimeError('Something went wrong with restraints.')
             restraint_bias_in_kT += (restraint_bias * unit.kilojoule_per_mole)/kT
         return restraint_bias_in_kT
-
-    def compute_restraint_bias_on_snapshots(self, snapshots, lambda_value=0.0) -> float:
-        """
-        Calculates the energy of all restraint_bias activate at lambda_value on a given snapshot.
-        Returns
-        -------
-        reduced_restraint_bias : float
-            the restraint_bias in kT
-        """
-        restraint_bias_in_kJ_mol = list(
-            map(partial(self._compute_restraint_bias, lambda_value=lambda_value), snapshots))
-        unitted_restraint_bias = np.array(list(map(float, restraint_bias_in_kJ_mol))) * unit.kilojoules_per_mole
-        reduced_restraint_bias = unitted_restraint_bias / kT
-
-        return reduced_restraint_bias
 
     def get_thermo_correction(self, coords: simtk.unit.quantity.Quantity) -> unit.quantity.Quantity:
         
@@ -766,4 +765,8 @@ class ANI1_force_and_energy(object):
 
         energy = np.array([e.item() for e in energy_in_kT]) * kT
         restraint_energy_contribution = np.array([e.item() for e in restraint_energy_contribution]) *kT 
-        return DecomposedEnergy(energy, restraint_energy_contribution, energy_in_kT)
+        if requires_grad:
+            return DecomposedEnergy(energy, restraint_energy_contribution, energy_in_kT)
+        else:
+            energy_in_kT = np.array([e.item() for e in energy_in_kT])
+            return DecomposedEnergy(energy, restraint_energy_contribution, energy_in_kT)
