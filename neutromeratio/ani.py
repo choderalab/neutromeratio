@@ -123,7 +123,8 @@ class ANI1x(ANI):
 
     tweaked_neural_network = None
     original_neural_network = None
-
+    name = 'ANI1x'
+    
     def __init__(self, periodic_table_index:bool=False):
         info_file = 'ani-1x_8x.info'
         super().__init__(info_file, periodic_table_index)
@@ -132,9 +133,6 @@ class ANI1x(ANI):
         if ANI1x.original_neural_network == None:
             ANI1x.original_neural_network = copy.deepcopy(self.neural_networks)
 
-    @property
-    def neural_net_name(self):
-        return 'ANI1x'
 
 
 
@@ -159,6 +157,7 @@ class ANI1ccx(ANI):
 class ANI2x(ANI):
     tweaked_neural_network = None
     original_neural_network = None
+    name = 'ANI2x'
 
     def __init__(self, periodic_table_index:bool=False):
         info_file = 'ani-2x_8x.info'
@@ -168,11 +167,10 @@ class ANI2x(ANI):
         if ANI2x.original_neural_network == None:
             ANI2x.original_neural_network = copy.deepcopy(self.neural_networks)
 
-    @property
-    def neural_net_name(self):
-        return 'ANI2x'
 
 class AlchemicalANI1ccx(ANI1ccx):
+
+    name = 'AlchemicalANI1ccx'
 
     def __init__(self, alchemical_atoms: list, periodic_table_index:bool=False):
         """Scale the indirect contributions of alchemical atoms to the energy sum by
@@ -191,10 +189,6 @@ class AlchemicalANI1ccx(ANI1ccx):
         self.alchemical_atoms = alchemical_atoms
         self.neural_networks = None
         assert(self.neural_networks == None) 
-
-    @property
-    def neural_net_name(self):
-        return 'AlchemicalANI1ccx'
 
 
     def forward(self, species_coordinates_lamb):
@@ -260,6 +254,8 @@ class AlchemicalANI1ccx(ANI1ccx):
 
 class AlchemicalANI1x(ANI1x):
 
+    name = 'AlchemicalANI1x'
+
     def __init__(self, alchemical_atoms: list, periodic_table_index:bool=False):
         """Scale the indirect contributions of alchemical atoms to the energy sum by
         linearly interpolating, for other atom i, between the energy E_i^0 it would compute
@@ -277,10 +273,6 @@ class AlchemicalANI1x(ANI1x):
         self.alchemical_atoms = alchemical_atoms
         self.neural_networks = None
         assert(self.neural_networks == None) 
-
-    @property
-    def neural_net_name(self):
-        return 'AlchemicalANI1x'
 
 
     def forward(self, species_coordinates_lamb):
@@ -348,6 +340,8 @@ class AlchemicalANI1x(ANI1x):
     
 class AlchemicalANI2x(ANI2x):
 
+    name = 'AlchemicalANI2x'
+
     def __init__(self, alchemical_atoms: list, periodic_table_index:bool=False):
         """Scale the indirect contributions of alchemical atoms to the energy sum by
         linearly interpolating, for other atom i, between the energy E_i^0 it would compute
@@ -365,10 +359,6 @@ class AlchemicalANI2x(ANI2x):
         self.alchemical_atoms = alchemical_atoms
         self.neural_networks = None
         assert(self.neural_networks == None) 
-
-    @property
-    def neural_net_name(self):
-        return 'AlchemicalANI2x'
 
     def forward(self, species_coordinates_lamb):
         """
@@ -432,11 +422,6 @@ class AlchemicalANI2x(ANI2x):
 
         E = (lam * E_1) + ((1 - lam) * E_0)
         return species, E
-
-
-
-
-
 
 
 class ANI1_force_and_energy(object):
