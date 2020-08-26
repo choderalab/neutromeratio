@@ -768,5 +768,4 @@ class ANI1_force_and_energy(object):
         if requires_grad:
             return DecomposedEnergy(energy, restraint_energy_contribution, energy_in_kT)
         else:
-            energy_in_kT = np.array([e.item() for e in energy_in_kT])
-            return DecomposedEnergy(energy, restraint_energy_contribution, energy_in_kT)
+            return DecomposedEnergy(energy, restraint_energy_contribution, energy_in_kT.detach())
