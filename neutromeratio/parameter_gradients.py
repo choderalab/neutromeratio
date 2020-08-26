@@ -54,6 +54,7 @@ class FreeEnergyCalculator():
         self.lambdas = lambdas
 
         if pickle_path and os.path.isfile((pickle_path)):
+            logger.info(f'Loading MBAR results from: {pickle_path}')
             p = pickle.load(open(pickle_path, 'rb'))
             self.mbar = p['MBAR']
             self.coordinates = p['coordinates']
@@ -144,6 +145,8 @@ class FreeEnergyCalculator():
             self.coordinates = coordinates
             p = {'MBAR' : self.mbar, 'coordinates' : self.coordinates}
             pickle.dump(p, open(pickle_path, 'wb'))
+            logger.info(f'Saving MBAR results to: {pickle_path}')
+
 
     @property
     def free_energy_differences(self):
