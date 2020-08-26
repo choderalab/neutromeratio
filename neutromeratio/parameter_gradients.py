@@ -868,7 +868,7 @@ def setup_mbar(
                                 md_trajs=md_trajs,
                                 potential_energy_trajs=energies,
                                 lambdas=lambdas,
-                                pickle_path=f"{data_path}/{name}/{name}_{ANImodel.neural_net_name()}_{max_snapshots_per_window}.pickle",
+                                pickle_path=f"{data_path}/{name}/{name}_{ANImodel.neural_net_name}_{max_snapshots_per_window}.pickle",
                                 n_atoms=len(tautomer.hybrid_atoms),
                                 bulk_energy_calculation=bulk_energy_calculation,
                                 max_snapshots_per_window=max_snapshots_per_window)
