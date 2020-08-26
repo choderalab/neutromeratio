@@ -132,6 +132,7 @@ class ANI1x(ANI):
         if ANI1x.original_neural_network == None:
             ANI1x.original_neural_network = copy.deepcopy(self.neural_networks)
 
+    @property
     def neural_net_name(self):
         return 'ANI1x'
 
@@ -150,6 +151,7 @@ class ANI1ccx(ANI):
         if ANI1ccx.original_neural_network == None:
             ANI1ccx.original_neural_network = copy.deepcopy(self.neural_networks)
 
+    @property
     def neural_net_name(self):
         return 'ANI1ccx'
 
@@ -166,6 +168,7 @@ class ANI2x(ANI):
         if ANI2x.original_neural_network == None:
             ANI2x.original_neural_network = copy.deepcopy(self.neural_networks)
 
+    @property
     def neural_net_name(self):
         return 'ANI2x'
 
@@ -189,6 +192,7 @@ class AlchemicalANI1ccx(ANI1ccx):
         self.neural_networks = None
         assert(self.neural_networks == None) 
 
+    @property
     def neural_net_name(self):
         return 'AlchemicalANI1ccx'
 
@@ -273,6 +277,8 @@ class AlchemicalANI1x(ANI1x):
         self.alchemical_atoms = alchemical_atoms
         self.neural_networks = None
         assert(self.neural_networks == None) 
+
+    @property
     def neural_net_name(self):
         return 'AlchemicalANI1x'
 
@@ -360,6 +366,7 @@ class AlchemicalANI2x(ANI2x):
         self.neural_networks = None
         assert(self.neural_networks == None) 
 
+    @property
     def neural_net_name(self):
         return 'AlchemicalANI2x'
 
