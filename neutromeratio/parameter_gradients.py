@@ -329,7 +329,7 @@ def _log_dG():
 
 
 
-def tweak_parameters_with_split(
+def setup_and_perform_parameter_retraining_with_test_set_split(
     ANImodel: ANI,
     env: str,
     max_snapshots_per_window: int,

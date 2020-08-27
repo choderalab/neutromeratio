@@ -1904,7 +1904,7 @@ def test_tweak_parameters_and_class_nn():
     os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
 )
 def test_tweak_parameters():
-    from ..parameter_gradients import tweak_parameters_with_split
+    from ..parameter_gradients import setup_and_perform_parameter_retraining_with_test_set_split
     import os
     from ..ani import AlchemicalANI1ccx, AlchemicalANI1x, AlchemicalANI2x
 
@@ -1915,7 +1915,7 @@ def test_tweak_parameters():
         ['AlchemicalANI1ccx', 'AlchemicalANI2x', 'AlchemicalANI1x'])):
 
         
-        rmse_training, rmse_val, rmse_test = tweak_parameters_with_split(
+        rmse_training, rmse_val, rmse_test = setup_and_perform_parameter_retraining_with_test_set_split(
         env='vacuum',
         checkpoint_filename= f"{model_name}_vacuum.pt",
         names=names,
