@@ -263,7 +263,7 @@ def calculate_rmse_between_exp_and_calc(names: list,
     bulk_energy_calculation:bool,
     env: str,
     max_snapshots_per_window: int,
-    diameter:int = -1)->float:
+    diameter:int = -1)->(float, list):
     """
     Returns the RMSE between calculated and experimental free energy differences as float.
 
@@ -294,19 +294,15 @@ def calculate_rmse_between_exp_and_calc(names: list,
         
         e_calc.append(get_perturbed_free_energy_differences(fec_list)[0].item())
         e_exp.append(get_experimental_values([name])[0].item())
-        #current_rmse = calculate_rmse(torch.tensor(e_calc, device=device), torch.tensor(e_exp, device=device)).item()
+        current_rmse = calculate_rmse(torch.tensor(e_calc, device=device), torch.tensor(e_exp, device=device)).item()
 
+        it.set_description(f"RMSE: {current_rmse}")
 
-
-
-
-        #it.set_description(f"RMSE: {current_rmse}")
-
-        #if current_rmse > 50:
-        #    logger.critical(f"RMSE above 50 with {current_rmse}: {name}")
-        #    logger.critical(names)
+        if current_rmse > 50:
+            logger.critical(f"RMSE above 50 with {current_rmse}: {name}")
+            logger.critical(names)
             
-    return calculate_rmse(torch.tensor(e_calc, device=device), torch.tensor(e_exp, device=device)).item()
+    return current_rmse, e_calc
 
 def calculate_mse(t1: torch.Tensor, t2: torch.Tensor):
     assert (t1.size() == t2.size())
@@ -467,7 +463,8 @@ def _perform_training(ANImodel: ANI,
 
     ## training loop
     for i in range(AdamW_scheduler.last_epoch + 1, max_epochs):
-        
+        results = dict() # save all name : predicted free energies here
+
         # get the learning group
         learning_rate = AdamW.param_groups[0]['lr']
         if learning_rate < early_stopping_learning_rate:
@@ -494,15 +491,17 @@ def _perform_training(ANImodel: ANI,
             data_path=data_path,
             max_snapshots_per_window=max_snapshots_per_window)
 
-        rmse_validation.append(
-            calculate_rmse_between_exp_and_calc(
+
+        current_rmse, e_calc_validation = calculate_rmse_between_exp_and_calc(
                 names_validating,
                 model=ANImodel,
                 diameter=diameter,
                 data_path=data_path,
                 bulk_energy_calculation=bulk_energy_calculation,
                 env=env,
-                max_snapshots_per_window = max_snapshots_per_window))
+                max_snapshots_per_window = max_snapshots_per_window)
+        
+        rmse_validation.append(current_rmse)
         
         print(f"RMSE on validation set: {rmse_validation[-1]} at epoch {AdamW_scheduler.last_epoch}")
        
@@ -512,6 +511,14 @@ def _perform_training(ANImodel: ANI,
                 torch.tensor(exp_free_energy_difference_batches)).item())
         print(f"RMSE on training set: {rmse_training[-1]} at epoch {AdamW_scheduler.last_epoch}")
         _save_checkpoint(ANImodel, AdamW, AdamW_scheduler, SGD, SGD_scheduler, f"{base}_{AdamW_scheduler.last_epoch}.pt")
+        # write all results
+        for name, e in zip(names_training + names_validating, calc_free_energy_difference_batches + e_calc_validation):
+            results[name] = e
+        
+        logger.info('writing out results')
+        pickle.dump(results, open(f'results_epoch_{AdamW_scheduler.last_epoch}.pickle', 'wb+'))
+    
+    
     
     _save_checkpoint(ANImodel, AdamW, AdamW_scheduler, SGD, SGD_scheduler, checkpoint_filename)
   
@@ -566,6 +573,7 @@ def _tweak_parameters(  names_training: list,
     it = tqdm(chunks(names_training, batch_size))
     calc_free_energy_difference_batches = []
     exp_free_energy_difference_batches = []
+
     for idx, names in enumerate(it):
 
         # define setup_mbar function
