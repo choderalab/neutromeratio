@@ -898,7 +898,7 @@ def test_memory_issue():
     # read in trajs
     name = 'molDWRow_298'
     data_path = 'data/droplet/'
-    max_snapshots_per_window = 10
+    max_snapshots_per_window = 5
     dcds = glob(f"{data_path}/{name}/*.dcd")
 
     md_trajs = []
@@ -924,7 +924,7 @@ def test_memory_issue():
     species = [element_index[e] for e in species]
     
     # calcualte energies
-    for traj in md_trajs:
+    for traj in md_trajs[:1]:
         for xyz in traj:
             coordinates = torch.tensor([xyz.value_in_unit(unit.nanometer)],
                                 requires_grad=False, device=device, dtype=torch.float32)
@@ -974,8 +974,8 @@ def test_setup_mbar():
         data_path="data/vacuum",
         ANImodel=AlchemicalANI1ccx,
         bulk_energy_calculation=False,
-        max_snapshots_per_window=100)
-    assert(np.isclose(-0.2159245230162501, fec.end_state_free_energy_difference[0]))
+        max_snapshots_per_window=20)
+    assert(np.isclose(-3.2194223855155357, fec.end_state_free_energy_difference[0]))
 
     fec = setup_mbar(
         name,
@@ -983,8 +983,8 @@ def test_setup_mbar():
         data_path="data/vacuum",
         ANImodel=AlchemicalANI2x,
         bulk_energy_calculation=False,
-        max_snapshots_per_window=100)
-    assert(np.isclose(-7.981541822664637, fec.end_state_free_energy_difference[0]))
+        max_snapshots_per_window=20)
+    assert(np.isclose(-11.554636171428106, fec.end_state_free_energy_difference[0]))
 
     fec = setup_mbar(
         name,
@@ -992,8 +992,8 @@ def test_setup_mbar():
         data_path="data/vacuum",
         ANImodel=AlchemicalANI1x,
         bulk_energy_calculation=False,
-        max_snapshots_per_window=100)
-    assert(np.isclose(-8.916705062503821, fec.end_state_free_energy_difference[0]))
+        max_snapshots_per_window=20)
+    assert(np.isclose(-12.413598945128637, fec.end_state_free_energy_difference[0]))
 
     # droplet
     fec = setup_mbar(
@@ -1003,8 +1003,8 @@ def test_setup_mbar():
         data_path="data/droplet",
         ANImodel=AlchemicalANI1ccx,
         bulk_energy_calculation=False,
-        max_snapshots_per_window=50)
-    assert(np.isclose(-2.943846274310164, fec.end_state_free_energy_difference[0]))
+        max_snapshots_per_window=10)
+    assert(np.isclose(-6.080175410793023, fec.end_state_free_energy_difference[0]))
 
     fec = setup_mbar(
         name,
@@ -1013,8 +1013,8 @@ def test_setup_mbar():
         data_path="data/droplet",
         ANImodel=AlchemicalANI2x,
         bulk_energy_calculation=False,
-        max_snapshots_per_window=50)
-    assert(np.isclose(-15.878144843280154, fec.end_state_free_energy_difference[0]))
+        max_snapshots_per_window=10)
+    assert(np.isclose(-19.401149969534163, fec.end_state_free_energy_difference[0]))
 
     fec = setup_mbar(
         name,
@@ -1023,8 +1023,8 @@ def test_setup_mbar():
         data_path="data/droplet",
         ANImodel=AlchemicalANI1x,
         bulk_energy_calculation=False,
-        max_snapshots_per_window=50)
-    assert(np.isclose(-11.071049647338729, fec.end_state_free_energy_difference[0]))
+        max_snapshots_per_window=10)
+    assert(np.isclose(-15.506057798507124, fec.end_state_free_energy_difference[0]))
 
 def test_change_stereobond():
     from ..utils import change_only_stereobond, get_nr_of_stereobonds
@@ -1325,9 +1325,9 @@ def test_solvate_orca():
     print(found)
     print(output_str)
 
-    E_in_solvent = (float(found) * hartree_to_kJ_mol) * unit.kilojoule_per_mole
+    E_in_solvent = (float(found) * hartree_to_kJ_mol)
     print(E_in_solvent)
-    assert(E_in_solvent == -907364.6683318849 * unit.kilojoule_per_mole)
+    np.isclose(E_in_solvent, -907364.6683318849, rtol=1e-4)
 
 def test_io_checkpoints():
     from ..parameter_gradients import _save_checkpoint, _load_checkpoint, _get_nn_layers
@@ -1389,7 +1389,7 @@ def test_parameter_gradient():
     
     # nr of steps
     #################
-    n_steps = 100
+    n_steps = 40
     #################
 
     # specify the system you want to simulate
@@ -1407,7 +1407,7 @@ def test_parameter_gradient():
 
         for lamb in tqdm(lambdas):
             # minimize coordinates with a given lambda value
-            x0, e_history = energy_function.minimize(x0, maxiter=5000, lambda_value=lamb)
+            x0, e_history = energy_function.minimize(x0, maxiter=5, lambda_value=lamb)
             # define energy function with a given lambda value
             energy_and_force = lambda x : energy_function.calculate_force(x, lamb)
             # define langevin object with a given energy function
@@ -1431,7 +1431,7 @@ def test_parameter_gradient():
                                 lambdas=lambdas,
                                 bulk_energy_calculation=False,
                                 n_atoms=len(tautomer.hybrid_atoms),
-                                max_snapshots_per_window=-1)
+                                max_snapshots_per_window=10)
 
         # BEWARE HERE: I change the sign of the result since if flipped is TRUE I have 
         # swapped tautomer 1 and 2 to mutate from the tautomer WITH the stereobond to the 
@@ -1460,11 +1460,19 @@ def test_thinning():
     from glob import glob
     dcds = glob(f"data/droplet/molDWRow_298/*dcd")
     top = f"data/droplet/molDWRow_298/molDWRow_298_in_droplet.pdb"
+    max_snapshots_per_window = 20
     print(dcds)
     for f in dcds:
         print(f)
         traj = md.load_dcd(f, top=top)
-        print(len(traj))
+        
+        quarter_traj_limit = int(len(traj) / 4)
+        snapshots = traj[min(quarter_traj_limit, 10):].xyz * unit.nanometer
+        further_thinning = max(int(len(snapshots) / max_snapshots_per_window), 1)
+        snapshots = snapshots[::further_thinning][:max_snapshots_per_window]
+        print(len(snapshots))
+        assert(max_snapshots_per_window == len(snapshots))
+        
     #raise RuntimeError('t')
 
 def test_fec():
@@ -1560,33 +1568,6 @@ def test_fec():
                 assert(np.isclose(e1.item(),e2, rtol=1e-4)) 
 
 
-def test_ess():
-    from ..parameter_gradients import get_perturbed_free_energy_differences
-    from ..parameter_gradients import setup_mbar
-    from ..ani import AlchemicalANI1ccx
-    import numpy as np
-
-    env = 'vacuum'
-    name = 'molDWRow_298'
-
-
-    model = AlchemicalANI1ccx
-
-    fec = setup_mbar(
-        name,
-        ANImodel=model,
-        env=env,
-        bulk_energy_calculation=False,
-        data_path='./data/vacuum',
-        max_snapshots_per_window=80)
-
-    fec_value = get_perturbed_free_energy_differences([fec])[0]
-
-    u_ln = fec._form_u_ln()
-    f_k = fec._compute_perturbed_free_energies(u_ln)
-    print(f_k)
-
-
 def test_max_nr_of_snapshots():
     from ..parameter_gradients import calculate_rmse_between_exp_and_calc
     from ..ani import AlchemicalANI1ccx, AlchemicalANI1x, AlchemicalANI2x
@@ -1608,6 +1589,96 @@ def test_max_nr_of_snapshots():
             max_snapshots_per_window=nr_of_snapshots)
          
         
+def test_unperturbed_perturbed_free_energy():
+    # test the setup mbar function with different models, environments and potentials
+    from ..parameter_gradients import setup_mbar, get_unperturbed_free_energy_difference, get_perturbed_free_energy_differences
+    from ..ani import AlchemicalANI1ccx
+
+
+    name = 'molDWRow_298'
+
+    # vacuum
+    fec = setup_mbar(
+        name,
+        env='vacuum',
+        data_path="data/vacuum",
+        ANImodel=AlchemicalANI1ccx,
+        bulk_energy_calculation=False,
+        max_snapshots_per_window=20)
+
+    a = get_unperturbed_free_energy_difference([fec])
+    b = get_perturbed_free_energy_differences([fec])
+    np.isclose(a.item(), b.item())
+
+def test_parameter_gradient_opt_script():
+    import neutromeratio
+    import pickle
+    import sys
+    import torch
+
+    env = 'vacuum'
+    elements = 'CHON'
+    data_path = f"./data/{env}"
+    model_name = 'ANI1ccx'
+
+    max_snapshots_per_window=50
+    print(f'Max nr of snapshots: {max_snapshots_per_window}')
+
+    if model_name == 'ANI2x':
+        model = neutromeratio.ani.AlchemicalANI2x
+        print(f'Using {model_name}.')
+    elif model_name == 'ANI1ccx':
+        model = neutromeratio.ani.AlchemicalANI1ccx
+        print(f'Using {model_name}.')
+    elif model_name == 'ANI1x':
+        model = neutromeratio.ani.AlchemicalANI1x
+        print(f'Using {model_name}.')
+    else:
+        raise RuntimeError(f'Unknown model name: {model_name}')
+
+    if env == 'droplet':
+        bulk_energy_calculation = False
+    else:
+        bulk_energy_calculation = True
+
+    max_epochs = 10
+    names = ['molDWRow_298', 'SAMPLmol2', 'SAMPLmol4']
+
+    rmse_training, rmse_validation, rmse_test = neutromeratio.parameter_gradients.setup_and_perform_parameter_retraining_with_test_set_split(
+        env=env,
+        ANImodel=model,
+        batch_size=1,
+        max_snapshots_per_window=max_snapshots_per_window,
+        checkpoint_filename= f"parameters_{model_name}_{env}.pt",
+        data_path=data_path,
+        nr_of_nn=8,
+        bulk_energy_calculation=bulk_energy_calculation,
+        elements=elements,
+        max_epochs=5,
+        names=names,
+        diameter=18)
+        
+    f = open(f'results_{model_name}_{env}.txt', 'a+')
+        
+    print('RMSE training')
+    print(rmse_training)   
+    f.write('RMSE training')
+    f.write('\n')
+
+    for e in rmse_training:
+        f.write(str(e) + ', ')
+    f.write('\n')
+
+    print('RMSE validation')
+    f.write('\n')
+
+    print(rmse_validation)
+    f.write('RMSE validation')
+    f.write('\n')
+    for e in rmse_validation:
+        f.write(str(e) + ', ')
+    f.write('\n')   
+    f.close()    
 
 
 
@@ -1624,12 +1695,12 @@ def test_calculate_rmse_between_exp_and_calc():
     
     rmse_list = []
     for model in [AlchemicalANI1ccx, AlchemicalANI2x, AlchemicalANI1x]:
-        rmse = calculate_rmse_between_exp_and_calc(
+        rmse, e_calc = calculate_rmse_between_exp_and_calc(
             names,
             model = model,
             data_path=f"./data/{env}",
             env=env,
-            bulk_energy_calculation=False,
+            bulk_energy_calculation=True,
             max_snapshots_per_window=100)
         assert(np.isclose((exp_results[names[2]]['energy'] * unit.kilocalorie_per_mole) / kT, exp_values[2].item()))
         rmse_list.append(rmse)
@@ -1663,7 +1734,7 @@ def test_calculate_rmse_between_exp_and_calc_droplet():
 
     for model in [AlchemicalANI1ccx, AlchemicalANI2x, AlchemicalANI1x]:
 
-        rmse = calculate_rmse_between_exp_and_calc(
+        rmse, e_calc = calculate_rmse_between_exp_and_calc(
             names=names,
             data_path=f"./data/{env}",
             model=model,
@@ -1674,7 +1745,7 @@ def test_calculate_rmse_between_exp_and_calc_droplet():
         rmse_list.append(rmse)
 
     print(rmse_list)
-    for e1, e2 in zip(rmse_list  , [0.2889864338136634, 13.469154493717424, 7.909838568006453]):
+    for e1, e2 in zip(rmse_list  , [8.518695831298828, 21.803926467895508, 17.95928192138672]):
         assert(np.isclose(e1, e2))
 
 
@@ -1821,17 +1892,18 @@ def test_postprocessing_droplet():
                 ]
 
         if idx == 0:
+            print(fec_list)
             assert(len(fec_list) == 1)
             rmse = torch.sqrt(torch.mean((get_perturbed_free_energy_differences(fec_list) - get_experimental_values(names))**2))
-
-            assert(np.isclose(fec_list[0].end_state_free_energy_difference[0].item(), -4.987183082930629))
-            assert(np.isclose(rmse.item(),  5.992548148031282))
+            assert(np.isclose(fec_list[0].end_state_free_energy_difference[0].item(), -6.080175410793023))
+            assert(np.isclose(rmse.item(),  8.518695576398514))
         
         elif idx == 1:
+            print(fec_list)
             assert(len(fec_list) == 1)
             rmse = torch.sqrt(torch.mean((get_perturbed_free_energy_differences(fec_list) - get_experimental_values(names))**2))
-            assert(np.isclose(fec_list[0].end_state_free_energy_difference[0].item(), -13.765576744789922))
-            assert(np.isclose(rmse.item(),  9.8578))
+            assert(np.isclose(fec_list[0].end_state_free_energy_difference[0].item(), -15.506057798507124))
+            assert(np.isclose(rmse.item(),  17.95928077353352))
 
 def _remove_files(name, max_epochs=1):
     os.remove(f'{name}.pt')
@@ -1849,7 +1921,7 @@ def test_tweak_parameters_and_class_nn():
     # this can lead to some tricky situations.
     # It also means that whenever any optimization is performed, 
     # every new instance of the class has the new parameters
-    from ..parameter_gradients import tweak_parameters
+    from ..parameter_gradients import setup_and_perform_parameter_retraining
     import os
     from ..ani import AlchemicalANI1ccx
 
@@ -1864,10 +1936,12 @@ def test_tweak_parameters_and_class_nn():
 
     # tweak parameters
     model, model_name = (AlchemicalANI1ccx, 'AlchemicalANI1ccx')
-    rmse_training, rmse_val, rmse_test = tweak_parameters(
+ 
+    rmse_training, rmse_val = setup_and_perform_parameter_retraining(
     env='vacuum',
     checkpoint_filename= f"{model_name}_vacuum.pt",
-    names=names,
+    names_training=names,
+    names_validating=names,
     ANImodel=model,
     max_snapshots_per_window=50,
     batch_size=1,
