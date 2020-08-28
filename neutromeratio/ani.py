@@ -729,7 +729,8 @@ class ANI1_force_and_energy(object):
                          coordinate_list:unit.Quantity, 
                          lambda_value: float = 0.0, 
                          original_neural_network:bool=True, 
-                         requires_grad_wrt_coordinates:bool=True):
+                         requires_grad_wrt_coordinates:bool=True,
+                         requires_grad_wrt_parameters:bool=True):
         """
         Given a coordinate set (x) the energy is calculated in kJ/mol.
 
@@ -758,4 +759,7 @@ class ANI1_force_and_energy(object):
         energy = np.array([e.item() for e in energy_in_kT]) * kT
         restraint_energy_contribution = np.array([e.item() for e in restraint_energy_contribution]) *kT 
 
-        return DecomposedEnergy(energy, restraint_energy_contribution, energy_in_kT)
+        if requires_grad_wrt_parameters:
+            return DecomposedEnergy(energy, restraint_energy_contribution, energy_in_kT)
+        else:
+            return DecomposedEnergy(energy, restraint_energy_contribution, energy_in_kT.detach())

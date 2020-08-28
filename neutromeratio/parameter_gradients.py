@@ -108,11 +108,13 @@ class FreeEnergyCalculator():
                 lambda0_e = self.ani_model.calculate_energy(coordinates, 
                                                             lambda_value=0., 
                                                             original_neural_network=True,
-                                                            requires_grad_wrt_coordinates=False).energy      
+                                                            requires_grad_wrt_coordinates=False,
+                                                            requires_grad_wrt_parameters=False).energy      
                 lambda1_e = self.ani_model.calculate_energy(coordinates, 
                                                             lambda_value=1., 
                                                             original_neural_network=True,
-                                                            requires_grad_wrt_coordinates=False).energy      
+                                                            requires_grad_wrt_coordinates=False,
+                                                            requires_grad_wrt_parameters=False).energy      
             else:
                 lambda0_e = []
                 lambda1_e = []
@@ -122,12 +124,14 @@ class FreeEnergyCalculator():
                     e0 = self.ani_model.calculate_energy(coord, 
                                                         lambda_value=0., 
                                                         original_neural_network=True,
-                                                        requires_grad_wrt_coordinates=False).energy
+                                                        requires_grad_wrt_coordinates=False,
+                                                        requires_grad_wrt_parameters=False).energy
                     lambda0_e.append(e0[0]/kT)
                     e1 = self.ani_model.calculate_energy(coord, 
                                                         lambda_value=1., 
                                                         original_neural_network=True,
-                                                        requires_grad_wrt_coordinates=False).energy
+                                                        requires_grad_wrt_coordinates=False,
+                                                        requires_grad_wrt_parameters=False).energy
                     lambda1_e.append(e1[0]/kT)
                 lambda0_e = np.array(lambda0_e) * kT
                 lambda1_e = np.array(lambda1_e) * kT
