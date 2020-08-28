@@ -1662,21 +1662,28 @@ def test_parameter_gradient_opt_script():
         
     print('RMSE training')
     print(rmse_training)   
+    
     f.write('RMSE training')
     f.write('\n')
-
     for e in rmse_training:
         f.write(str(e) + ', ')
     f.write('\n')
 
     print('RMSE validation')
-    f.write('\n')
-
     print(rmse_validation)
+
+    f.write('\n')
     f.write('RMSE validation')
     f.write('\n')
     for e in rmse_validation:
         f.write(str(e) + ', ')
+    f.write('\n')   
+    
+    print('RMSE test')
+    print(rmse_test)
+    
+    f.write('RMSE test')
+    f.write(str(rmse_test))
     f.write('\n')   
     f.close()    
 
