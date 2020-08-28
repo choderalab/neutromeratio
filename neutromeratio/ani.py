@@ -729,7 +729,7 @@ class ANI1_force_and_energy(object):
                          coordinate_list:unit.Quantity, 
                          lambda_value: float = 0.0, 
                          original_neural_network:bool=True, 
-                         requires_grad:bool=True):
+                         requires_grad_wrt_coordinates:bool=True):
         """
         Given a coordinate set (x) the energy is calculated in kJ/mol.
 
@@ -749,7 +749,7 @@ class ANI1_force_and_energy(object):
         logger.debug(f'Batch-size: {len(coordinate_list)}')
         
         coordinates = torch.tensor(coordinate_list.value_in_unit(unit.nanometer),
-                                   requires_grad=requires_grad, device=self.device, dtype=torch.float32)
+                                   requires_grad=requires_grad_wrt_coordinates, device=self.device, dtype=torch.float32)
 
         logger.debug(f"coordinates tensor: {coordinates.size()}")
         energy_in_kT, restraint_energy_contribution = self._calculate_energy(
@@ -757,7 +757,5 @@ class ANI1_force_and_energy(object):
 
         energy = np.array([e.item() for e in energy_in_kT]) * kT
         restraint_energy_contribution = np.array([e.item() for e in restraint_energy_contribution]) *kT 
-        if requires_grad:
-            return DecomposedEnergy(energy, restraint_energy_contribution, energy_in_kT)
-        else:
-            return DecomposedEnergy(energy, restraint_energy_contribution, energy_in_kT.detach())
+
+        return DecomposedEnergy(energy, restraint_energy_contribution, energy_in_kT)

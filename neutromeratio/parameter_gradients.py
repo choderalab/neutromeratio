@@ -108,11 +108,11 @@ class FreeEnergyCalculator():
                 lambda0_e = self.ani_model.calculate_energy(coordinates, 
                                                             lambda_value=0., 
                                                             original_neural_network=True,
-                                                            requires_grad=False).energy      
+                                                            requires_grad_wrt_coordinates=False).energy      
                 lambda1_e = self.ani_model.calculate_energy(coordinates, 
                                                             lambda_value=1., 
                                                             original_neural_network=True,
-                                                            requires_grad=False).energy      
+                                                            requires_grad_wrt_coordinates=False).energy      
             else:
                 lambda0_e = []
                 lambda1_e = []
@@ -122,12 +122,12 @@ class FreeEnergyCalculator():
                     e0 = self.ani_model.calculate_energy(coord, 
                                                         lambda_value=0., 
                                                         original_neural_network=True,
-                                                        requires_grad=False).energy
+                                                        requires_grad_wrt_coordinates=False).energy
                     lambda0_e.append(e0[0]/kT)
                     e1 = self.ani_model.calculate_energy(coord, 
                                                         lambda_value=1., 
                                                         original_neural_network=True,
-                                                        requires_grad=False).energy
+                                                        requires_grad_wrt_coordinates=False).energy
                     lambda1_e.append(e1[0]/kT)
                 lambda0_e = np.array(lambda0_e) * kT
                 lambda1_e = np.array(lambda1_e) * kT
@@ -143,9 +143,12 @@ class FreeEnergyCalculator():
 
             self.mbar = MBAR(u_kn, N_k)
             self.coordinates = coordinates
-            p = {'MBAR' : self.mbar, 'coordinates' : self.coordinates}
-            pickle.dump(p, open(pickle_path, 'wb'))
-            logger.info(f'Saving MBAR results to: {pickle_path}')
+
+            if pickle_path:
+                # only save if pickle_path is defined
+                p = {'MBAR' : self.mbar, 'coordinates' : self.coordinates}
+                pickle.dump(p, open(pickle_path, 'wb'))
+                logger.info(f'Saving MBAR results to: {pickle_path}')
 
 
     @property
@@ -190,13 +193,13 @@ class FreeEnergyCalculator():
         u_0 = self.ani_model.calculate_energy(coordinates, 
                                               lambda_value=0., 
                                               original_neural_network=False,
-                                              requires_grad=False).energy_tensor      
+                                              requires_grad_wrt_coordinates=False).energy_tensor      
 
         #Note: Use class neural network here (that might or might not be modified)!
         u_1 = self.ani_model.calculate_energy(coordinates, 
                                               lambda_value=1., 
                                               original_neural_network=False,
-                                              requires_grad=False).energy_tensor     
+                                              requires_grad_wrt_coordinates=False).energy_tensor     
 
         u_ln = torch.stack([u_0, u_1])       
         return u_ln
@@ -231,6 +234,28 @@ def get_perturbed_free_energy_differences(fec_list:list)-> torch.Tensor:
     logger.debug(calc)
     return torch.stack([e for e in calc])
 
+def get_unperturbed_free_energy_difference(fec_list:list):
+    """
+    Gets a list of fec instances and returns a torch.tensor with 
+    the computed free energy differences.
+
+    Arguments:
+        fec_list {list[torch.tensor]} 
+
+    Returns:
+        torch.tensor -- calculated free energy in kT
+    """
+    calc = []
+
+    for idx, fec in enumerate(fec_list):
+        if fec.flipped:
+            deltaF = fec.end_state_free_energy_difference[0] * -1.
+        else:
+            deltaF = fec.end_state_free_energy_difference[0]
+        calc.append(deltaF)
+    logger.debug(calc)
+    return torch.stack([torchify(e) for e in calc])
+    
 
 
 def get_experimental_values(names:list)-> torch.Tensor:
@@ -251,18 +276,15 @@ def get_experimental_values(names:list)-> torch.Tensor:
     return torchify(exp)
 
 
-def get_effective_sample_size(fec: FreeEnergyCalculator):
-    
-    pass
 
-
-
-def calculate_rmse_between_exp_and_calc(names: list,
+def calculate_rmse_between_exp_and_calc(
+    names: list,
     model: ANI,
     data_path: str,
     bulk_energy_calculation:bool,
     env: str,
     max_snapshots_per_window: int,
+    perturbed_free_energy:bool = True,
     diameter:int = -1)->(float, list):
     """
     Returns the RMSE between calculated and experimental free energy differences as float.
@@ -279,9 +301,9 @@ def calculate_rmse_between_exp_and_calc(names: list,
     if env == 'droplet' and diameter == -1:
         raise RuntimeError(f'Something went wrong. Diameter is set for {diameter}. Aborting.')
 
-    e_calc = []
-    e_exp = []
+    e_calc, e_exp = [], []
     it = tqdm(names)
+    
     for name in it:
         fec_list = [setup_mbar(
                     name=name,
@@ -292,7 +314,11 @@ def calculate_rmse_between_exp_and_calc(names: list,
                     max_snapshots_per_window=max_snapshots_per_window,
                     diameter=diameter)]
         
-        e_calc.append(get_perturbed_free_energy_differences(fec_list)[0].item())
+        if perturbed_free_energy:       
+            e_calc.append(get_perturbed_free_energy_differences(fec_list)[0].item())
+        else:
+            e_calc.append(get_unperturbed_free_energy_difference(fec_list)[0].item())
+           
         e_exp.append(get_experimental_values([name])[0].item())
         current_rmse = calculate_rmse(torch.tensor(e_calc, device=device), torch.tensor(e_exp, device=device)).item()
 
@@ -389,6 +415,7 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
         names_training, names_validating = train_test_split(names_training_validating,test_size=0.2)
         print(f"Len of training set: {len(names_training)}/{len(names_training_validating)}")
         print(f"Len of validating set: {len(names_validating)}/{len(names_training_validating)}")
+        print(f"Len of test set: {len(names_test)}/{len(names_list)}")
 
 
     # save batch loss through epochs
@@ -411,7 +438,7 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
         
     # final rmsd calculation on test set
     print('RMSE calulation for test set')
-    rmse_test, all_e_test = calculate_rmse_between_exp_and_calc(
+    rmse_test, dG_calc_test = calculate_rmse_between_exp_and_calc(
         model=ANImodel,
         names=names_test,
         diameter=diameter,
@@ -419,6 +446,13 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
         bulk_energy_calculation=bulk_energy_calculation,
         env=env,
         max_snapshots_per_window = max_snapshots_per_window)
+    
+    # write out data on dG for test set after optimization   
+    results = {}
+    for name, e in zip(names_test, dG_calc_test):
+        results[name] = e        
+    pickle.dump(results, open(f'results_AFTER_training_for_test_set.pickle', 'wb+'))
+
     
     return rmse_training, rmse_validation, rmse_test
 
@@ -479,7 +513,8 @@ def _perform_training(ANImodel: ANI,
         SGD_scheduler.step(rmse_validation[-1])
 
 
-        calc_free_energy_difference_batches, exp_free_energy_difference_batches = _tweak_parameters(
+        # perform the parameter optimization and importance weighting
+        dG_calc_training, dG_exp = _tweak_parameters(
             names_training=names_training,
             ANImodel=ANImodel,
             AdamW=AdamW,
@@ -491,8 +526,8 @@ def _perform_training(ANImodel: ANI,
             data_path=data_path,
             max_snapshots_per_window=max_snapshots_per_window)
 
-
-        current_rmse, e_calc_validation = calculate_rmse_between_exp_and_calc(
+        # calculate the new free energies on the validation set with optimized parameters
+        current_rmse, dG_calc_validation = calculate_rmse_between_exp_and_calc(
                 names_validating,
                 model=ANImodel,
                 diameter=diameter,
@@ -504,23 +539,19 @@ def _perform_training(ANImodel: ANI,
         rmse_validation.append(current_rmse)
         
         print(f"RMSE on validation set: {rmse_validation[-1]} at epoch {AdamW_scheduler.last_epoch}")
-       
         rmse_training.append(
             calculate_rmse(
-                torch.tensor(calc_free_energy_difference_batches),
-                torch.tensor(exp_free_energy_difference_batches)).item())
+                torch.tensor(dG_calc_training),
+                torch.tensor(dG_exp)).item())
         print(f"RMSE on training set: {rmse_training[-1]} at epoch {AdamW_scheduler.last_epoch}")
         _save_checkpoint(ANImodel, AdamW, AdamW_scheduler, SGD, SGD_scheduler, f"{base}_{AdamW_scheduler.last_epoch}.pt")
         # write all results
         
-        for name, e in zip(names_training + names_validating, calc_free_energy_difference_batches + e_calc_validation):
-            results[name] = e
-        
         logger.info('writing out results')
+        for name, e, which_set in zip(names_training + names_validating, dG_calc_training + dG_calc_validation, ['t'] *len(names_training)+ ['v'] *len(names_validating)):
+            results[name] = [e, which_set]        
         pickle.dump(results, open(f'results_epoch_{AdamW_scheduler.last_epoch}.pickle', 'wb+'))
-    
-    
-    
+       
     _save_checkpoint(ANImodel, AdamW, AdamW_scheduler, SGD, SGD_scheduler, checkpoint_filename)
   
     return rmse_training, rmse_validation
@@ -567,9 +598,7 @@ def _tweak_parameters(  names_training: list,
     [type]
         [description]
     """                        
-
-
-    
+   
     # iterate over batches of molecules
     it = tqdm(chunks(names_training, batch_size))
     calc_free_energy_difference_batches = []
@@ -748,10 +777,11 @@ def setup_and_perform_parameter_retraining(
     rmse_training = []
 
     # calculate the rmse on the current parameters for the validation set
-    rmse_validation_set, e_calc_validation = calculate_rmse_between_exp_and_calc(
+    rmse_validation_set, dG_calc_validation = calculate_rmse_between_exp_and_calc(
         names_validating,
         model=ANImodel,
         data_path=data_path,
+        perturbed_free_energy=False,
         bulk_energy_calculation=bulk_energy_calculation,
         env=env,
         max_snapshots_per_window=max_snapshots_per_window,
@@ -761,17 +791,25 @@ def setup_and_perform_parameter_retraining(
     print(f"RMSE on validation set: {rmse_validation[-1]} at first epoch")
     
     # calculate the rmse on the current parameters for the training set
-    rmse_training_set, e_calc_training = calculate_rmse_between_exp_and_calc(
+    rmse_training_set, dG_calc_training = calculate_rmse_between_exp_and_calc(
         names_training,
         model=ANImodel,
         data_path=data_path,
+        perturbed_free_energy=False,
         bulk_energy_calculation=bulk_energy_calculation,
         env=env,
         max_snapshots_per_window=max_snapshots_per_window,
         diameter=diameter)
 
     rmse_training.append(rmse_training_set)
-    print(f"RMSE on training set: {rmse_training[-1]} at first epoch")
+    print(f"RMSE on training set: {rmse_training[-1]} at first epoch")  
+    
+    # write out data on dG for validation/training set befor optimization   
+    results = {}
+    for name, e, which_set in zip(names_training + names_validating, dG_calc_training + dG_calc_validation, ['t'] *len(names_training) + ['v'] *len(names_validating)):
+        results[name] = [e, which_set]        
+    pickle.dump(results, open(f'results_before_training.pickle', 'wb+'))
+
     
     ### main training loop 
     rmse_training, rmse_validation = _perform_training(
