@@ -3,15 +3,15 @@ import pickle
 import sys
 import torch
 
-assert(len(sys.argv) == 5)
+assert(len(sys.argv) == 6)
 env = sys.argv[1]
 elements = sys.argv[2]
 data_path = sys.argv[3]
 model_name = str(sys.argv[4])
+max_snapshots_per_window=int(sys.argv[5])
 
-max_snapshots_per_window=200
+
 print(f'Max nr of snapshots: {max_snapshots_per_window}')
-
 
 if model_name == 'ANI2x':
     model = neutromeratio.ani.AlchemicalANI2x
