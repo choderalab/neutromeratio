@@ -411,7 +411,7 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
         
     # final rmsd calculation on test set
     print('RMSE calulation for test set')
-    rmse_test = calculate_rmse_between_exp_and_calc(
+    rmse_test, all_e_test = calculate_rmse_between_exp_and_calc(
         model=ANImodel,
         names=names_test,
         diameter=diameter,
@@ -512,6 +512,7 @@ def _perform_training(ANImodel: ANI,
         print(f"RMSE on training set: {rmse_training[-1]} at epoch {AdamW_scheduler.last_epoch}")
         _save_checkpoint(ANImodel, AdamW, AdamW_scheduler, SGD, SGD_scheduler, f"{base}_{AdamW_scheduler.last_epoch}.pt")
         # write all results
+        
         for name, e in zip(names_training + names_validating, calc_free_energy_difference_batches + e_calc_validation):
             results[name] = e
         
@@ -747,7 +748,7 @@ def setup_and_perform_parameter_retraining(
     rmse_training = []
 
     # calculate the rmse on the current parameters for the validation set
-    rmse_validation_set = calculate_rmse_between_exp_and_calc(
+    rmse_validation_set, e_calc_validation = calculate_rmse_between_exp_and_calc(
         names_validating,
         model=ANImodel,
         data_path=data_path,
@@ -760,7 +761,7 @@ def setup_and_perform_parameter_retraining(
     print(f"RMSE on validation set: {rmse_validation[-1]} at first epoch")
     
     # calculate the rmse on the current parameters for the training set
-    rmse_training_set = calculate_rmse_between_exp_and_calc(
+    rmse_training_set, e_calc_training = calculate_rmse_between_exp_and_calc(
         names_training,
         model=ANImodel,
         data_path=data_path,
