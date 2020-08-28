@@ -37,7 +37,7 @@ max_epochs = 0
 for _ in range(5):
     max_epochs += 15
 
-    rmse_training, rmse_validation = neutromeratio.parameter_gradients.setup_and_perform_parameter_retraining_with_test_set_split(
+    rmse_training, rmse_validation, rmse_test = neutromeratio.parameter_gradients.setup_and_perform_parameter_retraining_with_test_set_split(
         env=env,
         ANImodel=model,
         batch_size=1,
