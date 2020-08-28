@@ -13,27 +13,31 @@ max_snapshots_per_window=200
 print(f'Max nr of snapshots: {max_snapshots_per_window}')
 
 
-    if model_name == 'ANI2x':
-        model = neutromeratio.ani.AlchemicalANI2x
-        print(f'Using {model_name}.')
-    elif model_name == 'ANI1ccx':
-        model = neutromeratio.ani.AlchemicalANI1ccx
-        print(f'Using {model_name}.')
-    elif model_name == 'ANI1x':
-        model = neutromeratio.ani.AlchemicalANI1x
-        print(f'Using {model_name}.')
-    else:
-        raise RuntimeError(f'Unknown model name: {model_name}')
+if model_name == 'ANI2x':
+    model = neutromeratio.ani.AlchemicalANI2x
+    print(f'Using {model_name}.')
+elif model_name == 'ANI1ccx':
+    model = neutromeratio.ani.AlchemicalANI1ccx
+    print(f'Using {model_name}.')
+elif model_name == 'ANI1x':
+    model = neutromeratio.ani.AlchemicalANI1x
+    print(f'Using {model_name}.')
+else:
+    raise RuntimeError(f'Unknown model name: {model_name}')
 
-    if env == 'droplet':
-        bulk_energy_calculation = False
-    else:
-        bulk_energy_calculation = True
 
-    max_epochs = 10
-    names = ['molDWRow_298', 'SAMPLmol2', 'SAMPLmol4']
+if env == 'droplet':
+    bulk_energy_calculation = False
+    torch.set_num_threads(4)
+else:
+    torch.set_num_threads(4)
+    bulk_energy_calculation = True
 
-    rmse_training, rmse_validation, rmse_test = neutromeratio.parameter_gradients.setup_and_perform_parameter_retraining_with_test_set_split(
+max_epochs = 0
+for _ in range(5):
+    max_epochs += 15
+
+    rmse_training, rmse_validation = neutromeratio.parameter_gradients.setup_and_perform_parameter_retraining_with_test_set_split(
         env=env,
         ANImodel=model,
         batch_size=1,
@@ -43,15 +47,13 @@ print(f'Max nr of snapshots: {max_snapshots_per_window}')
         nr_of_nn=8,
         bulk_energy_calculation=bulk_energy_calculation,
         elements=elements,
-        max_epochs=5,
-        names=names,
+        max_epochs=max_epochs,
         diameter=18)
-        
-    f = open(f'results_{model_name}_{env}.txt', 'a+')
-        
+    
     print('RMSE training')
     print(rmse_training)   
-    
+
+    f = open(f'results_{model_name}_{env}.txt', 'a+')
     f.write('RMSE training')
     f.write('\n')
     for e in rmse_training:
