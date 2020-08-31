@@ -16,6 +16,7 @@ import torchani
 import torch
 from rdkit.Chem import rdFMCS
 import pkg_resources
+import scipy.stats as scs
 
 from .constants import num_threads, kT, gas_constant, temperature, mols_with_charge, exclude_set_ANI, multiple_stereobonds, device
 from .tautomers import Tautomer
@@ -23,7 +24,6 @@ from .parameter_gradients import FreeEnergyCalculator
 from .utils import generate_tautomer_class_stereobond_aware
 from .ani import ANI1_force_and_energy, AlchemicalANI2x, AlchemicalANI1ccx, ANI, AlchemicalANI1x
 from glob import glob
-
 
 logger = logging.getLogger(__name__)
 
@@ -460,4 +460,193 @@ def setup_alchemical_system_and_energy_function(
 
     return energy_function, tautomer, flipped
 
+
+
+def _error(x: np.ndarray, y: np.ndarray):
+    """ Simple error """
+    return x - y
+
+
+def array_rmse(x: np.ndarray, y: np.ndarray) -> float:
+    """Returns the root mean squared error between two arrays."""
+    return np.sqrt(((x - y) ** 2).mean())
+
+def array_mae(x: np.ndarray, y: np.ndarray):
+    """ Mean Absolute Error """
+    return np.mean(np.abs(_error(x, y)))
+
+
+def bootstrap_tautomer_exp_predict_results(exp_original, pred_original) -> (list, list):
+    """Perform empirical bootstrap over rows for correlation analysis."""
+    size = len(exp_original)
+    rows = np.random.choice(np.arange(size), size=size)
+    return (np.array([exp_original[i] for i in rows]), np.array([pred_original[i] for i in rows]))
+
+
+def bootstrap_rmse_r(exp_original:np.array, pred_original:np.array, nsamples: int):
+    """Perform a bootstrap correlation analysis for a dataframe
+
+    Parameters
+    ----------
+    exp_original - the original np.array with experimental data.
+    pred_original - the original np.array with preidcted data
+    nsamples - number of bootstrap samples to draw    
+    """
+
+    rmse_list = list()
+    rs_list = list()
+    mae_list = list()
+    for _ in range(nsamples):
+        exp, pred = bootstrap_tautomer_exp_predict_results(exp_original, pred_original)
+        mae_list.append(array_mae(exp, pred))
+        rmse_list.append(array_rmse(exp, pred))
+        rs_list.append(scs.pearsonr(exp, pred)[0])
+
+    rmse_array = np.asarray(rmse_list)
+    rs_array = np.asarray(rs_list)
+    mae_array = np.asarray(mae_list)
+
+    rmse = array_rmse(exp_original, pred_original)
+    rs = scs.pearsonr(exp_original, pred_original)[0]
+    mae = array_mae(exp_original, pred_original)
+
+    return (
+        BootstrapDistribution(rmse, rmse_array),
+        BootstrapDistribution(mae, mae_array),
+        BootstrapDistribution(rs, rs_array),
+    )
+
+
+class BootstrapDistribution:
+    """Represents a bootstrap distribution, and allows calculation of useful statistics."""
+
+    def __init__(self, sample_estimate: float, bootstrap_estimates: np.array) -> None:
+        """
+        Parameters
+        ----------
+        sample_estimate - estimated value from original sample
+        bootstrap_estimates - estimated values from bootstrap samples
+        """
+        self._sample = sample_estimate
+        self._bootstrap = bootstrap_estimates
+        # approximation of δ = X - μ
+        # denoted as δ* = X* - X
+        self._delta = bootstrap_estimates - sample_estimate
+        self._significance: int = 16
+        return
+
+    def __float__(self):
+        return float(self._sample)
+
+    def empirical_bootstrap_confidence_intervals(self, percent: float):
+        """Return % confidence intervals.
+
+        Uses the approximation that the variation around the center of the 
+        bootstrap distribution is the same as the variation around the 
+        center of the true distribution. E.g. not sensitive to a bootstrap
+        distribution is restraint_biased in the median.
+
+        Note
+        ----
+        Estimates are rounded to the nearest significant digit.
+        """
+        if not 0.0 < percent < 100.0:
+            raise ValueError("Percentage should be between 0.0 and 100.0")
+        elif 0.0 < percent < 1.0:
+            raise ValueError("Received a fraction but expected a percentile.")
+
+        a = (100.0 - percent) / 2
+        upper = np.percentile(self._delta, a)
+        lower = np.percentile(self._delta, 100 - a)
+        return self._sig_figures(self._sample, self._sample - lower, self._sample - upper)
+
+    def bootstrap_percentiles(self, percent: float):
+        """Return percentiles of the bootstrap distribution.
+
+        This assumes that the bootstrap distribution is similar to the real 
+        distribution. This breaks down when the median of the bootstrap 
+        distribution is very different from the sample/true variable median.
+
+        Note
+        ----
+        Estimates are rounded to the nearest significant digit.
+        """
+        if not 0.0 < percent < 100.0:
+            raise ValueError("Percentage should be between 0.0 and 100.0")
+        elif 0.0 < percent < 1.0:
+            raise UserWarning("Received a fraction but expected a percentage.")
+
+        a = (100.0 - percent) / 2
+        lower = np.percentile(self._bootstrap, a)
+        upper = np.percentile(self._bootstrap, 100 - a)
+        return self._sig_figures(self._sample, lower, upper)
+
+    def standard_error(self) -> float:
+        """Return the standard error for the bootstrap estimate."""
+        # Is calculated by taking the standard deviation of the bootstrap distribution
+        return self._bootstrap.std()
+
+    def _sig_figures(self, mean: float, lower: float, upper: float, max_sig: int = 16):
+        """Find the lowest number of significant figures that distinguishes
+        the mean from the lower and upper bound.
+        """
+        i = 16
+        for i in range(1, max_sig):
+            if (round(mean, i) != round(lower, i)) and (round(mean, i) != round(upper, i)):
+                break
+        self._significance = i
+        return round(mean, i), round(lower, i), round(upper, i)
+
+    def __repr__(self) -> str:
+        try:
+            return "{0:.{3}f}; [{1:.{3}f}, {2:.{3}f}]".format(*self.bootstrap_percentiles(95),
+                                                              self._significance)
+        except:
+            return str(self.__dict__)
+
+    def _round_float(self, flt):
+        return (flt * pow(10, self._significance)) / pow(10, self._significance)
+
+    def to_tuple(self, percent=95):
+        """Return the mean, lower and upper percentiles rounded to significant digits"""
+        mean, lower, upper = self.bootstrap_percentiles(percent)
+        mean = self._round_float(mean)
+        lower = self._round_float(lower)
+        upper = self._round_float(upper)
+        return mean, lower, upper
+
+
+
+# taken from here:
+# https://medium.com/datalab-log/measuring-the-statistical-similarity-between-two-samples-using-jensen-shannon-and-kullback-leibler-8d05af514b15
+def compute_probs(data, n=10): 
+    h, e = np.histogram(data, n)
+    p = h/data.shape[0]
+    return e, p
+
+def support_intersection(p, q): 
+    return list(filter(lambda x: (x[0]!=0) & (x[1]!=0), list(zip(p, q))))
+
+def get_probs(list_of_tuples): 
+    p = np.array([p[0] for p in list_of_tuples])
+    q = np.array([p[1] for p in list_of_tuples])
+    return p, q
+
+def kl_divergence(p, q): 
+    return np.sum(p*np.log(p/q))
+
+def js_divergence(p, q):
+    m = (1./2.)*(p + q)
+    return (1./2.)*kl_divergence(p, m) + (1./2.)*kl_divergence(q, m)
+
+def compute_kl_divergence(train_sample, test_sample, n_bins=10): 
+    """
+    Computes the KL Divergence using the support intersection between two different samples
+    """
+    e, p = compute_probs(train_sample, n=n_bins)
+    _, q = compute_probs(test_sample, n=e)
+
+    list_of_tuples = support_intersection(p, q)
+    p, q = get_probs(list_of_tuples)
+    return kl_divergence(p, q)
 

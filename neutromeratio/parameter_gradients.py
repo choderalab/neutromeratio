@@ -166,7 +166,7 @@ class FreeEnergyCalculator():
         return self.mbar.getFreeEnergyDifferences(return_dict=True)['dDelta_f']
 
     @property
-    def end_state_free_energy_difference(self):
+    def _end_state_free_energy_difference(self):
         """DeltaF[lambda=1 --> lambda=0]"""
         results = self.mbar.getFreeEnergyDifferences(return_dict=True)
         return results['Delta_f'][0, -1], results['dDelta_f'][0, -1]
@@ -208,7 +208,7 @@ class FreeEnergyCalculator():
         u_ln = torch.stack([u_0, u_1])       
         return u_ln
 
-    def compute_free_energy_difference(self):
+    def _compute_free_energy_difference(self):
         u_ln = self._form_u_ln()
         f_k = self._compute_perturbed_free_energies(u_ln)
         return f_k[1] - f_k[0]
@@ -216,7 +216,7 @@ class FreeEnergyCalculator():
 def torchify(x):
     return torch.tensor(x, dtype=torch.double, requires_grad=True, device=device)
 
-def get_perturbed_free_energy_differences(fec_list:list)-> torch.Tensor:
+def get_perturbed_free_energy_difference(fec_list:list)-> torch.Tensor:
     """
     Gets a list of fec instances and returns a torch.tensor with 
     the computed free energy differences.
@@ -231,9 +231,9 @@ def get_perturbed_free_energy_differences(fec_list:list)-> torch.Tensor:
 
     for idx, fec in enumerate(fec_list):
         if fec.flipped:
-            deltaF = fec.compute_free_energy_difference() * -1.
+            deltaF = fec._compute_free_energy_difference() * -1.
         else:
-            deltaF = fec.compute_free_energy_difference()
+            deltaF = fec._compute_free_energy_difference()
         calc.append(deltaF)
     logger.debug(calc)
     return torch.stack([e for e in calc])
@@ -253,9 +253,9 @@ def get_unperturbed_free_energy_difference(fec_list:list):
 
     for idx, fec in enumerate(fec_list):
         if fec.flipped:
-            deltaF = fec.end_state_free_energy_difference[0] * -1.
+            deltaF = fec._end_state_free_energy_difference[0] * -1.
         else:
-            deltaF = fec.end_state_free_energy_difference[0]
+            deltaF = fec._end_state_free_energy_difference[0]
         calc.append(deltaF)
     logger.debug(calc)
     return torch.stack([torchify(e) for e in calc])
@@ -319,7 +319,7 @@ def calculate_rmse_between_exp_and_calc(
                     diameter=diameter)]
         
         if perturbed_free_energy:       
-            e_calc.append(get_perturbed_free_energy_differences(fec_list)[0].item())
+            e_calc.append(get_perturbed_free_energy_difference(fec_list)[0].item())
         else:
             e_calc.append(get_unperturbed_free_energy_difference(fec_list)[0].item())
            
@@ -622,7 +622,7 @@ def _tweak_parameters(  names_training: list,
             diameter=diameter) for name in names]
 
         # calculate the free energies
-        calc_free_energy_difference = get_perturbed_free_energy_differences(fec_list)
+        calc_free_energy_difference = get_perturbed_free_energy_difference(fec_list)
         # obtain the experimental free energies
         exp_free_energy_difference = get_experimental_values(names)
         # calculate the loss as MSE
