@@ -475,8 +475,8 @@ def array_mae(x: np.ndarray, y: np.ndarray):
     """ Mean Absolute Error """
     return np.mean(np.abs(_error(x, y)))
 
-
-def bootstrap_tautomer_exp_predict_results(exp_original, pred_original) -> (list, list):
+from typing import Tuple
+def bootstrap_tautomer_exp_predict_results(exp_original:list, pred_original:list) -> Tuple[list, list]:
     """Perform empirical bootstrap over rows for correlation analysis."""
     size = len(exp_original)
     rows = np.random.choice(np.arange(size), size=size)

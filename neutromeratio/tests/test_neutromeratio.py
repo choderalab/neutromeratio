@@ -178,6 +178,15 @@ def test_tautomer_transformation():
     # test if droplet works
     t.add_droplet(t.final_state_ligand_topology, t.get_final_state_ligand_coords(0))
 
+def test_bootstrap_tautomer_exp_predict_results():
+    
+    from ..analysis import bootstrap_rmse_r
+    a1 = np.random.uniform(-1,0,10000)
+    a2 = np.random.uniform(-1,0,10000)
+    r = bootstrap_rmse_r(a1, a2, 1000)
+    print(r)
+    
+    
 def test_tautomer_transformation_for_all_systems():
     from neutromeratio.tautomers import Tautomer
     from ..constants import  exclude_set_ANI, mols_with_charge, multiple_stereobonds
@@ -975,7 +984,7 @@ def test_setup_mbar():
         ANImodel=AlchemicalANI1ccx,
         bulk_energy_calculation=False,
         max_snapshots_per_window=20)
-    assert(np.isclose(-3.2194223855155357, fec.end_state_free_energy_difference[0]))
+    assert(np.isclose(-3.2194223855155357, fec._end_state_free_energy_difference[0]))
 
     fec = setup_mbar(
         name,
@@ -984,7 +993,7 @@ def test_setup_mbar():
         ANImodel=AlchemicalANI2x,
         bulk_energy_calculation=False,
         max_snapshots_per_window=20)
-    assert(np.isclose(-11.554636171428106, fec.end_state_free_energy_difference[0]))
+    assert(np.isclose(-11.554636171428106, fec._end_state_free_energy_difference[0]))
 
     fec = setup_mbar(
         name,
@@ -993,7 +1002,7 @@ def test_setup_mbar():
         ANImodel=AlchemicalANI1x,
         bulk_energy_calculation=False,
         max_snapshots_per_window=20)
-    assert(np.isclose(-12.413598945128637, fec.end_state_free_energy_difference[0]))
+    assert(np.isclose(-12.413598945128637, fec._end_state_free_energy_difference[0]))
 
     # droplet
     fec = setup_mbar(
@@ -1004,7 +1013,7 @@ def test_setup_mbar():
         ANImodel=AlchemicalANI1ccx,
         bulk_energy_calculation=False,
         max_snapshots_per_window=10)
-    assert(np.isclose(-6.080175410793023, fec.end_state_free_energy_difference[0]))
+    assert(np.isclose(-6.080175410793023, fec._end_state_free_energy_difference[0]))
 
     fec = setup_mbar(
         name,
@@ -1014,7 +1023,7 @@ def test_setup_mbar():
         ANImodel=AlchemicalANI2x,
         bulk_energy_calculation=False,
         max_snapshots_per_window=10)
-    assert(np.isclose(-19.401149969534163, fec.end_state_free_energy_difference[0]))
+    assert(np.isclose(-19.401149969534163, fec._end_state_free_energy_difference[0]))
 
     fec = setup_mbar(
         name,
@@ -1024,7 +1033,7 @@ def test_setup_mbar():
         ANImodel=AlchemicalANI1x,
         bulk_energy_calculation=False,
         max_snapshots_per_window=10)
-    assert(np.isclose(-15.506057798507124, fec.end_state_free_energy_difference[0]))
+    assert(np.isclose(-15.506057798507124, fec._end_state_free_energy_difference[0]))
 
 def test_change_stereobond():
     from ..utils import change_only_stereobond, get_nr_of_stereobonds
@@ -1437,9 +1446,9 @@ def test_parameter_gradient():
         # swapped tautomer 1 and 2 to mutate from the tautomer WITH the stereobond to the 
         # one without the stereobond
         if flipped:
-            deltaF = fec.compute_free_energy_difference() * -1
+            deltaF = fec._compute_free_energy_difference() * -1
         else:
-            deltaF = fec.compute_free_energy_difference()
+            deltaF = fec._compute_free_energy_difference()
         print(f"Free energy difference {(deltaF.item() * kT).value_in_unit(unit.kilocalorie_per_mole)} kcal/mol")
 
         deltaF.backward()  # no errors or warnings
@@ -1476,7 +1485,7 @@ def test_thinning():
     #raise RuntimeError('t')
 
 def test_fec():
-    from ..parameter_gradients import get_perturbed_free_energy_differences
+    from ..parameter_gradients import get_perturbed_free_energy_difference
     from ..constants import kT, device, exclude_set_ANI, mols_with_charge
     from ..parameter_gradients import setup_mbar
     from glob import glob
@@ -1490,7 +1499,7 @@ def test_fec():
     for idx, model in enumerate([AlchemicalANI1ccx, AlchemicalANI1x, AlchemicalANI2x ]):
 
         if idx == 0:
-            #testing fec
+            #testing fec calculation in sequence
             bulk_energy_calculation=True
             fec_list = [setup_mbar(
                 name,
@@ -1502,12 +1511,12 @@ def test_fec():
                 ]
 
             assert(len(fec_list) == 2)
-            fec = get_perturbed_free_energy_differences(fec_list)
+            fec = get_perturbed_free_energy_difference(fec_list)
             print(fec)
             for e1, e2 in zip(fec, [1.2104192392435253, -5.316053972628578]):
                 assert(np.isclose(e1.item(),e2, rtol=1e-4)) 
 
-            # testing fec
+            # testing fec calculation in bulk 
             bulk_energy_calculation=False
             fec_list = [setup_mbar(
                  name,
@@ -1519,7 +1528,7 @@ def test_fec():
                 ]
 
             assert(len(fec_list) == 2)
-            fec = get_perturbed_free_energy_differences(fec_list)
+            fec = get_perturbed_free_energy_difference(fec_list)
             print(fec)
             for e1, e2 in zip(fec, [1.2104192392435253, -5.316053972628578]):
                 assert(np.isclose(e1.item(),e2, rtol=1e-4)) 
@@ -1531,7 +1540,7 @@ def test_fec():
                 bulk_energy_calculation=True,
                 data_path='./data/vacuum',
                 max_snapshots_per_window=80)
-            assert(np.isclose(fec.end_state_free_energy_difference[0], fec.compute_free_energy_difference().item(), rtol=1e-5))
+            assert(np.isclose(fec._end_state_free_energy_difference[0], fec._compute_free_energy_difference().item(), rtol=1e-5))
 
         if idx == 1:
             bulk_energy_calculation=True
@@ -1545,7 +1554,7 @@ def test_fec():
                 ]
 
             assert(len(fec_list) == 2)
-            fec = get_perturbed_free_energy_differences(fec_list)
+            fec = get_perturbed_free_energy_difference(fec_list)
             print(fec)
             for e1, e2 in zip(fec, [10.3192, -9.7464]):
                 assert(np.isclose(e1.item(),e2, rtol=1e-4)) 
@@ -1562,7 +1571,7 @@ def test_fec():
                 ]
 
             assert(len(fec_list) == 2)
-            fec = get_perturbed_free_energy_differences(fec_list)
+            fec = get_perturbed_free_energy_difference(fec_list)
             print(fec)
             for e1, e2 in zip(fec, [8.8213, -9.6649]):
                 assert(np.isclose(e1.item(),e2, rtol=1e-4)) 
@@ -1591,7 +1600,7 @@ def test_max_nr_of_snapshots():
         
 def test_unperturbed_perturbed_free_energy():
     # test the setup mbar function with different models, environments and potentials
-    from ..parameter_gradients import setup_mbar, get_unperturbed_free_energy_difference, get_perturbed_free_energy_differences
+    from ..parameter_gradients import setup_mbar, get_unperturbed_free_energy_difference, get_perturbed_free_energy_difference
     from ..ani import AlchemicalANI1ccx
 
 
@@ -1607,7 +1616,7 @@ def test_unperturbed_perturbed_free_energy():
         max_snapshots_per_window=20)
 
     a = get_unperturbed_free_energy_difference([fec])
-    b = get_perturbed_free_energy_differences([fec])
+    b = get_perturbed_free_energy_difference([fec])
     np.isclose(a.item(), b.item())
 
 def test_parameter_gradient_opt_script():
@@ -1803,7 +1812,7 @@ def test_experimental_values():
     os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
 )
 def test_postprocessing_vacuum():
-    from ..parameter_gradients import FreeEnergyCalculator, get_perturbed_free_energy_differences, get_experimental_values
+    from ..parameter_gradients import FreeEnergyCalculator, get_perturbed_free_energy_difference, get_experimental_values
     from ..constants import kT, device, exclude_set_ANI, mols_with_charge
     from ..parameter_gradients import setup_mbar
     from glob import glob
@@ -1828,10 +1837,10 @@ def test_postprocessing_vacuum():
                 ]
 
             assert(len(fec_list) == 3)
-            rmse = torch.sqrt(torch.mean((get_perturbed_free_energy_differences(fec_list) - get_experimental_values(names))**2))
-            print([e.end_state_free_energy_difference[0] for e in fec_list])
+            rmse = torch.sqrt(torch.mean((get_perturbed_free_energy_difference(fec_list) - get_experimental_values(names))**2))
+            print([e._end_state_free_energy_difference[0] for e in fec_list])
             for fec, e2 in zip(fec_list, [-1.2104192392489894, -5.31605397264069, 4.055934972298076]):
-                assert(np.isclose(fec.end_state_free_energy_difference[0], e2))        
+                assert(np.isclose(fec._end_state_free_energy_difference[0], e2))        
             assert (np.isclose(rmse.item(), 5.393606768321977))
         
         
@@ -1846,10 +1855,10 @@ def test_postprocessing_vacuum():
                 ]
 
             assert(len(fec_list) == 3)
-            rmse = torch.sqrt(torch.mean((get_perturbed_free_energy_differences(fec_list) - get_experimental_values(names))**2))
-            print([e.end_state_free_energy_difference[0] for e in fec_list])
+            rmse = torch.sqrt(torch.mean((get_perturbed_free_energy_difference(fec_list) - get_experimental_values(names))**2))
+            print([e._end_state_free_energy_difference[0] for e in fec_list])
             for fec, e2 in zip(fec_list, [-10.201508376053313, -9.919852168528479, 0.6758425107641388]):
-                assert(np.isclose(fec.end_state_free_energy_difference[0], e2))        
+                assert(np.isclose(fec._end_state_free_energy_difference[0], e2))        
             assert (np.isclose(rmse.item(), 5.464364003709803))
 
         elif idx == 2:           
@@ -1862,10 +1871,10 @@ def test_postprocessing_vacuum():
                 max_snapshots_per_window=50) for name in names
                 ]
             assert(len(fec_list) == 3)
-            rmse = torch.sqrt(torch.mean((get_perturbed_free_energy_differences(fec_list) - get_experimental_values(names))**2))
-            print([e.end_state_free_energy_difference[0] for e in fec_list])
+            rmse = torch.sqrt(torch.mean((get_perturbed_free_energy_difference(fec_list) - get_experimental_values(names))**2))
+            print([e._end_state_free_energy_difference[0] for e in fec_list])
             for fec, e2 in zip(fec_list, [-7.6805827500672805, -9.655550628208003, 2.996804928927007]):
-                assert(np.isclose(fec.end_state_free_energy_difference[0], e2))        
+                assert(np.isclose(fec._end_state_free_energy_difference[0], e2))        
             assert (np.isclose(rmse.item(), 5.1878913627689895))
 
 
@@ -1873,7 +1882,7 @@ def test_postprocessing_vacuum():
     os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
 )
 def test_postprocessing_droplet():
-    from ..parameter_gradients import FreeEnergyCalculator, get_perturbed_free_energy_differences, get_experimental_values
+    from ..parameter_gradients import FreeEnergyCalculator, get_perturbed_free_energy_difference, get_experimental_values
     from ..constants import kT, device, exclude_set_ANI, mols_with_charge
     from ..parameter_gradients import setup_mbar
     from glob import glob
@@ -1900,15 +1909,15 @@ def test_postprocessing_droplet():
         if idx == 0:
             print(fec_list)
             assert(len(fec_list) == 1)
-            rmse = torch.sqrt(torch.mean((get_perturbed_free_energy_differences(fec_list) - get_experimental_values(names))**2))
-            assert(np.isclose(fec_list[0].end_state_free_energy_difference[0].item(), -6.080175410793023))
+            rmse = torch.sqrt(torch.mean((get_perturbed_free_energy_difference(fec_list) - get_experimental_values(names))**2))
+            assert(np.isclose(fec_list[0]._end_state_free_energy_difference[0].item(), -6.080175410793023))
             assert(np.isclose(rmse.item(),  8.518695576398514))
         
         elif idx == 1:
             print(fec_list)
             assert(len(fec_list) == 1)
-            rmse = torch.sqrt(torch.mean((get_perturbed_free_energy_differences(fec_list) - get_experimental_values(names))**2))
-            assert(np.isclose(fec_list[0].end_state_free_energy_difference[0].item(), -15.506057798507124))
+            rmse = torch.sqrt(torch.mean((get_perturbed_free_energy_difference(fec_list) - get_experimental_values(names))**2))
+            assert(np.isclose(fec_list[0]._end_state_free_energy_difference[0].item(), -15.506057798507124))
             assert(np.isclose(rmse.item(),  17.95928077353352))
 
 def _remove_files(name, max_epochs=1):

@@ -23,6 +23,7 @@ exp_results = pickle.load(open('../data/exp_results.pickle', 'rb'))
 
 # name of the system
 names = _get_names()
+torch.set_num_threads(4)
 
 name = names[idx-1]
 print(name)
@@ -59,7 +60,7 @@ elif env == 'vacuum':
 else:
     raise RuntimeError('No env specified. Aborting.')
 
-DeltaF_ji, dDeltaF_ji = fec.end_state_free_energy_difference
+DeltaF_ji, dDeltaF_ji = fec._end_state_free_energy_difference
 if fec.flipped:
     DeltaF_ji *= -1
 print(DeltaF_ji)
