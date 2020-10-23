@@ -1,4 +1,5 @@
-name, t1-smiles, t2-smiles, dG_{tau} [kcal/mol]SAMPLmol2, OC1=CC=C2C=CC=CC2=N1, O=C1NC2=C(C=CC=C2)C=C1, -6.1 
+name, t1-smiles, t2-smiles, dG_{tau} [kcal/mol]
+SAMPLmol2, OC1=CC=C2C=CC=CC2=N1, O=C1NC2=C(C=CC=C2)C=C1, -6.1 
 SAMPLmol4, OC1=CC2=C(C=CC=C2)C=N1, O=C1NC=C2C=CC=CC2=C1, -2.3 
 molDWRow_1000, Oc1nccnc1, O=C1NC=CN=C1, -2.59217 
 molDWRow_1001, Oc1nc2ccccc2nc1, O=C1Nc(cccc2)c2N=C1, -3.6836100000000003 
