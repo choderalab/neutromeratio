@@ -56,7 +56,8 @@ returns:
   'vac': [mol1, mol2, ...]},
  'O=C1NC2=C(C=CC=C2)C=C1': {'solv': [mol1, mol2, ...],
   'vac': [mol1, mol2, ...]}}
-```.
+``` 
+.
 
 For a single system (e.g. `'SAMPLmol2'`) the two tautomer molecules are identified with the SMILES string (e.g. `'OC1=CC=C2C=CC=CC2=N1'`), and the envrionment (e.g. `'solv'`).
 Using these three keys (e.g. `r['SAMPLmol2]['OC1=CC=C2C=CC=CC2=N1']['solv])` one gets a list or rdkit molecules, each in the optimized 3D conformation.
@@ -93,13 +94,26 @@ Each of the 5 csv files contains a per line three values: the name of the tautom
 
 ### Optimization
 
+The retraining results are located here (including the log file and best parameter set):
+https://github.com/choderalab/neutromeratio/tree/dev-mw/data/retraining
+
+The used script is here:
+https://github.com/choderalab/neutromeratio/blob/dev-mw/data/retraining/parameter_opt.py
+
+# How to generate the data 
+
+There are four notebooks in https://github.com/choderalab/neutromeratio/tree/dev-mw/notebooks.
+These generate all the data shown in the manuscript and in the Supplementary Information.
 
 # How to use neutromeration
 
 
 ## Running alchemical free energy calculations for tautomers
 
-
+It is pretty easy --- but for now also limited to the tautomers we have been investigating.
+If you want to run an alchemical free energy calulation use this script:
+https://github.com/choderalab/neutromeratio/blob/dev-mw/scripts/generate_equilibrium_sampling_in_vacuum.sh
+You only have to provide an index between 0 and 5000. This is further explained in the bash script. 
 
 
 
