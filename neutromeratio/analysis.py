@@ -18,14 +18,30 @@ from rdkit.Chem import rdFMCS
 import pkg_resources
 import scipy.stats as scs
 
-from .constants import num_threads, kT, gas_constant, temperature, mols_with_charge, exclude_set_ANI, multiple_stereobonds, device
+from .constants import (
+    num_threads,
+    kT,
+    gas_constant,
+    temperature,
+    mols_with_charge,
+    exclude_set_ANI,
+    multiple_stereobonds,
+    device,
+)
 from .tautomers import Tautomer
 from .parameter_gradients import FreeEnergyCalculator
 from .utils import generate_tautomer_class_stereobond_aware
-from .ani import ANI1_force_and_energy, AlchemicalANI2x, AlchemicalANI1ccx, ANI, AlchemicalANI1x
+from .ani import (
+    ANI1_force_and_energy,
+    AlchemicalANI2x,
+    AlchemicalANI1ccx,
+    ANI,
+    AlchemicalANI1x,
+)
 from glob import glob
 
 logger = logging.getLogger(__name__)
+
 
 def _remove_hydrogens(m: Chem.Mol):
     """Removing all hydrogens from the molecule with a few exceptions"""
@@ -33,46 +49,46 @@ def _remove_hydrogens(m: Chem.Mol):
     # search for important hydrogens
     #########################################
     keep_hydrogens = []
-    logger.debug('search for patterns ...')
+    logger.debug("search for patterns ...")
     # test for primary alcohol
-    patt = Chem.MolFromSmarts('[OX2H]')
+    patt = Chem.MolFromSmarts("[OX2H]")
     if m.HasSubstructMatch(patt):
-        logger.debug('found primary alcohol')
+        logger.debug("found primary alcohol")
         l = m.GetSubstructMatch(patt)
         keep_hydrogens.extend(l)
 
     # test for imine
-    patt = Chem.MolFromSmarts('[CX3]=[NH]')
+    patt = Chem.MolFromSmarts("[CX3]=[NH]")
     if m.HasSubstructMatch(patt):
-        logger.debug('found imine')
+        logger.debug("found imine")
         l = m.GetSubstructMatch(patt)
         keep_hydrogens.extend(l)
 
     # test for primary amine
-    patt = Chem.MolFromSmarts('[NX3;H2]')
+    patt = Chem.MolFromSmarts("[NX3;H2]")
     if m.HasSubstructMatch(patt):
-        logger.debug('found primary amine')
+        logger.debug("found primary amine")
         l = m.GetSubstructMatch(patt)
         keep_hydrogens.extend(l)
 
     # test for secondary amine
-    patt = Chem.MolFromSmarts('[NX3H]')
+    patt = Chem.MolFromSmarts("[NX3H]")
     if m.HasSubstructMatch(patt):
-        logger.debug('found secondary amine')
+        logger.debug("found secondary amine")
         l = m.GetSubstructMatch(patt)
         keep_hydrogens.extend(l)
 
     # test for cyanamide
-    patt = Chem.MolFromSmarts('[NX3][CX2]#[NX1]')
+    patt = Chem.MolFromSmarts("[NX3][CX2]#[NX1]")
     if m.HasSubstructMatch(patt):
-        logger.debug('found cyanamide')
+        logger.debug("found cyanamide")
         l = m.GetSubstructMatch(patt)
         keep_hydrogens.extend(l)
 
     # test for thiol
-    patt = Chem.MolFromSmarts('[#16X2H]')
+    patt = Chem.MolFromSmarts("[#16X2H]")
     if m.HasSubstructMatch(patt):
-        logger.debug('found thiol')
+        logger.debug("found thiol")
         l = m.GetSubstructMatch(patt)
         keep_hydrogens.extend(l)
 
@@ -83,13 +99,13 @@ def _remove_hydrogens(m: Chem.Mol):
         for idx in keep_hydrogens:
             atom = m.GetAtomWithIdx(idx)
             for neighbor in atom.GetNeighbors():
-                if neighbor.GetSymbol() == 'H':
+                if neighbor.GetSymbol() == "H":
                     hydrogen = m.GetAtomWithIdx(neighbor.GetIdx())
                     hydrogen.SetAtomicNum(3)
 
         m = Chem.RemoveHs(m)
         for atom in m.GetAtoms():
-            if atom.GetSymbol() == 'Li':
+            if atom.GetSymbol() == "Li":
                 hydrogen = m.GetAtomWithIdx(atom.GetIdx())
                 hydrogen.SetAtomicNum(1)
     else:
@@ -98,7 +114,9 @@ def _remove_hydrogens(m: Chem.Mol):
     return m
 
 
-def prune_conformers(mol: Chem.Mol, energies: list, rmsd_threshold: float) -> (Chem.Mol, list):
+def prune_conformers(
+    mol: Chem.Mol, energies: list, rmsd_threshold: float
+) -> (Chem.Mol, list):
     """
     Adopted from: https://github.com/skearnes/rdkit-utils/blob/master/rdkit_utils/conformers.py
     Prune conformers from a molecule using an RMSD threshold, starting
@@ -113,11 +131,13 @@ def prune_conformers(mol: Chem.Mol, energies: list, rmsd_threshold: float) -> (C
     increasing energy.
     """
     from typing import List
+
     rmsd = get_conformer_rmsd(mol)
-    sort = np.argsort([x.value_in_unit(unit.kilocalorie_per_mole)
-                       for x in energies])  # sort by increasing energy
-    keep:List[int] = []  # always keep lowest-energy conformer
-    discard:List[int] = []
+    sort = np.argsort(
+        [x.value_in_unit(unit.kilocalorie_per_mole) for x in energies]
+    )  # sort by increasing energy
+    keep: List[int] = []  # always keep lowest-energy conformer
+    discard: List[int] = []
     for i in sort:
 
         # always keep lowest-energy conformer
@@ -157,87 +177,119 @@ def get_conformer_rmsd(mol) -> list:
     mol : RDKit Mol
         Molecule.
     """
-    rmsd = np.zeros((mol.GetNumConformers(), mol.GetNumConformers()),
-                    dtype=float)
+    rmsd = np.zeros((mol.GetNumConformers(), mol.GetNumConformers()), dtype=float)
 
     mol = _remove_hydrogens(copy.deepcopy(mol))
     for i, ref_conf in enumerate(mol.GetConformers()):
         for j, fit_conf in enumerate(mol.GetConformers()):
             if i >= j:
                 continue
-            rmsd[i, j] = AllChem.GetBestRMS(mol, mol, ref_conf.GetId(),
-                                            fit_conf.GetId())
+            rmsd[i, j] = AllChem.GetBestRMS(
+                mol, mol, ref_conf.GetId(), fit_conf.GetId()
+            )
             rmsd[j, i] = rmsd[i, j]
     return rmsd
 
 
 def calculate_weighted_energy(e_list):
     # G = -RT ln Σ exp(-G/RT)
-    e_bw = (-1) * gas_constant * temperature * (logsumexp([(-1) * (e) / (gas_constant * temperature) for e in e_list] ))
+    e_bw = (
+        (-1)
+        * gas_constant
+        * temperature
+        * (logsumexp([(-1) * (e) / (gas_constant * temperature) for e in e_list]))
+    )
     return e_bw
 
 
-def _mol_to_nx(mol: Chem.Mol):
+def mol_to_nx(mol: Chem.Mol):
     G = nx.Graph()
 
     for atom in mol.GetAtoms():
-        G.add_node(atom.GetIdx(),
-                   atomic_num=atom.GetAtomicNum(),
-                   formal_charge=atom.GetFormalCharge(),
-                   chiral_tag=atom.GetChiralTag(),
-                   hybridization=atom.GetHybridization(),
-                   num_explicit_hs=atom.GetNumExplicitHs(),
-                   is_aromatic=atom.GetIsAromatic())
+        G.add_node(
+            atom.GetIdx(),
+            atomic_num=atom.GetAtomicNum(),
+            formal_charge=atom.GetFormalCharge(),
+            chiral_tag=atom.GetChiralTag(),
+            hybridization=atom.GetHybridization(),
+            num_explicit_hs=atom.GetNumExplicitHs(),
+            is_aromatic=atom.GetIsAromatic(),
+        )
 
     for bond in mol.GetBonds():
-        G.add_edge(bond.GetBeginAtomIdx(),
-                   bond.GetEndAtomIdx(),
-                   bond_type=bond.GetBondType())
+        G.add_edge(
+            bond.GetBeginAtomIdx(), bond.GetEndAtomIdx(), bond_type=bond.GetBondType()
+        )
     return G
 
 
-def ligand_degeneracy(mol):
+def small_molecule_degeneracy(graph):
     # Now iterate over graph isomorphisms
+    def equ_node(n1, n2):
+        if (
+            int(n1["atomic_num"]) == int(n2["atomic_num"])
+            and n1["hybridization"] == n2["hybridization"]
+        ):
+            return True
+        else:
+            return False
+
+    def equ_edge(n1, n2):
+        if int(n1["bond_type"]) == int(n2["bond_type"]):
+            return True
+        else:
+            return False
+
     from networkx.algorithms.isomorphism import GraphMatcher
-    G = _mol_to_nx(mol)
-    graph_matcher = GraphMatcher(G, G)
+
+    graph_matcher = GraphMatcher(graph, graph, node_match=equ_node, edge_match=equ_edge)
     degeneracy = sum([1 for isomorphism in graph_matcher.match()])
-    return degeneracy
+    return calc_rot_entropy(degeneracy), degeneracy
 
 
-def entropy_correction(mol):
-    return (- kT * np.log(ligand_degeneracy(mol))).in_units_of(unit.kilocalorie_per_mole)
+def calc_rot_entropy(deg: int):
+    return -1 * gas_constant * temperature * np.log(deg)
 
-def compare_confomer_generator_and_trajectory_minimum_structures(results_path: str, name: str, base: str, tautomer_idx: int, thinning:int = 100):
-    assert (tautomer_idx == 1 or tautomer_idx == 2)
 
-    ani_results = pickle.load(open(f'{results_path}/ani_mm_results.pickle', 'rb'))
-    exp_results = pickle.load(open(f'{results_path}/exp_results.pickle', 'rb'))
+def calc_molecular_graph_entropy(mol):
+    return small_molecule_degeneracy(mol_to_nx(mol))
+
+
+def compare_confomer_generator_and_trajectory_minimum_structures(
+    results_path: str, name: str, base: str, tautomer_idx: int, thinning: int = 100
+):
+    assert tautomer_idx == 1 or tautomer_idx == 2
+
+    ani_results = pickle.load(open(f"{results_path}/ani_mm_results.pickle", "rb"))
+    exp_results = pickle.load(open(f"{results_path}/exp_results.pickle", "rb"))
 
     # generate the tautomer object
-    t1_smiles = exp_results[name]['t1-smiles']
-    t2_smiles = exp_results[name]['t2-smiles']
-    t_type, tautomers, flipped = generate_tautomer_class_stereobond_aware(name,
-                                                                        t1_smiles,
-                                                                        t2_smiles,
-                                                                        nr_of_conformations=1,
-                                                                        enforceChirality=True)
-
+    t1_smiles = exp_results[name]["t1-smiles"]
+    t2_smiles = exp_results[name]["t2-smiles"]
+    t_type, tautomers, flipped = generate_tautomer_class_stereobond_aware(
+        name, t1_smiles, t2_smiles, nr_of_conformations=1, enforceChirality=True
+    )
 
     tautomer = tautomers[0]
-    print(f'Flipped: {flipped}')
+    print(f"Flipped: {flipped}")
     tautomer.perform_tautomer_transformation()
 
-    tautomer_mol = (prune_conformers(ani_results[name]['t1-confs'], ani_results[name]['t1-energies'], rmsd_threshold=0.1))
+    tautomer_mol = prune_conformers(
+        ani_results[name]["t1-confs"],
+        ani_results[name]["t1-energies"],
+        rmsd_threshold=0.1,
+    )
     print(len(tautomer_mol[1]))
 
-    traj_path = f'{base}/{name}/{name}_lambda_{tautomer_idx-1}.0000_kappa_0.0000_in_vacuum.dcd'
-    pdb_path = f'{base}/{name}/{name}_0.pdb'
+    traj_path = (
+        f"{base}/{name}/{name}_lambda_{tautomer_idx-1}.0000_kappa_0.0000_in_vacuum.dcd"
+    )
+    pdb_path = f"{base}/{name}/{name}_0.pdb"
 
     # load trajectory, remove dummy atom
     traj = md.load(traj_path, top=pdb_path)
     atom_idx = [a.index for a in traj.topology.atoms]
-    if (tautomer_idx -1) == 1:
+    if (tautomer_idx - 1) == 1:
         atom_idx.remove(int(tautomer.hybrid_hydrogen_idx_at_lambda_0))
     else:
         atom_idx.remove(int(tautomer.hybrid_hydrogen_idx_at_lambda_1))
@@ -245,7 +297,7 @@ def compare_confomer_generator_and_trajectory_minimum_structures(results_path: s
     traj = traj.atom_slice(atom_indices=atom_idx)
 
     # save pdb without dummy atom
-    tautomer_pdb = f'{base}/{name}/{name}_without_dummy_{tautomer_idx}.pdb'
+    tautomer_pdb = f"{base}/{name}/{name}_without_dummy_{tautomer_idx}.pdb"
     traj[0].save_pdb(tautomer_pdb)
 
     # generate rdkit mol object with the same atom indizes as the trajectory but without the dummy atom
@@ -255,61 +307,81 @@ def compare_confomer_generator_and_trajectory_minimum_structures(results_path: s
 
     # generate energy function, use atom symbols of rdkti mol
     from .ani import ANI1ccx, ANI1_force_and_energy
+
     model = ANI1ccx()
-    energy_function = ANI1_force_and_energy(model=model,
-                                            atoms=[a.GetSymbol() for a in mol.GetAtoms()],
-                                            mol=None)
+    energy_function = ANI1_force_and_energy(
+        model=model, atoms=[a.GetSymbol() for a in mol.GetAtoms()], mol=None
+    )
 
     # take every 100th conformation and minimize it using ANI1
-    minimized_traj = [] # store min conformations in here
+    minimized_traj = []  # store min conformations in here
 
     for idx, conf in enumerate(traj[::thinning]):
-       
-        print(f'{idx}/{len(traj[::thinning])}')
+
+        print(f"{idx}/{len(traj[::thinning])}")
         c = (conf.xyz[0]) * unit.nanometer
-        min_conf = energy_function.minimize(c)[0] # only real atoms, therefor lambda not needed
+        min_conf = energy_function.minimize(c)[
+            0
+        ]  # only real atoms, therefor lambda not needed
         minimized_traj.append(min_conf)
         new_conf = _generate_conformer(min_conf)
         # add the conformation to the rdkit mol object
         mol.AddConformer(new_conf, assignId=True)
 
     # generate mdtraj object with minimized confs
-    minimum_traj = md.Trajectory(np.array([v.value_in_unit(unit.nanometer) for v in minimized_traj]), traj.topology)
+    minimum_traj = md.Trajectory(
+        np.array([v.value_in_unit(unit.nanometer) for v in minimized_traj]),
+        traj.topology,
+    )
 
     # generate reference_mol
-    reference = prune_conformers(ani_results[name][f't{tautomer_idx}-confs'], ani_results[name][f't{tautomer_idx}-energies'], rmsd_threshold=0.1)
+    reference = prune_conformers(
+        ani_results[name][f"t{tautomer_idx}-confs"],
+        ani_results[name][f"t{tautomer_idx}-energies"],
+        rmsd_threshold=0.1,
+    )
 
     # remove most hydrogens
     reference_mol = _remove_hydrogens(copy.deepcopy(reference[0]))
     compare_mol = _remove_hydrogens(copy.deepcopy(mol))
 
     # find atom indices that are compared for RMSD
-    sub_m = rdFMCS.FindMCS([reference_mol, compare_mol], bondCompare=Chem.rdFMCS.BondCompare.CompareOrder.CompareAny, maximizeBonds=False)
+    sub_m = rdFMCS.FindMCS(
+        [reference_mol, compare_mol],
+        bondCompare=Chem.rdFMCS.BondCompare.CompareOrder.CompareAny,
+        maximizeBonds=False,
+    )
     mcsp = Chem.MolFromSmarts(sub_m.smartsString, False)
 
     # the order of the substructure lists are the same for both
     # substructure matches => substructure_idx_m1[i] = substructure_idx_m2[i]
     substructure_idx_reference = reference_mol.GetSubstructMatches(mcsp, uniquify=False)
     substructure_idx_compare = compare_mol.GetSubstructMatches(mcsp, uniquify=False)
-    
+
     # generate rmsd matrix
-    rmsd = np.zeros((reference_mol.GetNumConformers(), mol.GetNumConformers()),
-                dtype=float)
+    rmsd = np.zeros(
+        (reference_mol.GetNumConformers(), mol.GetNumConformers()), dtype=float
+    )
 
     # save clusters
     got_hit = np.zeros(reference_mol.GetNumConformers(), dtype=int)
 
     # atom mapping
     from itertools import combinations
-    for nr_of_mappings, (e1, e2) in enumerate(combinations(substructure_idx_reference+substructure_idx_compare, 2)):
+
+    for nr_of_mappings, (e1, e2) in enumerate(
+        combinations(substructure_idx_reference + substructure_idx_compare, 2)
+    ):
 
         atom_mapping = [(a1, a2) for a1, a2 in zip(e1, e2)]
         # get rmsd matrix with a given set of atom mapping
         # update rmsd matrix whenever lower RMSD appears
         for i in range(len(reference_mol.GetConformers())):
-            for j in range(len(compare_mol.GetConformers())):       
-                
-                proposed_rmsd = AllChem.AlignMol(reference_mol, compare_mol, i, j, atomMap=atom_mapping)
+            for j in range(len(compare_mol.GetConformers())):
+
+                proposed_rmsd = AllChem.AlignMol(
+                    reference_mol, compare_mol, i, j, atomMap=atom_mapping
+                )
                 # test if this is optimal atom mapping
                 if nr_of_mappings == 0:
                     rmsd[i, j] = proposed_rmsd
@@ -317,16 +389,18 @@ def compare_confomer_generator_and_trajectory_minimum_structures(results_path: s
                     rmsd[i, j] = min(rmsd[i, j], proposed_rmsd)
 
     for i in range(len(reference_mol.GetConformers())):
-        for j in range(len(compare_mol.GetConformers())):       
-            if  rmsd[i, j] <= 0.1:
+        for j in range(len(compare_mol.GetConformers())):
+            if rmsd[i, j] <= 0.1:
                 got_hit[i] += 1
-                                          
+
     sns.heatmap(rmsd)
     plt.show()
 
-    print(f'Nr of clusters: {len(got_hit)}')
-    print(f'Nr of conformations part of one cluster: {sum(got_hit)}/{mol.GetNumConformers()}')
-    print(f'Clusters present: {got_hit}')
+    print(f"Nr of clusters: {len(got_hit)}")
+    print(
+        f"Nr of conformations part of one cluster: {sum(got_hit)}/{mol.GetNumConformers()}"
+    )
+    print(f"Clusters present: {got_hit}")
 
     AllChem.AlignMolConformers(reference_mol)
     AllChem.AlignMolConformers(compare_mol)
@@ -335,7 +409,7 @@ def compare_confomer_generator_and_trajectory_minimum_structures(results_path: s
 
 
 def _generate_conformer(coordinates):
-    # generate a conformation object 
+    # generate a conformation object
     new_conf = Chem.Conformer()
     for idx, c in enumerate(coordinates):
         point = Geometry.rdGeometry.Point3D()
@@ -345,6 +419,7 @@ def _generate_conformer(coordinates):
         new_conf.SetAtomPosition(idx, point)
     return new_conf
 
+
 def get_data_filename():
     """
     In the source distribution, these files are in ``neutromeratio/data/*/``,
@@ -353,10 +428,14 @@ def get_data_filename():
     """
 
     from pkg_resources import resource_filename
-    fn = resource_filename('neutromeratio')
+
+    fn = resource_filename("neutromeratio")
 
     if not os.path.exists(fn):
-        raise ValueError("Sorry! %s does not exist. If you just added it, you'll have to re-install" % fn)
+        raise ValueError(
+            "Sorry! %s does not exist. If you just added it, you'll have to re-install"
+            % fn
+        )
 
     return fn
 
@@ -371,28 +450,36 @@ def setup_alchemical_system_and_energy_function(
     name: str,
     env: str,
     ANImodel: ANI,
-    checkpoint_file: str = '',
+    checkpoint_file: str = "",
     base_path: str = None,
-    diameter:int=-1):
-    
+    diameter: int = -1,
+):
+
     import os
-    if not (issubclass(ANImodel, (AlchemicalANI2x, AlchemicalANI1ccx, AlchemicalANI1x))):
-        raise RuntimeError('Only Alchemical ANI objects allowed! Aborting.')
+
+    if not (
+        issubclass(ANImodel, (AlchemicalANI2x, AlchemicalANI1ccx, AlchemicalANI1x))
+    ):
+        raise RuntimeError("Only Alchemical ANI objects allowed! Aborting.")
 
     exp_results = _get_exp_results()
-    t1_smiles = exp_results[name]['t1-smiles']
-    t2_smiles = exp_results[name]['t2-smiles']
-    
+    t1_smiles = exp_results[name]["t1-smiles"]
+    t2_smiles = exp_results[name]["t2-smiles"]
+
     #######################
-    logger.debug(f"Experimental free energy difference: {exp_results[name]['energy']} kcal/mol")
+    logger.debug(
+        f"Experimental free energy difference: {exp_results[name]['energy']} kcal/mol"
+    )
     #######################
-    
+
     ####################
     # Set up the system, set the restraints
-    t_type, tautomers, flipped = generate_tautomer_class_stereobond_aware(name, t1_smiles, t2_smiles)
+    t_type, tautomers, flipped = generate_tautomer_class_stereobond_aware(
+        name, t1_smiles, t2_smiles
+    )
     tautomer = tautomers[0]
     tautomer.perform_tautomer_transformation()
-    
+
     # if base_path is defined write out the topology
     if base_path:
         base_path = os.path.abspath(base_path)
@@ -400,16 +487,18 @@ def setup_alchemical_system_and_energy_function(
         if not os.path.exists(base_path):
             os.makedirs(base_path)
 
-    if env == 'droplet':
+    if env == "droplet":
         if diameter == -1:
-            raise RuntimeError('Droplet is not specified. Aborting.')
+            raise RuntimeError("Droplet is not specified. Aborting.")
         # for droplet topology is written in every case
-        m = tautomer.add_droplet(tautomer.hybrid_topology, 
-                            tautomer.get_hybrid_coordinates(), 
-                            diameter=diameter * unit.angstrom,
-                            restrain_hydrogen_bonds=True,
-                            restrain_hydrogen_angles=False,
-                            top_file=f"{base_path}/{name}_in_droplet.pdb")
+        m = tautomer.add_droplet(
+            tautomer.hybrid_topology,
+            tautomer.get_hybrid_coordinates(),
+            diameter=diameter * unit.angstrom,
+            restrain_hydrogen_bonds=True,
+            restrain_hydrogen_angles=False,
+            top_file=f"{base_path}/{name}_in_droplet.pdb",
+        )
     else:
         if base_path:
             # for vacuum only if base_path is defined
@@ -418,21 +507,26 @@ def setup_alchemical_system_and_energy_function(
                 traj = md.load(pdb_filepath)
             except OSError:
                 coordinates = tautomer.get_hybrid_coordinates()
-                traj = md.Trajectory(coordinates.value_in_unit(unit.nanometer), tautomer.hybrid_topology)
+                traj = md.Trajectory(
+                    coordinates.value_in_unit(unit.nanometer), tautomer.hybrid_topology
+                )
                 traj.save_pdb(pdb_filepath)
             tautomer.set_hybrid_coordinates(traj.xyz[0] * unit.nanometer)
 
     # define the alchemical atoms
-    alchemical_atoms = [tautomer.hybrid_hydrogen_idx_at_lambda_1, tautomer.hybrid_hydrogen_idx_at_lambda_0]
-       
+    alchemical_atoms = [
+        tautomer.hybrid_hydrogen_idx_at_lambda_1,
+        tautomer.hybrid_hydrogen_idx_at_lambda_0,
+    ]
+
     model = ANImodel(alchemical_atoms=alchemical_atoms).to(device)
     # if specified, load nn parameters
     if checkpoint_file:
-        logger.debug('Loading nn parameters ...')
+        logger.debug("Loading nn parameters ...")
         model.load_nn_parameters(checkpoint_file)
 
     # setup energy function
-    if env == 'vacuum':
+    if env == "vacuum":
         energy_function = ANI1_force_and_energy(
             model=model,
             atoms=tautomer.hybrid_atoms,
@@ -451,15 +545,16 @@ def setup_alchemical_system_and_energy_function(
     for r in tautomer.hybrid_ligand_restraints:
         energy_function.add_restraint_to_lambda_protocol(r)
 
-    if env == 'droplet':
-        tautomer.add_COM_for_hybrid_ligand(np.array([diameter/2, diameter/2, diameter/2]) * unit.angstrom)
+    if env == "droplet":
+        tautomer.add_COM_for_hybrid_ligand(
+            np.array([diameter / 2, diameter / 2, diameter / 2]) * unit.angstrom
+        )
         for r in tautomer.solvent_restraints:
             energy_function.add_restraint_to_lambda_protocol(r)
         for r in tautomer.com_restraints:
             energy_function.add_restraint_to_lambda_protocol(r)
 
     return energy_function, tautomer, flipped
-
 
 
 def _error(x: np.ndarray, y: np.ndarray):
@@ -471,26 +566,35 @@ def array_rmse(x: np.ndarray, y: np.ndarray) -> float:
     """Returns the root mean squared error between two arrays."""
     return np.sqrt(((x - y) ** 2).mean())
 
+
 def array_mae(x: np.ndarray, y: np.ndarray):
     """ Mean Absolute Error """
     return np.mean(np.abs(_error(x, y)))
 
+
 from typing import Tuple
-def bootstrap_tautomer_exp_predict_results(exp_original:list, pred_original:list) -> Tuple[list, list]:
+
+
+def bootstrap_tautomer_exp_predict_results(
+    exp_original: list, pred_original: list
+) -> Tuple[list, list]:
     """Perform empirical bootstrap over rows for correlation analysis."""
     size = len(exp_original)
     rows = np.random.choice(np.arange(size), size=size)
-    return (np.array([exp_original[i] for i in rows]), np.array([pred_original[i] for i in rows]))
+    return (
+        np.array([exp_original[i] for i in rows]),
+        np.array([pred_original[i] for i in rows]),
+    )
 
 
-def bootstrap_rmse_r(exp_original:np.array, pred_original:np.array, nsamples: int):
+def bootstrap_rmse_r(exp_original: np.array, pred_original: np.array, nsamples: int):
     """Perform a bootstrap correlation analysis for a dataframe
 
     Parameters
     ----------
     exp_original - the original np.array with experimental data.
     pred_original - the original np.array with preidcted data
-    nsamples - number of bootstrap samples to draw    
+    nsamples - number of bootstrap samples to draw
     """
 
     rmse_list = list()
@@ -541,8 +645,8 @@ class BootstrapDistribution:
     def empirical_bootstrap_confidence_intervals(self, percent: float):
         """Return % confidence intervals.
 
-        Uses the approximation that the variation around the center of the 
-        bootstrap distribution is the same as the variation around the 
+        Uses the approximation that the variation around the center of the
+        bootstrap distribution is the same as the variation around the
         center of the true distribution. E.g. not sensitive to a bootstrap
         distribution is restraint_biased in the median.
 
@@ -558,13 +662,15 @@ class BootstrapDistribution:
         a = (100.0 - percent) / 2
         upper = np.percentile(self._delta, a)
         lower = np.percentile(self._delta, 100 - a)
-        return self._sig_figures(self._sample, self._sample - lower, self._sample - upper)
+        return self._sig_figures(
+            self._sample, self._sample - lower, self._sample - upper
+        )
 
     def bootstrap_percentiles(self, percent: float):
         """Return percentiles of the bootstrap distribution.
 
-        This assumes that the bootstrap distribution is similar to the real 
-        distribution. This breaks down when the median of the bootstrap 
+        This assumes that the bootstrap distribution is similar to the real
+        distribution. This breaks down when the median of the bootstrap
         distribution is very different from the sample/true variable median.
 
         Note
@@ -592,15 +698,18 @@ class BootstrapDistribution:
         """
         i = 16
         for i in range(1, max_sig):
-            if (round(mean, i) != round(lower, i)) and (round(mean, i) != round(upper, i)):
+            if (round(mean, i) != round(lower, i)) and (
+                round(mean, i) != round(upper, i)
+            ):
                 break
         self._significance = i
         return round(mean, i), round(lower, i), round(upper, i)
 
     def __repr__(self) -> str:
         try:
-            return "{0:.{3}f}; [{1:.{3}f}, {2:.{3}f}]".format(*self.bootstrap_percentiles(95),
-                                                              self._significance)
+            return "{0:.{3}f}; [{1:.{3}f}, {2:.{3}f}]".format(
+                *self.bootstrap_percentiles(95), self._significance
+            )
         except:
             return str(self.__dict__)
 
@@ -616,30 +725,34 @@ class BootstrapDistribution:
         return mean, lower, upper
 
 
-
 # taken from here:
 # https://medium.com/datalab-log/measuring-the-statistical-similarity-between-two-samples-using-jensen-shannon-and-kullback-leibler-8d05af514b15
-def compute_probs(data, n=10): 
+def compute_probs(data, n=10):
     h, e = np.histogram(data, n)
-    p = h/data.shape[0]
+    p = h / data.shape[0]
     return e, p
 
-def support_intersection(p, q): 
-    return list(filter(lambda x: (x[0]!=0) & (x[1]!=0), list(zip(p, q))))
 
-def get_probs(list_of_tuples): 
+def support_intersection(p, q):
+    return list(filter(lambda x: (x[0] != 0) & (x[1] != 0), list(zip(p, q))))
+
+
+def get_probs(list_of_tuples):
     p = np.array([p[0] for p in list_of_tuples])
     q = np.array([p[1] for p in list_of_tuples])
     return p, q
 
-def kl_divergence(p, q): 
-    return np.sum(p*np.log(p/q))
+
+def kl_divergence(p, q):
+    return np.sum(p * np.log(p / q))
+
 
 def js_divergence(p, q):
-    m = (1./2.)*(p + q)
-    return (1./2.)*kl_divergence(p, m) + (1./2.)*kl_divergence(q, m)
+    m = (1.0 / 2.0) * (p + q)
+    return (1.0 / 2.0) * kl_divergence(p, m) + (1.0 / 2.0) * kl_divergence(q, m)
 
-def compute_kl_divergence(train_sample, test_sample, n_bins=10): 
+
+def compute_kl_divergence(train_sample, test_sample, n_bins=10):
     """
     Computes the KL Divergence using the support intersection between two different samples
     """
@@ -649,4 +762,3 @@ def compute_kl_divergence(train_sample, test_sample, n_bins=10):
     list_of_tuples = support_intersection(p, q)
     p, q = get_probs(list_of_tuples)
     return kl_divergence(p, q)
-

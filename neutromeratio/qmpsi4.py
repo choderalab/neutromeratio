@@ -7,7 +7,7 @@ from simtk import unit
 from .constants import hartree_to_kJ_mol
 
 psi4.core.set_output_file("output.dat", True)
-psi4.set_memory('4 GB')
+psi4.set_memory("4 GB")
 psi4.set_num_threads(2)
 
 
@@ -27,7 +27,7 @@ def mol2psi4(mol: Chem.Mol, conformer_id: int = 0) -> psi4.core.Molecule:
         a psi4 molecule object instance
     """
 
-    assert(type(mol) == Chem.Mol)
+    assert type(mol) == Chem.Mol
     atoms = mol.GetAtoms()
     string = "\n"
     for _, atom in enumerate(atoms):
@@ -37,7 +37,7 @@ def mol2psi4(mol: Chem.Mol, conformer_id: int = 0) -> psi4.core.Molecule:
     return psi4.geometry(string)
 
 
-def optimize(mol: psi4.core.Molecule, method: str = 'wB97X/6-31g*') -> unit.Quantity:
+def optimize(mol: psi4.core.Molecule, method: str = "wB97X/6-31g*") -> unit.Quantity:
     """Runs a minimization for a psi4 molecule object instance using a specified method (default: wB97X/6-31g*).
     Note: 6-31g* is equivalente to 6-31g(d) according to http://www.psicode.org/psi4manual/master/basissets_tables.html
 
@@ -57,12 +57,13 @@ def optimize(mol: psi4.core.Molecule, method: str = 'wB97X/6-31g*') -> unit.Quan
     e, wfn = psi4.optimize(method, return_wfn=True, molecule=mol)
     return (e * hartree_to_kJ_mol) * unit.kilojoule_per_mole, wfn
 
-def calculate_frequency(mol: psi4.core.Molecule, method: str = 'wB97X/6-31g*'):
+
+def calculate_frequency(mol: psi4.core.Molecule, method: str = "wB97X/6-31g*"):
     e, wfn = psi4.frequency(method, molecule=mol, return_wfn=True)
     return (e * hartree_to_kJ_mol) * unit.kilojoule_per_mole, wfn
 
 
-def calculate_energy(mol: str, method: str = 'wB97X/6-31g*') -> unit.Quantity:
+def calculate_energy(mol: str, method: str = "wB97X/6-31g*") -> unit.Quantity:
     """Calculates the single point energy of a psi4 molecule object instance.
 
     Parameters
