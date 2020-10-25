@@ -15,9 +15,11 @@ A reliable method for the determination of tautomer ratios would ideally include
 ### Installation
 
 install `neutromeratio` master via `git clone` and `python setup install`:
-```git clone https://github.com/choderalab/neutromeratio.git
+```
+git clone https://github.com/choderalab/neutromeratio.git
 cd neutromeratio
-python setup.py install```
+python setup.py install
+```
 
 You will need to install a few dependencies --- all of them are defined in https://github.com/choderalab/neutromeratio/blob/master/devtools/conda-envs/test_env.yaml.
 
@@ -39,6 +41,33 @@ The text file includes the molecule name used in the manuscript, the SMILES for 
 
 ## Quantum chemistry data
 
+The full QM data is deposited in https://github.com/choderalab/neutromeratio/blob/dev-mw/data/results/QM/qm_results_final.pickle .
+
+The pickle file contains a single dictionary (of dictionaries), with the molecule names as keys.
+```
+r = pickle.load(open('qm_results_final.pickle', 'rb'))
+r['SAMPLmol2']
+```
+
+returns:
+
+```
+{'OC1=CC=C2C=CC=CC2=N1': {'solv': [mol1, mol2, ...],
+  'vac': [mol1, mol2, ...]},
+ 'O=C1NC2=C(C=CC=C2)C=C1': {'solv': [mol1, mol2, ...],
+  'vac': [mol1, mol2, ...]}}
+```
+.
+For a single system (e.g. `SAMPLmol2`) the two tautomer molecules are identified with the SMILES string (e.g. `'OC1=CC=C2C=CC=CC2=N1'`), and the envrionment (e.g. `solv`).
+Using these three keys (e.g. `r['SAMPLmol2]['OC1=CC=C2C=CC=CC2=N1']['solv]) one gets a list or rdkit molecules, each in the optimized 3D conformation.
+The molecule contains properties that can be acces via `.GetProp()`.
+The relevant properties are:
+`'G'` ... the gibbs free energy in the specified environment calculated with RRHO and B3LYP/aug-cc-pVTZ
+`'E_B3LYP_pVTZ'` ... electronic energy evaluated on this conformation using B3LYP/aug-cc-pVTZ
+`'E_B3LYP_631G_gas'` ... electronic energy evaluated on this conformation using B3LYP/6-31G(d)
+`'E_B3LYP_631G_solv'` ... electronic energy evaluated on this conformation using B3LYP/6-31G(d)/SMD
+`'H'` ... the enthalpy in the specified environment calculated with RRHO and B3LYP/aug-cc-pVTZ 
+`'graph_automorphism'` ... the number of graph automorphism. This is used for the calculation of `RT ln(D)` where `D` is this number.
 
 
 
