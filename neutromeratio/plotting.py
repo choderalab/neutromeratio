@@ -48,8 +48,8 @@ def plot_correlation_analysis(
     )
 
     if yerror:
+        logger.info("Plotting with y-error bars")
         for X, Y, name, error in zip(x_, y_, names, yerror):
-            logger.info("Plotting with y-error bars")
             ax.errorbar(
                 X,
                 Y,
