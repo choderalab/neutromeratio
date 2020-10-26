@@ -5,12 +5,14 @@
 #$ -p -700
 #$ -pe smp 1
 #$ -o /data/cluster/projects/SGE_LOG/
+#$ -q fast.q
 
 idx=${1} 
 hostname
 env='droplet'
 diameter=18
 potential_name='ANI2x'
+#potential_name='ANI1ccx'
 echo 'Using potential ' ${potential_name}
 base_path="/data/shared/projects/neutromeratio/data/equilibrium_sampling/${potential_name}-${env}-${diameter}A-100ps"
 

@@ -1,21 +1,19 @@
 import neutromeratio
 import pickle
-import sys
-import torch
+import torch, sys
 
 split = pickle.load(open('split.dict', 'rb'))
 names = neutromeratio.parameter_gradients._get_names()
 
-assert(len(sys.argv) == 6)
+assert(len(sys.argv) == 7)
 env = sys.argv[1]
 fold = int(sys.argv[2])
 elements = sys.argv[3]
 data_path = sys.argv[4]
 model_name = str(sys.argv[5])
+max_snapshots_per_window=int(sys.argv[6])
 
-max_snapshots_per_window=200
 print(f'Max nr of snapshots: {max_snapshots_per_window}')
-
 
 if model_name == 'ANI2x':
     model = neutromeratio.ani.AlchemicalANI2x
@@ -38,22 +36,15 @@ assert (11 > fold >= 0)
 if env == 'droplet':
     bulk_energy_calculation = False
     torch.set_num_threads(4)
-
-#    for n in ['molDWRow_1636', 'molDWRow_1250', 'molDWRow_1228']:
-#        if n in names_training:
-#            names_training.remove(n)
-#        if n in names_validating:
-#            names_validating.remove(n)
-
 else:
-    torch.set_num_threads(1)
+    torch.set_num_threads(4)
     bulk_energy_calculation = True
 
 max_epochs = 0
 for _ in range(5):
     max_epochs += 10
 
-    rmse_training, rmse_validation = neutromeratio.parameter_gradients.setup_and_perform_parameter_retraining(
+    rmse_training, rmse_validation, rmse_test = neutromeratio.parameter_gradients.setup_and_perform_parameter_retraining(
         env=env,
         names_training = names_training,
         names_validating = names_validating,

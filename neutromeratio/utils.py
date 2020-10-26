@@ -39,7 +39,11 @@ def flag_unspec_stereo(smiles: str):
     Chem.FindPotentialStereoBonds(m)
     for bond in m.GetBonds():
         if bond.GetStereo() == Chem.BondStereo.STEREOANY:
-            logger.debug(bond.GetBeginAtom().GetSymbol(), bond.GetSmarts(), bond.GetEndAtom().GetSymbol())
+            logger.debug(
+                bond.GetBeginAtom().GetSymbol(),
+                bond.GetSmarts(),
+                bond.GetEndAtom().GetSymbol(),
+            )
             unspec = True
     return unspec
 
@@ -51,7 +55,11 @@ def decide_unspec_stereo(smiles: str) -> str:
     Chem.FindPotentialStereoBonds(m)
     for bond in m.GetBonds():
         if bond.GetStereo() == Chem.BondStereo.STEREOANY:
-            print(bond.GetBeginAtom().GetSymbol(), bond.GetSmarts(), bond.GetEndAtom().GetSymbol())
+            print(
+                bond.GetBeginAtom().GetSymbol(),
+                bond.GetSmarts(),
+                bond.GetEndAtom().GetSymbol(),
+            )
             bond.SetStereo(Chem.BondStereo.STEREOE)
     return Chem.MolToSmiles(m)
 
@@ -75,10 +83,10 @@ def get_nr_of_stereobonds(smiles: str) -> int:
 
     for b in m.GetBonds():
         if b.GetStereo() == Chem.rdchem.BondStereo.STEREOE:
-            stereo_tag = 'STEREOE'
+            stereo_tag = "STEREOE"
             nr_of_stereobonds += 1
         elif b.GetStereo() == Chem.rdchem.BondStereo.STEREOZ:
-            stereo_tag = 'STEREOZ'
+            stereo_tag = "STEREOZ"
             nr_of_stereobonds += 1
 
     return nr_of_stereobonds
@@ -103,28 +111,34 @@ def get_stereotag_of_stereobonds(smiles: str) -> int:
         m = smiles
         pass
 
-    stereo_tag = ''
+    stereo_tag = ""
     for b in m.GetBonds():
         if b.GetStereo() == Chem.rdchem.BondStereo.STEREOE:
             if stereo_tag:
-                raise RuntimeError('There are multiple stereotags defined in this molecule')
-            stereo_tag = 'STEREOE'
+                raise RuntimeError(
+                    "There are multiple stereotags defined in this molecule"
+                )
+            stereo_tag = "STEREOE"
         elif b.GetStereo() == Chem.rdchem.BondStereo.STEREOZ:
             if stereo_tag:
-                raise RuntimeError('There are multiple stereotags defined in this molecule')
-            stereo_tag = 'STEREOZ'
+                raise RuntimeError(
+                    "There are multiple stereotags defined in this molecule"
+                )
+            stereo_tag = "STEREOZ"
 
     return stereo_tag
 
 
-def generate_tautomer_class_stereobond_aware(name: str,
-                                            t1_smiles: str,
-                                            t2_smiles: str,
-                                            nr_of_conformations: int = 1,
-                                            enforceChirality=True) -> list:
+def generate_tautomer_class_stereobond_aware(
+    name: str,
+    t1_smiles: str,
+    t2_smiles: str,
+    nr_of_conformations: int = 1,
+    enforceChirality=True,
+) -> list:
     """
-    If a stereobond is present in the tautomer pair we need to transform from the molecule 
-    with the stereobond (e.g. enol) to the tautomer without the stereobond (e.g. keto). This 
+    If a stereobond is present in the tautomer pair we need to transform from the molecule
+    with the stereobond (e.g. enol) to the tautomer without the stereobond (e.g. keto). This
     function makes sure that this happens and returns a list of tautomers.
     If there is no stereobond present in either tautomer, the list contains only one tautomer.
     If there is a stereobond present the list contains two tautomers (one with cis, one with trans configuration).
@@ -148,102 +162,154 @@ def generate_tautomer_class_stereobond_aware(name: str,
 
     tautomers = []
     from neutromeratio import Tautomer
+
     flipped = False
     stereobond_type = None
 
     if flag_unspec_stereo(t1_smiles) or flag_unspec_stereo(t2_smiles):
         logger.debug("Imines present ... switching to imine generation.")
-        stereobond_type = 'Imine'
+        stereobond_type = "Imine"
 
         if flag_unspec_stereo(t1_smiles):
-            t1_kappa_0 = change_stereobond_in_imine_to_cis(generate_rdkit_mol(t1_smiles))
-            t1_kappa_1 = change_stereobond_in_imine_to_trans(generate_rdkit_mol(t1_smiles))
-            tautomers.append(Tautomer(name=name,
-                                    initial_state_mol=t1_kappa_0,
-                                    final_state_mol=generate_rdkit_mol(t2_smiles),
-                                    nr_of_conformations=nr_of_conformations,
-                                    enforceChirality=enforceChirality))
-            tautomers.append(Tautomer(name=name,
-                                    initial_state_mol=t1_kappa_1,
-                                    final_state_mol=generate_rdkit_mol(t2_smiles),
-                                    nr_of_conformations=nr_of_conformations,
-                                    enforceChirality=enforceChirality))
-        
+            t1_kappa_0 = change_stereobond_in_imine_to_cis(
+                generate_rdkit_mol(t1_smiles)
+            )
+            t1_kappa_1 = change_stereobond_in_imine_to_trans(
+                generate_rdkit_mol(t1_smiles)
+            )
+            tautomers.append(
+                Tautomer(
+                    name=name,
+                    initial_state_mol=t1_kappa_0,
+                    final_state_mol=generate_rdkit_mol(t2_smiles),
+                    nr_of_conformations=nr_of_conformations,
+                    enforceChirality=enforceChirality,
+                )
+            )
+            tautomers.append(
+                Tautomer(
+                    name=name,
+                    initial_state_mol=t1_kappa_1,
+                    final_state_mol=generate_rdkit_mol(t2_smiles),
+                    nr_of_conformations=nr_of_conformations,
+                    enforceChirality=enforceChirality,
+                )
+            )
+
         elif flag_unspec_stereo(t2_smiles):
             flipped = True
-            t2_kappa_0 = change_stereobond_in_imine_to_cis(generate_rdkit_mol(t2_smiles))
-            t2_kappa_1 = change_stereobond_in_imine_to_trans(generate_rdkit_mol(t2_smiles))
-            tautomers.append(Tautomer(name=name,
-                                    initial_state_mol=t2_kappa_0,
-                                    final_state_mol=generate_rdkit_mol(t1_smiles),
-                                    nr_of_conformations=nr_of_conformations,
-                                    enforceChirality=enforceChirality))
-            tautomers.append(Tautomer(name=name,
-                                    initial_state_mol=t2_kappa_1,
-                                    final_state_mol=generate_rdkit_mol(t1_smiles),
-                                    nr_of_conformations=nr_of_conformations,
-                                    enforceChirality=enforceChirality))
+            t2_kappa_0 = change_stereobond_in_imine_to_cis(
+                generate_rdkit_mol(t2_smiles)
+            )
+            t2_kappa_1 = change_stereobond_in_imine_to_trans(
+                generate_rdkit_mol(t2_smiles)
+            )
+            tautomers.append(
+                Tautomer(
+                    name=name,
+                    initial_state_mol=t2_kappa_0,
+                    final_state_mol=generate_rdkit_mol(t1_smiles),
+                    nr_of_conformations=nr_of_conformations,
+                    enforceChirality=enforceChirality,
+                )
+            )
+            tautomers.append(
+                Tautomer(
+                    name=name,
+                    initial_state_mol=t2_kappa_1,
+                    final_state_mol=generate_rdkit_mol(t1_smiles),
+                    nr_of_conformations=nr_of_conformations,
+                    enforceChirality=enforceChirality,
+                )
+            )
 
         else:
-            raise RuntimeError('Stereobonds present in both tautomers ... aborting!')
+            raise RuntimeError("Stereobonds present in both tautomers ... aborting!")
 
     elif get_nr_of_stereobonds(t1_smiles) == get_nr_of_stereobonds(t2_smiles):
-        if get_nr_of_stereobonds(t1_smiles) == 0 and get_nr_of_stereobonds(t2_smiles) == 0:
+        if (
+            get_nr_of_stereobonds(t1_smiles) == 0
+            and get_nr_of_stereobonds(t2_smiles) == 0
+        ):
             # no stereobond -- normal protocol
             # generate both rdkit mol
-            logger.debug('No stereobonds ...')
-            tautomers.append(Tautomer(name=name,
-                                    initial_state_mol=generate_rdkit_mol(t1_smiles),
-                                    final_state_mol=generate_rdkit_mol(t2_smiles),
-                                    nr_of_conformations=nr_of_conformations,
-                                    enforceChirality=enforceChirality))
-        elif name == 'molDWRow_1636':
-            logger.debug('molDWRow_1636 -- stereobonds in hetereocycle ...')
-            tautomers.append(Tautomer(name=name,
-                                    initial_state_mol=generate_rdkit_mol(t1_smiles),
-                                    final_state_mol=generate_rdkit_mol(t2_smiles),
-                                    nr_of_conformations=nr_of_conformations,
-                                    enforceChirality=enforceChirality))
+            logger.debug("No stereobonds ...")
+            tautomers.append(
+                Tautomer(
+                    name=name,
+                    initial_state_mol=generate_rdkit_mol(t1_smiles),
+                    final_state_mol=generate_rdkit_mol(t2_smiles),
+                    nr_of_conformations=nr_of_conformations,
+                    enforceChirality=enforceChirality,
+                )
+            )
+        elif name == "molDWRow_1636":
+            logger.debug("molDWRow_1636 -- stereobonds in hetereocycle ...")
+            tautomers.append(
+                Tautomer(
+                    name=name,
+                    initial_state_mol=generate_rdkit_mol(t1_smiles),
+                    final_state_mol=generate_rdkit_mol(t2_smiles),
+                    nr_of_conformations=nr_of_conformations,
+                    enforceChirality=enforceChirality,
+                )
+            )
 
         else:
             # stereobonds on both endstates
             # we need to add a torsion bias to make sure that the lambda protocol stopp at the correct torsion
 
-            raise RuntimeError('Two stereobonds ... aborting')
+            raise RuntimeError("Two stereobonds ... aborting")
     elif get_nr_of_stereobonds(t1_smiles) > get_nr_of_stereobonds(t2_smiles):
-        stereobond_type = 'generic'
+        stereobond_type = "generic"
         t1_smiles_kappa_0 = t1_smiles
         t1_smiles_kappa_1 = change_only_stereobond(t1_smiles)
-        tautomers.append(Tautomer(name=name,
-                                initial_state_mol=generate_rdkit_mol(t1_smiles_kappa_0),
-                                final_state_mol=generate_rdkit_mol(t2_smiles),
-                                nr_of_conformations=nr_of_conformations,
-                                enforceChirality=enforceChirality))
-        tautomers.append(Tautomer(name=name,
-                                initial_state_mol=generate_rdkit_mol(t1_smiles_kappa_1),
-                                final_state_mol=generate_rdkit_mol(t2_smiles),
-                                nr_of_conformations=nr_of_conformations,
-                                enforceChirality=enforceChirality))
+        tautomers.append(
+            Tautomer(
+                name=name,
+                initial_state_mol=generate_rdkit_mol(t1_smiles_kappa_0),
+                final_state_mol=generate_rdkit_mol(t2_smiles),
+                nr_of_conformations=nr_of_conformations,
+                enforceChirality=enforceChirality,
+            )
+        )
+        tautomers.append(
+            Tautomer(
+                name=name,
+                initial_state_mol=generate_rdkit_mol(t1_smiles_kappa_1),
+                final_state_mol=generate_rdkit_mol(t2_smiles),
+                nr_of_conformations=nr_of_conformations,
+                enforceChirality=enforceChirality,
+            )
+        )
 
     elif get_nr_of_stereobonds(t1_smiles) < get_nr_of_stereobonds(t2_smiles):
-        stereobond_type = 'generic'
+        stereobond_type = "generic"
         flipped = True
         t1_smiles_kappa_0 = t2_smiles
         t1_smiles_kappa_1 = change_only_stereobond(t2_smiles)
         t2_smiles = t1_smiles
-        tautomers.append(Tautomer(name=name,
-                                initial_state_mol=generate_rdkit_mol(t1_smiles_kappa_0),
-                                final_state_mol=generate_rdkit_mol(t2_smiles),
-                                nr_of_conformations=nr_of_conformations,
-                                enforceChirality=enforceChirality))
-        tautomers.append(Tautomer(name=name,
-                                initial_state_mol=generate_rdkit_mol(t1_smiles_kappa_1),
-                                final_state_mol=generate_rdkit_mol(t2_smiles),
-                                nr_of_conformations=nr_of_conformations,
-                                enforceChirality=enforceChirality))
+        tautomers.append(
+            Tautomer(
+                name=name,
+                initial_state_mol=generate_rdkit_mol(t1_smiles_kappa_0),
+                final_state_mol=generate_rdkit_mol(t2_smiles),
+                nr_of_conformations=nr_of_conformations,
+                enforceChirality=enforceChirality,
+            )
+        )
+        tautomers.append(
+            Tautomer(
+                name=name,
+                initial_state_mol=generate_rdkit_mol(t1_smiles_kappa_1),
+                final_state_mol=generate_rdkit_mol(t2_smiles),
+                nr_of_conformations=nr_of_conformations,
+                enforceChirality=enforceChirality,
+            )
+        )
 
     else:
-        raise RuntimeError('Stereobonds present in both tautomers ... aborting!')
+        raise RuntimeError("Stereobonds present in both tautomers ... aborting!")
 
     return stereobond_type, tautomers, flipped
 
@@ -253,28 +319,32 @@ def change_stereobond_in_imine_to_trans(mol: Chem.Mol) -> Chem.Mol:
     Chem.FindPotentialStereoBonds(mol)
     for bond in mol.GetBonds():
         if bond.GetStereo() == Chem.BondStereo.STEREOANY:
-            logger.debug(f"{bond.GetBeginAtom().GetSymbol()} {bond.GetSmarts()} {bond.GetEndAtom().GetSymbol()}")
+            logger.debug(
+                f"{bond.GetBeginAtom().GetSymbol()} {bond.GetSmarts()} {bond.GetEndAtom().GetSymbol()}"
+            )
             bond.SetStereo(Chem.BondStereo.STEREOE)
 
     return mol
+
 
 def change_stereobond_in_imine_to_cis(mol: Chem.Mol) -> Chem.Mol:
 
     Chem.FindPotentialStereoBonds(mol)
     for bond in mol.GetBonds():
         if bond.GetStereo() == Chem.BondStereo.STEREOANY:
-            logger.debug(f"{bond.GetBeginAtom().GetSymbol()} {bond.GetSmarts()} {bond.GetEndAtom().GetSymbol()}")
+            logger.debug(
+                f"{bond.GetBeginAtom().GetSymbol()} {bond.GetSmarts()} {bond.GetEndAtom().GetSymbol()}"
+            )
             bond.SetStereo(Chem.BondStereo.STEREOZ)
 
     return mol
-
 
 
 def change_only_stereobond(smiles: str) -> str:
 
     mol = Chem.MolFromSmiles(smiles)
     for bond in mol.GetBonds():
-        if str(bond.GetStereo()) == 'STEREONONE':
+        if str(bond.GetStereo()) == "STEREONONE":
             continue
         else:
             # found one, reverse the stereocenter and generate conformations
