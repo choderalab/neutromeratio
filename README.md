@@ -33,15 +33,15 @@ We provide data for the following preprint https://www.biorxiv.org/content/10.11
 The original data used for this study was taken from https://github.com/WahlOya/Tautobase. 
 A subset of this was used to calculate relative free energies using a DFT approach, the molecules 
 are shown here:
-https://github.com/choderalab/neutromeratio/blob/dev-mw/data/b3lyp_tautobase_subset.txt
+https://github.com/choderalab/neutromeratio/blob/master/data/b3lyp_tautobase_subset.txt
 The subset of the subset above used for the calculations with the neural net potential is shown here:
-https://github.com/choderalab/neutromeratio/blob/dev-mw/data/ani_tautobase_subset.txt
+https://github.com/choderalab/neutromeratio/blob/master/data/ani_tautobase_subset.txt
 
 The text file includes the molecule name used in the manuscript, the SMILES for both tautomeric forms and the experimental ddG (in kcal/mol).
 
 ## Quantum chemistry data
 
-The full QM data is deposited in https://github.com/choderalab/neutromeratio/blob/dev-mw/data/results/QM/qm_results_final.pickle .
+The full QM data is deposited in https://github.com/choderalab/neutromeratio/blob/master/data/results/QM/qm_results_final.pickle .
 
 The pickle file contains a single dictionary (of dictionaries), with the molecule names as keys.
 ```
@@ -79,7 +79,7 @@ The relevant properties are:
 
 ### RRHO ANI dataset
 
-The raw data for this data set is saved in https://github.com/choderalab/neutromeratio/blob/dev-mw/data/results/ANI1ccx_RRHO.pickle.
+The raw data for this data set is saved in https://github.com/choderalab/neutromeratio/blob/master/data/results/ANI1ccx_RRHO.pickle.
 This pickle file contains a dictionary that can be queried using the molecule names as key.
 For each molecule there are additional keys: `'t1-energies'`, `'t2-energies'`, `'t1-confs'` and `'t2-confs'`.
 t1 and t2 correspond to the naming of the tautomers in the original dataset.
@@ -89,20 +89,20 @@ t1 and t2 correspond to the naming of the tautomers in the original dataset.
 
 ### Alchemical free energy dataset
 
-Results for 5 independent runs are stored here: https://github.com/choderalab/neutromeratio/tree/dev-mw/data/results/AFE_ANI1ccx_vacuum.
+Results for 5 independent runs are stored here: https://github.com/choderalab/neutromeratio/tree/master/data/results/AFE_ANI1ccx_vacuum.
 Each of the 5 csv files contains a per line three values: the name of the tautomer system, ddG [kcal/mol] and dddG [kcal/mol].
 
 ### Optimization
 
 The retraining results are located here (including the log file and best parameter set):
-https://github.com/choderalab/neutromeratio/tree/dev-mw/data/retraining
+https://github.com/choderalab/neutromeratio/tree/master/data/retraining
 
 The used script is here:
-https://github.com/choderalab/neutromeratio/blob/dev-mw/data/retraining/parameter_opt.py
+https://github.com/choderalab/neutromeratio/blob/master/data/retraining/parameter_opt.py
 
 # How to generate the data 
 
-There are four notebooks in https://github.com/choderalab/neutromeratio/tree/dev-mw/notebooks.
+There are four notebooks in https://github.com/choderalab/neutromeratio/tree/master/notebooks.
 These generate all the data shown in the manuscript and in the Supplementary Information.
 
 # How to use neutromeration
@@ -112,7 +112,7 @@ These generate all the data shown in the manuscript and in the Supplementary Inf
 
 It is pretty easy --- but for now also limited to the tautomers we have been investigating.
 If you want to run an alchemical free energy calulation use this script:
-https://github.com/choderalab/neutromeratio/blob/dev-mw/scripts/generate_equilibrium_sampling_in_vacuum.sh
+https://github.com/choderalab/neutromeratio/blob/master/scripts/generate_equilibrium_sampling_in_vacuum.sh
 You only have to provide an index between 0 and 5000. This is further explained in the bash script. 
 
 
