@@ -775,7 +775,7 @@ class ANI1_force_and_energy(object):
             raise RuntimeError(f"Shape of coordinates: {x.shape} is wrong. Aborting.")
 
         coordinates = torch.tensor(
-            x, requires_grad=True, device=self.device, dtype=torch.float64
+            x, requires_grad=True, device=self.device, dtype=torch.float32
         )
 
         energy_in_kT, restraint_energy_contribution = self._calculate_energy(
@@ -921,7 +921,7 @@ class ANI1_force_and_energy(object):
             coordinate_list.value_in_unit(unit.nanometer),
             requires_grad=requires_grad_wrt_coordinates,
             device=self.device,
-            dtype=torch.float64,
+            dtype=torch.float32,
         )
 
         logger.debug(f"coordinates tensor: {coordinates.size()}")
