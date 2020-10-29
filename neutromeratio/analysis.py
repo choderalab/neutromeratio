@@ -1,44 +1,46 @@
 import copy
 import logging
 import pickle
+from glob import glob
 
 import matplotlib.pyplot as plt
+import mdtraj as md
 import networkx as nx
 import numpy as np
 import pandas as pd
-import seaborn as sns
-from rdkit import Chem, Geometry
-from rdkit.Chem import AllChem
-from scipy.special import logsumexp
-from simtk import unit
-import mdtraj as md
-import torchani
-import torch
-from rdkit.Chem import rdFMCS
 import pkg_resources
 import scipy.stats as scs
+import seaborn as sns
+import torch
+import torchani
+from rdkit import Chem, Geometry
+from rdkit.Chem import AllChem, rdFMCS
+from scipy.special import logsumexp
+from simtk import unit
 
-from .constants import (
-    num_threads,
-    kT,
-    gas_constant,
-    temperature,
-    mols_with_charge,
-    exclude_set_ANI,
-    multiple_stereobonds,
-    device,
-)
-from .tautomers import Tautomer
-from .parameter_gradients import FreeEnergyCalculator
-from .utils import generate_tautomer_class_stereobond_aware, generate_new_tautomer_pair
-from .ani import (
-    ANI1_force_and_energy,
-    AlchemicalANI2x,
-    AlchemicalANI1ccx,
+from neutromeratio.ani import (
     ANI,
+    AlchemicalANI1ccx,
     AlchemicalANI1x,
+    AlchemicalANI2x,
+    ANI1_force_and_energy,
 )
-from glob import glob
+from neutromeratio.constants import (
+    device,
+    exclude_set_ANI,
+    gas_constant,
+    kT,
+    mols_with_charge,
+    multiple_stereobonds,
+    num_threads,
+    temperature,
+)
+from neutromeratio.parameter_gradients import FreeEnergyCalculator
+from neutromeratio.tautomers import Tautomer
+from neutromeratio.utils import (
+    generate_new_tautomer_pair,
+    generate_tautomer_class_stereobond_aware,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -306,7 +308,7 @@ def compare_confomer_generator_and_trajectory_minimum_structures(
     mol.RemoveAllConformers()
 
     # generate energy function, use atom symbols of rdkti mol
-    from .ani import ANI1ccx, ANI1_force_and_energy
+    from .ani import ANI1_force_and_energy, ANI1ccx
 
     model = ANI1ccx()
     energy_function = ANI1_force_and_energy(
@@ -558,11 +560,14 @@ def setup_alchemical_system_and_energy_function(
 
 
 def setup_new_alchemical_system_and_energy_function(
+    name: str,
+    t1_smiles: str,
+    t2_smiles: str,
     env: str,
     ANImodel: ANI,
-    checkpoint_file: str = "",
     base_path: str = None,
     diameter: int = -1,
+    checkpoint_file: str = "",
 ):
 
     import os
@@ -576,7 +581,7 @@ def setup_new_alchemical_system_and_energy_function(
 
     ####################
     # Set up the system, set the restraints
-    tautomers = generate_new_tautomer_pair(t1_smiles, t2_smiles)
+    tautomer = generate_new_tautomer_pair(name, t1_smiles, t2_smiles)
     tautomer.perform_tautomer_transformation()
 
     # if base_path is defined write out the topology
@@ -653,7 +658,7 @@ def setup_new_alchemical_system_and_energy_function(
         for r in tautomer.com_restraints:
             energy_function.add_restraint_to_lambda_protocol(r)
 
-    return energy_function, tautomer, flipped
+    return energy_function, tautomer
 
 
 def _error(x: np.ndarray, y: np.ndarray):

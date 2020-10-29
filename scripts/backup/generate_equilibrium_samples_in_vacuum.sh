@@ -22,9 +22,7 @@ echo ${idx}
 echo ${n_steps}
 echo ${env}
 
-#conda activate conda.env # fire up your conda environment
-
 base_path="./" # where do you want to save the ouput files
 mkdir -p ${base_path}
 
-python Generate_equilibrium_sampling.py ${idx} ${n_steps} ${base_path} ${env} ${potential_name}
+python Generate_equilibrium_samples.py ${idx} ${n_steps} ${base_path} ${env} ${potential_name}

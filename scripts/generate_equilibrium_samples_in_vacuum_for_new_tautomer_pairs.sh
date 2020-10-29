@@ -1,30 +1,23 @@
-########################################
-# idx has to be provided
-idx=${1}
-########################################
-# idx is an integer between 0 and 5000
-# idx is used to index in this code:
 
-#names = neutromeratio.parameter_gradients._get_names()
-#for name in names:
-#    for lamb in np.linspace(0, 1, 11):
-#        protocol.append((name, np.round(lamb, 2)))
-#name, lambda_value = protocol[idx-1]
+# User specified runtime variables
 ########################################
-
-n_steps=400000 # nr of steps 
-env='vacuum'
+SMILES1='OC1=CC=C2C=CC=CC2=N1'
+SMILES2='O=C1NC2=C(C=CC=C2)C=C1'
+lambda_value=0.0   # alchemical coupling parameter (between 0. and 1.) --> we recommend using 11 lambda_values
+name='SAMP2Lmol4'
 potential_name='ANI1ccx' # which potential do you want to use? (ANI1ccx, ANI1x, ANI2x)
+n_steps=200 # nr of steps (dt = 0.5fs)
+########################################
+########################################
+
+
+env='vacuum' 
 echo 'Using potential ' ${potential_name}
-
-hostname
-echo ${idx}
-echo ${n_steps}
-echo ${env}
-
-#conda activate conda.env # fire up your conda environment
+echo 'Nr of steps : ' ${n_steps}
+echo 'Simulating in : ' ${env}
+echo 'Lambda value: ' ${lambda_value}
 
 base_path="./" # where do you want to save the ouput files
 mkdir -p ${base_path}
 
-python Generate_equilibrium_sampling.py ${idx} ${n_steps} ${base_path} ${env} ${potential_name}
+python Generate_equilibrium_samples_for_new_tautomer_pairs.py ${SMILES1} ${SMILES2} ${name} ${lambda_value} ${n_steps} ${base_path} ${env} ${potential_name}

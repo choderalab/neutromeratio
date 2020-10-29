@@ -9,7 +9,7 @@ from rdkit import Chem
 from rdkit.Chem import AllChem
 from simtk import unit
 
-from .constants import kT
+from neutromeratio.constants import kT
 
 logger = logging.getLogger(__name__)
 
