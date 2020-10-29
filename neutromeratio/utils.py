@@ -1,6 +1,7 @@
 import logging
 import os
 import random
+from typing import List, Tuple, Any, Union
 
 import mdtraj as md
 import nglview
@@ -9,6 +10,8 @@ from rdkit import Chem
 from rdkit.Chem import AllChem
 from simtk import unit
 from neutromeratio import Tautomer
+
+StereoBondType = Union[Any, str]
 
 from neutromeratio.constants import kT
 
@@ -133,6 +136,7 @@ def get_stereotag_of_stereobonds(smiles: str) -> int:
 def generate_new_tautomer_pair(name: str, t1_smiles: str, t2_smiles: str) -> Tautomer:
     """Constructs and returns a Tautomer pair object, generating RDKit mols
     from t1 and t2 smiles"""
+    # TOOD: should this also accept nr_of_conformations, enforceChirality?
     return Tautomer(
         name=name,
         initial_state_mol=generate_rdkit_mol(t1_smiles),
@@ -148,7 +152,7 @@ def generate_tautomer_class_stereobond_aware(
     t2_smiles: str,
     nr_of_conformations: int = 1,
     enforceChirality=True,
-) -> list:
+) -> Tuple[StereoBondType, List[Tautomer], bool]:
     """
     If a stereobond is present in the tautomer pair we need to transform from the molecule
     with the stereobond (e.g. enol) to the tautomer without the stereobond (e.g. keto). This
@@ -167,6 +171,8 @@ def generate_tautomer_class_stereobond_aware(
         nr of conformations
     Returns
     ----------
+    stereobond_type: StereoBondType
+        one of [None, "generic", "Imine"]
     tautomers: list
         a list of tautomer(s)
     flipped: bool
@@ -174,7 +180,6 @@ def generate_tautomer_class_stereobond_aware(
     """
 
     tautomers = []
-    from neutromeratio import Tautomer
 
     flipped = False
     stereobond_type = None
