@@ -87,7 +87,7 @@ class ANI(torchani.models.BuiltinEnsemble):
             else:
                 self.tweaked_neural_network.load_state_dict(parameters)
         else:
-            logger.info(f"Parameter file {parameters} does not exist.")
+            logger.info(f"Parameter file {parameter_path} does not exist.")
 
     def _from_neurochem_resources(self, info_file_path, periodic_table_index):
         (
