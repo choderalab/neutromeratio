@@ -37,7 +37,6 @@ class FreeEnergyCalculator:
         bulk_energy_calculation: bool,
         potential_energy_trajs: list,
         lambdas: list,
-        n_atoms: int,
         max_snapshots_per_window: int = 200,
         pickle_path: str = "",
     ):
@@ -1048,14 +1047,18 @@ def setup_mbar(
     assert len(lambdas) == len(energies)
     assert len(lambdas) == len(md_trajs)
 
+    if env == "vacuum":
+        pickle_path = f"{data_path}/{name}/{name}_{ANImodel.name}_{max_snapshots_per_window}_{len(tautomer.hybrid_atoms)}_atoms.pickle"
+    else:
+        pickle_path = f"{data_path}/{name}/{name}_{ANImodel.name}_{max_snapshots_per_window}_{diameter}A_{len(tautomer.ligand_in_water_atoms)}_atoms.pickle"
+
     # calculate free energy in kT
     fec = FreeEnergyCalculator(
         ani_model=energy_function,
         md_trajs=md_trajs,
         potential_energy_trajs=energies,
         lambdas=lambdas,
-        pickle_path=f"{data_path}/{name}/{name}_{ANImodel.name}_{max_snapshots_per_window}.pickle",
-        n_atoms=len(tautomer.hybrid_atoms),
+        pickle_path=pickle_path,
         bulk_energy_calculation=bulk_energy_calculation,
         max_snapshots_per_window=max_snapshots_per_window,
     )

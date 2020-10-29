@@ -1273,6 +1273,57 @@ def test_setup_mbar():
     )
     assert np.isclose(-15.506057798507124, fec._end_state_free_energy_difference[0])
 
+    for testdir in [
+        f"data/test_data/droplet/{name}",
+        f"data/test_data/vacuum/{name}",
+    ]:
+        # remove the pickle files
+        for item in os.listdir(testdir):
+            if item.endswith(".pickle"):
+                os.remove(os.path.join(testdir, item))
+
+
+def test_setup_mbar_test_pickle_files():
+    # test the setup mbar function, write out the pickle file and test that everything works
+    from ..parameter_gradients import setup_mbar
+    from ..ani import AlchemicalANI2x, AlchemicalANI1x, AlchemicalANI1ccx
+
+    test = os.listdir("data/test_data/vacuum")
+
+    name = "molDWRow_298"
+    # remove the pickle files
+    for testdir in [
+        f"data/test_data/droplet/{name}",
+        f"data/test_data/vacuum/{name}",
+    ]:
+        # remove the pickle files
+        for item in os.listdir(testdir):
+            if item.endswith(".pickle"):
+                os.remove(os.path.join(testdir, item))
+
+    # vacuum
+    fec = setup_mbar(
+        name,
+        env="vacuum",
+        data_path="data/test_data/vacuum",
+        ANImodel=AlchemicalANI1ccx,
+        bulk_energy_calculation=False,
+        max_snapshots_per_window=20,
+    )
+    assert np.isclose(-3.2194223855155357, fec._end_state_free_energy_difference[0])
+
+    # vacuum
+    fec = setup_mbar(
+        name,
+        env="vacuum",
+        data_path="data/test_data/vacuum",
+        ANImodel=AlchemicalANI1ccx,
+        bulk_energy_calculation=False,
+        max_snapshots_per_window=20,
+    )
+    assert np.isclose(-3.2194223855155357, fec._end_state_free_energy_difference[0])
+
+
 
 def test_change_stereobond():
     from ..utils import change_only_stereobond, get_nr_of_stereobonds
@@ -1578,9 +1629,7 @@ def test_orca_input_generation():
     qm_results = pickle.load(open("data/results/QM/qm_results.pickle", "rb"))
     mol = qm_results[name][t1_smiles]["vac"][0]
 
-    orca_input = qmorca.generate_orca_script_for_solvation_free_energy(
-        mol, 0
-    )
+    orca_input = qmorca.generate_orca_script_for_solvation_free_energy(mol, 0)
     print(orca_input)
 
 
@@ -1785,7 +1834,6 @@ def test_parameter_gradient():
             potential_energy_trajs=potential_energy_trajs,
             lambdas=lambdas,
             bulk_energy_calculation=False,
-            n_atoms=len(tautomer.hybrid_atoms),
             max_snapshots_per_window=10,
         )
 

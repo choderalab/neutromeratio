@@ -129,6 +129,19 @@ def get_stereotag_of_stereobonds(smiles: str) -> int:
     return stereo_tag
 
 
+def generate_new_tautomer_pair(name: str, t1_smiles: str, t2_smiles: str):
+
+    from neutromeratio import Tautomer
+
+    return Tautomer(
+        name=name,
+        initial_state_mol=generate_rdkit_mol(t1_smiles),
+        final_state_mol=generate_rdkit_mol(t2_smiles),
+        nr_of_conformations=1,
+        enforceChirality=True,
+    )
+
+
 def generate_tautomer_class_stereobond_aware(
     name: str,
     t1_smiles: str,

@@ -30,7 +30,7 @@ from .constants import (
 )
 from .tautomers import Tautomer
 from .parameter_gradients import FreeEnergyCalculator
-from .utils import generate_tautomer_class_stereobond_aware
+from .utils import generate_tautomer_class_stereobond_aware, generate_new_tautomer_pair
 from .ani import (
     ANI1_force_and_energy,
     AlchemicalANI2x,
@@ -478,6 +478,105 @@ def setup_alchemical_system_and_energy_function(
         name, t1_smiles, t2_smiles
     )
     tautomer = tautomers[0]
+    tautomer.perform_tautomer_transformation()
+
+    # if base_path is defined write out the topology
+    if base_path:
+        base_path = os.path.abspath(base_path)
+        logger.debug(base_path)
+        if not os.path.exists(base_path):
+            os.makedirs(base_path)
+
+    if env == "droplet":
+        if diameter == -1:
+            raise RuntimeError("Droplet is not specified. Aborting.")
+        # for droplet topology is written in every case
+        m = tautomer.add_droplet(
+            tautomer.hybrid_topology,
+            tautomer.get_hybrid_coordinates(),
+            diameter=diameter * unit.angstrom,
+            restrain_hydrogen_bonds=True,
+            restrain_hydrogen_angles=False,
+            top_file=f"{base_path}/{name}_in_droplet.pdb",
+        )
+    else:
+        if base_path:
+            # for vacuum only if base_path is defined
+            pdb_filepath = f"{base_path}/{name}.pdb"
+            try:
+                traj = md.load(pdb_filepath)
+            except OSError:
+                coordinates = tautomer.get_hybrid_coordinates()
+                traj = md.Trajectory(
+                    coordinates.value_in_unit(unit.nanometer), tautomer.hybrid_topology
+                )
+                traj.save_pdb(pdb_filepath)
+            tautomer.set_hybrid_coordinates(traj.xyz[0] * unit.nanometer)
+
+    # define the alchemical atoms
+    alchemical_atoms = [
+        tautomer.hybrid_hydrogen_idx_at_lambda_1,
+        tautomer.hybrid_hydrogen_idx_at_lambda_0,
+    ]
+
+    model = ANImodel(alchemical_atoms=alchemical_atoms).to(device)
+    # if specified, load nn parameters
+    if checkpoint_file:
+        logger.debug("Loading nn parameters ...")
+        model.load_nn_parameters(checkpoint_file)
+
+    # setup energy function
+    if env == "vacuum":
+        energy_function = ANI1_force_and_energy(
+            model=model,
+            atoms=tautomer.hybrid_atoms,
+            mol=None,
+        )
+    else:
+        energy_function = ANI1_force_and_energy(
+            model=model,
+            atoms=tautomer.ligand_in_water_atoms,
+            mol=None,
+        )
+
+    # add restraints
+    for r in tautomer.ligand_restraints:
+        energy_function.add_restraint_to_lambda_protocol(r)
+    for r in tautomer.hybrid_ligand_restraints:
+        energy_function.add_restraint_to_lambda_protocol(r)
+
+    if env == "droplet":
+        tautomer.add_COM_for_hybrid_ligand(
+            np.array([diameter / 2, diameter / 2, diameter / 2]) * unit.angstrom
+        )
+        for r in tautomer.solvent_restraints:
+            energy_function.add_restraint_to_lambda_protocol(r)
+        for r in tautomer.com_restraints:
+            energy_function.add_restraint_to_lambda_protocol(r)
+
+    return energy_function, tautomer, flipped
+
+
+def setup_new_alchemical_system_and_energy_function(
+    env: str,
+    ANImodel: ANI,
+    checkpoint_file: str = "",
+    base_path: str = None,
+    diameter: int = -1,
+):
+
+    import os
+
+    if not (
+        issubclass(ANImodel, (AlchemicalANI2x, AlchemicalANI1ccx, AlchemicalANI1x))
+    ):
+        raise RuntimeError("Only Alchemical ANI objects allowed! Aborting.")
+
+    #######################
+
+    ####################
+    # Set up the system, set the restraints
+    tautomers = generate_new_tautomer_pair(t1_smiles, t2_smiles)
     tautomer.perform_tautomer_transformation()
 
     # if base_path is defined write out the topology
