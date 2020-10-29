@@ -8,6 +8,7 @@ import numpy as np
 from rdkit import Chem
 from rdkit.Chem import AllChem
 from simtk import unit
+from neutromeratio import Tautomer
 
 from neutromeratio.constants import kT
 
@@ -129,10 +130,9 @@ def get_stereotag_of_stereobonds(smiles: str) -> int:
     return stereo_tag
 
 
-def generate_new_tautomer_pair(name: str, t1_smiles: str, t2_smiles: str):
-
-    from neutromeratio import Tautomer
-
+def generate_new_tautomer_pair(name: str, t1_smiles: str, t2_smiles: str) -> Tautomer:
+    """Constructs and returns a Tautomer pair object, generating RDKit mols
+    from t1 and t2 smiles"""
     return Tautomer(
         name=name,
         initial_state_mol=generate_rdkit_mol(t1_smiles),
