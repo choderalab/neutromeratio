@@ -1324,7 +1324,6 @@ def test_setup_mbar_test_pickle_files():
     assert np.isclose(-3.2194223855155357, fec._end_state_free_energy_difference[0])
 
 
-
 def test_change_stereobond():
     from ..utils import change_only_stereobond, get_nr_of_stereobonds
 
@@ -1748,8 +1747,10 @@ def test_load_parameters():
         )
     ):
         # set tweaked parameters
-        print(model_name)
+        model._reset_parameters()
+
         model_instance = model([0, 0])
+        model_instance._reset_parameters()
         # initial parameters
         params1 = list(model_instance.original_neural_network.parameters())[6][
             0
