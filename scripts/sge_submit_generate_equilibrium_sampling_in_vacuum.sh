@@ -23,4 +23,4 @@ conda activate ani36v3
 base_path="/data/shared/projects/neutromeratio/data/equilibrium_sampling/${potential_name}_${env}-200ps-p5/"
 mkdir -p ${base_path}
 cd /home/mwieder/Work/Projects/neutromeratio/scripts
-python Generate_equilibrium_sampling.py ${idx} ${n_steps} ${base_path} ${env} ${potential_name}
+python Generate_equilibrium_samples.py ${idx} ${n_steps} ${base_path} ${env} ${potential_name}
