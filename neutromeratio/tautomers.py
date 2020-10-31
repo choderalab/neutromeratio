@@ -270,10 +270,13 @@ class Tautomer(object):
                     ):  # NOTE: distance must be greater than radius + 1 Angstrom
                         to_delete.append(residue)
 
+            # only delete water molecules
             for residue in list(set(to_delete)):
-                logging.debug("Remove: {}".format(residue))
-                structure.residues.remove(residue)
-
+                if residue.name == "HOH":
+                    logger.debug(f"Remove: {residue}")
+                    structure.residues.remove(residue)
+                else:
+                    logger.warning(f"Residue {residue} reaches outside the droplet")
             structure.write_pdb(pdb_filepath)
 
         # load pdb with mdtraj

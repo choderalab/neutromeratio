@@ -451,6 +451,39 @@ def test_setup_tautomer_system_in_droplet():
         shutil.rmtree("pdbs-ani2x")
 
 
+def test_setup_tautomer_system_in_droplet_for_problem_systems():
+    from ..analysis import setup_alchemical_system_and_energy_function
+    from ..ani import AlchemicalANI2x
+    import shutil
+
+    # NOTE: Sometimes this test fails? something wrong with molDWRow_68?
+    from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
+
+    try:
+        shutil.rmtree("pdbs-ani2ccx-problems")
+    except OSError:
+        pass
+
+    names = ['SAMPLmol2', "molDWRow_507", "molDWRow_1598", "molDWRow_511", "molDWRow_516", 'molDWRow_68', 'molDWRow_735', 'molDWRow_895']
+    lambda_value = 0.1
+    for name in names:
+        print(name)
+        (
+            energy_function,
+            tautomer,
+            flipped,
+        ) = setup_alchemical_system_and_energy_function(
+            name=name,
+            env="droplet",
+            ANImodel=AlchemicalANI2x,
+            base_path="pdbs-ani2ccx-problems",
+            diameter=10,
+        )
+        x0 = tautomer.get_ligand_in_water_coordinates()
+        energy_function.calculate_force(x0, lambda_value)
+        energy_function.calculate_energy(x0, lambda_value)
+
+
 def test_setup_tautomer_system_in_droplet_with_pdbs():
     from ..analysis import setup_alchemical_system_and_energy_function
     from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
