@@ -37,7 +37,6 @@ class FreeEnergyCalculator:
         bulk_energy_calculation: bool,
         potential_energy_trajs: list,
         lambdas: list,
-        n_atoms: int,
         max_snapshots_per_window: int = 200,
         pickle_path: str = "",
     ):
@@ -105,9 +104,9 @@ class FreeEnergyCalculator:
                         f"There are {len(snapshots)} snapshots per lambda state (max: {max_snapshots_per_window}). Aborting."
                     )
 
-                # test that we have not less than 80% of max_snapshots_per_window
+                # test that we have not less than 60% of max_snapshots_per_window
                 if max_snapshots_per_window != -1 and len(snapshots) < (
-                    int(max_snapshots_per_window * 0.8)
+                    int(max_snapshots_per_window * 0.6)
                 ):
                     raise RuntimeError(
                         f"There are only {len(snapshots)} snapshots per lambda state. Aborting."
@@ -126,7 +125,7 @@ class FreeEnergyCalculator:
                 snapshots.extend(ani_trajs[lam])
                 logger.debug(f"Snapshots per lambda {lam}: {len(ani_trajs[lam])}")
 
-            if len(snapshots) < 100:
+            if len(snapshots) < 300:
                 logger.critical(
                     f"Total number of snapshots is {len(snapshots)} -- is this enough?"
                 )
@@ -1048,17 +1047,120 @@ def setup_mbar(
     assert len(lambdas) == len(energies)
     assert len(lambdas) == len(md_trajs)
 
+    if env == "vacuum":
+        pickle_path = f"{data_path}/{name}/{name}_{ANImodel.name}_{max_snapshots_per_window}_{len(tautomer.hybrid_atoms)}_atoms.pickle"
+    else:
+        pickle_path = f"{data_path}/{name}/{name}_{ANImodel.name}_{max_snapshots_per_window}_{diameter}A_{len(tautomer.ligand_in_water_atoms)}_atoms.pickle"
+
     # calculate free energy in kT
     fec = FreeEnergyCalculator(
         ani_model=energy_function,
         md_trajs=md_trajs,
         potential_energy_trajs=energies,
         lambdas=lambdas,
-        pickle_path=f"{data_path}/{name}/{name}_{ANImodel.name}_{max_snapshots_per_window}.pickle",
-        n_atoms=len(tautomer.hybrid_atoms),
+        pickle_path=pickle_path,
         bulk_energy_calculation=bulk_energy_calculation,
         max_snapshots_per_window=max_snapshots_per_window,
     )
 
     fec.flipped = flipped
+    return fec
+
+
+def setup_mbar_for_new_tautomer_pairs(
+    name: str,
+    t1_smiles: str,
+    t2_smiles: str,
+    max_snapshots_per_window: int,
+    ANImodel: ANI,
+    bulk_energy_calculation: bool,
+    env: str = "vacuum",
+    checkpoint_file: str = "",
+    data_path: str = "../data/",
+    diameter: int = -1,
+):
+
+    from neutromeratio.analysis import setup_new_alchemical_system_and_energy_function
+    import os
+
+    if not (env == "vacuum" or env == "droplet"):
+        raise RuntimeError("Only keyword vacuum or droplet are allowed as environment.")
+    if env == "droplet" and diameter == -1:
+        raise RuntimeError("Something went wrong.")
+
+    def parse_lambda_from_dcd_filename(dcd_filename):
+        """parsed the dcd filename
+
+        Arguments:
+            dcd_filename {str} -- how is the dcd file called?
+
+        Returns:
+            [float] -- lambda value
+        """
+        l = dcd_filename[: dcd_filename.find(f"_energy_in_{env}")].split("_")
+        lam = l[-3]
+        return float(lam)
+
+    data_path = os.path.abspath(data_path)
+    if not os.path.exists(data_path):
+        raise RuntimeError(f"{data_path} does not exist!")
+
+    #######################
+    (energy_function, tautomer,) = setup_new_alchemical_system_and_energy_function(
+        name=name,
+        t1_smiles=t1_smiles,
+        t2_smiles=t2_smiles,
+        ANImodel=ANImodel,
+        checkpoint_file=checkpoint_file,
+        env=env,
+        diameter=diameter,
+        base_path=f"{data_path}/{name}/",
+    )
+    # and lambda values in list
+    dcds = glob(f"{data_path}/{name}/*.dcd")
+
+    lambdas = []
+    md_trajs = []
+    energies = []
+
+    # read in all the frames from the trajectories
+    if env == "vacuum":
+        top = tautomer.hybrid_topology
+    else:
+        top = f"{data_path}/{name}/{name}_in_droplet.pdb"
+
+    for dcd_filename in dcds:
+        lam = parse_lambda_from_dcd_filename(dcd_filename)
+        lambdas.append(lam)
+        traj = md.load_dcd(dcd_filename, top=top)
+        logger.debug(f"Nr of frames in trajectory: {len(traj)}")
+        md_trajs.append(traj)
+        f = open(
+            f"{data_path}/{name}/{name}_lambda_{lam:0.4f}_energy_in_{env}.csv", "r"
+        )
+        energies.append(np.array([float(e) * kT for e in f]))
+        f.close()
+
+    if len(lambdas) < 5:
+        raise RuntimeError(f"Below 5 lambda states for {name}")
+
+    assert len(lambdas) == len(energies)
+    assert len(lambdas) == len(md_trajs)
+
+    if env == "vacuum":
+        pickle_path = f"{data_path}/{name}/{name}_{ANImodel.name}_{max_snapshots_per_window}_{len(tautomer.hybrid_atoms)}_atoms.pickle"
+    else:
+        pickle_path = f"{data_path}/{name}/{name}_{ANImodel.name}_{max_snapshots_per_window}_{diameter}A_{len(tautomer.ligand_in_water_atoms)}_atoms.pickle"
+
+    # calculate free energy in kT
+    fec = FreeEnergyCalculator(
+        ani_model=energy_function,
+        md_trajs=md_trajs,
+        potential_energy_trajs=energies,
+        lambdas=lambdas,
+        pickle_path=pickle_path,
+        bulk_energy_calculation=bulk_energy_calculation,
+        max_snapshots_per_window=max_snapshots_per_window,
+    )
+
     return fec

@@ -55,11 +55,13 @@ def plot_correlation_analysis(
                 Y,
                 yerr=error,
                 mfc="blue",
-                ms=3,
+                mec="blue",
+                ms=4,
                 fmt="o",
                 capthick=2,
+                capsize=2,
                 alpha=0.6,
-                ecolor="r",
+                ecolor="red",
             )
 
     else:
