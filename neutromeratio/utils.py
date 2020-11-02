@@ -17,6 +17,22 @@ from neutromeratio.constants import kT
 logger = logging.getLogger(__name__)
 
 
+def find_idx(query_name: str) -> list:
+    from neutromeratio.constants import _get_names
+
+    protocol = dict()
+    idx = 1
+    for name in _get_names():
+        list_of_idx = []
+        list_of_lambdas = []
+        for lamb in np.linspace(0, 1, 11):
+            list_of_lambdas.append(lamb)
+            list_of_idx.append(idx)
+            idx += 1
+        protocol[name] = (list_of_idx, list_of_lambdas)
+    return protocol[query_name]
+
+
 def write_pdb(mol: Chem.Mol, filepath: str, confId: int = -1) -> str:
     """
     Writes pdb file in path directory. If directory does not exist it is created.
@@ -137,6 +153,7 @@ def generate_new_tautomer_pair(name: str, t1_smiles: str, t2_smiles: str):
     from t1 and t2 smiles"""
     # TOOD: should this also accept nr_of_conformations, enforceChirality?
     from neutromeratio.tautomers import Tautomer
+
     return Tautomer(
         name=name,
         initial_state_mol=generate_rdkit_mol(t1_smiles),
@@ -216,7 +233,6 @@ def generate_tautomer_class_stereobond_aware(
 
             tautomers.append(_tautomer(t1_a, t2_a))
             tautomers.append(_tautomer(t1_b, t2_b))
-
 
         elif flag_unspec_stereo(t2_smiles):
             flipped = True

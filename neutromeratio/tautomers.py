@@ -277,6 +277,8 @@ class Tautomer(object):
                     structure.residues.remove(residue)
                 else:
                     logger.warning(f"Residue {residue} reaches outside the droplet")
+                    print(f"Residue {residue} reaches outside the droplet")
+
             structure.write_pdb(pdb_filepath)
 
         # load pdb with mdtraj

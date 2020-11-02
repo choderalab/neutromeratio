@@ -451,6 +451,12 @@ def test_setup_tautomer_system_in_droplet():
         shutil.rmtree("pdbs-ani2x")
 
 
+def test_query_names():
+    from ..utils import find_idx
+
+    print(find_idx(query_name="molDWRow_109"))
+
+
 def test_setup_tautomer_system_in_droplet_for_problem_systems():
     from ..analysis import setup_alchemical_system_and_energy_function
     from ..ani import AlchemicalANI2x
@@ -464,7 +470,25 @@ def test_setup_tautomer_system_in_droplet_for_problem_systems():
     except OSError:
         pass
 
-    names = ['SAMPLmol2', "molDWRow_507", "molDWRow_1598", "molDWRow_511", "molDWRow_516", 'molDWRow_68', 'molDWRow_735', 'molDWRow_895']
+    names = [
+        "SAMPLmol2",
+        "molDWRow_507",
+        "molDWRow_1598",
+        "molDWRow_511",
+        "molDWRow_516",
+        "molDWRow_68",
+        "molDWRow_735",
+        "molDWRow_895",
+    ] + [
+        "molDWRow_512",
+        "molDWRow_126",
+        "molDWRow_554",
+        "molDWRow_601",
+        "molDWRow_614",
+        "molDWRow_853",
+        "molDWRow_602",
+    ]
+
     lambda_value = 0.1
     for name in names:
         print(name)
@@ -493,7 +517,7 @@ def test_setup_tautomer_system_in_droplet_with_pdbs():
 
     names = _get_names()
     lambda_value = 0.0
-    for name in names[:10]:
+    for name in names:
         print(name)
         (
             energy_function,
@@ -504,10 +528,11 @@ def test_setup_tautomer_system_in_droplet_with_pdbs():
             env="droplet",
             ANImodel=AlchemicalANI2x,
             base_path=f"data/test_data/droplet_test/{name}",
-            diameter=16,
+            diameter=10,
         )
         x0 = tautomer.get_ligand_in_water_coordinates()
         energy_function.calculate_force(x0, lambda_value)
+    raise RuntimeError()
 
 
 def _get_traj(traj_path, top_path, remove_idx=None):

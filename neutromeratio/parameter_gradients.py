@@ -777,12 +777,72 @@ def _get_nn_layers(nr_of_nn: int, ANImodel: ANI, elements: str = "CHON"):
 
     if elements == "CHON":
         logger.info("Using `CHON` elements.")
-        return _get_nn_layers_CHON(nr_of_nn, ANImodel)
+        weight_layers, bias_layers = _get_nn_layers_CHON(nr_of_nn, ANImodel)
     elif elements == "CN":
         logger.info("Using `CN` elements.")
-        return _get_nn_layers_CN(nr_of_nn, ANImodel)
+        weight_layers, bias_layers = _get_nn_layers_CN(nr_of_nn, ANImodel)
+    elif elements == "H":
+        logger.info("Using `H` elements.")
+        weight_layers, bias_layers = _get_nn_layers_H(nr_of_nn, ANImodel)
+    elif elements == "CN":
+        logger.info("Using `C` elements.")
+        weight_layers, bias_layers = _get_nn_layers_C(nr_of_nn, ANImodel)
     else:
         raise RuntimeError("Only `CHON` or `CN` as atoms allowed. Aborting.")
+
+    # set up minimizer for weights
+    AdamW = torch.optim.AdamW(weight_layers)
+    # set up minimizer for bias
+    SGD = torch.optim.SGD(bias_layers, lr=1e-3)
+
+    AdamW_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        AdamW, factor=0.5, patience=100, threshold=0
+    )
+    SGD_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        SGD, factor=0.5, patience=100, threshold=0
+    )
+
+    return (AdamW, AdamW_scheduler, SGD, SGD_scheduler)
+
+
+def _get_nn_layers_C(nr_of_nn: int, ANImodel: ANI):
+    weight_layers = []
+    bias_layers = []
+    layer = 6
+    model = ANImodel.tweaked_neural_network
+
+    for nn in model[:nr_of_nn]:
+        weight_layers.extend(
+            [
+                {"params": [nn.C[layer].weight], "weight_decay": 0.000001},
+            ]
+        )
+        bias_layers.extend(
+            [
+                {"params": [nn.C[layer].bias]},
+            ]
+        )
+    return (weight_layers, bias_layers)
+
+
+def _get_nn_layers_H(nr_of_nn: int, ANImodel: ANI):
+    weight_layers = []
+    bias_layers = []
+    layer = 6
+    model = ANImodel.tweaked_neural_network
+
+    for nn in model[:nr_of_nn]:
+        weight_layers.extend(
+            [
+                {"params": [nn.H[layer].weight], "weight_decay": 0.000001},
+            ]
+        )
+        bias_layers.extend(
+            [
+                {"params": [nn.H[layer].bias]},
+            ]
+        )
+    return (weight_layers, bias_layers)
 
 
 def _get_nn_layers_CN(nr_of_nn: int, ANImodel: ANI):
@@ -804,19 +864,7 @@ def _get_nn_layers_CN(nr_of_nn: int, ANImodel: ANI):
                 {"params": [nn.N[layer].bias]},
             ]
         )
-    # set up minimizer for weights
-    AdamW = torch.optim.AdamW(weight_layers)
-    # set up minimizer for bias
-    SGD = torch.optim.SGD(bias_layers, lr=1e-3)
-
-    AdamW_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        AdamW, factor=0.5, patience=100, threshold=0
-    )
-    SGD_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        SGD, factor=0.5, patience=100, threshold=0
-    )
-
-    return (AdamW, AdamW_scheduler, SGD, SGD_scheduler)
+    return (weight_layers, bias_layers)
 
 
 def _get_nn_layers_CHON(nr_of_nn: int, ANImodel: ANI):
@@ -841,19 +889,8 @@ def _get_nn_layers_CHON(nr_of_nn: int, ANImodel: ANI):
                 {"params": [nn.N[layer].bias]},
             ]
         )
-    # set up minimizer for weights
-    AdamW = torch.optim.AdamW(weight_layers)
-    # set up minimizer for bias
-    SGD = torch.optim.SGD(bias_layers, lr=1e-3)
 
-    AdamW_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        AdamW, factor=0.5, patience=100, threshold=0
-    )
-    SGD_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        SGD, factor=0.5, patience=100, threshold=0
-    )
-
-    return (AdamW, AdamW_scheduler, SGD, SGD_scheduler)
+    return (weight_layers, bias_layers)
 
 
 def setup_and_perform_parameter_retraining(
