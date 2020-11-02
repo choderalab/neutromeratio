@@ -26,7 +26,7 @@ You will need to install a few dependencies --- all of them are defined in https
 
 # Data
 
-We provide data for the following preprint https://www.biorxiv.org/content/10.1101/2020.10.24.353318v1 .
+We provide data for the following preprint https://www.biorxiv.org/content/10.1101/2020.10.24.353318v3 .
 
 ## Dataset
 
@@ -110,10 +110,21 @@ These generate all the data shown in the manuscript and in the Supplementary Inf
 
 ## Running alchemical free energy calculations for tautomers
 
-It is pretty easy --- but for now also limited to the tautomers we have been investigating.
-If you want to run an alchemical free energy calulation use this script:
-https://github.com/choderalab/neutromeratio/blob/master/scripts/generate_equilibrium_sampling_in_vacuum.sh
-You only have to provide an index between 0 and 5000. This is further explained in the bash script. 
+It is pretty easy --- the relevant bash script is here:
+https://github.com/choderalab/neutromeratio/blob/master/scripts/generate_samples_and_analyse_results.sh .
+In the bash script, relevant parameters are defined at the very beginning:
+```
+SMILES1='OC1=CC=C2C=CC=CC2=N1'
+SMILES2='O=C1NC2=C(C=CC=C2)C=C1'
+name='test_mol' # defines where the output directory name
+base_path="./" # where do you want to save the ouput files -> the ouput will have the form ${base_path}/${name}
+potential_name='ANI1ccx' # which potential do you want to use? (ANI1ccx, ANI1x, ANI2x)
+n_steps=10000 # nr of steps (dt = 0.5fs)
+env='vacuum' 
+```
+ 
+To simulate a new tautomer pair you have to update the SMILES strings. The results are saved in {base_path}/{name} and the simulations will be performed for {n_steps}. A reasonable value for n_steps should be above 100,000.
+This script automatically uses ANI1ccx and returns the results with the native ANI1ccx parameters and the best performing parameter set from the parameter fitting described here: https://www.biorxiv.org/content/10.1101/2020.10.24.353318v3
 
 
 
