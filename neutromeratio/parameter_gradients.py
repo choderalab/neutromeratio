@@ -25,6 +25,7 @@ import os
 import neutromeratio
 import pickle
 import mdtraj as md
+from neutromeratio.analysis import _get_exp_results
 
 logger = logging.getLogger(__name__)
 
@@ -414,10 +415,6 @@ def chunks(lst, n):
         yield lst[i : i + n]
 
 
-def _log_dG():
-    pass
-
-
 def setup_and_perform_parameter_retraining_with_test_set_split(
     ANImodel: ANI,
     env: str,
@@ -496,6 +493,20 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
         )
         print(f"Len of test set: {len(names_test)}/{len(names_list)}")
 
+    # final rmsd calculation on test set
+    print("RMSE calulation for test set")
+    rmse_test, dG_calc_test_initial = calculate_rmse_between_exp_and_calc(
+        model=ANImodel,
+        names=names_test,
+        diameter=diameter,
+        data_path=data_path,
+        bulk_energy_calculation=bulk_energy_calculation,
+        env=env,
+        max_snapshots_per_window=max_snapshots_per_window,
+    )
+
+    print(f"RMSE on test set BEFORE optimization: {rmse_test}")
+
     # save batch loss through epochs
     rmse_training, rmse_validation = setup_and_perform_parameter_retraining(
         ANImodel=ANImodel,
@@ -515,8 +526,7 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
     )
 
     # final rmsd calculation on test set
-    print("RMSE calulation for test set")
-    rmse_test, dG_calc_test = calculate_rmse_between_exp_and_calc(
+    rmse_test, dG_calc_test_final = calculate_rmse_between_exp_and_calc(
         model=ANImodel,
         names=names_test,
         diameter=diameter,
@@ -525,12 +535,21 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
         env=env,
         max_snapshots_per_window=max_snapshots_per_window,
     )
+    print(f"RMSE on test set AFTER optimization: {rmse_test}")
 
     # write out data on dG for test set after optimization
+    exp_results = _get_exp_results()
+
     results = {}
-    for name, e in zip(names_test, dG_calc_test):
-        results[name] = e
-    pickle.dump(results, open(f"results_AFTER_training_for_test_set.pickle", "wb+"))
+    for name, e_initial, e_final in zip(
+        names_test, dG_calc_test_initial, dG_calc_test_final
+    ):
+        results[name] = (
+            e_initial,
+            e_final,
+            (exp_results[name]["energy"] * unit.kilocalorie_per_mole) / kT,
+        )
+    pickle.dump(results, open(f"results_for_test_set.pickle", "wb+"))
 
     return rmse_training, rmse_validation, rmse_test
 
