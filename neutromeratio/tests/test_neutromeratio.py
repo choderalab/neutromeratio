@@ -516,8 +516,10 @@ def test_setup_tautomer_system_in_droplet_with_pdbs():
     from ..constants import _get_names
 
     names = _get_names()
+    random.shuffle(names)
+
     lambda_value = 0.0
-    for name in names:
+    for name in names[:10]:
         print(name)
         (
             energy_function,
@@ -532,7 +534,6 @@ def test_setup_tautomer_system_in_droplet_with_pdbs():
         )
         x0 = tautomer.get_ligand_in_water_coordinates()
         energy_function.calculate_force(x0, lambda_value)
-    raise RuntimeError()
 
 
 def _get_traj(traj_path, top_path, remove_idx=None):
@@ -1506,48 +1507,6 @@ def test_mining_minima():
         all_energies,
         all_conformations,
     ) = tautomer.generate_mining_minima_structures()
-
-
-def test_plotting():
-
-    from neutromeratio.constants import kT
-    from neutromeratio.plotting import plot_correlation_analysis
-
-    results = pickle.load(open("neutromeratio/data/test_data/all_results.pickle", "rb"))
-
-    x_list = []
-    y_list = []
-
-    for a in list(results.ddG_DFT):
-        a = a * kT
-        a = a.value_in_unit(unit.kilocalorie_per_mole)
-        x_list.append(a)
-
-    for a in list(results.experimental_values):
-        a = a * kT
-        a = a.value_in_unit(unit.kilocalorie_per_mole)
-        y_list.append(a)
-
-    df = pd.DataFrame(
-        list(
-            zip(
-                list(results.names),
-                x_list,
-                y_list,
-                ["B3LYP/aug-cc-pVTZ"] * len(results.names),
-            )
-        ),
-        columns=["names", "x", "y", "method"],
-    )
-
-    plot_correlation_analysis(
-        df,
-        "DFT(B3LYP/aug-cc-pVTZ) in vacuum vs experimental data in solution",
-        "test1",
-        "test2",
-        "g",
-        "o",
-    )
 
 
 def test_generating_droplet():

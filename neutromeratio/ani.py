@@ -210,7 +210,7 @@ class AlchemicalANI1ccx(ANI1ccx):
         assert self.neural_networks == None
 
     def _reset_parameters(self):
-        self.tweaked_neural_network = copy.deepcopy(self.neural_networks)
+        self.tweaked_neural_network = copy.deepcopy(self.original_neural_network)
 
     def forward(self, species_coordinates_lamb):
         """
@@ -323,7 +323,7 @@ class AlchemicalANI1x(ANI1x):
         assert self.neural_networks == None
 
     def _reset_parameters(self):
-        self.tweaked_neural_network = copy.deepcopy(self.neural_networks)
+        self.tweaked_neural_network = copy.deepcopy(self.original_neural_network)
 
     def forward(self, species_coordinates_lamb):
         """
@@ -437,7 +437,7 @@ class AlchemicalANI2x(ANI2x):
         assert self.neural_networks == None
 
     def _reset_parameters(self):
-        self.tweaked_neural_network = copy.deepcopy(self.neural_networks)
+        self.tweaked_neural_network = copy.deepcopy(self.original_neural_network)
 
     def forward(self, species_coordinates_lamb):
         """
