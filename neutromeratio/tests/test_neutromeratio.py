@@ -2731,7 +2731,7 @@ def test_timing_for_main_training_loop(benchmark):
     import os
 
     model = AlchemicalANI2x
-    max_snapshots_per_window = 100
+    max_snapshots_per_window = 50
     names = ["molDWRow_298"]
     env = "droplet"
     diameter = 10

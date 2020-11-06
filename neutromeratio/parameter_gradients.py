@@ -346,6 +346,7 @@ def calculate_rmse_between_exp_and_calc(
     max_snapshots_per_window: int,
     perturbed_free_energy: bool = True,
     diameter: int = -1,
+    load_pickled_tautomer_object: bool = False,
 ) -> Tuple[float, list]:
     """
     Returns the RMSE between calculated and experimental free energy differences as float.
@@ -378,6 +379,7 @@ def calculate_rmse_between_exp_and_calc(
                 data_path=data_path,
                 max_snapshots_per_window=max_snapshots_per_window,
                 diameter=diameter,
+                load_pickled_tautomer_object=load_pickled_tautomer_object,
             )
         ]
 
@@ -458,7 +460,8 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
     bulk_energy_calculation: bool = True,
     load_checkpoint: bool = True,
     names: list = [],
-) -> Tuple[list, list, torch.Tensor]:
+    load_pickled_tautomer_object: bool = True,
+) -> Tuple[list, float]:
 
     """
     Calculates the free energy of a staged free energy simulation,
@@ -518,12 +521,25 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
         env=env,
         max_snapshots_per_window=max_snapshots_per_window,
         perturbed_free_energy=False,
+        load_pickled_tautomer_object=load_pickled_tautomer_object,
     )
 
     print(f"RMSE on test set BEFORE optimization: {rmse_test}")
 
+    split = {}
+    for name, which_set in zip(
+        [names_training + names_validating + names_test],
+        [
+            ["training"] * len(names_training)
+            + ["validation"] * len(names_validating)
+            + ["testing"] * len(names_validating)
+        ],
+    ):
+        split[name] = which_set
+    pickle.dump(split, open(f"training_validation_tests.pickle", "wb+"))
+
     # save batch loss through epochs
-    rmse_training, rmse_validation = setup_and_perform_parameter_retraining(
+    rmse_validation = setup_and_perform_parameter_retraining(
         ANImodel=ANImodel,
         env=env,
         checkpoint_filename=checkpoint_filename,
@@ -538,6 +554,7 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
         bulk_energy_calculation=bulk_energy_calculation,
         names_training=names_training,
         names_validating=names_validating,
+        load_pickled_tautomer_object=load_pickled_tautomer_object,
     )
 
     # final rmsd calculation on test set
@@ -549,6 +566,7 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
         bulk_energy_calculation=bulk_energy_calculation,
         env=env,
         max_snapshots_per_window=max_snapshots_per_window,
+        load_pickled_tautomer_object=load_pickled_tautomer_object,
     )
     print(f"RMSE on test set AFTER optimization: {rmse_test}")
 
@@ -566,7 +584,7 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
         )
     pickle.dump(results, open(f"results_for_test_set.pickle", "wb+"))
 
-    return rmse_training, rmse_validation, rmse_test
+    return rmse_validation, rmse_test
 
 
 def _save_checkpoint(
@@ -589,7 +607,6 @@ def _perform_training(
     nr_of_nn: int,
     names_training: list,
     names_validating: list,
-    rmse_training: list,
     checkpoint_filename: str,
     max_epochs: int,
     elements: str,
@@ -600,8 +617,9 @@ def _perform_training(
     data_path: str,
     max_snapshots_per_window: int,
     load_checkpoint: bool,
-    rmse_validation,
-) -> Tuple[list, list]:
+    rmse_validation: list,
+    load_pickled_tautomer_object: bool,
+) -> list:
 
     early_stopping_learning_rate = 1.0e-5
     AdamW, AdamW_scheduler, SGD, SGD_scheduler = _get_nn_layers(
@@ -620,7 +638,6 @@ def _perform_training(
 
     ## training loop
     for i in range(AdamW_scheduler.last_epoch + 1, max_epochs):
-        results = dict()  # save all name : predicted free energies here
 
         # get the learning group
         learning_rate = AdamW.param_groups[0]["lr"]
@@ -638,7 +655,7 @@ def _perform_training(
         SGD_scheduler.step(rmse_validation[-1])
 
         # perform the parameter optimization and importance weighting
-        dG_calc_training, dG_exp = _tweak_parameters(
+        _tweak_parameters(
             names_training=names_training,
             ANImodel=ANImodel,
             AdamW=AdamW,
@@ -649,6 +666,7 @@ def _perform_training(
             batch_size=batch_size,
             data_path=data_path,
             max_snapshots_per_window=max_snapshots_per_window,
+            load_pickled_tautomer_object=load_pickled_tautomer_object,
         )
 
         # calculate the new free energies on the validation set with optimized parameters
@@ -660,6 +678,7 @@ def _perform_training(
             bulk_energy_calculation=bulk_energy_calculation,
             env=env,
             max_snapshots_per_window=max_snapshots_per_window,
+            perturbed_free_energy=load_pickled_tautomer_object,
         )
 
         rmse_validation.append(current_rmse)
@@ -667,12 +686,7 @@ def _perform_training(
         print(
             f"RMSE on validation set: {rmse_validation[-1]} at epoch {AdamW_scheduler.last_epoch}"
         )
-        rmse_training.append(
-            calculate_rmse(torch.tensor(dG_calc_training), torch.tensor(dG_exp)).item()
-        )
-        print(
-            f"RMSE on training set: {rmse_training[-1]} at epoch {AdamW_scheduler.last_epoch}"
-        )
+
         _save_checkpoint(
             ANImodel,
             AdamW,
@@ -681,24 +695,12 @@ def _perform_training(
             SGD_scheduler,
             f"{base}_{AdamW_scheduler.last_epoch}.pt",
         )
-        # write all results
 
-        logger.info("writing out results")
-        for name, e, which_set in zip(
-            names_training + names_validating,
-            dG_calc_training + dG_calc_validation,
-            ["t"] * len(names_training) + ["v"] * len(names_validating),
-        ):
-            results[name] = [e, which_set]
-        pickle.dump(
-            results, open(f"results_epoch_{AdamW_scheduler.last_epoch}.pickle", "wb+")
-        )
+    # _save_checkpoint(
+    #     ANImodel, AdamW, AdamW_scheduler, SGD, SGD_scheduler, checkpoint_filename
+    # )
 
-    _save_checkpoint(
-        ANImodel, AdamW, AdamW_scheduler, SGD, SGD_scheduler, checkpoint_filename
-    )
-
-    return rmse_training, rmse_validation
+    return rmse_validation
 
 
 def _tweak_parameters(
@@ -712,6 +714,7 @@ def _tweak_parameters(
     batch_size: int,
     data_path: str,
     max_snapshots_per_window: int,
+    load_pickled_tautomer_object: bool,
 ):
     """
     _tweak_parameters
@@ -739,16 +742,10 @@ def _tweak_parameters(
     max_snapshots_per_window : int
         the number of snapshots per lambda state to consider
 
-    Returns
-    -------
-    [type]
-        [description]
     """
 
     # iterate over batches of molecules
     it = tqdm(chunks(names_training, batch_size))
-    calc_free_energy_difference_batches = []
-    exp_free_energy_difference_batches = []
 
     for idx, names in enumerate(it):
 
@@ -763,6 +760,7 @@ def _tweak_parameters(
                 bulk_energy_calculation=bulk_energy_calculation,
                 max_snapshots_per_window=max_snapshots_per_window,
                 diameter=diameter,
+                load_pickled_tautomer_object=load_pickled_tautomer_object,
             )
             for name in names
         ]
@@ -775,12 +773,6 @@ def _tweak_parameters(
         loss = calculate_mse(calc_free_energy_difference, exp_free_energy_difference)
         it.set_description(f"Batch {idx} -- MSE: {loss.item()}")
 
-        calc_free_energy_difference_batches.extend(
-            [e.item() for e in calc_free_energy_difference]
-        )
-        exp_free_energy_difference_batches.extend(
-            [e.item() for e in exp_free_energy_difference]
-        )
         # optimization steps
         AdamW.zero_grad()
         SGD.zero_grad()
@@ -789,7 +781,6 @@ def _tweak_parameters(
         SGD.step()
 
         del calc_free_energy_difference
-    return calc_free_energy_difference_batches, exp_free_energy_difference_batches
 
 
 def _load_checkpoint(
@@ -818,7 +809,7 @@ def _get_nn_layers(nr_of_nn: int, ANImodel: ANI, elements: str = "CHON"):
     elif elements == "H":
         logger.info("Using `H` elements.")
         weight_layers, bias_layers = _get_nn_layers_H(nr_of_nn, ANImodel)
-    elif elements == "CN":
+    elif elements == "C":
         logger.info("Using `C` elements.")
         weight_layers, bias_layers = _get_nn_layers_C(nr_of_nn, ANImodel)
     else:
@@ -933,7 +924,7 @@ def setup_and_perform_parameter_retraining(
     checkpoint_filename: str,
     max_snapshots_per_window: int,
     diameter: int = -1,
-    batch_size: int = 10,
+    batch_size: int = 1,
     data_path: str = "../data/",
     nr_of_nn: int = 8,
     max_epochs: int = 10,
@@ -942,6 +933,7 @@ def setup_and_perform_parameter_retraining(
     bulk_energy_calculation: bool = True,
     names_training: list = [],
     names_validating: list = [],
+    load_pickled_tautomer_object: bool = True,
 ):
     """
     Much of this code is taken from:
@@ -967,60 +959,39 @@ def setup_and_perform_parameter_retraining(
     assert int(batch_size) == 1
     assert int(nr_of_nn) <= 8 and int(nr_of_nn) >= 1
 
+    if load_pickled_tautomer_object:
+        model_instance = ANImodel(
+            [0, 0]
+        )  # NOTE: The model needs a single instance to work with pickled tautomer objects
+
     if env == "droplet" and diameter == -1:
         raise RuntimeError(f"Did you forget to pass the 'diamter' argument? Aborting.")
 
     # save batch loss through epochs
     rmse_validation = []
-    rmse_training = []
 
     # calculate the rmse on the current parameters for the validation set
     rmse_validation_set, dG_calc_validation = calculate_rmse_between_exp_and_calc(
         names_validating,
         model=ANImodel,
         data_path=data_path,
-        perturbed_free_energy=False,
         bulk_energy_calculation=bulk_energy_calculation,
         env=env,
         max_snapshots_per_window=max_snapshots_per_window,
         diameter=diameter,
+        perturbed_free_energy=False,
+        load_pickled_tautomer_object=load_pickled_tautomer_object,
     )
 
     rmse_validation.append(rmse_validation_set)
     print(f"RMSE on validation set: {rmse_validation[-1]} at first epoch")
 
-    # calculate the rmse on the current parameters for the training set
-    rmse_training_set, dG_calc_training = calculate_rmse_between_exp_and_calc(
-        names_training,
-        model=ANImodel,
-        data_path=data_path,
-        perturbed_free_energy=False,
-        bulk_energy_calculation=bulk_energy_calculation,
-        env=env,
-        max_snapshots_per_window=max_snapshots_per_window,
-        diameter=diameter,
-    )
-
-    rmse_training.append(rmse_training_set)
-    print(f"RMSE on training set: {rmse_training[-1]} at first epoch")
-
-    # write out data on dG for validation/training set befor optimization
-    results = {}
-    for name, e, which_set in zip(
-        names_training + names_validating,
-        dG_calc_training + dG_calc_validation,
-        ["t"] * len(names_training) + ["v"] * len(names_validating),
-    ):
-        results[name] = [e, which_set]
-    pickle.dump(results, open(f"results_before_training.pickle", "wb+"))
-
     ### main training loop
-    rmse_training, rmse_validation = _perform_training(
+    rmse_validation = _perform_training(
         ANImodel=ANImodel,
         nr_of_nn=nr_of_nn,
         names_training=names_training,
         names_validating=names_validating,
-        rmse_training=rmse_training,
         rmse_validation=rmse_validation,
         checkpoint_filename=checkpoint_filename,
         max_epochs=max_epochs,
@@ -1032,9 +1003,10 @@ def setup_and_perform_parameter_retraining(
         data_path=data_path,
         load_checkpoint=load_checkpoint,
         max_snapshots_per_window=max_snapshots_per_window,
+        load_pickled_tautomer_object=load_pickled_tautomer_object,
     )
 
-    return rmse_training, rmse_validation
+    return rmse_validation
 
 
 def setup_mbar(
@@ -1046,11 +1018,26 @@ def setup_mbar(
     checkpoint_file: str = "",
     data_path: str = "../data/",
     diameter: int = -1,
+    load_pickled_tautomer_object: bool = False,
 ):
 
     from neutromeratio.analysis import setup_alchemical_system_and_energy_function
     import os
 
+    data_path = os.path.abspath(data_path)
+    if not os.path.exists(data_path):
+        raise RuntimeError(f"{data_path} does not exist!")
+
+    tautomer_pickle = f"{data_path}/{name}/{name}tautomer_system.pickle"
+    if os.path.exists(tautomer_pickle) and load_pickled_tautomer_object:
+        t = pickle.load(open(tautomer_pickle, "rb"))
+        print(f"{tautomer_pickle} loading ...")
+        return t
+
+    if name in exclude_set_ANI + mols_with_charge + multiple_stereobonds:
+        raise RuntimeError(
+            f"{name} is part of the list of excluded molecules. Aborting"
+        )
     if not (env == "vacuum" or env == "droplet"):
         raise RuntimeError("Only keyword vacuum or droplet are allowed as environment.")
     if env == "droplet" and diameter == -1:
@@ -1069,16 +1056,8 @@ def setup_mbar(
         lam = l[-3]
         return float(lam)
 
-    data_path = os.path.abspath(data_path)
-    if not os.path.exists(data_path):
-        raise RuntimeError(f"{data_path} does not exist!")
-
-    if name in exclude_set_ANI + mols_with_charge + multiple_stereobonds:
-        raise RuntimeError(
-            f"{name} is part of the list of excluded molecules. Aborting"
-        )
-
     #######################
+
     energy_function, tautomer, flipped = setup_alchemical_system_and_energy_function(
         name=name,
         ANImodel=ANImodel,
@@ -1135,6 +1114,7 @@ def setup_mbar(
     )
 
     fec.flipped = flipped
+    pickle.dump(fec, open(tautomer_pickle, "wb+"))
     return fec
 
 
