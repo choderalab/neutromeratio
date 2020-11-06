@@ -2672,11 +2672,11 @@ def test_tweak_parameters_droplet():
         model._reset_parameters()
 
 
-# @pytest.mark.skipif(
-#    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
-# )
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
 @pytest.mark.benchmark(min_rounds=2)
-def test_impvore_timing_for_droplet(benchmark):
+def test_improve_timing_for_droplet(benchmark):
     from ..parameter_gradients import (
         setup_and_perform_parameter_retraining,
     )
@@ -2688,7 +2688,7 @@ def test_impvore_timing_for_droplet(benchmark):
         diameter = 10
         max_epochs = 2
 
-        (rmse_training, rmse_val, rmse_test,) = setup_and_perform_parameter_retraining(
+        (rmse_training, rmse_val) = setup_and_perform_parameter_retraining(
             env=env,
             names_training=names,
             names_validating=names,
