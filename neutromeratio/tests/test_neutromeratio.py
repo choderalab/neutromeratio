@@ -17,6 +17,7 @@ import torchani
 from openmmtools.utils import is_quantity_close
 import pandas as pd
 from rdkit import Chem
+import pytest_benchmark
 
 
 def test_equ():
@@ -1266,6 +1267,9 @@ def calculate_single_energy():
     print(energy)
 
 
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
 def test_setup_mbar():
     # test the setup mbar function with different models, environments and potentials
     from ..parameter_gradients import setup_mbar
@@ -1348,6 +1352,9 @@ def test_setup_mbar():
                 os.remove(os.path.join(testdir, item))
 
 
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
 def test_setup_mbar_test_pickle_files():
     # test the setup mbar function, write out the pickle file and test that everything works
     from ..parameter_gradients import setup_mbar
@@ -2663,3 +2670,39 @@ def test_tweak_parameters_droplet():
                 _remove_files(model_name + "_droplet", max_epochs)
                 print(rmse_training, rmse_val, rmse_test)
         model._reset_parameters()
+
+
+# @pytest.mark.skipif(
+#    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+# )
+@pytest.mark.benchmark(min_rounds=2)
+def test_impvore_timing_for_droplet(benchmark):
+    from ..parameter_gradients import (
+        setup_and_perform_parameter_retraining,
+    )
+    from ..ani import AlchemicalANI2x
+
+    def wrapp_everything():
+        names = ["molDWRow_298"]
+        env = "droplet"
+        diameter = 10
+        max_epochs = 2
+
+        (rmse_training, rmse_val, rmse_test,) = setup_and_perform_parameter_retraining(
+            env=env,
+            names_training=names,
+            names_validating=names,
+            ANImodel=AlchemicalANI2x,
+            batch_size=1,
+            max_snapshots_per_window=50,
+            data_path=f"./data/test_data/{env}",
+            nr_of_nn=8,
+            max_epochs=max_epochs,
+            diameter=diameter,
+            checkpoint_filename=f"AlchemicalANI2x_droplet.pt",
+        )
+
+        print(rmse_training, rmse_val, rmse_test)
+
+    benchmark(wrapp_everything)
+    model._reset_parameters()
