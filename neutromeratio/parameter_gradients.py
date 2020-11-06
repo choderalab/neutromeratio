@@ -964,7 +964,7 @@ def setup_and_perform_parameter_retraining(
         (list, list, float) -- rmse on validation set, rmse on training set, rmse on test set
     """
 
-    assert int(batch_size) <= 10 and int(batch_size) >= 1
+    assert int(batch_size) == 1
     assert int(nr_of_nn) <= 8 and int(nr_of_nn) >= 1
 
     if env == "droplet" and diameter == -1:
