@@ -38,7 +38,6 @@ max_epochs = 0
 max_epochs += 10
 
 (
-    rmse_training,
     rmse_validation,
     rmse_test,
 ) = neutromeratio.parameter_gradients.setup_and_perform_parameter_retraining_with_test_set_split(
@@ -53,32 +52,5 @@ max_epochs += 10
     elements=elements,
     max_epochs=max_epochs,
     diameter=diameter,
+    load_pickled_tautomer_object=True,
 )
-
-print("RMSE training")
-print(rmse_training)
-
-f = open(f"results_{model_name}_{env}.txt", "a+")
-f.write("RMSE training")
-f.write("\n")
-for e in rmse_training:
-    f.write(str(e) + ", ")
-f.write("\n")
-
-print("RMSE validation")
-print(rmse_validation)
-
-f.write("\n")
-f.write("RMSE validation")
-f.write("\n")
-for e in rmse_validation:
-    f.write(str(e) + ", ")
-f.write("\n")
-
-print("RMSE test")
-print(rmse_test)
-
-f.write("RMSE test")
-f.write(str(rmse_test))
-f.write("\n")
-f.close()
