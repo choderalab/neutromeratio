@@ -2682,6 +2682,8 @@ def test_improve_timing_for_droplet(benchmark):
     )
     from ..ani import AlchemicalANI2x
 
+    model = AlchemicalANI2x
+
     def wrapp_everything():
         names = ["molDWRow_298"]
         env = "droplet"
@@ -2692,9 +2694,9 @@ def test_improve_timing_for_droplet(benchmark):
             env=env,
             names_training=names,
             names_validating=names,
-            ANImodel=AlchemicalANI2x,
+            ANImodel=model,
             batch_size=1,
-            max_snapshots_per_window=50,
+            max_snapshots_per_window=100,
             data_path=f"./data/test_data/{env}",
             nr_of_nn=8,
             max_epochs=max_epochs,
@@ -2702,7 +2704,7 @@ def test_improve_timing_for_droplet(benchmark):
             checkpoint_filename=f"AlchemicalANI2x_droplet.pt",
         )
 
-        print(rmse_training, rmse_val, rmse_test)
+        print(rmse_training, rmse_val)
 
     benchmark(wrapp_everything)
     model._reset_parameters()
