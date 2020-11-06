@@ -2684,7 +2684,7 @@ def test_tweak_parameters_droplet():
 @pytest.mark.skipif(
     os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
 )
-@pytest.mark.benchmark(min_rounds=2, warmup=False)
+@pytest.mark.benchmark(min_rounds=1, warmup=False)
 def test_improve_mbar_timing_for_droplet_with_precalculated_mbar(benchmark):
     from ..parameter_gradients import setup_and_perform_parameter_retraining, setup_mbar
     from ..ani import AlchemicalANI2x
@@ -2695,7 +2695,6 @@ def test_improve_mbar_timing_for_droplet_with_precalculated_mbar(benchmark):
     names = ["molDWRow_298"]
     env = "droplet"
     diameter = 10
-    max_epochs = 2
 
     name = "molDWRow_298"
     # precalcualte mbar
@@ -2723,13 +2722,13 @@ def test_improve_mbar_timing_for_droplet_with_precalculated_mbar(benchmark):
             load_pickled_tautomer_object=False,
         )
 
-    benchmark(wrap)
+    benchmark.pedantic(wrap, rounds=1, iterations=1)
 
 
 @pytest.mark.skipif(
     os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
 )
-@pytest.mark.benchmark(min_rounds=2, warmup=False)
+@pytest.mark.benchmark(min_rounds=1, warmup=False)
 def test_improve_mbar_timing_for_droplet_without_precalculated_mbar(benchmark):
     from ..parameter_gradients import setup_and_perform_parameter_retraining, setup_mbar
     from ..ani import AlchemicalANI2x
@@ -2740,7 +2739,6 @@ def test_improve_mbar_timing_for_droplet_without_precalculated_mbar(benchmark):
     names = ["molDWRow_298"]
     env = "droplet"
     diameter = 10
-    max_epochs = 2
 
     name = "molDWRow_298"
     # remove the pickle files
@@ -2750,6 +2748,7 @@ def test_improve_mbar_timing_for_droplet_without_precalculated_mbar(benchmark):
         # remove the pickle files
         for item in os.listdir(testdir):
             if item.endswith(".pickle"):
+                print(item)
                 os.remove(os.path.join(testdir, item))
 
     def wrap():
@@ -2763,14 +2762,14 @@ def test_improve_mbar_timing_for_droplet_without_precalculated_mbar(benchmark):
             max_snapshots_per_window=100,
         )
 
-    benchmark(wrap)
+    benchmark.pedantic(wrap, rounds=1, iterations=1)
 
 
 @pytest.mark.skipif(
     os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
 )
-@pytest.mark.benchmark(min_rounds=2, warmup=False)
-def test_main_training_loop(benchmark):
+@pytest.mark.benchmark(min_rounds=1, warmup=False)
+def test_main_training_loop_without_pickled_tautomer_object(benchmark):
     from ..parameter_gradients import (
         setup_and_perform_parameter_retraining,
     )
@@ -2784,6 +2783,68 @@ def test_main_training_loop(benchmark):
     diameter = 10
     max_epochs = 5
     torch.set_num_threads(1)
+    name = "molDWRow_298"
+    # remove the pickle files
+    for testdir in [
+        f"data/test_data/droplet/{name}",
+    ]:
+        # remove the pickle files
+        for item in os.listdir(testdir):
+            if item.endswith(".pickle"):
+                print(item)
+                os.remove(os.path.join(testdir, item))
+
+    def wrap():
+
+        rmse_val = setup_and_perform_parameter_retraining(
+            env=env,
+            names_training=names,
+            names_validating=names,
+            ANImodel=model,
+            batch_size=1,
+            max_snapshots_per_window=max_snapshots_per_window,
+            data_path=f"./data/test_data/{env}",
+            nr_of_nn=8,
+            max_epochs=max_epochs,
+            diameter=diameter,
+            checkpoint_filename=f"AlchemicalANI2x_droplet.pt",
+            load_checkpoint=False,
+            bulk_energy_calculation=False,
+            load_pickled_tautomer_object=False,
+        )
+        print(rmse_val)
+
+    benchmark.pedantic(wrap, rounds=1, iterations=1)
+
+
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
+@pytest.mark.benchmark(min_rounds=1, warmup=False)
+def test_main_training_loop_with_pickled_tautomer_object(benchmark):
+    from ..parameter_gradients import (
+        setup_and_perform_parameter_retraining,
+    )
+    from ..ani import AlchemicalANI2x
+    import os
+
+    model = AlchemicalANI2x
+    max_snapshots_per_window = 50
+    names = ["molDWRow_298"]
+    env = "droplet"
+    diameter = 10
+    max_epochs = 5
+    torch.set_num_threads(1)
+    name = "molDWRow_298"
+    # remove the pickle files
+    for testdir in [
+        f"data/test_data/droplet/{name}",
+    ]:
+        # remove the pickle files
+        for item in os.listdir(testdir):
+            if item.endswith(".pickle"):
+                print(item)
+                os.remove(os.path.join(testdir, item))
 
     def wrap():
 
@@ -2805,4 +2866,4 @@ def test_main_training_loop(benchmark):
         )
         print(rmse_val)
 
-    benchmark(wrap)
+    benchmark.pedantic(wrap, rounds=1, iterations=1)
