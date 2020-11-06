@@ -158,6 +158,10 @@ class ANI1x(ANI):
         if ANI1x.original_neural_network == None:
             ANI1x.original_neural_network = copy.deepcopy(self.neural_networks)
 
+    @classmethod
+    def _reset_parameters(cls):
+        ANI1x.tweaked_neural_network = copy.deepcopy(ANI1x.original_neural_network)
+
 
 class ANI1ccx(ANI):
 
@@ -172,6 +176,10 @@ class ANI1ccx(ANI):
         if ANI1ccx.original_neural_network == None:
             ANI1ccx.original_neural_network = copy.deepcopy(self.neural_networks)
 
+    @classmethod
+    def _reset_parameters(cls):
+        ANI1ccx.tweaked_neural_network = copy.deepcopy(ANI1ccx.original_neural_network)
+
 
 class ANI2x(ANI):
     tweaked_neural_network = None
@@ -185,6 +193,10 @@ class ANI2x(ANI):
             ANI2x.tweaked_neural_network = copy.deepcopy(self.neural_networks)
         if ANI2x.original_neural_network == None:
             ANI2x.original_neural_network = copy.deepcopy(self.neural_networks)
+
+    @classmethod
+    def _reset_parameters(cls):
+        ANI2x.tweaked_neural_network = copy.deepcopy(ANI2x.original_neural_network)
 
 
 class AlchemicalANI1ccx(ANI1ccx):
@@ -208,9 +220,6 @@ class AlchemicalANI1ccx(ANI1ccx):
         self.alchemical_atoms = alchemical_atoms
         self.neural_networks = None
         assert self.neural_networks == None
-
-    def _reset_parameters(self):
-        self.tweaked_neural_network = copy.deepcopy(self.original_neural_network)
 
     def forward(self, species_coordinates_lamb):
         """
@@ -322,9 +331,6 @@ class AlchemicalANI1x(ANI1x):
         self.neural_networks = None
         assert self.neural_networks == None
 
-    def _reset_parameters(self):
-        self.tweaked_neural_network = copy.deepcopy(self.original_neural_network)
-
     def forward(self, species_coordinates_lamb):
         """
         Energy and stddev are calculated and linearly interpolated between
@@ -435,9 +441,6 @@ class AlchemicalANI2x(ANI2x):
         self.alchemical_atoms = alchemical_atoms
         self.neural_networks = None
         assert self.neural_networks == None
-
-    def _reset_parameters(self):
-        self.tweaked_neural_network = copy.deepcopy(self.original_neural_network)
 
     def forward(self, species_coordinates_lamb):
         """

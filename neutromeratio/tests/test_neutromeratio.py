@@ -607,7 +607,7 @@ def test_neutromeratio_energy_calculations_with_torchANI_model():
         name=name,
         ANImodel=AlchemicalANI1ccx,
         env="droplet",
-        diameter=16,
+        diameter=10,
         base_path="data/test_data/droplet/molDWRow_298/",
     )
 
@@ -616,18 +616,21 @@ def test_neutromeratio_energy_calculations_with_torchANI_model():
         "data/test_data/droplet/molDWRow_298/molDWRow_298_lambda_0.0000_in_droplet.dcd"
     )
     top_path = "data/test_data/droplet/molDWRow_298/molDWRow_298_in_droplet.pdb"
+    # _get_traj remove the dummy atom
     traj, top = _get_traj(traj_path, top_path, tautomer.hybrid_hydrogen_idx_at_lambda_0)
     # overwrite the coordinates that rdkit generated with the first frame in the traj
     torch.set_num_threads(1)
     coordinates = [x.xyz[0] for x in traj[:10]] * unit.nanometer
 
-    # ANI1ccx
-    model = neutromeratio.ani.ANI1ccx()
+    # removes the dummy atom
     atoms = (
         tautomer.ligand_in_water_atoms[: tautomer.hybrid_hydrogen_idx_at_lambda_0]
         + tautomer.ligand_in_water_atoms[tautomer.hybrid_hydrogen_idx_at_lambda_0 + 1 :]
     )
     assert len(tautomer.ligand_in_water_atoms) == len(atoms) + 1
+
+    # ANI1ccx
+    model = neutromeratio.ani.ANI1ccx()
     energy_function = neutromeratio.ANI1_force_and_energy(
         model=model, atoms=atoms, mol=None
     )
@@ -635,7 +638,7 @@ def test_neutromeratio_energy_calculations_with_torchANI_model():
 
     assert is_quantity_close(
         energy.energy[0].in_units_of(unit.kilojoule_per_mole),
-        (-23572811.32262513 * unit.kilojoule_per_mole),
+        (-3514015.2561722626 * unit.kilojoule_per_mole),
         rtol=1e-5,
     )
 
@@ -653,7 +656,7 @@ def test_neutromeratio_energy_calculations_with_torchANI_model():
 
     assert is_quantity_close(
         energy.energy[0].in_units_of(unit.kilojoule_per_mole),
-        (-23577418.068709385 * unit.kilojoule_per_mole),
+        (-3515114.528875586 * unit.kilojoule_per_mole),
         rtol=1e-5,
     )
 
@@ -751,7 +754,7 @@ def test_neutromeratio_energy_calculations_LinearAlchemicalSingleTopologyANI_mod
         ANImodel=AlchemicalANI1ccx,
         env="droplet",
         base_path="data/test_data/droplet/molDWRow_298/",
-        diameter=18,
+        diameter=10,
     )
 
     # read in pregenerated traj
@@ -771,21 +774,24 @@ def test_neutromeratio_energy_calculations_LinearAlchemicalSingleTopologyANI_mod
 
     assert is_quantity_close(
         energy_1.energy[0].in_units_of(unit.kilojoule_per_mole),
-        (-23572807.12255169 * unit.kilojoule_per_mole),
+        (-3514012.0189345023 * unit.kilojoule_per_mole),
     )
+
+    print(energy_1.energy)
+
     for e1, e2 in zip(
         energy_1.energy,
         [
-            -23572807.122551697,
-            -23572337.15972069,
-            -23572169.49734318,
-            -23572193.66573638,
-            -23572027.39844025,
-            -23571995.93757311,
-            -23571816.9790378,
-            -23571836.9212332,
-            -23571824.36825795,
-            -23571877.94526987,
+            -3514012.0189345,
+            -3513761.98599683,
+            -3512651.99899356,
+            -3512165.56103391,
+            -3512430.46443792,
+            -3513920.44593493,
+            -3513994.53244316,
+            -3513939.81006557,
+            -3513953.88784989,
+            -3514042.61053316,
         ]
         * unit.kilojoule_per_mole,
     ):
@@ -793,7 +799,7 @@ def test_neutromeratio_energy_calculations_LinearAlchemicalSingleTopologyANI_mod
 
     assert is_quantity_close(
         energy_0.energy[0].in_units_of(unit.kilojoule_per_mole),
-        (-23573435.102149136 * unit.kilojoule_per_mole),
+        (-3514407.5832258887 * unit.kilojoule_per_mole),
     )
     ######################################################################
     # compare with ANI1ccx -- test1
@@ -803,7 +809,7 @@ def test_neutromeratio_energy_calculations_LinearAlchemicalSingleTopologyANI_mod
         ANImodel=AlchemicalANI1ccx,
         env="droplet",
         base_path="data/test_data/droplet/molDWRow_298/",
-        diameter=18,
+        diameter=10,
     )
     # read in pregenerated traj
     traj_path = (
@@ -848,7 +854,7 @@ def test_neutromeratio_energy_calculations_LinearAlchemicalSingleTopologyANI_mod
         ANImodel=AlchemicalANI1ccx,
         env="droplet",
         base_path="data/test_data/droplet/molDWRow_298/",
-        diameter=18,
+        diameter=10,
     )
 
     # read in pregenerated traj
@@ -1302,35 +1308,35 @@ def test_setup_mbar():
     fec = setup_mbar(
         name,
         env="droplet",
-        diameter=18,
+        diameter=10,
         data_path="data/test_data/droplet",
         ANImodel=AlchemicalANI1ccx,
         bulk_energy_calculation=False,
         max_snapshots_per_window=10,
     )
-    assert np.isclose(-6.080175410793023, fec._end_state_free_energy_difference[0])
+    assert np.isclose(-1.6642793589801324, fec._end_state_free_energy_difference[0])
 
     fec = setup_mbar(
         name,
         env="droplet",
-        diameter=18,
+        diameter=10,
         data_path="data/test_data/droplet",
         ANImodel=AlchemicalANI2x,
         bulk_energy_calculation=False,
         max_snapshots_per_window=10,
     )
-    assert np.isclose(-19.401149969534163, fec._end_state_free_energy_difference[0])
+    assert np.isclose(-18.348107633661936, fec._end_state_free_energy_difference[0])
 
     fec = setup_mbar(
         name,
         env="droplet",
-        diameter=18,
+        diameter=10,
         data_path="data/test_data/droplet",
         ANImodel=AlchemicalANI1x,
         bulk_energy_calculation=False,
         max_snapshots_per_window=10,
     )
-    assert np.isclose(-15.506057798507124, fec._end_state_free_energy_difference[0])
+    assert np.isclose(-13.013142148962665, fec._end_state_free_energy_difference[0])
 
     for testdir in [
         f"data/test_data/droplet/{name}",
@@ -1519,7 +1525,7 @@ def test_generating_droplet():
     exp_results = pickle.load(open("data/test_data/exp_results.pickle", "rb"))
 
     name = "molDWRow_298"
-    diameter = 16
+    diameter = 10
     t1_smiles = exp_results[name]["t1-smiles"]
     t2_smiles = exp_results[name]["t2-smiles"]
 
@@ -1566,7 +1572,7 @@ def test_generating_droplet():
     energy = energy_function.calculate_energy(x0)
     print(energy.energy[0])
     assert is_quantity_close(
-        energy.energy[0], (-15146778.8122802 * unit.kilojoule_per_mole)
+        energy.energy[0], (-15146778.81228019 * unit.kilojoule_per_mole)
     )
 
     tautomer.add_COM_for_hybrid_ligand(
@@ -1581,7 +1587,7 @@ def test_generating_droplet():
 
     energy = energy_function.calculate_energy(x0)
     assert is_quantity_close(
-        energy.energy[0], (-15146509.159271 * unit.kilojoule_per_mole)
+        energy.energy[0], (-15018040.86806798 * unit.kilojoule_per_mole)
     )
 
     energy_function, tautomer, flipped = setup_alchemical_system_and_energy_function(
@@ -1594,7 +1600,7 @@ def test_generating_droplet():
 
     energy = energy_function.calculate_energy(x0)
     assert is_quantity_close(
-        energy.energy[0], (-15146509.159271 * unit.kilojoule_per_mole), rtol=1e-7
+        energy.energy[0], (-15018040.86806798 * unit.kilojoule_per_mole), rtol=1e-7
     )
 
 
@@ -1624,7 +1630,7 @@ def test_psi4():
 
     mol = tautomer.initial_state_mol
 
-    psi4_mol = qm.mol2psi4(mol, 1)
+    psi4_mol = qmpsi4.mol2psi4(mol, 1)
     qmpsi4.optimize(psi4_mol)
 
 
@@ -1745,7 +1751,7 @@ def test_io_checkpoints():
         m = model([0, 0])
         params3 = list(m.tweaked_neural_network.parameters())[6][0].tolist()
         assert params2 == params3
-        m._reset_parameters()
+        model._reset_parameters()
 
 
 def test_load_parameters():
@@ -1761,7 +1767,6 @@ def test_load_parameters():
     ):
         # set tweaked parameters
         model_instance = model([0, 0])
-        model_instance._reset_parameters()
         # initial parameters
         params1 = list(model_instance.original_neural_network.parameters())[6][
             0
@@ -1785,7 +1790,7 @@ def test_load_parameters():
         m = model([0, 0])
         params3 = list(m.tweaked_neural_network.parameters())[6][0].tolist()
         assert params2 == params3
-        m._reset_parameters
+        model._reset_parameters()
 
 
 def test_parameter_gradient():
@@ -1871,6 +1876,7 @@ def test_parameter_gradient():
             raise RuntimeError()
         if not (none_counter == 64 or none_counter == 256):
             raise RuntimeError()
+        model._reset_parameters()
 
 
 def test_thinning():
@@ -1890,8 +1896,6 @@ def test_thinning():
         snapshots = snapshots[::further_thinning][:max_snapshots_per_window]
         print(len(snapshots))
         assert max_snapshots_per_window == len(snapshots)
-
-    # raise RuntimeError('t')
 
 
 def test_fec():
@@ -2060,76 +2064,78 @@ def test_parameter_gradient_opt_script():
     env = "vacuum"
     elements = "CHON"
     data_path = f"./data/test_data/{env}"
-    model_name = "ANI1ccx"
+    for model_name in ["ANI1ccx", "ANI2x"]:
+        model_name = "ANI1ccx"
 
-    max_snapshots_per_window = 50
-    print(f"Max nr of snapshots: {max_snapshots_per_window}")
+        max_snapshots_per_window = 50
+        print(f"Max nr of snapshots: {max_snapshots_per_window}")
 
-    if model_name == "ANI2x":
-        model = neutromeratio.ani.AlchemicalANI2x
-        print(f"Using {model_name}.")
-    elif model_name == "ANI1ccx":
-        model = neutromeratio.ani.AlchemicalANI1ccx
-        print(f"Using {model_name}.")
-    elif model_name == "ANI1x":
-        model = neutromeratio.ani.AlchemicalANI1x
-        print(f"Using {model_name}.")
-    else:
-        raise RuntimeError(f"Unknown model name: {model_name}")
+        if model_name == "ANI2x":
+            model = neutromeratio.ani.AlchemicalANI2x
+            print(f"Using {model_name}.")
+        elif model_name == "ANI1ccx":
+            model = neutromeratio.ani.AlchemicalANI1ccx
+            print(f"Using {model_name}.")
+        elif model_name == "ANI1x":
+            model = neutromeratio.ani.AlchemicalANI1x
+            print(f"Using {model_name}.")
+        else:
+            raise RuntimeError(f"Unknown model name: {model_name}")
 
-    if env == "droplet":
-        bulk_energy_calculation = False
-    else:
-        bulk_energy_calculation = True
+        if env == "droplet":
+            bulk_energy_calculation = False
+        else:
+            bulk_energy_calculation = True
 
-    names = ["molDWRow_298", "SAMPLmol2", "SAMPLmol4"]
+        names = ["molDWRow_298", "SAMPLmol2", "SAMPLmol4"]
 
-    (
-        rmse_training,
-        rmse_validation,
-        rmse_test,
-    ) = neutromeratio.parameter_gradients.setup_and_perform_parameter_retraining_with_test_set_split(
-        env=env,
-        ANImodel=model,
-        batch_size=1,
-        max_snapshots_per_window=max_snapshots_per_window,
-        checkpoint_filename=f"parameters_{model_name}_{env}.pt",
-        data_path=data_path,
-        nr_of_nn=8,
-        bulk_energy_calculation=bulk_energy_calculation,
-        elements=elements,
-        max_epochs=5,
-        names=names,
-        diameter=18,
-    )
+        (
+            rmse_training,
+            rmse_validation,
+            rmse_test,
+        ) = neutromeratio.parameter_gradients.setup_and_perform_parameter_retraining_with_test_set_split(
+            env=env,
+            ANImodel=model,
+            batch_size=1,
+            max_snapshots_per_window=max_snapshots_per_window,
+            checkpoint_filename=f"parameters_{model_name}_{env}.pt",
+            data_path=data_path,
+            nr_of_nn=8,
+            bulk_energy_calculation=bulk_energy_calculation,
+            elements=elements,
+            max_epochs=5,
+            names=names,
+            diameter=10,
+        )
 
-    print("RMSE training")
-    print(rmse_training)
+        print("RMSE training")
+        print(rmse_training)
 
-    f = open(f"results_{model_name}_{env}.txt", "a+")
-    f.write("RMSE training")
-    f.write("\n")
-    for e in rmse_training:
-        f.write(str(e) + ", ")
-    f.write("\n")
+        f = open(f"results_{model_name}_{env}.txt", "a+")
+        f.write("RMSE training")
+        f.write("\n")
+        for e in rmse_training:
+            f.write(str(e) + ", ")
+        f.write("\n")
 
-    print("RMSE validation")
-    print(rmse_validation)
+        print("RMSE validation")
+        print(rmse_validation)
 
-    f.write("\n")
-    f.write("RMSE validation")
-    f.write("\n")
-    for e in rmse_validation:
-        f.write(str(e) + ", ")
-    f.write("\n")
+        f.write("\n")
+        f.write("RMSE validation")
+        f.write("\n")
+        for e in rmse_validation:
+            f.write(str(e) + ", ")
+        f.write("\n")
 
-    print("RMSE test")
-    print(rmse_test)
+        print("RMSE test")
+        print(rmse_test)
 
-    f.write("RMSE test")
-    f.write(str(rmse_test))
-    f.write("\n")
-    f.close()
+        f.write("RMSE test")
+        f.write(str(rmse_test))
+        f.write("\n")
+        f.close()
+        model._reset_parameters()
 
 
 def test_calculate_rmse_between_exp_and_calc():
@@ -2161,6 +2167,7 @@ def test_calculate_rmse_between_exp_and_calc():
             exp_values[2].item(),
         )
         rmse_list.append(rmse)
+        model._reset_parameters()
 
     print(exp_values.tolist())
     print(rmse_list)
@@ -2192,7 +2199,7 @@ def test_calculate_rmse_between_exp_and_calc_droplet():
     exp_results = pickle.load(open("data/test_data/exp_results.pickle", "rb"))
     env = "droplet"
     exp_values = get_experimental_values(names)
-    diameter = 18
+    diameter = 10
     assert np.isclose(exp_values[0].item(), 1.8994317488369707)
     assert np.isclose(
         (exp_results[names[0]]["energy"] * unit.kilocalorie_per_mole) / kT,
@@ -2214,7 +2221,7 @@ def test_calculate_rmse_between_exp_and_calc_droplet():
 
     print(rmse_list)
     for e1, e2 in zip(
-        rmse_list, [8.518695831298828, 21.803926467895508, 17.95928192138672]
+        rmse_list, [1.3077478408813477, 14.76308822631836, 11.35196304321289]
     ):
         assert np.isclose(e1, e2)
 
@@ -2290,7 +2297,7 @@ def test_postprocessing_vacuum():
                     name,
                     ANImodel=model,
                     env=env,
-                    data_path="./data/vacuum",
+                    data_path="data/test_data/vacuum",
                     bulk_energy_calculation=True,
                     max_snapshots_per_window=80,
                 )
@@ -2320,7 +2327,7 @@ def test_postprocessing_vacuum():
                     name,
                     ANImodel=model,
                     env=env,
-                    data_path="./data/test_data/vacuum",
+                    data_path="data/test_data/vacuum",
                     bulk_energy_calculation=True,
                     max_snapshots_per_window=80,
                 )
@@ -2372,6 +2379,7 @@ def test_postprocessing_vacuum():
             ):
                 assert np.isclose(fec._end_state_free_energy_difference[0], e2)
             assert np.isclose(rmse.item(), 5.1878913627689895)
+        model._reset_parameters()
 
 
 @pytest.mark.skipif(
@@ -2393,7 +2401,7 @@ def test_postprocessing_droplet():
         env = "droplet"
         exp_results = pickle.load(open("data/test_data/exp_results.pickle", "rb"))
         names = ["molDWRow_298"]
-        diameter = 18
+        diameter = 10
 
         fec_list = [
             setup_mbar(
@@ -2402,7 +2410,7 @@ def test_postprocessing_droplet():
                 env=env,
                 diameter=18,
                 bulk_energy_calculation=False,
-                data_path="./data/droplet",
+                data_path="data/test_data/droplet",
                 max_snapshots_per_window=10,
             )
             for name in names
@@ -2422,9 +2430,9 @@ def test_postprocessing_droplet():
             )
             assert np.isclose(
                 fec_list[0]._end_state_free_energy_difference[0].item(),
-                -6.080175410793023,
+                -1.664279359190441,
             )
-            assert np.isclose(rmse.item(), 8.518695576398514)
+            assert np.isclose(rmse.item(), 6.062463908744714)
 
         elif idx == 1:
             print(fec_list)
@@ -2440,16 +2448,21 @@ def test_postprocessing_droplet():
             )
             assert np.isclose(
                 fec_list[0]._end_state_free_energy_difference[0].item(),
-                -15.506057798507124,
+                -13.013142148719849,
             )
-            assert np.isclose(rmse.item(), 17.95928077353352)
+            assert np.isclose(rmse.item(), 8.513120699618273)
+
+        model._reset_parameters()
 
 
 def _remove_files(name, max_epochs=1):
-    os.remove(f"test_data/{name}.pt")
+    try:
+        os.remove(f"{name}.pt")
+    except FileNotFoundError:
+        pass
     for i in range(1, max_epochs):
-        os.remove(f"test_data/{name}_{i}.pt")
-    os.remove(f"test_data/{name}_best.pt")
+        os.remove(f"{name}_{i}.pt")
+    os.remove(f"{name}_best.pt")
 
 
 @pytest.mark.skipif(
@@ -2494,7 +2507,7 @@ def test_tweak_parameters_and_class_nn():
         max_epochs=max_epochs,
     )
 
-    _remove_files(model_name + "_vacuum", max_epochs)
+    _remove_files(f"{model_name}_vacuum", max_epochs)
     # get new tweaked parameters
     params_at_end_model1 = list(model1.tweaked_neural_network.parameters())[6][
         0
@@ -2520,6 +2533,7 @@ def test_tweak_parameters_and_class_nn():
     assert params_at_start_model1 != params_at_start_model2
     # original parameters are the same
     assert original_parameters_model1 == original_parameters_model2
+    model._reset_parameters()
 
 
 @pytest.mark.skipif(
@@ -2585,19 +2599,22 @@ def test_tweak_parameters():
                 assert np.isclose(rmse_val[-1], 2.2336010932922363)
             finally:
                 _remove_files(model_name + "_vacuum", max_epochs)
+        model._reset_parameters()
 
 
 @pytest.mark.skipif(
     os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
 )
 def test_tweak_parameters_droplet():
-    from ..parameter_gradients import setup_and_perform_parameter_retraining
+    from ..parameter_gradients import (
+        setup_and_perform_parameter_retraining_with_test_set_split,
+    )
     import os
     from ..ani import AlchemicalANI1ccx, AlchemicalANI1x, AlchemicalANI2x
 
     names = ["molDWRow_298"]
     env = "droplet"
-    diameter = 18
+    diameter = 10
     max_epochs = 2
     for idx, (model, model_name) in enumerate(
         zip(
@@ -2605,23 +2622,27 @@ def test_tweak_parameters_droplet():
             ["AlchemicalANI1ccx", "AlchemicalANI2x", "AlchemicalANI1x"],
         )
     ):
-        rmse_training, rmse_val = setup_and_perform_parameter_retraining(
+        (
+            rmse_training,
+            rmse_val,
+            rmse_test,
+        ) = setup_and_perform_parameter_retraining_with_test_set_split(
             env=env,
             names=names,
             ANImodel=model,
             batch_size=1,
-            max_snapshots_per_window=5,
+            max_snapshots_per_window=10,
             checkpoint_filename=f"{model_name}_droplet.pt",
             data_path=f"./data/test_data/{env}",
             nr_of_nn=8,
             max_epochs=max_epochs,
-            diameter=18,
+            diameter=diameter,
         )
 
         if idx == 0:
             try:
                 assert np.isclose(rmse_val[-1], rmse_test)
-                assert np.isclose(rmse_val[-1], 3.70445561408996)
+                assert np.isclose(rmse_val[-1], 3.1957240104675293)
             finally:
                 _remove_files(model_name + "_droplet", max_epochs)
                 print(rmse_training, rmse_val, rmse_test)
@@ -2629,7 +2650,7 @@ def test_tweak_parameters_droplet():
         elif idx == 1:
             try:
                 assert np.isclose(rmse_val[-1], rmse_test)
-                assert np.isclose(rmse_val[-1], 16.059447235919407)
+                assert np.isclose(rmse_val[-1], 3.399918556213379)
             finally:
                 _remove_files(model_name + "_droplet", max_epochs)
                 print(rmse_training, rmse_val, rmse_test)
@@ -2637,7 +2658,8 @@ def test_tweak_parameters_droplet():
         elif idx == 2:
             try:
                 assert np.isclose(rmse_val[-1], rmse_test)
-                assert np.isclose(rmse_val[-1], 11.08650664572978)
+                assert np.isclose(rmse_val[-1], 5.056433200836182)
             finally:
                 _remove_files(model_name + "_droplet", max_epochs)
                 print(rmse_training, rmse_val, rmse_test)
+        model._reset_parameters()

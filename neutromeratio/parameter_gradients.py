@@ -25,7 +25,7 @@ import os
 import neutromeratio
 import pickle
 import mdtraj as md
-from neutromeratio.analysis import _get_exp_results
+from typing import Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -346,7 +346,7 @@ def calculate_rmse_between_exp_and_calc(
     max_snapshots_per_window: int,
     perturbed_free_energy: bool = True,
     diameter: int = -1,
-) -> (float, list):
+) -> Tuple[torch.Tensor, list]:
     """
     Returns the RMSE between calculated and experimental free energy differences as float.
 
@@ -399,12 +399,12 @@ def calculate_rmse_between_exp_and_calc(
     return current_rmse, e_calc
 
 
-def calculate_mse(t1: torch.Tensor, t2: torch.Tensor):
+def calculate_mse(t1: torch.Tensor, t2: torch.Tensor) -> torch.Tensor:
     assert t1.size() == t2.size()
     return torch.mean((t1 - t2) ** 2)
 
 
-def calculate_rmse(t1: torch.Tensor, t2: torch.Tensor):
+def calculate_rmse(t1: torch.Tensor, t2: torch.Tensor) -> torch.Tensor:
     assert t1.size() == t2.size()
     return torch.sqrt(calculate_mse(t1, t2))
 
@@ -429,7 +429,7 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
     bulk_energy_calculation: bool = True,
     load_checkpoint: bool = True,
     names: list = [],
-):
+) -> Tuple[list, list, torch.Tensor]:
 
     """
     Calculates the free energy of a staged free energy simulation,
@@ -538,7 +538,7 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
     print(f"RMSE on test set AFTER optimization: {rmse_test}")
 
     # write out data on dG for test set after optimization
-    exp_results = _get_exp_results()
+    exp_results = neutromeratio.analysis._get_exp_results()
 
     results = {}
     for name, e_initial, e_final in zip(
@@ -586,7 +586,7 @@ def _perform_training(
     max_snapshots_per_window: int,
     load_checkpoint: bool,
     rmse_validation,
-):
+) -> Tuple[list, list]:
 
     early_stopping_learning_rate = 1.0e-5
     AdamW, AdamW_scheduler, SGD, SGD_scheduler = _get_nn_layers(
