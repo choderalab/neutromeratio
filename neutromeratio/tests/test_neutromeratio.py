@@ -1679,6 +1679,9 @@ def test_running_orca():
     out = qmorca.run_orca("tmp.inp")
 
 
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Orca not installed."
+)
 def test_solvate_orca():
     from neutromeratio import qmorca
     import re
@@ -1905,6 +1908,9 @@ def test_thinning():
         assert max_snapshots_per_window == len(snapshots)
 
 
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Orca not installed."
+)
 def test_fec():
     from ..parameter_gradients import get_perturbed_free_energy_difference
     from ..constants import kT, device, exclude_set_ANI, mols_with_charge
@@ -2672,39 +2678,82 @@ def test_tweak_parameters_droplet():
         model._reset_parameters()
 
 
+# @pytest.mark.skipif(
+#     os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+# )
+# @pytest.mark.benchmark(min_rounds=2)
+# def test_improve_timing_for_droplet(benchmark):
+#     from ..parameter_gradients import (
+#         setup_and_perform_parameter_retraining,
+#     )
+#     from ..ani import AlchemicalANI2x
+#     import os
+
+#     model = AlchemicalANI2x
+#     max_snapshots_per_window = 100
+#     names = ["molDWRow_298"]
+#     env = "droplet"
+#     diameter = 10
+#     max_epochs = 2
+
+#     def wrapp_everything():
+
+#         (rmse_training, rmse_val) = setup_and_perform_parameter_retraining(
+#             env=env,
+#             names_training=names,
+#             names_validating=names,
+#             ANImodel=model,
+#             batch_size=1,
+#             max_snapshots_per_window=max_snapshots_per_window,
+#             data_path=f"./data/test_data/{env}",
+#             nr_of_nn=8,
+#             max_epochs=max_epochs,
+#             diameter=diameter,
+#             checkpoint_filename=f"AlchemicalANI2x_droplet.pt",
+#         )
+
+#         print(rmse_training, rmse_val)
+
+#     benchmark(wrapp_everything)
+#     model._reset_parameters()
+
+
 @pytest.mark.skipif(
     os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
 )
 @pytest.mark.benchmark(min_rounds=2)
-def test_improve_timing_for_droplet(benchmark):
-    from ..parameter_gradients import (
-        setup_and_perform_parameter_retraining,
-    )
+def test_improve_mbar_timing_for_droplet(benchmark):
+    from ..parameter_gradients import setup_and_perform_parameter_retraining, setup_mbar
     from ..ani import AlchemicalANI2x
+    import os
 
     model = AlchemicalANI2x
+    max_snapshots_per_window = 100
+    names = ["molDWRow_298"]
+    env = "droplet"
+    diameter = 10
+    max_epochs = 2
 
     def wrapp_everything():
-        names = ["molDWRow_298"]
-        env = "droplet"
-        diameter = 10
-        max_epochs = 2
+        name = "molDWRow_298"
+        # remove the pickle files
+        for testdir in [
+            f"data/test_data/droplet/{name}",
+        ]:
+            # remove the pickle files
+            for item in os.listdir(testdir):
+                if item.endswith(".pickle"):
+                    os.remove(os.path.join(testdir, item))
 
-        (rmse_training, rmse_val) = setup_and_perform_parameter_retraining(
-            env=env,
-            names_training=names,
-            names_validating=names,
+        # droplet
+        fec = setup_mbar(
+            name,
+            env="droplet",
+            diameter=10,
+            data_path="data/test_data/droplet",
             ANImodel=model,
-            batch_size=1,
+            bulk_energy_calculation=False,
             max_snapshots_per_window=100,
-            data_path=f"./data/test_data/{env}",
-            nr_of_nn=8,
-            max_epochs=max_epochs,
-            diameter=diameter,
-            checkpoint_filename=f"AlchemicalANI2x_droplet.pt",
         )
 
-        print(rmse_training, rmse_val)
-
     benchmark(wrapp_everything)
-    model._reset_parameters()

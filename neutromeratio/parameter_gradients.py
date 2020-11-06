@@ -346,7 +346,7 @@ def calculate_rmse_between_exp_and_calc(
     max_snapshots_per_window: int,
     perturbed_free_energy: bool = True,
     diameter: int = -1,
-) -> Tuple[torch.Tensor, list]:
+) -> Tuple[float, list]:
     """
     Returns the RMSE between calculated and experimental free energy differences as float.
 
@@ -357,7 +357,8 @@ def calculate_rmse_between_exp_and_calc(
         max_snapshots_per_window {int} -- maximum number of snapshots per window
 
     Returns:
-        [type] -- returns the RMSE as float
+        [float] -- returns the RMSE as float
+        [list] -- return a list of the calculated dG values
     """
     if env == "droplet" and diameter == -1:
         raise RuntimeError(
@@ -380,11 +381,15 @@ def calculate_rmse_between_exp_and_calc(
             )
         ]
 
+        # append calculated values
         if perturbed_free_energy:
-            e_calc.append(get_perturbed_free_energy_difference(fec_list)[0].item())
+            e_calc.append(
+                get_perturbed_free_energy_difference(fec_list)[0].item()
+            )  # NOTE: this works only if batch == 1!
         else:
             e_calc.append(get_unperturbed_free_energy_difference(fec_list)[0].item())
 
+        # append experimental values
         e_exp.append(get_experimental_values([name])[0].item())
         current_rmse = calculate_rmse(
             torch.tensor(e_calc, device=device), torch.tensor(e_exp, device=device)
@@ -413,6 +418,30 @@ def chunks(lst, n):
     """Yield successive n-sized chunks from lst."""
     for i in range(0, len(lst), n):
         yield lst[i : i + n]
+
+
+def _split_names_in_training_validation_test_set(
+    names_list: list,
+) -> Tuple[list, list, list]:
+    from sklearn.model_selection import train_test_split
+
+    names_training_validating, names_test = train_test_split(names_list, test_size=0.2)
+    print(
+        f"Len of training/validation set: {len(names_training_validating)}/{len(names_list)}"
+    )
+
+    names_training, names_validating = train_test_split(
+        names_training_validating, test_size=0.2
+    )
+    print(
+        f"Len of training set: {len(names_training)}/{len(names_training_validating)}"
+    )
+    print(
+        f"Len of validating set: {len(names_validating)}/{len(names_training_validating)}"
+    )
+    print(f"Len of test set: {len(names_test)}/{len(names_list)}")
+
+    return names_training, names_validating, names_test
 
 
 def setup_and_perform_parameter_retraining_with_test_set_split(
@@ -453,7 +482,6 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
         [type]: [description]
     """
 
-    from sklearn.model_selection import train_test_split
     import random
 
     assert int(batch_size) <= 10 and int(batch_size) >= 1
@@ -467,34 +495,20 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
             "BE CAREFUL! This is not a real training run but a test run with user specified molecule names."
         )
         logger.critical("Validating and test set are the same")
-        names_validating = names
         names_training = names
+        names_validating = names
         names_test = names
     else:
         # split in training/validation/test set
         # get names of molecules we want to optimize
         names_list = _get_names()
+        (
+            names_training,
+            names_validating,
+            names_test,
+        ) = _split_names_in_training_validation_test_set(names_list)
 
-        names_training_validating, names_test = train_test_split(
-            names_list, test_size=0.2
-        )
-        print(
-            f"Len of training/validation set: {len(names_training_validating)}/{len(names_list)}"
-        )
-
-        names_training, names_validating = train_test_split(
-            names_training_validating, test_size=0.2
-        )
-        print(
-            f"Len of training set: {len(names_training)}/{len(names_training_validating)}"
-        )
-        print(
-            f"Len of validating set: {len(names_validating)}/{len(names_training_validating)}"
-        )
-        print(f"Len of test set: {len(names_test)}/{len(names_list)}")
-
-    # final rmsd calculation on test set
-    print("RMSE calulation for test set")
+    # rmsd calculation on test set
     rmse_test, dG_calc_test_initial = calculate_rmse_between_exp_and_calc(
         model=ANImodel,
         names=names_test,
@@ -503,6 +517,7 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
         bulk_energy_calculation=bulk_energy_calculation,
         env=env,
         max_snapshots_per_window=max_snapshots_per_window,
+        perturbed_free_energy=False,
     )
 
     print(f"RMSE on test set BEFORE optimization: {rmse_test}")
