@@ -487,7 +487,7 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
 
     import random
 
-    assert int(batch_size) <= 10 and int(batch_size) >= 1
+    assert int(batch_size) == 1
     assert int(nr_of_nn) <= 8 and int(nr_of_nn) >= 1
 
     if env == "droplet" and diameter == -1:
@@ -1028,7 +1028,7 @@ def setup_mbar(
     if not os.path.exists(data_path):
         raise RuntimeError(f"{data_path} does not exist!")
 
-    tautomer_pickle = f"{data_path}/{name}/{name}tautomer_system.pickle"
+    tautomer_pickle = f"{data_path}/{name}/{name}_tautomer_system_{max_snapshots_per_window}.pickle"
     if os.path.exists(tautomer_pickle) and load_pickled_tautomer_object:
         t = pickle.load(open(tautomer_pickle, "rb"))
         print(f"{tautomer_pickle} loading ...")
