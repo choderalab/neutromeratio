@@ -7,7 +7,7 @@ channels:
   - psi4
 
 dependencies:
-    # Base depends
+  # Base depends
   - python
   - pip
     # Testing
@@ -33,9 +33,9 @@ dependencies:
   - seaborn
   - scikit-learn
   - pip:
-    - lark-parser
-    - six
-    - torch
-    - torchani==2.1.1
-    - torchvision
-    - codecov
+      - lark-parser
+      - six
+      - torch==1.6
+      - torchani==2.1.1
+      - torchvision
+      - codecov
