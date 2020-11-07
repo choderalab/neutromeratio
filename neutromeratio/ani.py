@@ -587,6 +587,7 @@ class ANI1_force_and_energy(object):
         """
 
         # use correct restraint_bias in between the end-points...
+        from neutromeratio.constants import kJ_mol_to_kT
 
         # lambda
         nr_of_mols = len(coordinates)
@@ -595,6 +596,7 @@ class ANI1_force_and_energy(object):
         )
         for restraint in self.list_of_lambda_restraints:
             restraint_bias = restraint.restraint(coordinates * nm_to_angstroms)
+            print(restraint_bias)
             if restraint.active_at == 1:
                 restraint_bias *= lambda_value
             elif restraint.active_at == 0:
@@ -603,7 +605,7 @@ class ANI1_force_and_energy(object):
                 pass
             else:
                 raise RuntimeError("Something went wrong with restraints.")
-            restraint_bias_in_kT += (restraint_bias * unit.kilojoule_per_mole) / kT
+            restraint_bias_in_kT += restraint_bias * kJ_mol_to_kT
         return restraint_bias_in_kT
 
     def get_thermo_correction(
@@ -787,7 +789,7 @@ class ANI1_force_and_energy(object):
 
         # derivative of E (kJ_mol) w.r.t. coordinates (in nm)
         derivative = torch.autograd.grad(
-            ((energy_in_kT * kT).value_in_unit(unit.kilojoule_per_mole)).sum(),
+            (energy_in_kT * kT_to_kJ_mol).sum(),
             coordinates,
         )[0]
 
@@ -824,12 +826,8 @@ class ANI1_force_and_energy(object):
         -------
         energy_in_kT : torch.tensor
             return the energy with restraints added
-        restraint_bias_in_kT : torch.tensor
+        restraint_energy_contribution_in_kT : torch.tensor
             return the energy of the added restraints
-        stddev_in_kT : torch.tensor
-            return the stddev of the energy (without added restraints)
-        ensemble_bias_in_kT : torch.tensor
-            return the ensemble_bias added to the energy
         """
 
         nr_of_mols = len(coordinates)
@@ -837,7 +835,6 @@ class ANI1_force_and_energy(object):
         batch_species = torch.stack([self.species[0]] * nr_of_mols)
 
         assert 0.0 <= float(lambda_value) <= 1.0
-        assert isinstance(original_neural_network, bool)
 
         if batch_species.size()[:2] != coordinates.size()[:2]:
             raise RuntimeError(
@@ -856,13 +853,13 @@ class ANI1_force_and_energy(object):
         # convert energy from hartree to kT
         energy_in_kT = energy_in_hartree * hartree_to_kT
 
-        restraint_energy_contribution = self._compute_restraint_bias(
+        restraint_energy_contribution_in_kT = self._compute_restraint_bias(
             coordinates, lambda_value=lambda_value
         )
 
-        energy_in_kT += restraint_energy_contribution
+        energy_in_kT += restraint_energy_contribution_in_kT
 
-        return energy_in_kT, restraint_energy_contribution
+        return energy_in_kT, restraint_energy_contribution_in_kT
 
     def _traget_energy_function(self, x, lambda_value: float = 0.0):
         """
@@ -928,13 +925,14 @@ class ANI1_force_and_energy(object):
         )
 
         logger.debug(f"coordinates tensor: {coordinates.size()}")
-        energy_in_kT, restraint_energy_contribution = self._calculate_energy(
+        energy_in_kT, restraint_energy_contribution_in_kT = self._calculate_energy(
             coordinates, lambda_value, original_neural_network
         )
 
         energy = np.array([e.item() for e in energy_in_kT]) * kT
+        
         restraint_energy_contribution = (
-            np.array([e.item() for e in restraint_energy_contribution]) * kT
+            np.array([e.item() for e in restraint_energy_contribution_in_kT]) * kT
         )
 
         if requires_grad_wrt_parameters:
