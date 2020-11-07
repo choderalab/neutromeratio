@@ -528,12 +528,10 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
 
     split = {}
     for name, which_set in zip(
-        [names_training + names_validating + names_test],
-        [
-            ["training"] * len(names_training)
-            + ["validation"] * len(names_validating)
-            + ["testing"] * len(names_validating)
-        ],
+        names_training + names_validating + names_test,
+        ["training"] * len(names_training)
+        + ["validation"] * len(names_validating)
+        + ["testing"] * len(names_validating),
     ):
         split[name] = which_set
     pickle.dump(split, open(f"training_validation_tests.pickle", "wb+"))
@@ -1028,7 +1026,9 @@ def setup_mbar(
     if not os.path.exists(data_path):
         raise RuntimeError(f"{data_path} does not exist!")
 
-    tautomer_pickle = f"{data_path}/{name}/{name}_tautomer_system_{max_snapshots_per_window}.pickle"
+    tautomer_pickle = (
+        f"{data_path}/{name}/{name}_tautomer_system_{max_snapshots_per_window}.pickle"
+    )
     if os.path.exists(tautomer_pickle) and load_pickled_tautomer_object:
         t = pickle.load(open(tautomer_pickle, "rb"))
         print(f"{tautomer_pickle} loading ...")
