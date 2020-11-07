@@ -291,7 +291,6 @@ def get_perturbed_free_energy_difference(fec_list: list) -> torch.Tensor:
         else:
             deltaF = fec._compute_free_energy_difference()
         calc.append(deltaF)
-    logger.debug(calc)
     return torch.stack([e for e in calc])
 
 

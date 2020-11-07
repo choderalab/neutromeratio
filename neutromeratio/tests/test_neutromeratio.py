@@ -1392,6 +1392,7 @@ def test_setup_mbar_test_pickle_files():
         ANImodel=AlchemicalANI1ccx,
         bulk_energy_calculation=False,
         max_snapshots_per_window=20,
+        load_pickled_tautomer_object=True,
     )
     assert np.isclose(-3.2194223855155357, fec._end_state_free_energy_difference[0])
 
@@ -1724,6 +1725,63 @@ def test_solvate_orca():
     E_in_solvent = float(found) * hartree_to_kJ_mol
     print(E_in_solvent)
     np.isclose(E_in_solvent, -907364.6683318849, rtol=1e-4)
+
+
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
+def test_loading_saving_mbar_object():
+    # test the setup mbar function with different models, environments and potentials
+    from ..parameter_gradients import setup_mbar, _load_checkpoint, _get_nn_layers
+    from ..ani import AlchemicalANI2x, AlchemicalANI1x, AlchemicalANI1ccx
+
+    AlchemicalANI2x._reset_parameters()
+    model_name = "AlchemicalANI2x"
+    name = "molDWRow_298"
+    model_instance = AlchemicalANI2x([0, 0])
+    AdamW, AdamW_scheduler, SGD, SGD_scheduler = _get_nn_layers(8, model_instance)
+    # initial parameters
+    params1 = list(model_instance.tweaked_neural_network.parameters())[6][0].tolist()
+
+    # droplet
+    fec = setup_mbar(
+        name,
+        env="droplet",
+        diameter=10,
+        data_path="data/test_data/droplet",
+        ANImodel=AlchemicalANI2x,
+        bulk_energy_calculation=False,
+        max_snapshots_per_window=10,
+    )
+    assert np.isclose(-18.348107633661936, fec._end_state_free_energy_difference[0])
+
+    del fec
+    _load_checkpoint(
+        f"data/test_data/{model_name}_3.pt",
+        model_instance,
+        AdamW,
+        AdamW_scheduler,
+        SGD,
+        SGD_scheduler,
+    )
+    params2 = list(model_instance.tweaked_neural_network.parameters())[6][0].tolist()
+    assert params1 != params2
+    # droplet
+    fec = setup_mbar(
+        name,
+        env="droplet",
+        diameter=10,
+        data_path="data/test_data/droplet",
+        ANImodel=AlchemicalANI2x,
+        bulk_energy_calculation=False,
+        max_snapshots_per_window=10,
+        load_pickled_tautomer_object=True,
+    )
+    # assert np.isclose(-1.6642793589801324, fec._end_state_free_energy_difference[0])
+    pickled_model = fec.ani_model.model
+    params3 = list(pickled_model.tweaked_neural_network.parameters())[6][0].tolist()
+
+    assert params2 == params3
 
 
 def test_io_checkpoints():
@@ -2103,7 +2161,6 @@ def test_parameter_gradient_opt_script():
         names = ["molDWRow_298", "SAMPLmol2", "SAMPLmol4"]
 
         (
-            rmse_training,
             rmse_validation,
             rmse_test,
         ) = neutromeratio.parameter_gradients.setup_and_perform_parameter_retraining_with_test_set_split(
@@ -2122,33 +2179,6 @@ def test_parameter_gradient_opt_script():
             load_checkpoint=False,
         )
 
-        print("RMSE training")
-        print(rmse_training)
-
-        f = open(f"results_{model_name}_{env}.txt", "a+")
-        f.write("RMSE training")
-        f.write("\n")
-        for e in rmse_training:
-            f.write(str(e) + ", ")
-        f.write("\n")
-
-        print("RMSE validation")
-        print(rmse_validation)
-
-        f.write("\n")
-        f.write("RMSE validation")
-        f.write("\n")
-        for e in rmse_validation:
-            f.write(str(e) + ", ")
-        f.write("\n")
-
-        print("RMSE test")
-        print(rmse_test)
-
-        f.write("RMSE test")
-        f.write(str(rmse_test))
-        f.write("\n")
-        f.close()
         model._reset_parameters()
 
 
@@ -2192,7 +2222,7 @@ def test_calculate_rmse_between_exp_and_calc():
         assert np.isclose(e1, e2)
 
     for e1, e2 in zip(
-        rmse_list, [5.662402629852295, 5.6707963943481445, 4.7712321281433105]
+        rmse_list, [1.4855135679244995, 5.6707963943481445, 4.7712321281433105]
     ):
         assert np.isclose(e1, e2)
 
@@ -2685,8 +2715,8 @@ def test_tweak_parameters_droplet():
     os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
 )
 @pytest.mark.benchmark(min_rounds=1, warmup=False)
-def test_improve_mbar_timing_for_droplet_with_precalculated_mbar(benchmark):
-    from ..parameter_gradients import setup_and_perform_parameter_retraining, setup_mbar
+def test_timing_for_perturebed_free_energy_u_ln_and_perturbed_free_energy(benchmark):
+    from ..parameter_gradients import get_perturbed_free_energy_difference, setup_mbar
     from ..ani import AlchemicalANI2x
     import os
 
@@ -2695,6 +2725,8 @@ def test_improve_mbar_timing_for_droplet_with_precalculated_mbar(benchmark):
     names = ["molDWRow_298"]
     env = "droplet"
     diameter = 10
+    m = model([0, 0])
+    torch.set_num_threads(4)
 
     name = "molDWRow_298"
     # precalcualte mbar
@@ -2704,33 +2736,23 @@ def test_improve_mbar_timing_for_droplet_with_precalculated_mbar(benchmark):
         diameter=10,
         data_path="data/test_data/droplet",
         ANImodel=model,
-        bulk_energy_calculation=False,
+        bulk_energy_calculation=True,  # doesn't matter, since we are loading the reuslts from disk
         max_snapshots_per_window=100,
-        load_pickled_tautomer_object=False,
+        load_pickled_tautomer_object=True,
     )
 
     def wrap():
-        # timit
-        fec = setup_mbar(
-            name,
-            env="droplet",
-            diameter=10,
-            data_path="data/test_data/droplet",
-            ANImodel=model,
-            bulk_energy_calculation=False,
-            max_snapshots_per_window=100,
-            load_pickled_tautomer_object=False,
-        )
+        get_perturbed_free_energy_difference([fec])
 
-    benchmark.pedantic(wrap, rounds=1, iterations=1)
+    benchmark.pedantic(wrap, rounds=1, iterations=3)
 
 
 @pytest.mark.skipif(
     os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
 )
 @pytest.mark.benchmark(min_rounds=1, warmup=False)
-def test_improve_mbar_timing_for_droplet_without_precalculated_mbar(benchmark):
-    from ..parameter_gradients import setup_and_perform_parameter_retraining, setup_mbar
+def test_timing_for_perturebed_free_energy_u_ln(benchmark):
+    from ..parameter_gradients import get_perturbed_free_energy_difference, setup_mbar
     from ..ani import AlchemicalANI2x
     import os
 
@@ -2739,37 +2761,436 @@ def test_improve_mbar_timing_for_droplet_without_precalculated_mbar(benchmark):
     names = ["molDWRow_298"]
     env = "droplet"
     diameter = 10
+    m = model([0, 0])
+    torch.set_num_threads(4)
 
     name = "molDWRow_298"
-    # remove the pickle files
-    for testdir in [
-        f"data/test_data/droplet/{name}",
-    ]:
-        # remove the pickle files
-        for item in os.listdir(testdir):
-            if item.endswith(".pickle"):
-                print(item)
-                os.remove(os.path.join(testdir, item))
+    # precalcualte mbar
+    fec = setup_mbar(
+        name,
+        env="droplet",
+        diameter=10,
+        data_path="data/test_data/droplet",
+        ANImodel=model,
+        bulk_energy_calculation=True,  # doesn't matter, since we are loading the reuslts from disk
+        max_snapshots_per_window=100,
+        load_pickled_tautomer_object=True,
+    )
 
     def wrap():
-        fec = setup_mbar(
-            name,
-            env="droplet",
-            diameter=10,
-            data_path="data/test_data/droplet",
-            ANImodel=model,
-            bulk_energy_calculation=False,
-            max_snapshots_per_window=100,
-        )
+        fec._form_u_ln()
 
-    benchmark.pedantic(wrap, rounds=1, iterations=1)
+    benchmark.pedantic(wrap, rounds=1, iterations=3)
+
+
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
+@pytest.mark.benchmark(min_rounds=2)
+def test_timing_for_single_energy_calculation_with_AlchemicalANI_10_snapshots_batch(
+    benchmark,
+):
+    from ..analysis import setup_alchemical_system_and_energy_function
+    from ..ani import AlchemicalANI1ccx, AlchemicalANI2x
+
+    # NOTE: Sometimes this test fails? something wrong with molDWRow_68?
+    from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
+    import random, shutil
+    from ..constants import _get_names
+
+    names = _get_names()
+    lambda_value = 0.1
+    name = "molDWRow_298"
+
+    (energy_function, tautomer, flipped,) = setup_alchemical_system_and_energy_function(
+        name=name,
+        env="droplet",
+        ANImodel=AlchemicalANI2x,
+        base_path=f"data/test_data/droplet/{name}",
+        diameter=10,
+    )
+    traj_path = (
+        "data/test_data/droplet/molDWRow_298/molDWRow_298_lambda_0.0000_in_droplet.dcd"
+    )
+    top_path = "data/test_data/droplet/molDWRow_298/molDWRow_298_in_droplet.pdb"
+    traj, top = _get_traj(traj_path, top_path, None)
+    coordinates = [x.xyz[0] for x in traj[:10]] * unit.nanometer
+
+    def wrap1():
+        energy_function.calculate_energy(coordinates, lambda_value)
+
+    benchmark(wrap1)
+
+
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
+@pytest.mark.benchmark(min_rounds=2)
+def test_timing_for_single_energy_calculation_with_AlchemicalANI_1_snapshot_batch(
+    benchmark,
+):
+    from ..analysis import setup_alchemical_system_and_energy_function
+    from ..ani import AlchemicalANI1ccx, AlchemicalANI2x
+
+    # NOTE: Sometimes this test fails? something wrong with molDWRow_68?
+    from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
+    import random, shutil
+    from ..constants import _get_names
+
+    names = _get_names()
+    lambda_value = 0.1
+    name = "molDWRow_298"
+
+    (energy_function, tautomer, flipped,) = setup_alchemical_system_and_energy_function(
+        name=name,
+        env="droplet",
+        ANImodel=AlchemicalANI2x,
+        base_path=f"data/test_data/droplet/{name}",
+        diameter=10,
+    )
+    traj_path = (
+        "data/test_data/droplet/molDWRow_298/molDWRow_298_lambda_0.0000_in_droplet.dcd"
+    )
+    top_path = "data/test_data/droplet/molDWRow_298/molDWRow_298_in_droplet.pdb"
+    traj, top = _get_traj(traj_path, top_path, None)
+    coordinates = [x.xyz[0] for x in traj[:10]] * unit.nanometer
+
+    def wrap1():
+        energy_function.calculate_energy(coordinates, lambda_value)
+
+    coordinates = [x.xyz[0] for x in traj[1]] * unit.nanometer
+
+    benchmark(wrap1)
+
+
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
+@pytest.mark.benchmark(min_rounds=2)
+def test_timing_for_single_energy_calculation_with_AlchemicalANI_20_snapshot_batch(
+    benchmark,
+):
+    from ..analysis import setup_alchemical_system_and_energy_function
+    from ..ani import AlchemicalANI1ccx, AlchemicalANI2x
+
+    # NOTE: Sometimes this test fails? something wrong with molDWRow_68?
+    from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
+    import random, shutil
+    from ..constants import _get_names
+
+    names = _get_names()
+    lambda_value = 0.1
+    name = "molDWRow_298"
+
+    (energy_function, tautomer, flipped,) = setup_alchemical_system_and_energy_function(
+        name=name,
+        env="droplet",
+        ANImodel=AlchemicalANI2x,
+        base_path=f"data/test_data/droplet/{name}",
+        diameter=10,
+    )
+    traj_path = (
+        "data/test_data/droplet/molDWRow_298/molDWRow_298_lambda_0.0000_in_droplet.dcd"
+    )
+    top_path = "data/test_data/droplet/molDWRow_298/molDWRow_298_in_droplet.pdb"
+    traj, top = _get_traj(traj_path, top_path, None)
+    coordinates = [x.xyz[0] for x in traj[:20]] * unit.nanometer
+
+    def wrap1():
+        energy_function.calculate_energy(coordinates, lambda_value)
+
+    benchmark(wrap1)
+
+
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
+@pytest.mark.benchmark(min_rounds=2)
+def test_timing_for_single_energy_calculation_with_AlchemicalANI_100_snapshot_batch(
+    benchmark,
+):
+    from ..analysis import setup_alchemical_system_and_energy_function
+    from ..ani import AlchemicalANI1ccx, AlchemicalANI2x
+
+    # NOTE: Sometimes this test fails? something wrong with molDWRow_68?
+    from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
+    import random, shutil
+    from ..constants import _get_names
+
+    names = _get_names()
+    lambda_value = 0.1
+    name = "molDWRow_298"
+    torch.set_num_threads(4)
+
+    (energy_function, tautomer, flipped,) = setup_alchemical_system_and_energy_function(
+        name=name,
+        env="droplet",
+        ANImodel=AlchemicalANI2x,
+        base_path=f"data/test_data/droplet/{name}",
+        diameter=10,
+    )
+    traj_path = (
+        "data/test_data/droplet/molDWRow_298/molDWRow_298_lambda_0.0000_in_droplet.dcd"
+    )
+    top_path = "data/test_data/droplet/molDWRow_298/molDWRow_298_in_droplet.pdb"
+    traj, top = _get_traj(traj_path, top_path, None)
+    coordinates = [x.xyz[0] for x in traj[:100]] * unit.nanometer
+
+    def wrap1():
+        energy_function.calculate_energy(coordinates, lambda_value)
+
+    benchmark(wrap1)
+
+
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
+@pytest.mark.benchmark(min_rounds=2)
+def test_timing_for_single_energy_calculation_with_AlchemicalANI_200_snapshot_batch(
+    benchmark,
+):
+    from ..analysis import setup_alchemical_system_and_energy_function
+    from ..ani import AlchemicalANI1ccx, AlchemicalANI2x
+
+    # NOTE: Sometimes this test fails? something wrong with molDWRow_68?
+    from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
+    import random, shutil
+    from ..constants import _get_names
+
+    torch.set_num_threads(4)
+
+    names = _get_names()
+    lambda_value = 0.1
+    name = "molDWRow_298"
+
+    (energy_function, tautomer, flipped,) = setup_alchemical_system_and_energy_function(
+        name=name,
+        env="droplet",
+        ANImodel=AlchemicalANI2x,
+        base_path=f"data/test_data/droplet/{name}",
+        diameter=10,
+    )
+    traj_path = (
+        "data/test_data/droplet/molDWRow_298/molDWRow_298_lambda_0.0000_in_droplet.dcd"
+    )
+    top_path = "data/test_data/droplet/molDWRow_298/molDWRow_298_in_droplet.pdb"
+    traj, top = _get_traj(traj_path, top_path, None)
+    coordinates = [x.xyz[0] for x in traj[:200]] * unit.nanometer
+
+    def wrap1():
+        energy_function.calculate_energy(coordinates, lambda_value)
+
+    benchmark(wrap1)
+
+
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
+@pytest.mark.benchmark(min_rounds=2)
+def test_timing_for_single_energy_calculation_with_AlchemicalANI_500_snapshot_batch(
+    benchmark,
+):
+    from ..analysis import setup_alchemical_system_and_energy_function
+    from ..ani import AlchemicalANI1ccx, AlchemicalANI2x
+
+    # NOTE: Sometimes this test fails? something wrong with molDWRow_68?
+    from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
+    import random, shutil
+    from ..constants import _get_names
+
+    torch.set_num_threads(4)
+
+    names = _get_names()
+    lambda_value = 0.1
+    name = "molDWRow_298"
+
+    (energy_function, tautomer, flipped,) = setup_alchemical_system_and_energy_function(
+        name=name,
+        env="droplet",
+        ANImodel=AlchemicalANI2x,
+        base_path=f"data/test_data/droplet/{name}",
+        diameter=10,
+    )
+    traj_path = (
+        "data/test_data/droplet/molDWRow_298/molDWRow_298_lambda_0.0000_in_droplet.dcd"
+    )
+    top_path = "data/test_data/droplet/molDWRow_298/molDWRow_298_in_droplet.pdb"
+    traj, top = _get_traj(traj_path, top_path, None)
+    coordinates = [x.xyz[0] for x in traj[:500]] * unit.nanometer
+
+    def wrap1():
+        energy_function.calculate_energy(coordinates, lambda_value)
+
+    benchmark(wrap1)
+
+
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
+@pytest.mark.benchmark(min_rounds=2)
+def test_timing_for_single_energy_calculation_with_AlchemicalANI_1100_snapshot_batch(
+    benchmark,
+):
+    from ..analysis import setup_alchemical_system_and_energy_function
+    from ..ani import AlchemicalANI1ccx, AlchemicalANI2x
+
+    # NOTE: Sometimes this test fails? something wrong with molDWRow_68?
+    from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
+    import random, shutil
+    from ..constants import _get_names
+
+    torch.set_num_threads(4)
+
+    names = _get_names()
+    lambda_value = 0.1
+    name = "molDWRow_298"
+
+    (energy_function, tautomer, flipped,) = setup_alchemical_system_and_energy_function(
+        name=name,
+        env="droplet",
+        ANImodel=AlchemicalANI2x,
+        base_path=f"data/test_data/droplet/{name}",
+        diameter=10,
+    )
+    traj_path = (
+        "data/test_data/droplet/molDWRow_298/molDWRow_298_lambda_0.0000_in_droplet.dcd"
+    )
+    top_path = "data/test_data/droplet/molDWRow_298/molDWRow_298_in_droplet.pdb"
+    traj, top = _get_traj(traj_path, top_path, None)
+    coordinates = [x.xyz[0] for x in traj[:1100]] * unit.nanometer
+
+    def wrap1():
+        energy_function.calculate_energy(coordinates, lambda_value)
+
+    benchmark(wrap1)
+
+
+@pytest.mark.benchmark(min_rounds=2)
+def test_timing_for_single_energy_calculation_with_AlchemicalANI_20_snapshot_sequence(
+    benchmark,
+):
+    from ..analysis import setup_alchemical_system_and_energy_function
+    from ..ani import AlchemicalANI1ccx, AlchemicalANI2x
+
+    # NOTE: Sometimes this test fails? something wrong with molDWRow_68?
+    from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
+    import random, shutil
+    from ..constants import _get_names
+
+    names = _get_names()
+    lambda_value = 0.1
+    name = "molDWRow_298"
+
+    (energy_function, tautomer, flipped,) = setup_alchemical_system_and_energy_function(
+        name=name,
+        env="droplet",
+        ANImodel=AlchemicalANI2x,
+        base_path=f"data/test_data/droplet/{name}",
+        diameter=10,
+    )
+    traj_path = (
+        "data/test_data/droplet/molDWRow_298/molDWRow_298_lambda_0.0000_in_droplet.dcd"
+    )
+    top_path = "data/test_data/droplet/molDWRow_298/molDWRow_298_in_droplet.pdb"
+    traj, top = _get_traj(traj_path, top_path, None)
+    coordinates = [x.xyz[0] for x in traj[:20]] * unit.nanometer
+
+    def wrap1():
+        for c in coordinates:
+            c = c.value_in_unit(unit.nanometer)
+            c = [c] * unit.nanometer
+            energy_function.calculate_energy(c, lambda_value)
+
+    benchmark(wrap1)
+
+
+@pytest.mark.benchmark(min_rounds=2)
+def test_timing_for_single_energy_calculation_with_AlchemicalANI_100_snapshot_sequence(
+    benchmark,
+):
+    from ..analysis import setup_alchemical_system_and_energy_function
+    from ..ani import AlchemicalANI1ccx, AlchemicalANI2x
+
+    # NOTE: Sometimes this test fails? something wrong with molDWRow_68?
+    from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
+    import random, shutil
+    from ..constants import _get_names
+
+    torch.set_num_threads(4)
+
+    names = _get_names()
+    lambda_value = 0.1
+    name = "molDWRow_298"
+
+    (energy_function, tautomer, flipped,) = setup_alchemical_system_and_energy_function(
+        name=name,
+        env="droplet",
+        ANImodel=AlchemicalANI2x,
+        base_path=f"data/test_data/droplet/{name}",
+        diameter=10,
+    )
+    traj_path = (
+        "data/test_data/droplet/molDWRow_298/molDWRow_298_lambda_0.0000_in_droplet.dcd"
+    )
+    top_path = "data/test_data/droplet/molDWRow_298/molDWRow_298_in_droplet.pdb"
+    traj, top = _get_traj(traj_path, top_path, None)
+    coordinates = [x.xyz[0] for x in traj[:100]] * unit.nanometer
+
+    def wrap1():
+        for c in coordinates:
+            c = c.value_in_unit(unit.nanometer)
+            c = [c] * unit.nanometer
+            energy_function.calculate_energy(c, lambda_value)
+
+    benchmark(wrap1)
+
+
+@pytest.mark.benchmark(min_rounds=2)
+def test_timing_for_single_energy_calculation_with_AlchemicalANI_200_snapshot_sequence(
+    benchmark,
+):
+    from ..analysis import setup_alchemical_system_and_energy_function
+    from ..ani import AlchemicalANI1ccx, AlchemicalANI2x
+
+    # NOTE: Sometimes this test fails? something wrong with molDWRow_68?
+    from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
+    import random, shutil
+    from ..constants import _get_names
+
+    torch.set_num_threads(4)
+
+    names = _get_names()
+    lambda_value = 0.1
+    name = "molDWRow_298"
+
+    (energy_function, tautomer, flipped,) = setup_alchemical_system_and_energy_function(
+        name=name,
+        env="droplet",
+        ANImodel=AlchemicalANI2x,
+        base_path=f"data/test_data/droplet/{name}",
+        diameter=10,
+    )
+    traj_path = (
+        "data/test_data/droplet/molDWRow_298/molDWRow_298_lambda_0.0000_in_droplet.dcd"
+    )
+    top_path = "data/test_data/droplet/molDWRow_298/molDWRow_298_in_droplet.pdb"
+    traj, top = _get_traj(traj_path, top_path, None)
+    coordinates = [x.xyz[0] for x in traj[:200]] * unit.nanometer
+
+    def wrap1():
+        for c in coordinates:
+            c = c.value_in_unit(unit.nanometer)
+            c = [c] * unit.nanometer
+            energy_function.calculate_energy(c, lambda_value)
+
+    benchmark(wrap1)
 
 
 @pytest.mark.skipif(
     os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
 )
 @pytest.mark.benchmark(min_rounds=1, warmup=False)
-def test_main_training_loop_without_pickled_tautomer_object(benchmark):
+def test_timing_main_training_loop_without_pickled_tautomer_object(benchmark):
     from ..parameter_gradients import (
         setup_and_perform_parameter_retraining,
     )
@@ -2821,7 +3242,7 @@ def test_main_training_loop_without_pickled_tautomer_object(benchmark):
     os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
 )
 @pytest.mark.benchmark(min_rounds=1, warmup=False)
-def test_main_training_loop_with_pickled_tautomer_object(benchmark):
+def test_timing_main_training_loop_with_pickled_tautomer_object(benchmark):
     from ..parameter_gradients import (
         setup_and_perform_parameter_retraining,
     )
@@ -2829,7 +3250,7 @@ def test_main_training_loop_with_pickled_tautomer_object(benchmark):
     import os
 
     model = AlchemicalANI2x
-    max_snapshots_per_window = 50
+    max_snapshots_per_window = 100
     names = ["molDWRow_298"]
     env = "droplet"
     diameter = 10
