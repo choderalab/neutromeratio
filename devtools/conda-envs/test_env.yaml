@@ -32,11 +32,9 @@ dependencies:
   - psi4
   - seaborn
   - scikit-learn
+  - torchani
   - pip:
       - lark-parser
       - six
-      - torch==1.6
-      - torchani==2.1.1
-      - torchvision
       - codecov
       - pytest-benchmark
