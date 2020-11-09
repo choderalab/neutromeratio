@@ -384,9 +384,7 @@ def calculate_rmse_between_exp_and_calc(
 
         # append calculated values
         if perturbed_free_energy:
-            e_calc.append(
-                get_perturbed_free_energy_difference(fec_list)[0].item()
-            )  # NOTE: this works only if batch == 1!
+            e_calc.append(get_perturbed_free_energy_difference(fec_list)[0].item())
         else:
             e_calc.append(get_unperturbed_free_energy_difference(fec_list)[0].item())
 
@@ -486,7 +484,6 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
 
     import random
 
-    assert int(batch_size) == 1
     assert int(nr_of_nn) <= 8 and int(nr_of_nn) >= 1
 
     if env == "droplet" and diameter == -1:
@@ -519,7 +516,6 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
         bulk_energy_calculation=bulk_energy_calculation,
         env=env,
         max_snapshots_per_window=max_snapshots_per_window,
-        perturbed_free_energy=False,
         load_pickled_tautomer_object=load_pickled_tautomer_object,
     )
 
@@ -675,7 +671,8 @@ def _perform_training(
             bulk_energy_calculation=bulk_energy_calculation,
             env=env,
             max_snapshots_per_window=max_snapshots_per_window,
-            perturbed_free_energy=load_pickled_tautomer_object,
+            perturbed_free_energy=True,
+            load_pickled_tautomer_object=load_pickled_tautomer_object,
         )
 
         rmse_validation.append(current_rmse)
@@ -953,7 +950,7 @@ def setup_and_perform_parameter_retraining(
         (list, list, float) -- rmse on validation set, rmse on training set, rmse on test set
     """
 
-    assert int(batch_size) == 1
+    assert int(batch_size) <= 10 and int(batch_size) >= 1
     assert int(nr_of_nn) <= 8 and int(nr_of_nn) >= 1
 
     if load_pickled_tautomer_object:
@@ -1025,9 +1022,7 @@ def setup_mbar(
     if not os.path.exists(data_path):
         raise RuntimeError(f"{data_path} does not exist!")
 
-    tautomer_pickle = (
-        f"{data_path}/{name}/{name}_tautomer_system_{max_snapshots_per_window}.pickle"
-    )
+    tautomer_pickle = f"{data_path}/{name}/{name}_tautomer_system_{max_snapshots_per_window}_for_{ANImodel.name}.pickle"
     if os.path.exists(tautomer_pickle) and load_pickled_tautomer_object:
         t = pickle.load(open(tautomer_pickle, "rb"))
         print(f"{tautomer_pickle} loading ...")
