@@ -20,6 +20,28 @@ from rdkit import Chem
 import pytest_benchmark
 
 
+def _get_traj(traj_path, top_path, remove_idx=None):
+    top = md.load(top_path).topology
+    traj = md.load(traj_path, top=top)
+    atoms = [a for a in range(top.n_atoms)]
+    if remove_idx:
+        print(atoms)
+        atoms.remove(remove_idx)
+        print(atoms)
+        traj = traj.atom_slice(atoms)
+    return traj, top
+
+
+def _remove_files(name, max_epochs=1):
+    try:
+        os.remove(f"{name}.pt")
+    except FileNotFoundError:
+        pass
+    for i in range(1, max_epochs):
+        os.remove(f"{name}_{i}.pt")
+    os.remove(f"{name}_best.pt")
+
+
 def test_equ():
     assert 1.0 == 1.0
 
@@ -535,18 +557,6 @@ def test_setup_tautomer_system_in_droplet_with_pdbs():
         )
         x0 = tautomer.get_ligand_in_water_coordinates()
         energy_function.calculate_force(x0, lambda_value)
-
-
-def _get_traj(traj_path, top_path, remove_idx=None):
-    top = md.load(top_path).topology
-    traj = md.load(traj_path, top=top)
-    atoms = [a for a in range(top.n_atoms)]
-    if remove_idx:
-        print(atoms)
-        atoms.remove(remove_idx)
-        print(atoms)
-        traj = traj.atom_slice(atoms)
-    return traj, top
 
 
 def test_neutromeratio_energy_calculations_with_torchANI_model():
@@ -1782,6 +1792,7 @@ def test_loading_saving_mbar_object():
     params3 = list(pickled_model.tweaked_neural_network.parameters())[6][0].tolist()
 
     assert params2 == params3
+    del fec
 
 
 def test_io_checkpoints():
@@ -1795,6 +1806,7 @@ def test_io_checkpoints():
             ["AlchemicalANI1ccx", "AlchemicalANI2x", "AlchemicalANI1x"],
         )
     ):
+        model._reset_parameters()
         # set tweaked parameters
         print(model_name)
         model_instance = model([0, 0])
@@ -1833,6 +1845,7 @@ def test_load_parameters():
             ["AlchemicalANI1ccx", "AlchemicalANI2x", "AlchemicalANI1x"],
         )
     ):
+        model._reset_parameters()
         # set tweaked parameters
         model_instance = model([0, 0])
         # initial parameters
@@ -1876,6 +1889,7 @@ def test_parameter_gradient():
     # specify the system you want to simulate
     name = "molDWRow_298"  # Experimental free energy difference: 1.132369 kcal/mol
     for model in [AlchemicalANI1ccx, AlchemicalANI2x, AlchemicalANI1x]:
+        model._reset_parameters()
 
         (
             energy_function,
@@ -1937,6 +1951,7 @@ def test_parameter_gradient():
         params = list(energy_function.model.tweaked_neural_network.parameters())
         none_counter = 0
         for p in params:
+            print(p.grad)
             if p.grad == None:  # some are None!
                 none_counter += 1
 
@@ -1945,6 +1960,7 @@ def test_parameter_gradient():
         if not (none_counter == 64 or none_counter == 256):
             raise RuntimeError()
         model._reset_parameters()
+        del fec
 
 
 def test_thinning():
@@ -1981,6 +1997,7 @@ def test_fec():
     names = ["molDWRow_298", "SAMPLmol2"]
 
     for idx, model in enumerate([AlchemicalANI1ccx, AlchemicalANI1x, AlchemicalANI2x]):
+        model._reset_parameters()
 
         if idx == 0:
             # testing fec calculation in sequence
@@ -2076,6 +2093,7 @@ def test_fec():
             print(fec)
             for e1, e2 in zip(fec, [8.8213, -9.6649]):
                 assert np.isclose(e1.item(), e2, rtol=1e-4)
+        del fec_list
 
 
 def test_max_nr_of_snapshots():
@@ -2124,6 +2142,7 @@ def test_unperturbed_perturbed_free_energy():
     a = get_unperturbed_free_energy_difference([fec])
     b = get_perturbed_free_energy_difference([fec])
     np.isclose(a.item(), b.item())
+    del fec
 
 
 def test_parameter_gradient_opt_script():
@@ -2198,11 +2217,13 @@ def test_calculate_rmse_between_exp_and_calc():
 
     rmse_list = []
     for model in [AlchemicalANI1ccx, AlchemicalANI2x, AlchemicalANI1x]:
+        model._reset_parameters()
         rmse, e_calc = calculate_rmse_between_exp_and_calc(
             names,
             model=model,
             data_path=f"./data/test_data/{env}",
             env=env,
+            perturbed_free_energy=True,
             bulk_energy_calculation=True,
             max_snapshots_per_window=100,
         )
@@ -2211,7 +2232,6 @@ def test_calculate_rmse_between_exp_and_calc():
             exp_values[2].item(),
         )
         rmse_list.append(rmse)
-        model._reset_parameters()
 
     print(exp_values.tolist())
     print(rmse_list)
@@ -2222,7 +2242,7 @@ def test_calculate_rmse_between_exp_and_calc():
         assert np.isclose(e1, e2)
 
     for e1, e2 in zip(
-        rmse_list, [1.4855135679244995, 5.6707963943481445, 4.7712321281433105]
+        rmse_list, [5.662402153015137, 5.6707963943481445, 4.7712321281433105]
     ):
         assert np.isclose(e1, e2)
 
@@ -2499,16 +2519,6 @@ def test_postprocessing_droplet():
         model._reset_parameters()
 
 
-def _remove_files(name, max_epochs=1):
-    try:
-        os.remove(f"{name}.pt")
-    except FileNotFoundError:
-        pass
-    for i in range(1, max_epochs):
-        os.remove(f"{name}_{i}.pt")
-    os.remove(f"{name}_best.pt")
-
-
 @pytest.mark.skipif(
     os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
 )
@@ -2537,7 +2547,7 @@ def test_tweak_parameters_and_class_nn():
     # tweak parameters
     model, model_name = (AlchemicalANI1ccx, "AlchemicalANI1ccx")
 
-    rmse_training, rmse_val = setup_and_perform_parameter_retraining(
+    rmse_val = setup_and_perform_parameter_retraining(
         env="vacuum",
         checkpoint_filename=f"{model_name}_vacuum.pt",
         names_training=names,
@@ -2549,6 +2559,7 @@ def test_tweak_parameters_and_class_nn():
         nr_of_nn=8,
         load_checkpoint=False,
         max_epochs=max_epochs,
+        load_pickled_tautomer_object=False,
     )
 
     _remove_files(f"{model_name}_vacuum", max_epochs)
@@ -2583,13 +2594,14 @@ def test_tweak_parameters_and_class_nn():
 @pytest.mark.skipif(
     os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
 )
-def test_tweak_parameters():
+def test_tweak_parameters_vacuum_multiple_tautomer():
     from ..parameter_gradients import (
         setup_and_perform_parameter_retraining_with_test_set_split,
     )
     import os
     from ..ani import AlchemicalANI1ccx, AlchemicalANI1x, AlchemicalANI2x
 
+    # calculate with batch_size=3
     names = ["molDWRow_298", "SAMPLmol2", "SAMPLmol4"]
     max_epochs = 4
     for idx, (model, model_name) in enumerate(
@@ -2600,7 +2612,6 @@ def test_tweak_parameters():
     ):
 
         (
-            rmse_training,
             rmse_val,
             rmse_test,
         ) = setup_and_perform_parameter_retraining_with_test_set_split(
@@ -2650,6 +2661,91 @@ def test_tweak_parameters():
 @pytest.mark.skipif(
     os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
 )
+def test_tweak_parameters_vacuum_single_tautomer():
+    from ..parameter_gradients import (
+        setup_and_perform_parameter_retraining_with_test_set_split,
+    )
+    import os
+    from ..ani import AlchemicalANI1ccx, AlchemicalANI1x, AlchemicalANI2x
+
+    # calculate with batch_size=1
+    # load pickled tautomer object
+    names = ["molDWRow_298"]
+    max_epochs = 4
+    for model, model_name in zip(
+        [AlchemicalANI2x],
+        ["AlchemicalANI2x"],
+    ):
+        model([0, 0])
+
+        (
+            rmse_val,
+            rmse_test,
+        ) = setup_and_perform_parameter_retraining_with_test_set_split(
+            env="vacuum",
+            checkpoint_filename=f"{model_name}_vacuum.pt",
+            names=names,
+            ANImodel=model,
+            batch_size=1,
+            data_path="./data/test_data/vacuum",
+            max_snapshots_per_window=50,
+            nr_of_nn=8,
+            bulk_energy_calculation=True,
+            max_epochs=max_epochs,
+            load_checkpoint=False,
+        )
+
+        print(rmse_val)
+        try:
+            assert np.isclose(rmse_val[-1], rmse_test)
+            assert np.isclose(rmse_val[0], 5.7811503410339355)
+            assert np.isclose(rmse_val[-1], 2.1603381633758545)
+        finally:
+            _remove_files(model_name + "_vacuum", max_epochs)
+
+        model._reset_parameters()
+
+    # without pickled tautomer object
+    names = ["molDWRow_298"]
+    max_epochs = 4
+    for model, model_name in zip(
+        [AlchemicalANI2x],
+        ["AlchemicalANI2x"],
+    ):
+        model([0, 0])
+
+        (
+            rmse_val,
+            rmse_test,
+        ) = setup_and_perform_parameter_retraining_with_test_set_split(
+            env="vacuum",
+            checkpoint_filename=f"{model_name}_vacuum.pt",
+            names=names,
+            ANImodel=model,
+            batch_size=1,
+            data_path="./data/test_data/vacuum",
+            max_snapshots_per_window=50,
+            nr_of_nn=8,
+            bulk_energy_calculation=True,
+            max_epochs=max_epochs,
+            load_checkpoint=False,
+            load_pickled_tautomer_object=False,
+        )
+
+        print(rmse_val)
+        try:
+            assert np.isclose(rmse_val[-1], rmse_test)
+            assert np.isclose(rmse_val[0], 5.7811503410339355)
+            assert np.isclose(rmse_val[-1], 2.1603381633758545)
+        finally:
+            _remove_files(model_name + "_vacuum", max_epochs)
+
+        model._reset_parameters()
+
+
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
 def test_tweak_parameters_droplet():
     from ..parameter_gradients import (
         setup_and_perform_parameter_retraining_with_test_set_split,
@@ -2660,15 +2756,17 @@ def test_tweak_parameters_droplet():
     names = ["molDWRow_298"]
     env = "droplet"
     diameter = 10
-    max_epochs = 2
+    max_epochs = 3
     for idx, (model, model_name) in enumerate(
         zip(
             [AlchemicalANI1ccx, AlchemicalANI2x, AlchemicalANI1x],
             ["AlchemicalANI1ccx", "AlchemicalANI2x", "AlchemicalANI1x"],
         )
     ):
+
+        model._reset_parameters()
+
         (
-            rmse_training,
             rmse_val,
             rmse_test,
         ) = setup_and_perform_parameter_retraining_with_test_set_split(
@@ -2683,68 +2781,37 @@ def test_tweak_parameters_droplet():
             max_epochs=max_epochs,
             diameter=diameter,
             load_checkpoint=False,
+            load_pickled_tautomer_object=False,
         )
 
         if idx == 0:
             try:
                 assert np.isclose(rmse_val[-1], rmse_test)
-                assert np.isclose(rmse_val[-1], 3.1957240104675293)
+                assert np.isclose(rmse_val[0], 0.23515522480010986)
+                assert np.isclose(rmse_val[-1], 0.8930618762969971)
+
             finally:
                 _remove_files(model_name + "_droplet", max_epochs)
-                print(rmse_training, rmse_val, rmse_test)
+                print(rmse_val, rmse_test)
 
         elif idx == 1:
             try:
                 assert np.isclose(rmse_val[-1], rmse_test)
-                assert np.isclose(rmse_val[-1], 3.399918556213379)
+                assert np.isclose(rmse_val[0], 16.44867706298828)
+                assert np.isclose(rmse_val[-1], 3.080655097961426)
             finally:
                 _remove_files(model_name + "_droplet", max_epochs)
-                print(rmse_training, rmse_val, rmse_test)
+                print(rmse_val, rmse_test)
 
         elif idx == 2:
             try:
                 assert np.isclose(rmse_val[-1], rmse_test)
-                assert np.isclose(rmse_val[-1], 5.056433200836182)
+                assert np.isclose(rmse_val[0], 11.113712310791016)
+                assert np.isclose(rmse_val[-1], 1.0161025524139404)
             finally:
                 _remove_files(model_name + "_droplet", max_epochs)
-                print(rmse_training, rmse_val, rmse_test)
+                print(rmse_val, rmse_test)
         model._reset_parameters()
-
-
-@pytest.mark.skipif(
-    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
-)
-@pytest.mark.benchmark(min_rounds=1, warmup=False)
-def test_timing_for_perturebed_free_energy_u_ln_and_perturbed_free_energy(benchmark):
-    from ..parameter_gradients import get_perturbed_free_energy_difference, setup_mbar
-    from ..ani import AlchemicalANI2x
-    import os
-
-    model = AlchemicalANI2x
-    max_snapshots_per_window = 100
-    names = ["molDWRow_298"]
-    env = "droplet"
-    diameter = 10
-    m = model([0, 0])
-    torch.set_num_threads(4)
-
-    name = "molDWRow_298"
-    # precalcualte mbar
-    fec = setup_mbar(
-        name,
-        env="droplet",
-        diameter=10,
-        data_path="data/test_data/droplet",
-        ANImodel=model,
-        bulk_energy_calculation=True,  # doesn't matter, since we are loading the reuslts from disk
-        max_snapshots_per_window=100,
-        load_pickled_tautomer_object=True,
-    )
-
-    def wrap():
-        get_perturbed_free_energy_difference([fec])
-
-    benchmark.pedantic(wrap, rounds=1, iterations=3)
 
 
 @pytest.mark.skipif(
@@ -2773,7 +2840,7 @@ def test_timing_for_perturebed_free_energy_u_ln(benchmark):
         data_path="data/test_data/droplet",
         ANImodel=model,
         bulk_energy_calculation=True,  # doesn't matter, since we are loading the reuslts from disk
-        max_snapshots_per_window=100,
+        max_snapshots_per_window=max_snapshots_per_window,
         load_pickled_tautomer_object=True,
     )
 
@@ -2786,7 +2853,43 @@ def test_timing_for_perturebed_free_energy_u_ln(benchmark):
 @pytest.mark.skipif(
     os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
 )
-@pytest.mark.benchmark(min_rounds=2)
+@pytest.mark.benchmark(min_rounds=1, warmup=False)
+def test_timing_for_perturebed_free_energy_u_ln_and_perturbed_free_energy(benchmark):
+    from ..parameter_gradients import get_perturbed_free_energy_difference, setup_mbar
+    from ..ani import AlchemicalANI2x
+    import os
+
+    model = AlchemicalANI2x
+    max_snapshots_per_window = 100
+    names = ["molDWRow_298"]
+    env = "droplet"
+    diameter = 10
+    m = model([0, 0])
+    torch.set_num_threads(4)
+
+    name = "molDWRow_298"
+    # precalcualte mbar
+    fec = setup_mbar(
+        name,
+        env="droplet",
+        diameter=10,
+        data_path="data/test_data/droplet",
+        ANImodel=model,
+        bulk_energy_calculation=True,  # doesn't matter, since we are loading the reuslts from disk
+        max_snapshots_per_window=max_snapshots_per_window,
+        load_pickled_tautomer_object=True,
+    )
+
+    def wrap():
+        get_perturbed_free_energy_difference([fec])
+
+    benchmark.pedantic(wrap, rounds=1, iterations=3)
+
+
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
+@pytest.mark.benchmark(min_rounds=3)
 def test_timing_for_single_energy_calculation_with_AlchemicalANI_10_snapshots_batch(
     benchmark,
 ):
@@ -2797,6 +2900,8 @@ def test_timing_for_single_energy_calculation_with_AlchemicalANI_10_snapshots_ba
     from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
     import random, shutil
     from ..constants import _get_names
+    from simtk import unit
+    torch.set_num_threads(1)
 
     names = _get_names()
     lambda_value = 0.1
@@ -2817,9 +2922,26 @@ def test_timing_for_single_energy_calculation_with_AlchemicalANI_10_snapshots_ba
     coordinates = [x.xyz[0] for x in traj[:10]] * unit.nanometer
 
     def wrap1():
-        energy_function.calculate_energy(coordinates, lambda_value)
+        e = energy_function.calculate_energy(coordinates, lambda_value)
+        return e
 
-    benchmark(wrap1)
+    e = benchmark(wrap1)
+    for e_pre, e_cal in zip(
+        [
+            -3515574.05857072,
+            -3515478.60995353,
+            -3515367.0878032,
+            -3515332.90224507,
+            -3515360.70976201,
+            -3515465.75272167,
+            -3515465.71963145,
+            -3515456.76306932,
+            -3515458.36516877,
+            -3515457.31727224,
+        ],
+        e.energy.value_in_unit(unit.kilojoule_per_mole),
+    ):
+        np.isclose(e_pre, e_cal, rtol=1e-5)
 
 
 @pytest.mark.skipif(
@@ -2905,7 +3027,7 @@ def test_timing_for_single_energy_calculation_with_AlchemicalANI_20_snapshot_bat
 @pytest.mark.skipif(
     os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
 )
-@pytest.mark.benchmark(min_rounds=2)
+@pytest.mark.benchmark(min_rounds=4)
 def test_timing_for_single_energy_calculation_with_AlchemicalANI_100_snapshot_batch(
     benchmark,
 ):
@@ -2920,7 +3042,7 @@ def test_timing_for_single_energy_calculation_with_AlchemicalANI_100_snapshot_ba
     names = _get_names()
     lambda_value = 0.1
     name = "molDWRow_298"
-    torch.set_num_threads(4)
+    torch.set_num_threads(1)
 
     (energy_function, tautomer, flipped,) = setup_alchemical_system_and_energy_function(
         name=name,
