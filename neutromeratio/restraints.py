@@ -250,17 +250,16 @@ class BondFlatBottomRestraint(BondRestraint):
         )
 
         for idx in range(nr_of_mols):
-            distance = torch.norm(x[idx][self.atom_i_idx] - x[idx][self.atom_j_idx])
+            distance = torch.norm(
+                x[idx][self.atom_i_idx] - x[idx][self.atom_j_idx]
+            ).double()
             if distance <= self.lower_bound:
-                e = (self.k / 2) * (self.lower_bound - distance.double()) ** 2
+                e = (self.k / 2) * (self.lower_bound - distance) ** 2
             elif distance >= self.upper_bound:
-                e = (self.k / 2) * (distance.double() - self.upper_bound) ** 2
+                e = (self.k / 2) * (distance - self.upper_bound) ** 2
             else:
                 e = torch.tensor(0.0, dtype=torch.double, device=self.device)
             e_list[idx] += e
-            logger.debug(
-                "Flat bottom restraint_bias introduced: {:0.4f}".format(e.item())
-            )
 
         return e_list.to(device=self.device)
 
@@ -296,9 +295,10 @@ class BondHarmonicRestraint(BondRestraint):
         # x in angstrom
         for idx in range(nr_of_mols):
 
-            distance = torch.norm(x[idx][self.atom_i_idx] - x[idx][self.atom_j_idx])
-            e = (self.k / 2) * (distance.double() - self.mean_bond_length) ** 2
-            logger.debug("Harmonic restraint_bias introduced: {:0.4f}".format(e.item()))
+            distance = torch.norm(
+                x[idx][self.atom_i_idx] - x[idx][self.atom_j_idx]
+            ).double()
+            e = (self.k / 2) * (distance - self.mean_bond_length) ** 2
             e_list[idx] += e
 
         return e_list.to(device=self.device)
@@ -346,15 +346,21 @@ class CenterFlatBottomRestraint(PointAtomRestraint):
         """
         # x in angstrom
         assert type(x) == torch.Tensor
-        distance = torch.norm(x[0][self.atom_idx] - self.point)
-        if distance >= self.cutoff_radius:
-            e = (self.k / 2) * (distance.double() - self.cutoff_radius) ** 2
-        else:
-            e = torch.tensor(0.0, dtype=torch.double, device=self.device)
-        logger.debug(
-            "Flat center bottom restraint_bias introduced: {:0.4f}".format(e.item())
+        nr_of_mols = len(x)
+        e_list = torch.tensor(
+            [0.0] * nr_of_mols, dtype=torch.double, device=self.device
         )
-        return e.to(device=self.device)
+
+        # x in angstrom
+        for idx in range(nr_of_mols):
+            distance = torch.norm(x[idx][self.atom_idx] - self.point)
+            if distance >= self.cutoff_radius:
+                e = (self.k / 2) * (distance.double() - self.cutoff_radius) ** 2
+            else:
+                e = torch.tensor(0.0, dtype=torch.double, device=self.device)
+            e_list[idx] += e
+
+        return e_list.to(device=self.device)
 
 
 class CenterOfMassRestraint(PointAtomRestraint):
@@ -399,7 +405,7 @@ class CenterOfMassRestraint(PointAtomRestraint):
         One assumption that we are making here is that the ligand is at the beginning of the
         atom str and coordinate file.
         """
-        ligand_x = x[0][
+        ligand_x = x[
             : len(self.mass_list)
         ].double()  # select only the ligand coordinates
         return torch.matmul(ligand_x.T, self.masses)
@@ -415,9 +421,17 @@ class CenterOfMassRestraint(PointAtomRestraint):
         e : torch.Tensor
         """
         # x in angstrom
-        assert type(x) == torch.Tensor
+        nr_of_mols = len(x)
+        e_list = torch.tensor(
+            [0.0] * nr_of_mols, dtype=torch.double, device=self.device
+        )
 
-        com = self._calculate_center_of_mass(x)
-        com_distance_to_point = torch.norm(com - self.point)
-        e = (self.k / 2) * (com_distance_to_point.sum() ** 2)
+        # x in angstrom
+        for idx in range(nr_of_mols):
+
+            com = self._calculate_center_of_mass(x[idx])
+            com_distance_to_point = torch.norm(com - self.point)
+            e = (self.k / 2) * (com_distance_to_point.sum() ** 2)
+            print(e)
+            e_list[idx] += e
         return e.to(device=self.device)
