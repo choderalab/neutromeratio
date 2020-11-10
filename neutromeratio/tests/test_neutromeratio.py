@@ -906,26 +906,21 @@ def test_neutromeratio_energy_calculations_LinearAlchemicalSingleTopologyANI_mod
 
 
 def test_restraint():
-    from neutromeratio.tautomers import Tautomer
+    from ..tautomers import Tautomer
+    from ..analysis import setup_alchemical_system_and_energy_function
+    from ..ani import AlchemicalANI1ccx
 
     with open("data/test_data/exp_results.pickle", "rb") as f:
         exp_results = pickle.load(f)
 
     name = "molDWRow_298"
-    t1_smiles = exp_results[name]["t1-smiles"]
-    t2_smiles = exp_results[name]["t2-smiles"]
-
-    (
-        t_type,
-        tautomers,
-        flipped,
-    ) = neutromeratio.utils.generate_tautomer_class_stereobond_aware(
-        name, t1_smiles, t2_smiles
+    energy_function, tautomer, flipped = setup_alchemical_system_and_energy_function(
+        name=name, env="vacuum", ANImodel=AlchemicalANI1ccx
     )
-    tautomer = tautomers[0]
-    tautomer.perform_tautomer_transformation()
 
     atoms = tautomer.initial_state_ligand_atoms
+
+    # testing BondHarmonicRestraint and BondFlatBottomRestraint for single coordinate set
     harmonic = neutromeratio.restraints.BondHarmonicRestraint(
         sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms
     )
@@ -933,7 +928,26 @@ def test_restraint():
         sigma=0.1 * unit.angstrom, atom_i_idx=6, atom_j_idx=7, atoms=atoms
     )
 
-    x0 = tautomer.get_initial_state_ligand_coords(0)
+    x0 = [
+        [
+            [-2.59013476, 0.33576663, 0.1207918],
+            [-1.27753302, -0.24535815, -0.24640922],
+            [-0.02964166, 0.2376853, 0.36130811],
+            [1.14310714, -0.27818069, 0.0363466],
+            [2.42889584, 0.19675597, 0.64147539],
+            [1.16581937, -1.29903205, -0.90394092],
+            [-1.26323767, -1.1673833, -1.09651496],
+            [-3.34026286, -0.48284842, 0.08473526],
+            [-2.57824303, 0.74964539, 1.15767283],
+            [-2.91280517, 1.09171916, -0.61569433],
+            [-0.01590019, 1.02814702, 1.09344649],
+            [3.02354428, 0.80021351, -0.07878159],
+            [2.26286222, 0.79203156, 1.54222352],
+            [3.03941803, -0.72249508, 0.84622154],
+            [0.94411149, -1.03666685, -1.85652944],
+        ]
+    ] * unit.angstrom
+
     coordinates = torch.tensor(
         x0.value_in_unit(unit.nanometer),
         requires_grad=True,
@@ -941,33 +955,108 @@ def test_restraint():
         dtype=torch.float32,
     )
 
-    print("Restraing: {}.".format(harmonic.restraint(coordinates)))
-    print("Restraing: {}.".format(flat_bottom.restraint(coordinates)))
+    e1 = harmonic.restraint(coordinates).item()
+    e2 = flat_bottom.restraint(coordinates).item()
+    print("Restraing: {}.".format(e1))
+    print("Restraing: {}.".format(e2))
+    assert np.isclose(e1, 63.12599729195536, rtol=1e-5)
+    assert np.isclose(e2, 12.09728300893802, rtol=1e-5)
+
+    # testing BondHarmonicRestraint and BondFlatBottomRestraint for batch coordinate set
+
+    x0 = [
+        [
+            [-2.59013476, 0.33576663, 0.1207918],
+            [-1.27753302, -0.24535815, -0.24640922],
+            [-0.02964166, 0.2376853, 0.36130811],
+            [1.14310714, -0.27818069, 0.0363466],
+            [2.42889584, 0.19675597, 0.64147539],
+            [1.16581937, -1.29903205, -0.90394092],
+            [-1.26323767, -1.1673833, -1.09651496],
+            [-3.34026286, -0.48284842, 0.08473526],
+            [-2.57824303, 0.74964539, 1.15767283],
+            [-2.91280517, 1.09171916, -0.61569433],
+            [-0.01590019, 1.02814702, 1.09344649],
+            [3.02354428, 0.80021351, -0.07878159],
+            [2.26286222, 0.79203156, 1.54222352],
+            [3.03941803, -0.72249508, 0.84622154],
+            [0.94411149, -1.03666685, -1.85652944],
+        ],
+        [
+            [-2.59013476, 0.3, 0.1207918],
+            [-1.27753302, -0.24, -0.24640922],
+            [-0.02964166, 0.23, 0.36130811],
+            [1.14310714, -0.2, 0.0363466],
+            [2.42889584, 0.2, 0.64147539],
+            [1.16581937, -1.3, -0.90394092],
+            [-1.26323767, -1.2, -1.09651496],
+            [-3.34026286, -0.48, 0.08473526],
+            [-2.57824303, 0.74, 1.15767283],
+            [-2.91280517, 1.09, -0.61569433],
+            [-0.01590019, 1.02, 1.09344649],
+            [3.02354428, 0.80, -0.07878159],
+            [2.26286222, 0.79, 1.54222352],
+            [3.03941803, -0.72, 0.84622154],
+            [0.94411149, -1.03, -1.85652944],
+        ],
+    ] * unit.angstrom
+
+    coordinates = torch.tensor(
+        x0.value_in_unit(unit.nanometer),
+        requires_grad=True,
+        device=device,
+        dtype=torch.float32,
+    )
+
+    e1 = harmonic.restraint(coordinates).detach()
+    e2 = flat_bottom.restraint(coordinates).detach()
+    print("Restraing: {}.".format(e1))
+    print("Restraing: {}.".format(e2))
+    assert np.isclose(e1[0], 63.12599729195536, rtol=1e-5)
+    assert np.isclose(e2[0], 12.09728300893802, rtol=1e-5)
+
+    assert np.isclose(e1[1], 62.9487, rtol=1e-5)
+    assert np.isclose(e2[1], 12.0197, rtol=1e-5)
+
+    # test COM restraint for batch
+
+    coordinates = torch.tensor(
+        x0.value_in_unit(unit.nanometer),
+        requires_grad=True,
+        device=device,
+        dtype=torch.float32,
+    )
+
+    center = np.array([0.0, 0.0, 0.0]) * unit.angstrom
+
+    com_restraint = neutromeratio.restraints.CenterOfMassRestraint(
+        sigma=0.1 * unit.angstrom,
+        atom_idx=tautomer.hybrid_ligand_idxs[:-2],
+        atoms=tautomer.hybrid_atoms[:-2],
+        point=center,
+    )
+
+    e1 = com_restraint.restraint(coordinates).detach()
+    print("Restraing: {}.".format(e1))
+    assert np.isclose(e1[0], 0.1820, rtol=1e-3)
+    assert np.isclose(e1[1], 0.1823, rtol=1e-3)
 
 
-def test_restraint_with_LinearAlchemicalSingleTopologyANI():
+def test_restraint_with_AlchemicalANI1ccx():
     import numpy as np
     from ..constants import kT
     from ..ani import AlchemicalANI1ccx
+    from ..analysis import setup_alchemical_system_and_energy_function
 
     # read in exp_results.pickle
     with open("data/test_data/exp_results.pickle", "rb") as f:
         exp_results = pickle.load(f)
 
-    # generate smiles
+    # generate tautomer object
     name = "molDWRow_298"
-    t1_smiles = exp_results[name]["t1-smiles"]
-    t2_smiles = exp_results[name]["t2-smiles"]
-
-    (
-        t_type,
-        tautomers,
-        flipped,
-    ) = neutromeratio.utils.generate_tautomer_class_stereobond_aware(
-        name, t1_smiles, t2_smiles
+    energy_function, tautomer, flipped = setup_alchemical_system_and_energy_function(
+        name=name, env="vacuum", ANImodel=AlchemicalANI1ccx
     )
-    tautomer = tautomers[0]
-    tautomer.perform_tautomer_transformation()
 
     # read in pregenerated traj
     traj_path = (
@@ -977,28 +1066,103 @@ def test_restraint_with_LinearAlchemicalSingleTopologyANI():
     traj, top = _get_traj(traj_path, top_path, None)
     x0 = [x.xyz[0] for x in traj[0]] * unit.nanometer
 
-    # the first of the alchemical_atoms will be dummy at lambda 0, the second at lambda 1
-    # protocoll goes from 0 to 1
-    dummy_atoms = [
-        tautomer.hybrid_hydrogen_idx_at_lambda_1,
-        tautomer.hybrid_hydrogen_idx_at_lambda_0,
-    ]
-    atoms = tautomer.hybrid_atoms
-
-    model = AlchemicalANI1ccx(alchemical_atoms=dummy_atoms)
-
-    energy_function = neutromeratio.ANI1_force_and_energy(
-        model=model, atoms=atoms, mol=None
-    )
-
-    energy_function.list_of_restraints = tautomer.ligand_restraints
-
     energy = energy_function.calculate_energy(x0, lambda_value=0.0)
     assert is_quantity_close(
         energy.energy.in_units_of(unit.kilojoule_per_mole),
         (-906912.01647632 * unit.kilojoule_per_mole),
         rtol=1e-9,
     )
+
+
+def test_restraint_with_AlchemicalANI1ccx_for_batches_in_vacuum():
+    import numpy as np
+    from ..constants import kT
+    from ..ani import AlchemicalANI1ccx
+    from ..analysis import setup_alchemical_system_and_energy_function
+
+    # read in exp_results.pickle
+    with open("data/test_data/exp_results.pickle", "rb") as f:
+        exp_results = pickle.load(f)
+
+    # generate smiles
+    name = "molDWRow_298"
+    energy_function, tautomer, flipped = setup_alchemical_system_and_energy_function(
+        name=name, env="vacuum", ANImodel=AlchemicalANI1ccx
+    )
+
+    # read in pregenerated traj
+    traj_path = (
+        "data/test_data/vacuum/molDWRow_298/molDWRow_298_lambda_0.0000_in_vacuum.dcd"
+    )
+    top_path = "data/test_data/vacuum/molDWRow_298/molDWRow_298.pdb"
+    traj, top = _get_traj(traj_path, top_path, None)
+    x0 = [x.xyz[0] for x in traj[:10]] * unit.nanometer
+
+    energy = energy_function.calculate_energy(x0, lambda_value=0.0)
+    e_ = energy.energy.value_in_unit(unit.kilojoule_per_mole)
+    comp_ = [
+        -906912.01647632,
+        -906874.76383595,
+        -906873.86032954,
+        -906880.6874288,
+        -906873.53381254,
+        -906867.20345442,
+        -906862.08888594,
+        -906865.00135805,
+        -906867.07548311,
+        -906871.27971175,
+    ]
+    for e, comp_e in zip(e_, comp_):
+        np.isclose(e, comp_e, rtol=1e-6)
+
+
+def test_restraint_with_AlchemicalANI1ccx_for_batches_in_droplet():
+    import numpy as np
+    from ..constants import kT
+    from ..ani import AlchemicalANI2x
+    from ..analysis import setup_alchemical_system_and_energy_function
+
+    # read in exp_results.pickle
+    with open("data/test_data/exp_results.pickle", "rb") as f:
+        exp_results = pickle.load(f)
+
+    # generate smiles
+    name = "molDWRow_298"
+    energy_function, tautomer, flipped = setup_alchemical_system_and_energy_function(
+        name=name,
+        env="droplet",
+        ANImodel=AlchemicalANI2x,
+        diameter=10,
+        base_path=f"data/test_data/droplet/{name}",
+    )
+
+    # read in pregenerated traj
+    traj_path = (
+        "data/test_data/droplet/molDWRow_298/molDWRow_298_lambda_0.0000_in_droplet.dcd"
+    )
+    top_path = "data/test_data/droplet/molDWRow_298/molDWRow_298_in_droplet.pdb"
+    traj, top = _get_traj(traj_path, top_path, None)
+    x0 = [x.xyz[0] for x in traj[:10]] * unit.nanometer
+
+    energy = energy_function.calculate_energy(x0, lambda_value=0.0)
+    e_ = list(energy.energy.value_in_unit(unit.kilojoule_per_mole))
+    comp_ = [
+        -3515625.4771188204,
+        -3515541.0329574747,
+        -3515510.1885154014,
+        -3515502.189182898,
+        -3515504.657348419,
+        -3515502.8895208393,
+        -3515494.111220217,
+        -3515486.193356259,
+        -3515484.571244118,
+        -3515479.2295892546,
+    ]
+
+    for e, comp_e in zip(e_, comp_):
+        print(e)
+        print(comp_e)
+        np.isclose(float(e), float(comp_e), rtol=1e-5)
 
 
 def test_min_and_single_point_energy():
@@ -2901,6 +3065,7 @@ def test_timing_for_single_energy_calculation_with_AlchemicalANI_10_snapshots_ba
     import random, shutil
     from ..constants import _get_names
     from simtk import unit
+
     torch.set_num_threads(1)
 
     names = _get_names()

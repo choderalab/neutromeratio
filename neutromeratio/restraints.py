@@ -390,14 +390,12 @@ class CenterOfMassRestraint(PointAtomRestraint):
         self.atom_idx = atom_idx
         logger.debug("Center Of Mass restraint added.")
 
-        self.mass_list = []
-        for i in atom_idx:
-            self.mass_list.append(mass_dict_in_daltons[atoms[i]])
-        masses = np.array(self.mass_list)
-        scaled_masses = masses / masses.sum()
+        self.mass_list = [mass_dict_in_daltons[atoms[i]] for i in atom_idx]
+        scaled_masses = np.array(self.mass_list) / np.array(self.mass_list).sum()
         self.masses = torch.tensor(
             scaled_masses, dtype=torch.double, device=self.device, requires_grad=True
         )
+        print(self.masses)
 
     def _calculate_center_of_mass(self, x):
         """
@@ -408,6 +406,7 @@ class CenterOfMassRestraint(PointAtomRestraint):
         ligand_x = x[
             : len(self.mass_list)
         ].double()  # select only the ligand coordinates
+        print(ligand_x)
         return torch.matmul(ligand_x.T, self.masses)
 
     def restraint(self, x: torch.Tensor) -> torch.Tensor:
@@ -425,7 +424,7 @@ class CenterOfMassRestraint(PointAtomRestraint):
         e_list = torch.tensor(
             [0.0] * nr_of_mols, dtype=torch.double, device=self.device
         )
-
+        print(nr_of_mols)
         # x in angstrom
         for idx in range(nr_of_mols):
 
@@ -434,4 +433,4 @@ class CenterOfMassRestraint(PointAtomRestraint):
             e = (self.k / 2) * (com_distance_to_point.sum() ** 2)
             print(e)
             e_list[idx] += e
-        return e.to(device=self.device)
+        return e_list.to(device=self.device)
