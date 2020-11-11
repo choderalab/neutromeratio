@@ -363,7 +363,7 @@ class CenterFlatBottomRestraint(PointAtomRestraint):
         return e_list.to(device=self.device)
 
 
-class CenterOfMassRestraint(PointAtomRestraint):
+class CenterOfMassFlatBottomRestraint(PointAtomRestraint):
     def __init__(
         self,
         sigma: unit.Quantity,
@@ -387,15 +387,19 @@ class CenterOfMassRestraint(PointAtomRestraint):
         assert type(sigma) == unit.Quantity
         assert type(point) == unit.Quantity
         super().__init__(sigma, point.value_in_unit(unit.angstrom), active_at)
-        self.atom_idx = atom_idx
-        logger.debug("Center Of Mass restraint added.")
+        cutoff_radius = 0.5 * unit.angstrom
+        self.cutoff_radius = cutoff_radius.value_in_unit(unit.angstrom)
+        # only look at heavy atoms
+        full_mass_list = [mass_dict_in_daltons[atoms[i]] for i in atom_idx]
+        heavy_atoms_idx = [i for i, x in enumerate(full_mass_list) if x != 1.0]
 
-        self.mass_list = [mass_dict_in_daltons[atoms[i]] for i in atom_idx]
+        self.atom_idx = heavy_atoms_idx
+        self.mass_list = [heavy_atoms_idx[i] for i in heavy_atoms_idx]
+
         scaled_masses = np.array(self.mass_list) / np.array(self.mass_list).sum()
         self.masses = torch.tensor(
             scaled_masses, dtype=torch.double, device=self.device, requires_grad=True
         )
-        print(self.masses)
 
     def _calculate_center_of_mass(self, x):
         """
@@ -406,7 +410,6 @@ class CenterOfMassRestraint(PointAtomRestraint):
         ligand_x = x[
             : len(self.mass_list)
         ].double()  # select only the ligand coordinates
-        print(ligand_x)
         return torch.matmul(ligand_x.T, self.masses)
 
     def restraint(self, x: torch.Tensor) -> torch.Tensor:
@@ -424,13 +427,19 @@ class CenterOfMassRestraint(PointAtomRestraint):
         e_list = torch.tensor(
             [0.0] * nr_of_mols, dtype=torch.double, device=self.device
         )
-        print(nr_of_mols)
         # x in angstrom
         for idx in range(nr_of_mols):
 
             com = self._calculate_center_of_mass(x[idx])
             com_distance_to_point = torch.norm(com - self.point)
-            e = (self.k / 2) * (com_distance_to_point.sum() ** 2)
-            print(e)
+            if com_distance_to_point >= self.cutoff_radius:
+                e = (self.k / 2) * (
+                    com_distance_to_point.double() - self.cutoff_radius
+                ) ** 2
+            else:
+                e = torch.tensor(0.0, dtype=torch.double, device=self.device)
             e_list[idx] += e
+        print("COM_exp:")
+        print(e_list)
+
         return e_list.to(device=self.device)

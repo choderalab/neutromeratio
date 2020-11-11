@@ -24,7 +24,7 @@ from .restraints import (
     AngleHarmonicRestraint,
     BondFlatBottomRestraint,
     CenterFlatBottomRestraint,
-    CenterOfMassRestraint,
+    CenterOfMassFlatBottomRestraint,
 )
 from .utils import write_pdb
 from .vis import display_mol
@@ -378,7 +378,7 @@ class Tautomer(object):
     ):
 
         # add center of mass restraint
-        com_restraint = CenterOfMassRestraint(
+        com_restraint = CenterOfMassFlatBottomRestraint(
             sigma=sigma, point=point, atom_idx=atom_idx, atoms=atoms
         )
         self.com_restraints.append(com_restraint)
