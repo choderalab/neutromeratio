@@ -256,13 +256,8 @@ class BondFlatBottomRestraint(BondRestraint):
                 x[idx][self.atom_i_idx] - x[idx][self.atom_j_idx]
             ).double()
             if distance <= self.lower_bound:
-                print(self.atom_i_element)
-                print(self.atom_j_element)
                 e = (self.k / 2) * (self.lower_bound - distance) ** 2
             elif distance >= self.upper_bound:
-                print(self.atom_i_element)
-                print(self.atom_j_element)
-
                 e = (self.k / 2) * (distance - self.upper_bound) ** 2
             else:
                 e = torch.tensor(0.0, dtype=torch.double, device=self.device)
