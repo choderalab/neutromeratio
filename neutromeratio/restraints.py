@@ -142,9 +142,11 @@ class BondRestraint(BaseDistanceRestraint):
             self.lower_bound = self.mean_bond_length - 0.4
 
         except KeyError:
-            self.mean_bond_length = 1.3
-            self.upper_bound = self.mean_bond_length + 0.3
-            self.lower_bound = self.mean_bond_length - 0.3
+            self.mean_bond_length = 1.4
+            self.upper_bound = (
+                self.mean_bond_length + 1.0
+            )  # staying on the safe side for some heteratomic mean bond lenght https://en.wikipedia.org/wiki/Bond_length#:~:text=The%20carbon%E2%80%93carbon%20(C%E2%80%93,in%20diamond%20is%20154%20pm.
+            self.lower_bound = self.mean_bond_length - 1.0
 
 
 class AngleHarmonicRestraint(BaseAngleRestraint):
@@ -254,51 +256,16 @@ class BondFlatBottomRestraint(BondRestraint):
                 x[idx][self.atom_i_idx] - x[idx][self.atom_j_idx]
             ).double()
             if distance <= self.lower_bound:
+                print(self.atom_i_element)
+                print(self.atom_j_element)
                 e = (self.k / 2) * (self.lower_bound - distance) ** 2
             elif distance >= self.upper_bound:
+                print(self.atom_i_element)
+                print(self.atom_j_element)
+
                 e = (self.k / 2) * (distance - self.upper_bound) ** 2
             else:
                 e = torch.tensor(0.0, dtype=torch.double, device=self.device)
-            e_list[idx] += e
-
-        return e_list.to(device=self.device)
-
-
-class BondHarmonicRestraint(BondRestraint):
-    def __init__(
-        self,
-        sigma: unit.Quantity,
-        atom_i_idx: int,
-        atom_j_idx: int,
-        atoms: str,
-        active_at: int = -1,
-    ):
-
-        super().__init__(sigma, atom_i_idx, atom_j_idx, atoms, active_at)
-
-    def restraint(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Parameters
-        -------
-        x : torch.Tensor
-            coordinates
-        Returns
-        -------
-        e : torch.Tensor
-        """
-        assert type(x) == torch.Tensor
-        nr_of_mols = len(x)
-        e_list = torch.tensor(
-            [0.0] * nr_of_mols, dtype=torch.double, device=self.device
-        )
-
-        # x in angstrom
-        for idx in range(nr_of_mols):
-
-            distance = torch.norm(
-                x[idx][self.atom_i_idx] - x[idx][self.atom_j_idx]
-            ).double()
-            e = (self.k / 2) * (distance - self.mean_bond_length) ** 2
             e_list[idx] += e
 
         return e_list.to(device=self.device)
@@ -332,7 +299,9 @@ class CenterFlatBottomRestraint(PointAtomRestraint):
         super().__init__(sigma, point.value_in_unit(unit.angstrom), active_at)
 
         self.atom_idx = atom_idx
-        self.cutoff_radius = radius.value_in_unit(unit.angstrom)
+        self.cutoff_radius = (
+            radius.value_in_unit(unit.angstrom) + 0.2
+        )  # slightly increase the area
 
     def restraint(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -439,7 +408,5 @@ class CenterOfMassFlatBottomRestraint(PointAtomRestraint):
             else:
                 e = torch.tensor(0.0, dtype=torch.double, device=self.device)
             e_list[idx] += e
-        print("COM_exp:")
-        print(e_list)
 
         return e_list.to(device=self.device)

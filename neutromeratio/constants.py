@@ -41,9 +41,10 @@ nm_to_angstroms = (1.0 * distance_unit) / (1.0 * ani_distance_unit)
 mass_dict_in_daltons = {"H": 1.0, "C": 12.0, "N": 14.0, "O": 16.0}
 
 bond_length_dict = {
-    frozenset(["C", "H"]): 1.09 * unit.angstrom,
-    frozenset(["O", "H"]): 0.96 * unit.angstrom,
-    frozenset(["N", "H"]): 1.01 * unit.angstrom,
+    frozenset(["C", "H"]): 1.02
+    * unit.angstrom,  # 1.09 * unit.angstrom, #taking averages of the bond lenth
+    frozenset(["O", "H"]): 1.02 * unit.angstrom,  # 0.96 * unit.angstrom,
+    frozenset(["N", "H"]): 1.02 * unit.angstrom,  # 1.01 * unit.angstrom,
 }
 
 eV_to_kJ_mol = 96.485

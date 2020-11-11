@@ -436,12 +436,11 @@ class Tautomer(object):
         assert coord_list.shape == (mol.GetNumConformers(), mol.GetNumAtoms(), 3)
         coord_list *= unit.angstrom
 
-        # generate bond list of heavy atoms to hydrogens
+        # generate bond list
         bond_list = []
         for b in mol.GetBonds():
             a1 = b.GetBeginAtom()
             a2 = b.GetEndAtom()
-            #           if a1.GetSymbol() == 'H' or a2.GetSymbol() == 'H':
             bond_list.append((a1.GetIdx(), a2.GetIdx()))
 
         # get mdtraj topology
@@ -538,7 +537,7 @@ class Tautomer(object):
                 logger.debug("Index of atom that moves: {}.".format(a.GetIdx()))
                 hydrogen_idx_that_moves = a.GetIdx()
 
-        # adding ligand restraints for heavy atom - hydrogen
+        # adding ligand restraints for all bonds
         for b in ligand_bonds:
             a1 = b[0]
             a2 = b[1]

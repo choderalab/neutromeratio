@@ -576,7 +576,7 @@ class ANI1_force_and_energy(object):
         Computes the energy from different restraints of the system.
 
         Arguments:
-            x {Tensor} -- coordinates as torch.Tensor
+            x {Tensor} -- coordinates as torch.Tensor in nanometer
             lambda_value {float} -- lambda value
 
         Raises:
@@ -607,7 +607,6 @@ class ANI1_force_and_energy(object):
                 raise RuntimeError("Something went wrong with restraints.")
             restraint_bias_in_kT += restraint_bias * kJ_mol_to_kT
 
-        print(restraint_bias_in_kT)
         return restraint_bias_in_kT
 
     def get_thermo_correction(
@@ -935,7 +934,6 @@ class ANI1_force_and_energy(object):
         restraint_energy_contribution = (
             np.array([e.item() for e in restraint_energy_contribution_in_kT]) * kT
         )
-
         if requires_grad_wrt_parameters:
             return DecomposedEnergy(energy, restraint_energy_contribution, energy_in_kT)
         else:
