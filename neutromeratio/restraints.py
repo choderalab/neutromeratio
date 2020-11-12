@@ -250,7 +250,6 @@ class BondFlatBottomRestraint(BondRestraint):
         e_list = torch.tensor(
             [0.0] * nr_of_mols, dtype=torch.double, device=self.device
         )
-
         for idx in range(nr_of_mols):
             distance = torch.norm(
                 x[idx][self.atom_i_idx] - x[idx][self.atom_j_idx]
@@ -261,6 +260,45 @@ class BondFlatBottomRestraint(BondRestraint):
                 e = (self.k / 2) * (distance - self.upper_bound) ** 2
             else:
                 e = torch.tensor(0.0, dtype=torch.double, device=self.device)
+            e_list[idx] += e
+
+        return e_list.to(device=self.device)
+
+
+class BondHarmonicRestraint(BondRestraint):
+    def __init__(
+        self,
+        sigma: unit.Quantity,
+        atom_i_idx: int,
+        atom_j_idx: int,
+        atoms: str,
+        active_at: int = -1,
+    ):
+
+        super().__init__(sigma, atom_i_idx, atom_j_idx, atoms, active_at)
+
+    def restraint(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Parameters
+        -------
+        x : torch.Tensor
+            coordinates
+        Returns
+        -------
+        e : torch.Tensor
+        """
+        assert type(x) == torch.Tensor
+        nr_of_mols = len(x)
+        e_list = torch.tensor(
+            [0.0] * nr_of_mols, dtype=torch.double, device=self.device
+        )
+
+        # x in angstrom
+        for idx in range(nr_of_mols):
+
+            distance = torch.norm(x[idx][self.atom_i_idx] - x[idx][self.atom_j_idx])
+            e = (self.k / 2) * (distance.double() - self.mean_bond_length) ** 2
+            logger.debug("Harmonic restraint_bias introduced: {:0.4f}".format(e.item()))
             e_list[idx] += e
 
         return e_list.to(device=self.device)
@@ -351,7 +389,7 @@ class CenterOfMassFlatBottomRestraint(PointAtomRestraint):
         assert type(sigma) == unit.Quantity
         assert type(point) == unit.Quantity
         super().__init__(sigma, point.value_in_unit(unit.angstrom), active_at)
-        cutoff_radius = 0.5 * unit.angstrom
+        cutoff_radius = 0.25 * unit.angstrom
         self.cutoff_radius = cutoff_radius.value_in_unit(unit.angstrom)
         # only look at heavy atoms
         full_mass_list = [mass_dict_in_daltons[atoms[i]] for i in atom_idx]

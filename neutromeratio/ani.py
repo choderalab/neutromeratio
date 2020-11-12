@@ -200,7 +200,7 @@ class ANI2x(ANI):
         ANI2x.tweaked_neural_network = copy.deepcopy(ANI2x.original_neural_network)
 
 
-class AlchemicalANI:
+class AlchemicalANIMixin:
     def forward(self, species_coordinates_lamb):
         """
         Energy and stddev are calculated and linearly interpolated between
@@ -215,6 +215,7 @@ class AlchemicalANI:
         stddev : float
             energy in hartree
         """
+
         species, coordinates, lam, original_parameters = species_coordinates_lamb
         species_coordinates = (species, coordinates)
 
@@ -236,11 +237,6 @@ class AlchemicalANI:
         mod_coordinates_0 = torch.cat(
             (coordinates[:, :dummy_atom_0], coordinates[:, dummy_atom_0 + 1 :]), dim=1
         )
-        _, mod_aevs_0 = self.aev_computer((mod_species_0, mod_coordinates_0))
-
-        # neural net output given these modified AEVs
-        state_0 = nn((mod_species_0, mod_aevs_0))
-        _, E_0 = self.energy_shifter((mod_species_0, state_0.energies))
 
         # neural net output given these AEVs
         mod_species_1 = torch.cat(
@@ -249,11 +245,6 @@ class AlchemicalANI:
         mod_coordinates_1 = torch.cat(
             (coordinates[:, :dummy_atom_1], coordinates[:, dummy_atom_1 + 1 :]), dim=1
         )
-        _, mod_aevs_1 = self.aev_computer((mod_species_1, mod_coordinates_1))
-
-        # neural net output given these modified AEVs
-        state_1 = nn((mod_species_1, mod_aevs_1))
-        _, E_1 = self.energy_shifter((mod_species_1, state_1.energies))
 
         if not (
             mod_species_0.size()[0] == species.size()[0]
@@ -284,11 +275,37 @@ class AlchemicalANI:
                 f"Something went wrong for mod_coordinates_1. Alchemical atoms: {dummy_atom_0} and {dummy_atom_1}. Coord tensor size {mod_coordinates_1.size()} is not equal mod coord tensor {mod_coordinates_1.size()}"
             )
 
-        E = (lam * E_1) + ((1 - lam) * E_0)
-        return species, E
+        # early exit if at endpoint
+        if np.isclose(lam, 0.0, rtol=1e-5):
+            print(f"lamb 0: {lam}")
+            _, mod_aevs_0 = self.aev_computer((mod_species_0, mod_coordinates_0))
+            # neural net output given these modified AEVs
+            state_0 = nn((mod_species_0, mod_aevs_0))
+            _, E_0 = self.energy_shifter((mod_species_0, state_0.energies))
+            return species, E_0
+        elif np.isclose(lam, 1.0, rtol=1e-5):
+            print(f"lamb 1: {lam}")
+            _, mod_aevs_1 = self.aev_computer((mod_species_1, mod_coordinates_1))
+            # neural net output given these modified AEVs
+            state_1 = nn((mod_species_1, mod_aevs_1))
+            _, E_1 = self.energy_shifter((mod_species_1, state_1.energies))
+            # early exit if at endpoint
+            return species, E_1
+        else:
+            _, mod_aevs_0 = self.aev_computer((mod_species_0, mod_coordinates_0))
+            # neural net output given these modified AEVs
+            state_0 = nn((mod_species_0, mod_aevs_0))
+            _, E_0 = self.energy_shifter((mod_species_0, state_0.energies))
+            _, mod_aevs_1 = self.aev_computer((mod_species_1, mod_coordinates_1))
+            # neural net output given these modified AEVs
+            state_1 = nn((mod_species_1, mod_aevs_1))
+            _, E_1 = self.energy_shifter((mod_species_1, state_1.energies))
+            # early exit if at endpoint
+            E = (lam * E_1) + ((1 - lam) * E_0)
+            return species, E
 
 
-class AlchemicalANI1ccx(ANI1ccx, AlchemicalANI):
+class AlchemicalANI1ccx(AlchemicalANIMixin, ANI1ccx):
 
     name = "AlchemicalANI1ccx"
 
@@ -311,8 +328,7 @@ class AlchemicalANI1ccx(ANI1ccx, AlchemicalANI):
         assert self.neural_networks == None
 
 
-
-class AlchemicalANI1x(ANI1x, AlchemicalANI):
+class AlchemicalANI1x(AlchemicalANIMixin, ANI1x):
 
     name = "AlchemicalANI1x"
 
@@ -335,7 +351,7 @@ class AlchemicalANI1x(ANI1x, AlchemicalANI):
         assert self.neural_networks == None
 
 
-class AlchemicalANI2x(ANI2x, AlchemicalANI):
+class AlchemicalANI2x(AlchemicalANIMixin, ANI2x):
 
     name = "AlchemicalANI2x"
 
@@ -356,7 +372,6 @@ class AlchemicalANI2x(ANI2x, AlchemicalANI):
         self.alchemical_atoms = alchemical_atoms
         self.neural_networks = None
         assert self.neural_networks == None
-
 
 
 class ANI1_force_and_energy(object):
@@ -569,7 +584,6 @@ class ANI1_force_and_energy(object):
         self.memory_of_restrain_contribution = []
 
         if show_plot:
-            # plot 1
             plotting(
                 memory_of_energy,
                 memory_of_restrain_contribution,
@@ -678,12 +692,14 @@ class ANI1_force_and_energy(object):
         # convert energy from hartree to kT
         energy_in_kT = energy_in_hartree * hartree_to_kT
 
-        restraint_energy_contribution_in_kT = self._compute_restraint_bias(
-            coordinates, lambda_value=lambda_value
+        # restraint_energy_contribution_in_kT = self._compute_restraint_bias(
+        #     coordinates, lambda_value=lambda_value
+        # )
+
+        # energy_in_kT += restraint_energy_contribution_in_kT
+        restraint_energy_contribution_in_kT = torch.tensor(
+            [0.0] * nr_of_mols, device=self.device, dtype=torch.float64
         )
-
-        energy_in_kT += restraint_energy_contribution_in_kT
-
         return energy_in_kT, restraint_energy_contribution_in_kT
 
     def _traget_energy_function(self, x, lambda_value: float = 0.0):
