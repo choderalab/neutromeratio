@@ -277,14 +277,12 @@ class AlchemicalANIMixin:
 
         # early exit if at endpoint
         if np.isclose(lam, 0.0, rtol=1e-5):
-            print(f"lamb 0: {lam}")
             _, mod_aevs_0 = self.aev_computer((mod_species_0, mod_coordinates_0))
             # neural net output given these modified AEVs
             state_0 = nn((mod_species_0, mod_aevs_0))
             _, E_0 = self.energy_shifter((mod_species_0, state_0.energies))
             return species, E_0
         elif np.isclose(lam, 1.0, rtol=1e-5):
-            print(f"lamb 1: {lam}")
             _, mod_aevs_1 = self.aev_computer((mod_species_1, mod_coordinates_1))
             # neural net output given these modified AEVs
             state_1 = nn((mod_species_1, mod_aevs_1))
