@@ -18,6 +18,7 @@ from openmmtools.utils import is_quantity_close
 import pandas as pd
 from rdkit import Chem
 import pytest_benchmark
+from neutromeratio.constants import device
 
 
 def _get_traj(traj_path, top_path, remove_idx=None):
@@ -559,20 +560,19 @@ def test_setup_tautomer_system_in_droplet_with_pdbs():
         energy_function.calculate_force(x0, lambda_value)
 
 
-def test_neutromeratio_energy_calculations_with_torchANI_model():
+def test_neutromeratio_energy_calculations_with_ANI_in_vacuum():
 
     from ..tautomers import Tautomer
     from ..constants import kT
     from ..analysis import setup_alchemical_system_and_energy_function
     import numpy as np
-    from ..ani import AlchemicalANI1ccx, AlchemicalANI2x
+    from ..ani import AlchemicalANI1ccx, ANI1ccx, ANI2x
 
     # read in exp_results.pickle
     with open("data/test_data/exp_results.pickle", "rb") as f:
         exp_results = pickle.load(f)
 
     # vacuum system
-    # generate smiles
     name = "molDWRow_298"
     energy_function, tautomer, flipped = setup_alchemical_system_and_energy_function(
         name=name, ANImodel=AlchemicalANI1ccx, env="vacuum"
@@ -586,6 +586,8 @@ def test_neutromeratio_energy_calculations_with_torchANI_model():
     traj, top = _get_traj(traj_path, top_path, tautomer.hybrid_hydrogen_idx_at_lambda_0)
     coordinates = [x.xyz[0] for x in traj[:10]] * unit.nanometer
 
+    # test energies with neutromeratio ANI objects
+    # first with ANI1ccx
     model = neutromeratio.ani.ANI1ccx()
     torch.set_num_threads(1)
     energy_function = neutromeratio.ANI1_force_and_energy(
@@ -599,6 +601,7 @@ def test_neutromeratio_energy_calculations_with_torchANI_model():
         rtol=1e-5,
     )
 
+    # with ANI2x
     model = neutromeratio.ani.ANI2x()
     torch.set_num_threads(1)
     energy_function = neutromeratio.ANI1_force_and_energy(
@@ -611,6 +614,147 @@ def test_neutromeratio_energy_calculations_with_torchANI_model():
         (-907243.8987177598 * unit.kilojoule_per_mole),
         rtol=1e-5,
     )
+
+
+def test_neutromeratio_energy_calculations_with_AlchemicalANI1ccx():
+    from ..tautomers import Tautomer
+    import numpy as np
+    from ..constants import kT
+    from ..analysis import setup_alchemical_system_and_energy_function
+    from ..ani import AlchemicalANI1ccx, AlchemicalANI2x, ANI1ccx
+
+    # read in exp_results.pickle
+    with open("data/test_data/exp_results.pickle", "rb") as f:
+        exp_results = pickle.load(f)
+
+    ######################################################################
+    # vacuum
+    ######################################################################
+    name = "molDWRow_298"
+    energy_function, tautomer, flipped = setup_alchemical_system_and_energy_function(
+        name=name, env="vacuum", ANImodel=AlchemicalANI1ccx
+    )
+    # read in pregenerated traj
+    traj_path = (
+        "data/test_data/vacuum/molDWRow_298/molDWRow_298_lambda_0.0000_in_vacuum.dcd"
+    )
+    top_path = "data/test_data/vacuum/molDWRow_298/molDWRow_298.pdb"
+    traj, top = _get_traj(traj_path, top_path, None)
+
+    x0 = [x.xyz[0] for x in traj[:10]] * unit.nanometer
+
+    energy_1 = energy_function.calculate_energy(x0, lambda_value=1.0)
+    for e1, e2 in zip(
+        energy_1.energy,
+        [
+            -906555.29945346,
+            -905750.20471091,
+            -906317.24952004,
+            -906545.17543265,
+            -906581.65215098,
+            -906618.2832786,
+            -906565.05631782,
+            -905981.82167316,
+            -904681.20632002,
+            -904296.8214631,
+        ]
+        * unit.kilojoule_per_mole,
+    ):
+        assert is_quantity_close(e1, e2, rtol=1e-2)
+
+
+def test_neutromeratio_energy_calculations_with_AlchemicalANI2x_in_vacuum():
+
+    from ..tautomers import Tautomer
+    from ..constants import kT
+    from ..analysis import setup_alchemical_system_and_energy_function
+    import numpy as np
+    from ..ani import AlchemicalANI2x, ANI1ccx, ANI2x, AlchemicalANI1ccx
+
+    # read in exp_results.pickle
+    with open("data/test_data/exp_results.pickle", "rb") as f:
+        exp_results = pickle.load(f)
+
+    # vacuum system
+    name = "molDWRow_298"
+    energy_function, tautomer, flipped = setup_alchemical_system_and_energy_function(
+        name=name, ANImodel=AlchemicalANI2x, env="vacuum"
+    )
+
+    # read in pregenerated traj
+    traj_path = (
+        "data/test_data/vacuum/molDWRow_298/molDWRow_298_lambda_0.0000_in_vacuum.dcd"
+    )
+    top_path = "data/test_data/vacuum/molDWRow_298/molDWRow_298.pdb"
+
+    # test energies with neutromeratio ANI objects
+    # with ANI2x
+    model = neutromeratio.ani.ANI2x()
+    # final state
+    traj, top = _get_traj(traj_path, top_path, tautomer.hybrid_hydrogen_idx_at_lambda_1)
+    coordinates = [x.xyz[0] for x in traj[:10]] * unit.nanometer
+    assert len(tautomer.initial_state_ligand_atoms) == len(coordinates[0])
+    energy_function = neutromeratio.ANI1_force_and_energy(
+        model=model, atoms=tautomer.final_state_ligand_atoms, mol=None
+    )
+    ANI2x_energy_final_state = energy_function.calculate_energy(
+        coordinates,
+    )
+    # initial state
+    traj, top = _get_traj(traj_path, top_path, tautomer.hybrid_hydrogen_idx_at_lambda_0)
+    coordinates = [x.xyz[0] for x in traj[:10]] * unit.nanometer
+    energy_function = neutromeratio.ANI1_force_and_energy(
+        model=model, atoms=tautomer.initial_state_ligand_atoms, mol=None
+    )
+    ANI2x_energy_initial_state = energy_function.calculate_energy(
+        coordinates,
+    )
+
+    assert is_quantity_close(
+        ANI2x_energy_initial_state.energy[0].in_units_of(unit.kilojoule_per_mole),
+        (-907243.8987177598 * unit.kilojoule_per_mole),
+        rtol=1e-5,
+    )
+
+    # compare with energies for AlchemicalANI object
+    # vacuum system
+    traj, top = _get_traj(traj_path, top_path, None)
+    coordinates = [x.xyz[0] for x in traj[:10]] * unit.nanometer
+
+    energy_function, tautomer, flipped = setup_alchemical_system_and_energy_function(
+        name=name, ANImodel=AlchemicalANI2x, env="vacuum"
+    )
+    AlchemicalANI2x_energy_lambda_0 = energy_function.calculate_energy(
+        coordinates, lambda_value=0.0
+    )
+    AlchemicalANI2x_energy_lambda_1 = energy_function.calculate_energy(
+        coordinates, lambda_value=1.0
+    )
+
+    # making sure that the AlchemicalANI and the ANI results are the same on the endstates (with removed dummy atoms)
+    assert is_quantity_close(
+        AlchemicalANI2x_energy_lambda_1.energy[0].in_units_of(unit.kilojoule_per_mole),
+        (-907243.8987177598 * unit.kilojoule_per_mole),
+        rtol=1e-5,
+    )
+
+    assert is_quantity_close(
+        AlchemicalANI2x_energy_lambda_0.energy[0].in_units_of(unit.kilojoule_per_mole),
+        ANI2x_energy_final_state.energy[0].in_units_of(unit.kilojoule_per_mole),
+        rtol=1e-5,
+    )
+
+
+def test_neutromeratio_energy_calculations_with_ANI_in_droplet():
+    from ..tautomers import Tautomer
+    from ..constants import kT
+    from ..analysis import setup_alchemical_system_and_energy_function
+    import numpy as np
+    from ..ani import AlchemicalANI1ccx
+
+    # read in exp_results.pickle
+    with open("data/test_data/exp_results.pickle", "rb") as f:
+        exp_results = pickle.load(f)
 
     # droplet system
     name = "molDWRow_298"
@@ -672,12 +816,12 @@ def test_neutromeratio_energy_calculations_with_torchANI_model():
     )
 
 
-def test_neutromeratio_energy_calculations_LinearAlchemicalSingleTopologyANI_model():
+def test_neutromeratio_energy_calculations_with_AlchemicalANI1ccx_in_vacuum():
     from ..tautomers import Tautomer
     import numpy as np
     from ..constants import kT
     from ..analysis import setup_alchemical_system_and_energy_function
-    from ..ani import AlchemicalANI1ccx, AlchemicalANI2x, ANI1ccx
+    from ..ani import AlchemicalANI1ccx, ANI1ccx
 
     # read in exp_results.pickle
     with open("data/test_data/exp_results.pickle", "rb") as f:
@@ -700,11 +844,6 @@ def test_neutromeratio_energy_calculations_LinearAlchemicalSingleTopologyANI_mod
     x0 = [x.xyz[0] for x in traj[:10]] * unit.nanometer
 
     energy_1 = energy_function.calculate_energy(x0, lambda_value=1.0)
-    assert is_quantity_close(
-        energy_1.energy[0].in_units_of(unit.kilojoule_per_mole),
-        (-906555.29945346 * unit.kilojoule_per_mole),
-        rtol=1e-9,
-    )
     for e1, e2 in zip(
         energy_1.energy,
         [
@@ -756,6 +895,18 @@ def test_neutromeratio_energy_calculations_LinearAlchemicalSingleTopologyANI_mod
         energy_1.energy[0], energy_function.calculate_energy(coordinates).energy
     )
 
+
+def test_neutromeratio_energy_calculations_with_AlchemicalANI1ccx_in_droplet():
+    from ..tautomers import Tautomer
+    import numpy as np
+    from ..constants import kT
+    from ..analysis import setup_alchemical_system_and_energy_function
+    from ..ani import AlchemicalANI1ccx, ANI1ccx
+
+    # read in exp_results.pickle
+    with open("data/test_data/exp_results.pickle", "rb") as f:
+        exp_results = pickle.load(f)
+
     ######################################################################
     # droplet
     ######################################################################
@@ -783,35 +934,43 @@ def test_neutromeratio_energy_calculations_LinearAlchemicalSingleTopologyANI_mod
     assert len(tautomer.ligand_in_water_atoms) == len(x0[0])
     print(energy_1.energy.in_units_of(unit.kilojoule_per_mole))
 
-    assert is_quantity_close(
-        energy_1.energy[0].in_units_of(unit.kilojoule_per_mole),
-        (-3514012.0189345023 * unit.kilojoule_per_mole),
-    )
-
     print(energy_1.energy)
 
     for e1, e2 in zip(
         energy_1.energy,
         [
-            -3514012.0189345,
-            -3513761.98599683,
-            -3512651.99899356,
-            -3512165.56103391,
-            -3512430.46443792,
-            -3513920.44593493,
-            -3513994.53244316,
-            -3513939.81006557,
-            -3513953.88784989,
-            -3514042.61053316,
+            -3514015.25593752,
+            -3513765.22323459,
+            -3512655.23621176,
+            -3512175.08728504,
+            -3512434.17610022,
+            -3513923.68325093,
+            -3513997.76968092,
+            -3513949.58322023,
+            -3513957.74678051,
+            -3514045.84769267,
+        ]
+        * unit.kilojoule_per_mole,
+    ):
+        assert is_quantity_close(e1, e2, rtol=1e-5)
+    for e1, e2 in zip(
+        energy_0.energy,
+        [
+            -3514410.82062014,
+            -3514352.85161146,
+            -3514328.06891661,
+            -3514324.15896465,
+            -3514323.94519662,
+            -3514326.6575155,
+            -3514320.69798817,
+            -3514326.79413299,
+            -3514309.49535377,
+            -3514308.0598529,
         ]
         * unit.kilojoule_per_mole,
     ):
         assert is_quantity_close(e1, e2, rtol=1e-5)
 
-    assert is_quantity_close(
-        energy_0.energy[0].in_units_of(unit.kilojoule_per_mole),
-        (-3514407.5832258887 * unit.kilojoule_per_mole),
-    )
     ######################################################################
     # compare with ANI1ccx -- test1
     name = "molDWRow_298"
@@ -822,12 +981,6 @@ def test_neutromeratio_energy_calculations_LinearAlchemicalSingleTopologyANI_mod
         base_path="data/test_data/droplet/molDWRow_298/",
         diameter=10,
     )
-    # read in pregenerated traj
-    traj_path = (
-        "data/test_data/droplet/molDWRow_298/molDWRow_298_lambda_0.0000_in_droplet.dcd"
-    )
-    top_path = "data/test_data/droplet/molDWRow_298/molDWRow_298_in_droplet.pdb"
-    traj, top = _get_traj(traj_path, top_path, None)
     # remove restraints
     energy_function.list_of_lambda_restraints = []
 
@@ -949,18 +1102,22 @@ def test_restraint():
     ] * unit.angstrom
 
     coordinates = torch.tensor(
-        x0.value_in_unit(unit.nanometer),
+        x0.value_in_unit(unit.angstrom),
         requires_grad=True,
         device=device,
         dtype=torch.float32,
     )
 
-    e1 = harmonic.restraint(coordinates).item()
-    e2 = flat_bottom.restraint(coordinates).item()
+    e1 = harmonic.restraint(
+        coordinates
+    ).item()  # restraint() takes coordinates in Angstrom
+    e2 = flat_bottom.restraint(
+        coordinates
+    ).item()  # restraint() takes coordinates in Angstrom
     print("Restraing: {}.".format(e1))
     print("Restraing: {}.".format(e2))
-    assert np.isclose(e1, 63.12599729195536, rtol=1e-5)
-    assert np.isclose(e2, 12.09728300893802, rtol=1e-5)
+    assert np.isclose(e1, 267.8730557591876574, rtol=1e-5)
+    assert np.isclose(e2, 141.6041861927414, rtol=1e-5)
 
     # testing BondHarmonicRestraint and BondFlatBottomRestraint for batch coordinate set
 
@@ -1002,7 +1159,7 @@ def test_restraint():
     ] * unit.angstrom
 
     coordinates = torch.tensor(
-        x0.value_in_unit(unit.nanometer),
+        x0.value_in_unit(unit.angstrom),
         requires_grad=True,
         device=device,
         dtype=torch.float32,
@@ -1010,13 +1167,13 @@ def test_restraint():
 
     e1 = harmonic.restraint(coordinates).detach()
     e2 = flat_bottom.restraint(coordinates).detach()
-    print("Restraing: {}.".format(e1))
-    print("Restraing: {}.".format(e2))
-    assert np.isclose(e1[0], 63.12599729195536, rtol=1e-5)
-    assert np.isclose(e2[0], 12.09728300893802, rtol=1e-5)
+    print("Restraing: {}.".format(e1))  # restraint() takes coordinates in Angstrom
+    print("Restraing: {}.".format(e2))  # restraint() takes coordinates in Angstrom
+    assert np.isclose(e1[0], 267.8731, rtol=1e-5)
+    assert np.isclose(e2[0], 141.6042, rtol=1e-5)
 
-    assert np.isclose(e1[1], 62.9487, rtol=1e-5)
-    assert np.isclose(e2[1], 12.0197, rtol=1e-5)
+    assert np.isclose(e1[1], 271.5412, rtol=1e-5)
+    assert np.isclose(e2[1], 144.2746, rtol=1e-5)
 
     # test COM restraint for batch
 
@@ -1029,17 +1186,19 @@ def test_restraint():
 
     center = np.array([0.0, 0.0, 0.0]) * unit.angstrom
 
-    com_restraint = neutromeratio.restraints.CenterOfMassRestraint(
+    com_restraint = neutromeratio.restraints.CenterOfMassFlatBottomRestraint(
         sigma=0.1 * unit.angstrom,
         atom_idx=tautomer.hybrid_ligand_idxs[:-2],
         atoms=tautomer.hybrid_atoms[:-2],
         point=center,
     )
 
-    e1 = com_restraint.restraint(coordinates).detach()
+    e1 = com_restraint.restraint(
+        coordinates
+    ).detach()  # restraint() takes coordinates in Angstrom
     print("Restraing: {}.".format(e1))
-    assert np.isclose(e1[0], 0.1820, rtol=1e-3)
-    assert np.isclose(e1[1], 0.1823, rtol=1e-3)
+    assert np.isclose(e1[0], 0.0, rtol=1e-3)
+    assert np.isclose(e1[1], 0.0, rtol=1e-3)
 
 
 def test_restraint_with_AlchemicalANI1ccx():
@@ -1047,10 +1206,6 @@ def test_restraint_with_AlchemicalANI1ccx():
     from ..constants import kT
     from ..ani import AlchemicalANI1ccx
     from ..analysis import setup_alchemical_system_and_energy_function
-
-    # read in exp_results.pickle
-    with open("data/test_data/exp_results.pickle", "rb") as f:
-        exp_results = pickle.load(f)
 
     # generate tautomer object
     name = "molDWRow_298"
@@ -1067,6 +1222,9 @@ def test_restraint_with_AlchemicalANI1ccx():
     x0 = [x.xyz[0] for x in traj[0]] * unit.nanometer
 
     energy = energy_function.calculate_energy(x0, lambda_value=0.0)
+    e_ = energy.energy.value_in_unit(unit.kilojoule_per_mole)
+    print(e_)
+    print(energy)
     assert is_quantity_close(
         energy.energy.in_units_of(unit.kilojoule_per_mole),
         (-906912.01647632 * unit.kilojoule_per_mole),
@@ -1116,6 +1274,155 @@ def test_restraint_with_AlchemicalANI1ccx_for_batches_in_vacuum():
         np.isclose(e, comp_e, rtol=1e-6)
 
 
+def test_COM_restraint_with_AlchemicalANI1ccx_for_batches_in_droplet():
+    import numpy as np
+    from ..constants import kT
+    from ..ani import AlchemicalANI2x
+    from ..analysis import setup_alchemical_system_and_energy_function
+
+    # read in exp_results.pickle
+    with open("data/test_data/exp_results.pickle", "rb") as f:
+        exp_results = pickle.load(f)
+
+    # generate smiles
+    name = "molDWRow_298"
+    energy_function, tautomer, flipped = setup_alchemical_system_and_energy_function(
+        name=name,
+        env="droplet",
+        ANImodel=AlchemicalANI2x,
+        diameter=10,
+        base_path=f"data/test_data/droplet/{name}",
+    )
+
+    # read in pregenerated traj
+    traj_path = (
+        "data/test_data/droplet/molDWRow_298/molDWRow_298_lambda_0.0000_in_droplet.dcd"
+    )
+    top_path = "data/test_data/droplet/molDWRow_298/molDWRow_298_in_droplet.pdb"
+    traj, top = _get_traj(traj_path, top_path, None)
+    x0 = [x.xyz[0] for x in traj[:10]] * unit.nanometer
+
+    coordinates = torch.tensor(
+        x0.value_in_unit(unit.nanometers),
+        requires_grad=True,
+        device=device,
+        dtype=torch.float32,
+    )
+
+    r = energy_function._compute_restraint_bias(coordinates, lambda_value=0.0)
+    r = r.detach().tolist()
+
+    full_restraints = [
+        0.4100764785669023,
+        0.03667892693933966,
+        0.0464554783605855,
+        1.6675558008972122,
+        1.6304614437658922,
+        2.7633326202414183,
+        3.7763598532698115,
+        9.16871744958779,
+        5.977379445002653,
+        3.429661035102869,
+    ]
+    np.isclose(r, full_restraints)
+
+    print(energy_function.list_of_lambda_restraints[-1])
+
+    coordinates = torch.tensor(
+        x0.value_in_unit(unit.angstrom),
+        requires_grad=True,
+        device=device,
+        dtype=torch.float32,
+    )
+
+    com_restraint = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+    com_r = (
+        energy_function.list_of_lambda_restraints[-1].restraint(coordinates).tolist()
+    )
+    np.isclose(com_restraint, com_r)
+
+
+def test_droplet_bottom_restraint_with_AlchemicalANI1ccx_for_batches():
+    import numpy as np
+    from ..constants import kT, kJ_mol_to_kT
+    from ..ani import AlchemicalANI2x
+    from ..analysis import setup_alchemical_system_and_energy_function
+    from ..restraints import CenterFlatBottomRestraint
+
+    name = "molDWRow_298"
+    energy_function, tautomer, flipped = setup_alchemical_system_and_energy_function(
+        name=name,
+        env="droplet",
+        ANImodel=AlchemicalANI2x,
+        diameter=10,
+        base_path=f"data/test_data/droplet/{name}",
+    )
+
+    # read in pregenerated traj
+    traj_path = (
+        "data/test_data/droplet/molDWRow_298/molDWRow_298_lambda_0.0000_in_droplet.dcd"
+    )
+    top_path = "data/test_data/droplet/molDWRow_298/molDWRow_298_in_droplet.pdb"
+    traj, top = _get_traj(traj_path, top_path, None)
+    x0 = [x.xyz[0] for x in traj[:10]] * unit.nanometer
+
+    coordinates = torch.tensor(
+        x0.value_in_unit(unit.nanometers),
+        requires_grad=True,
+        device=device,
+        dtype=torch.float32,
+    )
+
+    r = energy_function._compute_restraint_bias(coordinates, lambda_value=0.0)
+    r = r.detach().tolist()
+
+    full_restraints = [
+        0.4100764785669023,
+        0.03667892693933966,
+        0.0464554783605855,
+        1.6675558008972122,
+        1.6304614437658922,
+        2.7633326202414183,
+        3.7763598532698115,
+        9.16871744958779,
+        5.977379445002653,
+        3.429661035102869,
+    ]
+    np.isclose(r, full_restraints)
+
+    coordinates = torch.tensor(
+        x0.value_in_unit(unit.angstrom),
+        requires_grad=True,
+        device=device,
+        dtype=torch.float32,
+    )
+    nr_of_mols = len(coordinates)
+    droplet_restraint = torch.tensor(
+        [0.0] * nr_of_mols, device=device, dtype=torch.float64
+    )
+
+    for r in energy_function.list_of_lambda_restraints:
+        if isinstance(r, CenterFlatBottomRestraint):
+            c = r.restraint(coordinates)
+            droplet_restraint += c * kJ_mol_to_kT
+    print(droplet_restraint.tolist())
+
+    only_droplet_restrain_energies = [
+        0.19625303281218226,
+        0.03667892693933966,
+        0.0464554783605855,
+        0.4731166597911941,
+        1.6304614437658922,
+        2.7633326202414183,
+        3.7763598532698115,
+        4.700956016051697,
+        4.988977610418124,
+        3.429661035102869,
+    ]
+    np.isclose(droplet_restraint.tolist(), only_droplet_restrain_energies, rtol=1e-6)
+
+
 def test_restraint_with_AlchemicalANI1ccx_for_batches_in_droplet():
     import numpy as np
     from ..constants import kT
@@ -1147,22 +1454,20 @@ def test_restraint_with_AlchemicalANI1ccx_for_batches_in_droplet():
     energy = energy_function.calculate_energy(x0, lambda_value=0.0)
     e_ = list(energy.energy.value_in_unit(unit.kilojoule_per_mole))
     comp_ = [
-        -3515625.4771188204,
-        -3515541.0329574747,
-        -3515510.1885154014,
-        -3515502.189182898,
-        -3515504.657348419,
-        -3515502.8895208393,
-        -3515494.111220217,
-        -3515486.193356259,
-        -3515484.571244118,
-        -3515479.2295892546,
+        -3515628.7141218423,
+        -3515543.79281359,
+        -3515512.8337717773,
+        -3515512.0131278695,
+        -3515511.2858314235,
+        -3515511.58966059,
+        -3515504.9864817774,
+        -3515505.5672234907,
+        -3515498.497307367,
+        -3515488.45506095,
     ]
-
     for e, comp_e in zip(e_, comp_):
-        print(e)
-        print(comp_e)
-        np.isclose(float(e), float(comp_e), rtol=1e-5)
+        np.isclose(float(e), float(comp_e), rtol=1e-9)
+
 
 
 def test_min_and_single_point_energy():
@@ -3058,7 +3363,7 @@ def test_timing_for_single_energy_calculation_with_AlchemicalANI_10_snapshots_ba
     benchmark,
 ):
     from ..analysis import setup_alchemical_system_and_energy_function
-    from ..ani import AlchemicalANI1ccx, AlchemicalANI2x
+    from ..ani import AlchemicalANI2x
 
     # NOTE: Sometimes this test fails? something wrong with molDWRow_68?
     from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
@@ -3244,7 +3549,7 @@ def test_timing_for_single_energy_calculation_with_AlchemicalANI_200_snapshot_ba
     import random, shutil
     from ..constants import _get_names
 
-    torch.set_num_threads(4)
+    torch.set_num_threads(1)
 
     names = _get_names()
     lambda_value = 0.1
@@ -3285,7 +3590,7 @@ def test_timing_for_single_energy_calculation_with_AlchemicalANI_500_snapshot_ba
     import random, shutil
     from ..constants import _get_names
 
-    torch.set_num_threads(4)
+    torch.set_num_threads(1)
 
     names = _get_names()
     lambda_value = 0.1
@@ -3326,10 +3631,92 @@ def test_timing_for_single_energy_calculation_with_AlchemicalANI_1100_snapshot_b
     import random, shutil
     from ..constants import _get_names
 
-    torch.set_num_threads(4)
+    torch.set_num_threads(1)
 
     names = _get_names()
     lambda_value = 0.1
+    name = "molDWRow_298"
+
+    (energy_function, tautomer, flipped,) = setup_alchemical_system_and_energy_function(
+        name=name,
+        env="droplet",
+        ANImodel=AlchemicalANI2x,
+        base_path=f"data/test_data/droplet/{name}",
+        diameter=10,
+    )
+    traj_path = (
+        "data/test_data/droplet/molDWRow_298/molDWRow_298_lambda_0.0000_in_droplet.dcd"
+    )
+    top_path = "data/test_data/droplet/molDWRow_298/molDWRow_298_in_droplet.pdb"
+    traj, top = _get_traj(traj_path, top_path, None)
+    coordinates = [x.xyz[0] for x in traj[:1100]] * unit.nanometer
+
+    def wrap1():
+        energy_function.calculate_energy(coordinates, lambda_value)
+
+    benchmark(wrap1)
+
+
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
+@pytest.mark.benchmark(min_rounds=3)
+def test_timing_for_single_energy_calculation_with_AlchemicalANI_1100_snapshot_batch_lambda_0(
+    benchmark,
+):
+    from ..analysis import setup_alchemical_system_and_energy_function
+    from ..ani import AlchemicalANI1ccx, AlchemicalANI2x
+
+    # NOTE: Sometimes this test fails? something wrong with molDWRow_68?
+    from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
+    import random, shutil
+    from ..constants import _get_names
+
+    torch.set_num_threads(4)
+
+    names = _get_names()
+    lambda_value = 0.0
+    name = "molDWRow_298"
+
+    (energy_function, tautomer, flipped,) = setup_alchemical_system_and_energy_function(
+        name=name,
+        env="droplet",
+        ANImodel=AlchemicalANI2x,
+        base_path=f"data/test_data/droplet/{name}",
+        diameter=10,
+    )
+    traj_path = (
+        "data/test_data/droplet/molDWRow_298/molDWRow_298_lambda_0.0000_in_droplet.dcd"
+    )
+    top_path = "data/test_data/droplet/molDWRow_298/molDWRow_298_in_droplet.pdb"
+    traj, top = _get_traj(traj_path, top_path, None)
+    coordinates = [x.xyz[0] for x in traj[:1100]] * unit.nanometer
+
+    def wrap1():
+        energy_function.calculate_energy(coordinates, lambda_value)
+
+    benchmark(wrap1)
+
+
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
+@pytest.mark.benchmark(min_rounds=3)
+def test_timing_for_single_energy_calculation_with_AlchemicalANI_1100_snapshot_batch_lambda_1(
+    benchmark,
+):
+    from ..analysis import setup_alchemical_system_and_energy_function
+    from ..ani import AlchemicalANI1ccx, AlchemicalANI2x
+
+    # NOTE: Sometimes this test fails? something wrong with molDWRow_68?
+    from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
+    import random, shutil
+    from ..constants import _get_names
+
+    torch.set_num_threads(4)
+
+    names = _get_names()
+    lambda_value = 1.0
     name = "molDWRow_298"
 
     (energy_function, tautomer, flipped,) = setup_alchemical_system_and_energy_function(
