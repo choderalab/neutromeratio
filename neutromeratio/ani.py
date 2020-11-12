@@ -167,6 +167,7 @@ class ANI1ccx(ANI):
 
     tweaked_neural_network = None
     original_neural_network = None
+    name = "ANI1ccx"
 
     def __init__(self, periodic_table_index: bool = False):
         info_file = "ani-1ccx_8x.info"
@@ -199,7 +200,95 @@ class ANI2x(ANI):
         ANI2x.tweaked_neural_network = copy.deepcopy(ANI2x.original_neural_network)
 
 
-class AlchemicalANI1ccx(ANI1ccx):
+class AlchemicalANI:
+    def forward(self, species_coordinates_lamb):
+        """
+        Energy and stddev are calculated and linearly interpolated between
+        the physical endstates at lambda 0 and lamb 1.
+        Parameters
+        ----------
+        species_coordinates
+        Returns
+        ----------
+        E : float
+            energy in hartree
+        stddev : float
+            energy in hartree
+        """
+        species, coordinates, lam, original_parameters = species_coordinates_lamb
+        species_coordinates = (species, coordinates)
+
+        if original_parameters:
+            logger.debug("Using original neural network parameters.")
+            nn = self.original_neural_network
+        else:
+            nn = self.tweaked_neural_network
+            logger.debug("Using possibly tweaked neural network parameters.")
+
+        # setting dummy atoms
+        dummy_atom_0 = self.alchemical_atoms[0]
+        dummy_atom_1 = self.alchemical_atoms[1]
+
+        # neural net output given these AEVs
+        mod_species_0 = torch.cat(
+            (species[:, :dummy_atom_0], species[:, dummy_atom_0 + 1 :]), dim=1
+        )
+        mod_coordinates_0 = torch.cat(
+            (coordinates[:, :dummy_atom_0], coordinates[:, dummy_atom_0 + 1 :]), dim=1
+        )
+        _, mod_aevs_0 = self.aev_computer((mod_species_0, mod_coordinates_0))
+
+        # neural net output given these modified AEVs
+        state_0 = nn((mod_species_0, mod_aevs_0))
+        _, E_0 = self.energy_shifter((mod_species_0, state_0.energies))
+
+        # neural net output given these AEVs
+        mod_species_1 = torch.cat(
+            (species[:, :dummy_atom_1], species[:, dummy_atom_1 + 1 :]), dim=1
+        )
+        mod_coordinates_1 = torch.cat(
+            (coordinates[:, :dummy_atom_1], coordinates[:, dummy_atom_1 + 1 :]), dim=1
+        )
+        _, mod_aevs_1 = self.aev_computer((mod_species_1, mod_coordinates_1))
+
+        # neural net output given these modified AEVs
+        state_1 = nn((mod_species_1, mod_aevs_1))
+        _, E_1 = self.energy_shifter((mod_species_1, state_1.energies))
+
+        if not (
+            mod_species_0.size()[0] == species.size()[0]
+            and mod_species_0.size()[1] == species.size()[1] - 1
+        ):
+            raise RuntimeError(
+                f"Something went wrong for mod_species_0. Alchemical atoms: {dummy_atom_0} and {dummy_atom_1}. Species tensor size {mod_species_0.size()} is not equal mod species tensor {mod_species_0.size()}"
+            )
+        if not (
+            mod_species_1.size()[0] == species.size()[0]
+            and mod_species_1.size()[1] == species.size()[1] - 1
+        ):
+            raise RuntimeError(
+                f"Something went wrong for mod_species_1. Alchemical atoms: {dummy_atom_0} and {dummy_atom_1}. Species tensor size {mod_species_1.size()} is not equal mod species tensor {mod_species_1.size()}"
+            )
+        if not (
+            mod_coordinates_0.size()[0] == coordinates.size()[0]
+            and mod_coordinates_0.size()[1] == coordinates.size()[1] - 1
+        ):
+            raise RuntimeError(
+                f"Something went wrong for mod_coordinates_0. Alchemical atoms: {dummy_atom_0} and {dummy_atom_1}. Coord tensor size {mod_coordinates_0.size()} is not equal mod coord tensor {mod_coordinates_0.size()}"
+            )
+        if not (
+            mod_coordinates_1.size()[0] == coordinates.size()[0]
+            and mod_coordinates_1.size()[1] == coordinates.size()[1] - 1
+        ):
+            raise RuntimeError(
+                f"Something went wrong for mod_coordinates_1. Alchemical atoms: {dummy_atom_0} and {dummy_atom_1}. Coord tensor size {mod_coordinates_1.size()} is not equal mod coord tensor {mod_coordinates_1.size()}"
+            )
+
+        E = (lam * E_1) + ((1 - lam) * E_0)
+        return species, E
+
+
+class AlchemicalANI1ccx(ANI1ccx, AlchemicalANI):
 
     name = "AlchemicalANI1ccx"
 
@@ -221,95 +310,9 @@ class AlchemicalANI1ccx(ANI1ccx):
         self.neural_networks = None
         assert self.neural_networks == None
 
-    def forward(self, species_coordinates_lamb):
-        """
-        Energy and stddev are calculated and linearly interpolated between
-        the physical endstates at lambda 0 and lamb 1.
-        Parameters
-        ----------
-        species_coordinates
-        Returns
-        ----------
-        E : float
-            energy in hartree
-        stddev : float
-            energy in hartree
-
-        """
-        species, coordinates, lam, original_parameters = species_coordinates_lamb
-        species_coordinates = (species, coordinates)
-
-        if original_parameters:
-            logger.debug("Using original neural network parameters.")
-            nn = self.original_neural_network
-        else:
-            nn = self.tweaked_neural_network
-            logger.debug("Using possibly tweaked neural network parameters.")
-
-        # setting dummy atoms
-        dummy_atom_0 = self.alchemical_atoms[0]
-        dummy_atom_1 = self.alchemical_atoms[1]
-
-        # neural net output given these AEVs
-        mod_species_0 = torch.cat(
-            (species[:, :dummy_atom_0], species[:, dummy_atom_0 + 1 :]), dim=1
-        )
-        mod_coordinates_0 = torch.cat(
-            (coordinates[:, :dummy_atom_0], coordinates[:, dummy_atom_0 + 1 :]), dim=1
-        )
-        _, mod_aevs_0 = self.aev_computer((mod_species_0, mod_coordinates_0))
-
-        # neural net output given these modified AEVs
-        state_0 = nn((mod_species_0, mod_aevs_0))
-        _, E_0 = self.energy_shifter((mod_species_0, state_0.energies))
-
-        # neural net output given these AEVs
-        mod_species_1 = torch.cat(
-            (species[:, :dummy_atom_1], species[:, dummy_atom_1 + 1 :]), dim=1
-        )
-        mod_coordinates_1 = torch.cat(
-            (coordinates[:, :dummy_atom_1], coordinates[:, dummy_atom_1 + 1 :]), dim=1
-        )
-        _, mod_aevs_1 = self.aev_computer((mod_species_1, mod_coordinates_1))
-
-        # neural net output given these modified AEVs
-        state_1 = nn((mod_species_1, mod_aevs_1))
-        _, E_1 = self.energy_shifter((mod_species_1, state_1.energies))
-
-        if not (
-            mod_species_0.size()[0] == species.size()[0]
-            and mod_species_0.size()[1] == species.size()[1] - 1
-        ):
-            raise RuntimeError(
-                f"Something went wrong for mod_species_0. Alchemical atoms: {dummy_atom_0} and {dummy_atom_1}. Species tensor size {mod_species_0.size()} is not equal mod species tensor {mod_species_0.size()}"
-            )
-        if not (
-            mod_species_1.size()[0] == species.size()[0]
-            and mod_species_1.size()[1] == species.size()[1] - 1
-        ):
-            raise RuntimeError(
-                f"Something went wrong for mod_species_1. Alchemical atoms: {dummy_atom_0} and {dummy_atom_1}. Species tensor size {mod_species_1.size()} is not equal mod species tensor {mod_species_1.size()}"
-            )
-        if not (
-            mod_coordinates_0.size()[0] == coordinates.size()[0]
-            and mod_coordinates_0.size()[1] == coordinates.size()[1] - 1
-        ):
-            raise RuntimeError(
-                f"Something went wrong for mod_coordinates_0. Alchemical atoms: {dummy_atom_0} and {dummy_atom_1}. Coord tensor size {mod_coordinates_0.size()} is not equal mod coord tensor {mod_coordinates_0.size()}"
-            )
-        if not (
-            mod_coordinates_1.size()[0] == coordinates.size()[0]
-            and mod_coordinates_1.size()[1] == coordinates.size()[1] - 1
-        ):
-            raise RuntimeError(
-                f"Something went wrong for mod_coordinates_1. Alchemical atoms: {dummy_atom_0} and {dummy_atom_1}. Coord tensor size {mod_coordinates_1.size()} is not equal mod coord tensor {mod_coordinates_1.size()}"
-            )
-
-        E = (lam * E_1) + ((1 - lam) * E_0)
-        return species, E
 
 
-class AlchemicalANI1x(ANI1x):
+class AlchemicalANI1x(ANI1x, AlchemicalANI):
 
     name = "AlchemicalANI1x"
 
@@ -331,96 +334,8 @@ class AlchemicalANI1x(ANI1x):
         self.neural_networks = None
         assert self.neural_networks == None
 
-    def forward(self, species_coordinates_lamb):
-        """
-        Energy and stddev are calculated and linearly interpolated between
-        the physical endstates at lambda 0 and lamb 1.
-        Parameters
-        ----------
-        species_coordinates
-        Returns
-        ----------
-        E : float
-            energy in hartree
-        stddev : float
-            energy in hartree
 
-        """
-        species, coordinates, lam, original_parameters = species_coordinates_lamb
-        species_coordinates = (species, coordinates)
-
-        if original_parameters:
-            logger.debug("Using original neural network parameters.")
-            nn = self.original_neural_network
-        else:
-            nn = self.tweaked_neural_network
-            logger.debug("Using possibly tweaked neural network parameters.")
-
-        # setting dummy atoms
-        dummy_atom_0 = self.alchemical_atoms[0]
-        dummy_atom_1 = self.alchemical_atoms[1]
-        (species, coordinates) = species_coordinates
-
-        # neural net output given these AEVs
-        mod_species_0 = torch.cat(
-            (species[:, :dummy_atom_0], species[:, dummy_atom_0 + 1 :]), dim=1
-        )
-        mod_coordinates_0 = torch.cat(
-            (coordinates[:, :dummy_atom_0], coordinates[:, dummy_atom_0 + 1 :]), dim=1
-        )
-        _, mod_aevs_0 = self.aev_computer((mod_species_0, mod_coordinates_0))
-
-        # neural net output given these modified AEVs
-        state_0 = nn((mod_species_0, mod_aevs_0))
-        _, E_0 = self.energy_shifter((mod_species_0, state_0.energies))
-
-        # neural net output given these AEVs
-        mod_species_1 = torch.cat(
-            (species[:, :dummy_atom_1], species[:, dummy_atom_1 + 1 :]), dim=1
-        )
-        mod_coordinates_1 = torch.cat(
-            (coordinates[:, :dummy_atom_1], coordinates[:, dummy_atom_1 + 1 :]), dim=1
-        )
-        _, mod_aevs_1 = self.aev_computer((mod_species_1, mod_coordinates_1))
-
-        # neural net output given these modified AEVs
-        state_1 = nn((mod_species_1, mod_aevs_1))
-        _, E_1 = self.energy_shifter((mod_species_1, state_1.energies))
-
-        if not (
-            mod_species_0.size()[0] == species.size()[0]
-            and mod_species_0.size()[1] == species.size()[1] - 1
-        ):
-            raise RuntimeError(
-                f"Something went wrong for mod_species_0. Alchemical atoms: {dummy_atom_0} and {dummy_atom_1}. Species tensor size {mod_species_0.size()} is not equal mod species tensor {mod_species_0.size()}"
-            )
-        if not (
-            mod_species_1.size()[0] == species.size()[0]
-            and mod_species_1.size()[1] == species.size()[1] - 1
-        ):
-            raise RuntimeError(
-                f"Something went wrong for mod_species_1. Alchemical atoms: {dummy_atom_0} and {dummy_atom_1}. Species tensor size {mod_species_1.size()} is not equal mod species tensor {mod_species_1.size()}"
-            )
-        if not (
-            mod_coordinates_0.size()[0] == coordinates.size()[0]
-            and mod_coordinates_0.size()[1] == coordinates.size()[1] - 1
-        ):
-            raise RuntimeError(
-                f"Something went wrong for mod_coordinates_0. Alchemical atoms: {dummy_atom_0} and {dummy_atom_1}. Coord tensor size {mod_coordinates_0.size()} is not equal mod coord tensor {mod_coordinates_0.size()}"
-            )
-        if not (
-            mod_coordinates_1.size()[0] == coordinates.size()[0]
-            and mod_coordinates_1.size()[1] == coordinates.size()[1] - 1
-        ):
-            raise RuntimeError(
-                f"Something went wrong for mod_coordinates_1. Alchemical atoms: {dummy_atom_0} and {dummy_atom_1}. Coord tensor size {mod_coordinates_1.size()} is not equal mod coord tensor {mod_coordinates_1.size()}"
-            )
-
-        E = (lam * E_1) + ((1 - lam) * E_0)
-        return species, E
-
-
-class AlchemicalANI2x(ANI2x):
+class AlchemicalANI2x(ANI2x, AlchemicalANI):
 
     name = "AlchemicalANI2x"
 
@@ -442,94 +357,6 @@ class AlchemicalANI2x(ANI2x):
         self.neural_networks = None
         assert self.neural_networks == None
 
-    def forward(self, species_coordinates_lamb):
-        """
-        Energy and stddev are calculated and linearly interpolated between
-        the physical endstates at lambda 0 and lamb 1.
-        Parameters
-        ----------
-        species_coordinates
-        Returns
-        ----------
-        E : float
-            energy in hartree
-        stddev : float
-            energy in hartree
-
-        """
-        assert len(species_coordinates_lamb) == 4
-        species, coordinates, lam, original_parameters = species_coordinates_lamb
-        species_coordinates = (species, coordinates)
-
-        if original_parameters:
-            logger.debug("Using original neural network parameters.")
-            nn = self.original_neural_network
-        else:
-            nn = self.tweaked_neural_network
-            logger.debug("Using possibly tweaked neural network parameters.")
-
-        # setting dummy atoms
-        dummy_atom_0 = self.alchemical_atoms[0]
-        dummy_atom_1 = self.alchemical_atoms[1]
-        (species, coordinates) = species_coordinates
-
-        # neural net output given these AEVs
-        mod_species_0 = torch.cat(
-            (species[:, :dummy_atom_0], species[:, dummy_atom_0 + 1 :]), dim=1
-        )
-        mod_coordinates_0 = torch.cat(
-            (coordinates[:, :dummy_atom_0], coordinates[:, dummy_atom_0 + 1 :]), dim=1
-        )
-        _, mod_aevs_0 = self.aev_computer((mod_species_0, mod_coordinates_0))
-
-        # neural net output given these modified AEVs
-        state_0 = nn((mod_species_0, mod_aevs_0))
-        _, E_0 = self.energy_shifter((mod_species_0, state_0.energies))
-
-        # neural net output given these AEVs
-        mod_species_1 = torch.cat(
-            (species[:, :dummy_atom_1], species[:, dummy_atom_1 + 1 :]), dim=1
-        )
-        mod_coordinates_1 = torch.cat(
-            (coordinates[:, :dummy_atom_1], coordinates[:, dummy_atom_1 + 1 :]), dim=1
-        )
-        _, mod_aevs_1 = self.aev_computer((mod_species_1, mod_coordinates_1))
-
-        # neural net output given these modified AEVs
-        state_1 = nn((mod_species_1, mod_aevs_1))
-        _, E_1 = self.energy_shifter((mod_species_1, state_1.energies))
-
-        if not (
-            mod_species_0.size()[0] == species.size()[0]
-            and mod_species_0.size()[1] == species.size()[1] - 1
-        ):
-            raise RuntimeError(
-                f"Something went wrong for mod_species_0. Alchemical atoms: {dummy_atom_0} and {dummy_atom_1}. Species tensor size {mod_species_0.size()} is not equal mod species tensor {mod_species_0.size()}"
-            )
-        if not (
-            mod_species_1.size()[0] == species.size()[0]
-            and mod_species_1.size()[1] == species.size()[1] - 1
-        ):
-            raise RuntimeError(
-                f"Something went wrong for mod_species_1. Alchemical atoms: {dummy_atom_0} and {dummy_atom_1}. Species tensor size {mod_species_1.size()} is not equal mod species tensor {mod_species_1.size()}"
-            )
-        if not (
-            mod_coordinates_0.size()[0] == coordinates.size()[0]
-            and mod_coordinates_0.size()[1] == coordinates.size()[1] - 1
-        ):
-            raise RuntimeError(
-                f"Something went wrong for mod_coordinates_0. Alchemical atoms: {dummy_atom_0} and {dummy_atom_1}. Coord tensor size {mod_coordinates_0.size()} is not equal mod coord tensor {mod_coordinates_0.size()}"
-            )
-        if not (
-            mod_coordinates_1.size()[0] == coordinates.size()[0]
-            and mod_coordinates_1.size()[1] == coordinates.size()[1] - 1
-        ):
-            raise RuntimeError(
-                f"Something went wrong for mod_coordinates_1. Alchemical atoms: {dummy_atom_0} and {dummy_atom_1}. Coord tensor size {mod_coordinates_1.size()} is not equal mod coord tensor {mod_coordinates_1.size()}"
-            )
-
-        E = (lam * E_1) + ((1 - lam) * E_0)
-        return species, E
 
 
 class ANI1_force_and_energy(object):
