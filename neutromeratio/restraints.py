@@ -144,9 +144,9 @@ class BondRestraint(BaseDistanceRestraint):
         except KeyError:
             self.mean_bond_length = 1.4
             self.upper_bound = (
-                self.mean_bond_length + 1.0
+                self.mean_bond_length + 0.6
             )  # staying on the safe side for some heteratomic mean bond lenght https://en.wikipedia.org/wiki/Bond_length#:~:text=The%20carbon%E2%80%93carbon%20(C%E2%80%93,in%20diamond%20is%20154%20pm.
-            self.lower_bound = self.mean_bond_length - 1.0
+            self.lower_bound = self.mean_bond_length - 0.6
 
 
 class AngleHarmonicRestraint(BaseAngleRestraint):
@@ -333,7 +333,7 @@ class CenterFlatBottomRestraint(PointAtomRestraint):
 
         self.atom_idx = atom_idx
         self.cutoff_radius = (
-            radius.value_in_unit(unit.angstrom) + 0.1
+            radius.value_in_unit(unit.angstrom)
         )  # slightly increase the area
 
     def restraint(self, x: torch.Tensor) -> torch.Tensor:

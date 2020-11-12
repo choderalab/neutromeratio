@@ -429,22 +429,13 @@ class ANI1_force_and_energy(object):
         # use correct restraint_bias in between the end-points...
         from neutromeratio.constants import kJ_mol_to_kT
 
-        # lambda
         nr_of_mols = len(coordinates)
         restraint_bias_in_kT = torch.tensor(
             [0.0] * nr_of_mols, device=self.device, dtype=torch.float64
         )
-
+        coordinates_in_angstrom = coordinates * nm_to_angstroms
         for restraint in self.list_of_lambda_restraints:
-            restraint_bias = restraint.restraint(coordinates * nm_to_angstroms)
-            if restraint.active_at == 1:
-                restraint_bias *= lambda_value
-            elif restraint.active_at == 0:
-                restraint_bias *= 1 - lambda_value
-            elif restraint.active_at == -1:  # always on
-                pass
-            else:
-                raise RuntimeError("Something went wrong with restraints.")
+            restraint_bias = restraint.restraint(coordinates_in_angstrom)
             restraint_bias_in_kT += restraint_bias * kJ_mol_to_kT
 
         return restraint_bias_in_kT
@@ -690,11 +681,11 @@ class ANI1_force_and_energy(object):
         # convert energy from hartree to kT
         energy_in_kT = energy_in_hartree * hartree_to_kT
 
-        # restraint_energy_contribution_in_kT = self._compute_restraint_bias(
-        #     coordinates, lambda_value=lambda_value
-        # )
+        restraint_energy_contribution_in_kT = self._compute_restraint_bias(
+            coordinates, lambda_value=lambda_value
+        )
 
-        # energy_in_kT += restraint_energy_contribution_in_kT
+        energy_in_kT += restraint_energy_contribution_in_kT
         restraint_energy_contribution_in_kT = torch.tensor(
             [0.0] * nr_of_mols, device=self.device, dtype=torch.float64
         )
