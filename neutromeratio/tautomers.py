@@ -14,8 +14,10 @@ from pdbfixer import PDBFixer
 from rdkit import Chem, Geometry
 from rdkit.Chem import AllChem, rdFMCS
 from scipy.special import logsumexp
+
 from simtk import unit
 from simtk.openmm import Vec3
+from typing import List
 
 from .ani import ANI1_force_and_energy
 from .constants import device, gas_constant, kT, platform, temperature
@@ -113,7 +115,7 @@ class Tautomer(object):
         )  # the heavy atom that accepts the hydrogen
 
         self.ligand_in_water_atoms: str = ""
-        self._ligand_in_water_coordinates: list = []
+        self._ligand_in_water_coordinates: List[unit.Quantity] = []
         self.ligand_in_water_topology: md.Topology = md.Topology()
 
         # restraints for the ligand system
@@ -179,9 +181,9 @@ class Tautomer(object):
         topology: md.Topology,
         coordinates: unit.quantity.Quantity,
         diameter: unit.quantity.Quantity = (30.0 * unit.angstrom),
-        restrain_hydrogen_bonds=True,
-        restrain_hydrogen_angles=False,
-        top_file=None,
+        restrain_hydrogen_bonds: bool = True,
+        restrain_hydrogen_angles: bool = False,
+        top_file: str = "",
     ) -> md.Trajectory:
         """
         Adding a droplet with a given diameter around a small molecule.
@@ -259,10 +261,8 @@ class Tautomer(object):
 
             for residue in structure.residues:
                 for atom in residue:
-
                     p1 = np.array([atom.xx, atom.xy, atom.xz])
                     p2 = center
-
                     squared_dist = np.sum((p1 - p2) ** 2, axis=0)
                     dist = np.sqrt(squared_dist)
                     if (
@@ -321,7 +321,7 @@ class Tautomer(object):
         if restrain_hydrogen_bonds or restrain_hydrogen_angles:
             for residue in traj.topology.residues:
                 if residue.is_water:
-                    oxygen_idx = None
+                    oxygen_idx = -1
                     hydrogen_idxs = []
                     for atom in residue.atoms:
                         if str(atom.element.symbol) == "O":
