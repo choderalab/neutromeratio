@@ -334,7 +334,7 @@ class CenterFlatBottomRestraint(PointAtomRestraint):
         self.atom_idx = atom_idx
         self.cutoff_radius = (
             radius.value_in_unit(unit.angstrom)
-        )  # slightly increase the area
+        ) - 0.25  # slightly decrease the area
 
     def restraint(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -389,7 +389,7 @@ class CenterOfMassFlatBottomRestraint(PointAtomRestraint):
         assert type(sigma) == unit.Quantity
         assert type(point) == unit.Quantity
         super().__init__(sigma, point.value_in_unit(unit.angstrom), active_at)
-        cutoff_radius = 0.25 * unit.angstrom
+        cutoff_radius = 0.1 * unit.angstrom
         self.cutoff_radius = cutoff_radius.value_in_unit(unit.angstrom)
         # only look at heavy atoms
         full_mass_list = [mass_dict_in_daltons[atoms[i]] for i in atom_idx]

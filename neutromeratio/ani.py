@@ -686,9 +686,6 @@ class ANI1_force_and_energy(object):
         )
 
         energy_in_kT += restraint_energy_contribution_in_kT
-        restraint_energy_contribution_in_kT = torch.tensor(
-            [0.0] * nr_of_mols, device=self.device, dtype=torch.float64
-        )
         return energy_in_kT, restraint_energy_contribution_in_kT
 
     def _traget_energy_function(self, x, lambda_value: float = 0.0):
