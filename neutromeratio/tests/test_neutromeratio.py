@@ -973,6 +973,7 @@ def test_neutromeratio_energy_calculations_with_AlchemicalANI1ccx_in_droplet():
 
     ######################################################################
     # compare with ANI1ccx -- test1
+    # this test removes all restraints
     name = "molDWRow_298"
     energy_function, tautomer, flipped = setup_alchemical_system_and_energy_function(
         name=name,
@@ -1012,6 +1013,7 @@ def test_neutromeratio_energy_calculations_with_AlchemicalANI1ccx_in_droplet():
 
     ######################################################################
     # compare with ANI1ccx -- test2
+    # includes restraint energy
     name = "molDWRow_298"
     energy_function, tautomer, flipped = setup_alchemical_system_and_energy_function(
         name=name,
@@ -1047,11 +1049,15 @@ def test_neutromeratio_energy_calculations_with_AlchemicalANI1ccx_in_droplet():
     assert len(atoms) == len(coordinates[0])
 
     energies_ani1ccx_0 = energy_function.calculate_energy(coordinates)
-
+    # get restraint energy
+    energy_0_restraint = energy_0.restraint_energy_contribution.in_units_of(
+        unit.kilojoule_per_mole
+    )
+    print(energy_0_restraint[0])
+    print(energy_0.energy[0])
+    print(energy_0)
     # subtracting restraint energies
-    energy_0_minus_restraint = (
-        energy_0.energy[0] - energy_0.restraint_energy_contribution[0]
-    ).in_units_of(unit.kilojoule_per_mole)
+    energy_0_minus_restraint = energy_0.energy[0] - energy_0_restraint[0]
     assert is_quantity_close(
         energy_0_minus_restraint,
         energies_ani1ccx_0.energy[0].in_units_of(unit.kilojoule_per_mole),
@@ -1469,7 +1475,6 @@ def test_restraint_with_AlchemicalANI1ccx_for_batches_in_droplet():
         np.isclose(float(e), float(comp_e), rtol=1e-9)
 
 
-
 def test_min_and_single_point_energy():
 
     from ..ani import ANI1ccx
@@ -1681,7 +1686,7 @@ def test_memory_issue():
 
     md_trajs = []
     energies = []
-
+    e = 0.0
     # read in all the frames from the trajectories
     top = f"{data_path}/{name}/{name}_in_droplet.pdb"
 
@@ -1702,7 +1707,8 @@ def test_memory_issue():
     species = [element_index[e] for e in species]
 
     # calcualte energies
-    for traj in md_trajs[:1]:
+    for traj in md_trajs:
+        print(len(traj))
         for xyz in traj:
             coordinates = torch.tensor(
                 [xyz.value_in_unit(unit.nanometer)],
@@ -1715,8 +1721,9 @@ def test_memory_issue():
                 [species] * len(coordinates), device=device, requires_grad=False
             )
             energy = nn((species_tensor, coordinates)).energies
-            print(energy)
-        energies.append(energy)
+            energies.append(energy.item())
+            e += energy.item()
+    np.isclose(e, 69309.46893170934, rtol=1e-9)
 
 
 def calculate_single_energy():
@@ -2074,7 +2081,7 @@ def test_generating_droplet():
 
     energy = energy_function.calculate_energy(x0)
     assert is_quantity_close(
-        energy.energy[0], (-15018040.86806798 * unit.kilojoule_per_mole)
+        energy.energy[0], (-15018084.210985579 * unit.kilojoule_per_mole)
     )
 
     energy_function, tautomer, flipped = setup_alchemical_system_and_energy_function(

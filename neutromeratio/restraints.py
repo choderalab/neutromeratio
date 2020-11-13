@@ -334,7 +334,7 @@ class CenterFlatBottomRestraint(PointAtomRestraint):
         self.atom_idx = atom_idx
         self.cutoff_radius = (
             radius.value_in_unit(unit.angstrom)
-        )
+        ) - 0.2  # slightly decrease radius
 
     def restraint(self, x: torch.Tensor) -> torch.Tensor:
         """
