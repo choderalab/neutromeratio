@@ -1,3 +1,4 @@
+import torch
 import copy
 import logging
 import os
@@ -10,7 +11,6 @@ import copy
 import matplotlib.pyplot as plt
 import numpy as np
 import simtk
-import torch
 import torchani
 from ase import Atoms
 from ase.thermochemistry import IdealGasThermo
