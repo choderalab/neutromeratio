@@ -42,7 +42,7 @@ else:
 
 if env == "droplet":
     print("Simulating in environment: droplet.")
-    fec = setup_mbar_for_new_tautomer_pairs(
+    fec = setup_FEC_for_new_tautomer_pairs(
         name=name,
         t1_smiles=smiles1,
         t2_smiles=smiles2,
@@ -55,7 +55,7 @@ if env == "droplet":
     )
 elif env == "vacuum":
     print("Simulating in environment: vacuum.")
-    fec = setup_mbar_for_new_tautomer_pairs(
+    fec = setup_FEC_for_new_tautomer_pairs(
         name=name,
         t1_smiles=smiles1,
         t2_smiles=smiles2,
