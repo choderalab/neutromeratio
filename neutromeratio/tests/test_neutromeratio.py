@@ -1756,15 +1756,15 @@ def calculate_single_energy():
 @pytest.mark.skipif(
     os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
 )
-def test_setup_mbar():
+def test_setup_FEC():
     # test the setup mbar function with different models, environments and potentials
-    from ..parameter_gradients import setup_mbar
+    from ..parameter_gradients import setup_FEC
     from ..ani import AlchemicalANI2x, AlchemicalANI1x, AlchemicalANI1ccx
 
     name = "molDWRow_298"
 
     # vacuum
-    fec = setup_mbar(
+    fec = setup_FEC(
         name,
         env="vacuum",
         data_path="data/test_data/vacuum",
@@ -1774,7 +1774,7 @@ def test_setup_mbar():
     )
     assert np.isclose(-3.2194223855155357, fec._end_state_free_energy_difference[0])
 
-    fec = setup_mbar(
+    fec = setup_FEC(
         name,
         env="vacuum",
         data_path="data/test_data/vacuum",
@@ -1784,7 +1784,7 @@ def test_setup_mbar():
     )
     assert np.isclose(-11.554636171428106, fec._end_state_free_energy_difference[0])
 
-    fec = setup_mbar(
+    fec = setup_FEC(
         name,
         env="vacuum",
         data_path="data/test_data/vacuum",
@@ -1795,7 +1795,7 @@ def test_setup_mbar():
     assert np.isclose(-12.413598945128637, fec._end_state_free_energy_difference[0])
 
     # droplet
-    fec = setup_mbar(
+    fec = setup_FEC(
         name,
         env="droplet",
         diameter=10,
@@ -1806,7 +1806,7 @@ def test_setup_mbar():
     )
     assert np.isclose(-1.6642793589801324, fec._end_state_free_energy_difference[0])
 
-    fec = setup_mbar(
+    fec = setup_FEC(
         name,
         env="droplet",
         diameter=10,
@@ -1817,7 +1817,7 @@ def test_setup_mbar():
     )
     assert np.isclose(-18.348107633661936, fec._end_state_free_energy_difference[0])
 
-    fec = setup_mbar(
+    fec = setup_FEC(
         name,
         env="droplet",
         diameter=10,
@@ -1841,9 +1841,9 @@ def test_setup_mbar():
 @pytest.mark.skipif(
     os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
 )
-def test_setup_mbar_test_pickle_files():
+def test_setup_FEC_test_pickle_files():
     # test the setup mbar function, write out the pickle file and test that everything works
-    from ..parameter_gradients import setup_mbar
+    from ..parameter_gradients import setup_FEC
     from ..ani import AlchemicalANI2x, AlchemicalANI1x, AlchemicalANI1ccx
 
     test = os.listdir("data/test_data/vacuum")
@@ -1860,7 +1860,7 @@ def test_setup_mbar_test_pickle_files():
                 os.remove(os.path.join(testdir, item))
 
     # vacuum
-    fec = setup_mbar(
+    fec = setup_FEC(
         name,
         env="vacuum",
         data_path="data/test_data/vacuum",
@@ -1871,16 +1871,251 @@ def test_setup_mbar_test_pickle_files():
     assert np.isclose(-3.2194223855155357, fec._end_state_free_energy_difference[0])
 
     # vacuum
-    fec = setup_mbar(
+    fec = setup_FEC(
         name,
         env="vacuum",
         data_path="data/test_data/vacuum",
         ANImodel=AlchemicalANI1ccx,
         bulk_energy_calculation=False,
         max_snapshots_per_window=20,
-        load_pickled_tautomer_object=True,
+        load_pickled_FEC=True,
     )
     assert np.isclose(-3.2194223855155357, fec._end_state_free_energy_difference[0])
+
+
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow calculation."
+)
+def test_FEC_with_different_free_energy_calls():
+    from ..parameter_gradients import (
+        get_perturbed_free_energy_difference,
+        get_unperturbed_free_energy_difference,
+    )
+    from ..constants import kT, device, exclude_set_ANI, mols_with_charge
+    from ..parameter_gradients import setup_FEC
+    from glob import glob
+    from ..ani import AlchemicalANI1ccx, AlchemicalANI1x, AlchemicalANI2x
+    import numpy as np
+
+    env = "vacuum"
+    names = ["molDWRow_298", "SAMPLmol2"]
+
+    model = AlchemicalANI1ccx
+
+    # testing fec calculation in sequence
+    bulk_energy_calculation = True
+    fec_list = [
+        setup_FEC(
+            name,
+            ANImodel=model,
+            env=env,
+            bulk_energy_calculation=bulk_energy_calculation,
+            data_path="./data/test_data/vacuum",
+            max_snapshots_per_window=80,
+        )
+        for name in names
+    ]
+
+    # no modifications to the potential
+    # all the following calls should return the same value
+    assert len(fec_list) == 2
+
+    # look at the two functions from parameter_gradient
+    # both of these correct for the flipped energy calculation
+    # and flip the sign of the prediction of mol298
+    fec_values = get_perturbed_free_energy_difference(fec_list)
+    print(fec_values)
+    for e1, e2 in zip(fec_values, [1.2104, -5.3161]):
+        assert np.isclose(e1.item(), e2, rtol=1e-2)
+
+    fec_values = get_unperturbed_free_energy_difference(fec_list)
+    print(fec_values)
+    for e1, e2 in zip(fec_values, [1.2104, -5.3161]):
+        assert np.isclose(e1.item(), e2, rtol=1e-2)
+
+    fec_values = [
+        fec_list[0]._end_state_free_energy_difference[0],
+        fec_list[1]._end_state_free_energy_difference[0],
+    ]
+    print(fec_values)
+    for e1, e2 in zip(fec_values, [-1.2104, -5.3161]):
+        assert np.isclose(e1.item(), e2, rtol=1e-2)
+
+    fec_values = (
+        fec_list[0]._compute_free_energy_difference(),
+        fec_list[1]._compute_free_energy_difference(),
+    )
+    print(fec_values)
+    for e1, e2 in zip(fec_values, [-1.2104, -5.3161]):
+        assert np.isclose(e1.item(), e2, rtol=1e-2)
+
+
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow calculation."
+)
+def test_FEC_with_perturbed_free_energies():
+    from ..parameter_gradients import get_perturbed_free_energy_difference
+    from ..constants import kT, device, exclude_set_ANI, mols_with_charge
+    from ..parameter_gradients import setup_FEC
+    from glob import glob
+    from ..ani import AlchemicalANI1ccx, AlchemicalANI1x, AlchemicalANI2x
+    import numpy as np
+
+    env = "vacuum"
+    names = ["molDWRow_298", "SAMPLmol2"]
+
+    for idx, model in enumerate([AlchemicalANI1ccx, AlchemicalANI1x, AlchemicalANI2x]):
+        model._reset_parameters()
+
+        if idx == 0:
+            # testing fec calculation in sequence
+            bulk_energy_calculation = True
+            fec_list = [
+                setup_FEC(
+                    name,
+                    ANImodel=model,
+                    env=env,
+                    bulk_energy_calculation=bulk_energy_calculation,
+                    data_path="./data/test_data/vacuum",
+                    max_snapshots_per_window=80,
+                )
+                for name in names
+            ]
+
+            assert len(fec_list) == 2
+            fec_values = get_perturbed_free_energy_difference(fec_list)
+            for e1, e2 in zip(fec_values, [1.2104, -5.3161]):
+                assert np.isclose(e1.item(), e2, rtol=1e-4)
+
+            # testing fec calculation in bulk
+            bulk_energy_calculation = False
+            fec_list = [
+                setup_FEC(
+                    name,
+                    ANImodel=model,
+                    env=env,
+                    bulk_energy_calculation=bulk_energy_calculation,
+                    data_path="./data/test_data/vacuum",
+                    max_snapshots_per_window=80,
+                )
+                for name in names
+            ]
+
+            assert len(fec_list) == 2
+            fec = get_perturbed_free_energy_difference(fec_list)
+            print(fec)
+            for e1, e2 in zip(fec, [1.2104, -5.3161]):
+                assert np.isclose(e1.item(), e2, rtol=1e-4)
+
+            fec = setup_FEC(
+                "molDWRow_298",
+                ANImodel=model,
+                env=env,
+                bulk_energy_calculation=True,
+                data_path="./data/test_data/vacuum",
+                max_snapshots_per_window=80,
+            )
+            assert np.isclose(
+                fec._end_state_free_energy_difference[0],
+                fec._compute_free_energy_difference().item(),
+                rtol=1e-5,
+            )
+
+        if idx == 1:
+            bulk_energy_calculation = True
+            fec_list = [
+                setup_FEC(
+                    name,
+                    ANImodel=model,
+                    env=env,
+                    bulk_energy_calculation=bulk_energy_calculation,
+                    data_path="./data/test_data/vacuum",
+                    max_snapshots_per_window=60,
+                )
+                for name in names
+            ]
+
+            assert len(fec_list) == 2
+            fec = get_perturbed_free_energy_difference(fec_list)
+            print(fec)
+            for e1, e2 in zip(fec, [10.3192, -9.746403840249418]):
+                assert np.isclose(e1.item(), e2, rtol=1e-4)
+
+        if idx == 2:
+            bulk_energy_calculation = True
+            fec_list = [
+                setup_FEC(
+                    name,
+                    ANImodel=model,
+                    env=env,
+                    bulk_energy_calculation=bulk_energy_calculation,
+                    data_path="./data/test_data/vacuum",
+                    max_snapshots_per_window=60,
+                )
+                for name in names
+            ]
+
+            assert len(fec_list) == 2
+            fec = get_perturbed_free_energy_difference(fec_list)
+            print(fec)
+            for e1, e2 in zip(fec, [8.8213, -9.664895714083166]):
+                assert np.isclose(e1.item(), e2, rtol=1e-4)
+        del fec_list
+
+
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow calculation."
+)
+def test_FEC_with_perturbed_free_energies_with_and_without_restraints():
+    from ..parameter_gradients import get_perturbed_free_energy_difference
+    from ..constants import kT, device, exclude_set_ANI, mols_with_charge
+    from ..parameter_gradients import setup_FEC
+    from glob import glob
+    from ..ani import AlchemicalANI2x
+    import numpy as np
+
+    env = "vacuum"
+    names = ["molDWRow_298", "SAMPLmol2"]
+
+    model = AlchemicalANI2x
+
+    bulk_energy_calculation = True
+    fec_list = [
+        setup_FEC(
+            name,
+            ANImodel=model,
+            env=env,
+            bulk_energy_calculation=bulk_energy_calculation,
+            data_path="./data/test_data/vacuum",
+            max_snapshots_per_window=60,
+        )
+        for name in names
+    ]
+
+    assert len(fec_list) == 2
+    fec = get_perturbed_free_energy_difference(fec_list)
+    print(fec)
+    for e1, e2 in zip(fec, [8.8213, -9.6649]):
+        assert np.isclose(e1.item(), e2, rtol=1e-4)
+
+    fec_list = [
+        setup_FEC(
+            name,
+            ANImodel=model,
+            env=env,
+            bulk_energy_calculation=bulk_energy_calculation,
+            data_path="./data/test_data/vacuum",
+            max_snapshots_per_window=60,
+            include_restraint_energy_contribution=False,
+        )
+        for name in names
+    ]
+
+    assert len(fec_list) == 2
+    fec = get_perturbed_free_energy_difference(fec_list)
+    print(fec)
+    for e1, e2 in zip(fec, [8.8213, -9.6649]):
+        assert np.isclose(e1.item(), e2, rtol=1e-4)
 
 
 def test_change_stereobond():
@@ -2081,7 +2316,7 @@ def test_generating_droplet():
 
     energy = energy_function.calculate_energy(x0)
     assert is_quantity_close(
-        energy.energy[0], (-15018084.210985579 * unit.kilojoule_per_mole)
+        energy.energy[0], (-15018039.455067404 * unit.kilojoule_per_mole)
     )
 
     energy_function, tautomer, flipped = setup_alchemical_system_and_energy_function(
@@ -2218,7 +2453,7 @@ def test_solvate_orca():
 )
 def test_loading_saving_mbar_object():
     # test the setup mbar function with different models, environments and potentials
-    from ..parameter_gradients import setup_mbar, _load_checkpoint, _get_nn_layers
+    from ..parameter_gradients import setup_FEC, _load_checkpoint, _get_nn_layers
     from ..ani import AlchemicalANI2x, AlchemicalANI1x, AlchemicalANI1ccx
 
     AlchemicalANI2x._reset_parameters()
@@ -2227,17 +2462,18 @@ def test_loading_saving_mbar_object():
     model_instance = AlchemicalANI2x([0, 0])
     AdamW, AdamW_scheduler, SGD, SGD_scheduler = _get_nn_layers(8, model_instance)
     # initial parameters
-    params1 = list(model_instance.tweaked_neural_network.parameters())[6][0].tolist()
+    params1 = list(model_instance.optimized_neural_network.parameters())[6][0].tolist()
 
     # droplet
-    fec = setup_mbar(
+    fec = setup_FEC(
         name,
         env="droplet",
         diameter=10,
         data_path="data/test_data/droplet",
         ANImodel=AlchemicalANI2x,
-        bulk_energy_calculation=False,
+        bulk_energy_calculation=True,
         max_snapshots_per_window=10,
+        load_pickled_FEC=False,
     )
     assert np.isclose(-18.348107633661936, fec._end_state_free_energy_difference[0])
 
@@ -2250,22 +2486,22 @@ def test_loading_saving_mbar_object():
         SGD,
         SGD_scheduler,
     )
-    params2 = list(model_instance.tweaked_neural_network.parameters())[6][0].tolist()
+    params2 = list(model_instance.optimized_neural_network.parameters())[6][0].tolist()
     assert params1 != params2
     # droplet
-    fec = setup_mbar(
+    fec = setup_FEC(
         name,
         env="droplet",
         diameter=10,
         data_path="data/test_data/droplet",
         ANImodel=AlchemicalANI2x,
-        bulk_energy_calculation=False,
+        bulk_energy_calculation=True,
         max_snapshots_per_window=10,
-        load_pickled_tautomer_object=True,
+        load_pickled_FEC=True,
     )
     # assert np.isclose(-1.6642793589801324, fec._end_state_free_energy_difference[0])
     pickled_model = fec.ani_model.model
-    params3 = list(pickled_model.tweaked_neural_network.parameters())[6][0].tolist()
+    params3 = list(pickled_model.optimized_neural_network.parameters())[6][0].tolist()
 
     assert params2 == params3
     del fec
@@ -2288,7 +2524,7 @@ def test_io_checkpoints():
         model_instance = model([0, 0])
         AdamW, AdamW_scheduler, SGD, SGD_scheduler = _get_nn_layers(8, model_instance)
         # initial parameters
-        params1 = list(model.tweaked_neural_network.parameters())[6][0].tolist()
+        params1 = list(model.optimized_neural_network.parameters())[6][0].tolist()
         _load_checkpoint(
             f"data/test_data/{model_name}_3.pt",
             model_instance,
@@ -2298,14 +2534,14 @@ def test_io_checkpoints():
             SGD_scheduler,
         )
         # load parameters
-        params2 = list(model_instance.tweaked_neural_network.parameters())[6][
+        params2 = list(model_instance.optimized_neural_network.parameters())[6][
             0
         ].tolist()
         # make sure somehting happend
         assert params1 != params2
         # test that new instances have the new parameters
         m = model([0, 0])
-        params3 = list(m.tweaked_neural_network.parameters())[6][0].tolist()
+        params3 = list(m.optimized_neural_network.parameters())[6][0].tolist()
         assert params2 == params3
         model._reset_parameters()
 
@@ -2328,7 +2564,7 @@ def test_load_parameters():
         params1 = list(model_instance.original_neural_network.parameters())[6][
             0
         ].tolist()
-        params2 = list(model_instance.tweaked_neural_network.parameters())[6][
+        params2 = list(model_instance.optimized_neural_network.parameters())[6][
             0
         ].tolist()
         assert params1 == params2
@@ -2339,13 +2575,13 @@ def test_load_parameters():
         params1 = list(model_instance.original_neural_network.parameters())[6][
             0
         ].tolist()
-        params2 = list(model_instance.tweaked_neural_network.parameters())[6][
+        params2 = list(model_instance.optimized_neural_network.parameters())[6][
             0
         ].tolist()
         assert params1 != params2
         # test that new instances have the new parameters
         m = model([0, 0])
-        params3 = list(m.tweaked_neural_network.parameters())[6][0].tolist()
+        params3 = list(m.optimized_neural_network.parameters())[6][0].tolist()
         assert params2 == params3
         model._reset_parameters()
 
@@ -2424,7 +2660,7 @@ def test_parameter_gradient():
         )
 
         deltaF.backward()  # no errors or warnings
-        params = list(energy_function.model.tweaked_neural_network.parameters())
+        params = list(energy_function.model.optimized_neural_network.parameters())
         none_counter = 0
         for p in params:
             print(p.grad)
@@ -2458,120 +2694,6 @@ def test_thinning():
         assert max_snapshots_per_window == len(snapshots)
 
 
-@pytest.mark.skipif(
-    os.environ.get("TRAVIS", None) == "true", reason="Orca not installed."
-)
-def test_fec():
-    from ..parameter_gradients import get_perturbed_free_energy_difference
-    from ..constants import kT, device, exclude_set_ANI, mols_with_charge
-    from ..parameter_gradients import setup_mbar
-    from glob import glob
-    from ..ani import AlchemicalANI1ccx, AlchemicalANI1x, AlchemicalANI2x
-    import numpy as np
-
-    env = "vacuum"
-    names = ["molDWRow_298", "SAMPLmol2"]
-
-    for idx, model in enumerate([AlchemicalANI1ccx, AlchemicalANI1x, AlchemicalANI2x]):
-        model._reset_parameters()
-
-        if idx == 0:
-            # testing fec calculation in sequence
-            bulk_energy_calculation = True
-            fec_list = [
-                setup_mbar(
-                    name,
-                    ANImodel=model,
-                    env=env,
-                    bulk_energy_calculation=bulk_energy_calculation,
-                    data_path="./data/test_data/vacuum",
-                    max_snapshots_per_window=80,
-                )
-                for name in names
-            ]
-
-            assert len(fec_list) == 2
-            fec = get_perturbed_free_energy_difference(fec_list)
-            print(fec)
-            for e1, e2 in zip(fec, [1.2104192392435253, -5.316053972628578]):
-                assert np.isclose(e1.item(), e2, rtol=1e-4)
-
-            # testing fec calculation in bulk
-            bulk_energy_calculation = False
-            fec_list = [
-                setup_mbar(
-                    name,
-                    ANImodel=model,
-                    env=env,
-                    bulk_energy_calculation=bulk_energy_calculation,
-                    data_path="./data/test_data/vacuum",
-                    max_snapshots_per_window=80,
-                )
-                for name in names
-            ]
-
-            assert len(fec_list) == 2
-            fec = get_perturbed_free_energy_difference(fec_list)
-            print(fec)
-            for e1, e2 in zip(fec, [1.2104192392435253, -5.316053972628578]):
-                assert np.isclose(e1.item(), e2, rtol=1e-4)
-
-            fec = setup_mbar(
-                "molDWRow_298",
-                ANImodel=model,
-                env=env,
-                bulk_energy_calculation=True,
-                data_path="./data/test_data/vacuum",
-                max_snapshots_per_window=80,
-            )
-            assert np.isclose(
-                fec._end_state_free_energy_difference[0],
-                fec._compute_free_energy_difference().item(),
-                rtol=1e-5,
-            )
-
-        if idx == 1:
-            bulk_energy_calculation = True
-            fec_list = [
-                setup_mbar(
-                    name,
-                    ANImodel=model,
-                    env=env,
-                    bulk_energy_calculation=bulk_energy_calculation,
-                    data_path="./data/test_data/vacuum",
-                    max_snapshots_per_window=60,
-                )
-                for name in names
-            ]
-
-            assert len(fec_list) == 2
-            fec = get_perturbed_free_energy_difference(fec_list)
-            print(fec)
-            for e1, e2 in zip(fec, [10.3192, -9.7464]):
-                assert np.isclose(e1.item(), e2, rtol=1e-4)
-
-        if idx == 2:
-            bulk_energy_calculation = True
-            fec_list = [
-                setup_mbar(
-                    name,
-                    ANImodel=model,
-                    env=env,
-                    bulk_energy_calculation=bulk_energy_calculation,
-                    data_path="./data/test_data/vacuum",
-                    max_snapshots_per_window=60,
-                )
-                for name in names
-            ]
-
-            assert len(fec_list) == 2
-            fec = get_perturbed_free_energy_difference(fec_list)
-            print(fec)
-            for e1, e2 in zip(fec, [8.8213, -9.6649]):
-                assert np.isclose(e1.item(), e2, rtol=1e-4)
-        del fec_list
-
-
 def test_max_nr_of_snapshots():
     from ..parameter_gradients import calculate_rmse_between_exp_and_calc
     from ..ani import AlchemicalANI1ccx, AlchemicalANI1x, AlchemicalANI2x
@@ -2597,7 +2719,7 @@ def test_max_nr_of_snapshots():
 def test_unperturbed_perturbed_free_energy():
     # test the setup mbar function with different models, environments and potentials
     from ..parameter_gradients import (
-        setup_mbar,
+        setup_FEC,
         get_unperturbed_free_energy_difference,
         get_perturbed_free_energy_difference,
     )
@@ -2606,12 +2728,12 @@ def test_unperturbed_perturbed_free_energy():
     name = "molDWRow_298"
 
     # vacuum
-    fec = setup_mbar(
+    fec = setup_FEC(
         name,
         env="vacuum",
         data_path="data/test_data/vacuum",
         ANImodel=AlchemicalANI1ccx,
-        bulk_energy_calculation=False,
+        bulk_energy_calculation=True,
         max_snapshots_per_window=20,
     )
 
@@ -2672,6 +2794,7 @@ def test_parameter_gradient_opt_script():
             names=names,
             diameter=10,
             load_checkpoint=False,
+            load_pickled_FEC=False,
         )
 
         model._reset_parameters()
@@ -2753,15 +2876,16 @@ def test_calculate_rmse_between_exp_and_calc_droplet():
             data_path=f"./data/test_data/{env}",
             model=model,
             env=env,
-            bulk_energy_calculation=False,
+            bulk_energy_calculation=True,
             max_snapshots_per_window=10,
             diameter=diameter,
+            perturbed_free_energy=False,
         )
         rmse_list.append(rmse)
 
     print(rmse_list)
     for e1, e2 in zip(
-        rmse_list, [1.3077478408813477, 14.76308822631836, 11.35196304321289]
+        rmse_list, [0.23515522480010986, 16.44867706298828, 11.113712310791016]
     ):
         assert np.isclose(e1, e2)
 
@@ -2820,7 +2944,7 @@ def test_postprocessing_vacuum():
         get_experimental_values,
     )
     from ..constants import kT, device, exclude_set_ANI, mols_with_charge
-    from ..parameter_gradients import setup_mbar
+    from ..parameter_gradients import setup_FEC
     from glob import glob
     from ..ani import AlchemicalANI1ccx, AlchemicalANI1x, AlchemicalANI2x
     import numpy as np
@@ -2833,7 +2957,7 @@ def test_postprocessing_vacuum():
 
         if idx == 0:
             fec_list = [
-                setup_mbar(
+                setup_FEC(
                     name,
                     ANImodel=model,
                     env=env,
@@ -2863,7 +2987,7 @@ def test_postprocessing_vacuum():
 
         elif idx == 1:
             fec_list = [
-                setup_mbar(
+                setup_FEC(
                     name,
                     ANImodel=model,
                     env=env,
@@ -2893,7 +3017,7 @@ def test_postprocessing_vacuum():
 
         elif idx == 2:
             fec_list = [
-                setup_mbar(
+                setup_FEC(
                     name,
                     ANImodel=model,
                     env=env,
@@ -2932,7 +3056,7 @@ def test_postprocessing_droplet():
         get_experimental_values,
     )
     from ..constants import kT, device, exclude_set_ANI, mols_with_charge
-    from ..parameter_gradients import setup_mbar
+    from ..parameter_gradients import setup_FEC
     from glob import glob
     from ..ani import AlchemicalANI1ccx, AlchemicalANI1x, AlchemicalANI2x
 
@@ -2944,7 +3068,7 @@ def test_postprocessing_droplet():
         diameter = 10
 
         fec_list = [
-            setup_mbar(
+            setup_FEC(
                 name,
                 ANImodel=model,
                 env=env,
@@ -3013,7 +3137,7 @@ def test_tweak_parameters_and_class_nn():
     # start with model 1
     model1 = AlchemicalANI1ccx([0, 0])
     # save parameters at the beginning
-    params_at_start_model1 = list(model1.tweaked_neural_network.parameters())[6][
+    params_at_start_model1 = list(model1.optimized_neural_network.parameters())[6][
         0
     ].tolist()
     original_parameters_model1 = list(model1.original_neural_network.parameters())[6][
@@ -3035,12 +3159,12 @@ def test_tweak_parameters_and_class_nn():
         nr_of_nn=8,
         load_checkpoint=False,
         max_epochs=max_epochs,
-        load_pickled_tautomer_object=False,
+        load_pickled_FEC=False,
     )
 
     _remove_files(f"{model_name}_vacuum", max_epochs)
     # get new tweaked parameters
-    params_at_end_model1 = list(model1.tweaked_neural_network.parameters())[6][
+    params_at_end_model1 = list(model1.optimized_neural_network.parameters())[6][
         0
     ].tolist()
     # make sure that somethign happend while tweaking
@@ -3055,7 +3179,7 @@ def test_tweak_parameters_and_class_nn():
         0
     ].tolist()
     # get tweaked parameters
-    params_at_start_model2 = list(model2.tweaked_neural_network.parameters())[6][
+    params_at_start_model2 = list(model2.optimized_neural_network.parameters())[6][
         0
     ].tolist()
     # tweaked parameters at start of model2 should be the same as at end of model1
@@ -3102,6 +3226,7 @@ def test_tweak_parameters_vacuum_multiple_tautomer():
             bulk_energy_calculation=True,
             max_epochs=max_epochs,
             load_checkpoint=False,
+            load_pickled_FEC=False,
         )
 
         if idx == 0:
@@ -3205,7 +3330,7 @@ def test_tweak_parameters_vacuum_single_tautomer():
             bulk_energy_calculation=True,
             max_epochs=max_epochs,
             load_checkpoint=False,
-            load_pickled_tautomer_object=False,
+            load_pickled_FEC=False,
         )
 
         print(rmse_val)
@@ -3257,7 +3382,7 @@ def test_tweak_parameters_droplet():
             max_epochs=max_epochs,
             diameter=diameter,
             load_checkpoint=False,
-            load_pickled_tautomer_object=False,
+            load_pickled_FEC=False,
         )
 
         if idx == 0:
@@ -3295,7 +3420,7 @@ def test_tweak_parameters_droplet():
 )
 @pytest.mark.benchmark(min_rounds=1, warmup=False)
 def test_timing_for_perturebed_free_energy_u_ln(benchmark):
-    from ..parameter_gradients import get_perturbed_free_energy_difference, setup_mbar
+    from ..parameter_gradients import get_perturbed_free_energy_difference, setup_FEC
     from ..ani import AlchemicalANI2x
     import os
 
@@ -3309,7 +3434,7 @@ def test_timing_for_perturebed_free_energy_u_ln(benchmark):
 
     name = "molDWRow_298"
     # precalcualte mbar
-    fec = setup_mbar(
+    fec = setup_FEC(
         name,
         env="droplet",
         diameter=10,
@@ -3317,7 +3442,7 @@ def test_timing_for_perturebed_free_energy_u_ln(benchmark):
         ANImodel=model,
         bulk_energy_calculation=True,  # doesn't matter, since we are loading the reuslts from disk
         max_snapshots_per_window=max_snapshots_per_window,
-        load_pickled_tautomer_object=True,
+        load_pickled_FEC=True,
     )
 
     def wrap():
@@ -3331,7 +3456,7 @@ def test_timing_for_perturebed_free_energy_u_ln(benchmark):
 )
 @pytest.mark.benchmark(min_rounds=1, warmup=False)
 def test_timing_for_perturebed_free_energy_u_ln_and_perturbed_free_energy(benchmark):
-    from ..parameter_gradients import get_perturbed_free_energy_difference, setup_mbar
+    from ..parameter_gradients import get_perturbed_free_energy_difference, setup_FEC
     from ..ani import AlchemicalANI2x
     import os
 
@@ -3345,7 +3470,7 @@ def test_timing_for_perturebed_free_energy_u_ln_and_perturbed_free_energy(benchm
 
     name = "molDWRow_298"
     # precalcualte mbar
-    fec = setup_mbar(
+    fec = setup_FEC(
         name,
         env="droplet",
         diameter=10,
@@ -3353,7 +3478,7 @@ def test_timing_for_perturebed_free_energy_u_ln_and_perturbed_free_energy(benchm
         ANImodel=model,
         bulk_energy_calculation=True,  # doesn't matter, since we are loading the reuslts from disk
         max_snapshots_per_window=max_snapshots_per_window,
-        load_pickled_tautomer_object=True,
+        load_pickled_FEC=True,
     )
 
     def wrap():
@@ -3912,7 +4037,7 @@ def test_timing_main_training_loop_without_pickled_tautomer_object(benchmark):
             checkpoint_filename=f"AlchemicalANI2x_droplet.pt",
             load_checkpoint=False,
             bulk_energy_calculation=False,
-            load_pickled_tautomer_object=False,
+            load_pickled_FEC=False,
         )
         print(rmse_val)
 
@@ -3964,7 +4089,7 @@ def test_timing_main_training_loop_with_pickled_tautomer_object(benchmark):
             checkpoint_filename=f"AlchemicalANI2x_droplet.pt",
             load_checkpoint=False,
             bulk_energy_calculation=False,
-            load_pickled_tautomer_object=True,
+            load_pickled_FEC=True,
         )
         print(rmse_val)
 
