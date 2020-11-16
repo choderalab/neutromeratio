@@ -481,6 +481,9 @@ def test_query_names():
     print(find_idx(query_name="molDWRow_109"))
 
 
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
 def test_setup_tautomer_system_in_droplet_for_problem_systems():
     from ..analysis import setup_alchemical_system_and_energy_function
     from ..ani import AlchemicalANI2x
@@ -896,6 +899,9 @@ def test_neutromeratio_energy_calculations_with_AlchemicalANI1ccx_in_vacuum():
     )
 
 
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
 def test_neutromeratio_energy_calculations_with_AlchemicalANI1ccx_in_droplet():
     from ..tautomers import Tautomer
     import numpy as np
@@ -1349,6 +1355,9 @@ def test_COM_restraint_with_AlchemicalANI1ccx_for_batches_in_droplet():
     np.isclose(com_restraint, com_r)
 
 
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
 def test_droplet_bottom_restraint_with_AlchemicalANI1ccx_for_batches():
     import numpy as np
     from ..constants import kT, kJ_mol_to_kT
@@ -1665,6 +1674,9 @@ def test_setup_energy_function():
     assert failed == True
 
 
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
 def test_memory_issue():
     # test the seup of the energy function with different alchemical potentials
     from ..analysis import setup_alchemical_system_and_energy_function
@@ -2586,6 +2598,9 @@ def test_load_parameters():
         model._reset_parameters()
 
 
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow calculation."
+)
 def test_parameter_gradient():
     from ..constants import mols_with_charge, exclude_set_ANI, kT, multiple_stereobonds
     from tqdm import tqdm
@@ -2743,6 +2758,9 @@ def test_unperturbed_perturbed_free_energy():
     del fec
 
 
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
 def test_parameter_gradient_opt_script():
     import neutromeratio
     import pickle
@@ -2800,6 +2818,9 @@ def test_parameter_gradient_opt_script():
         model._reset_parameters()
 
 
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
 def test_calculate_rmse_between_exp_and_calc():
     from ..parameter_gradients import (
         calculate_rmse_between_exp_and_calc,
