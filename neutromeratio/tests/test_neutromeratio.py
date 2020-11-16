@@ -3063,17 +3063,17 @@ def test_postprocessing_droplet():
     for idx, model in enumerate([AlchemicalANI1ccx, AlchemicalANI1x]):
 
         env = "droplet"
-        exp_results = pickle.load(open("data/test_data/exp_results.pickle", "rb"))
         names = ["molDWRow_298"]
         diameter = 10
 
+        # include restraints, don't load from pickle
         fec_list = [
             setup_FEC(
                 name,
                 ANImodel=model,
                 env=env,
-                diameter=18,
-                bulk_energy_calculation=False,
+                diameter=diameter,
+                bulk_energy_calculation=True,
                 data_path="data/test_data/droplet",
                 max_snapshots_per_window=10,
             )
@@ -3095,8 +3095,9 @@ def test_postprocessing_droplet():
             assert np.isclose(
                 fec_list[0]._end_state_free_energy_difference[0].item(),
                 -1.664279359190441,
+                rtol=1e-3,
             )
-            assert np.isclose(rmse.item(), 6.062463908744714)
+            assert np.isclose(rmse.item(), 0.23514418557176664, rtol=1e-3)
 
         elif idx == 1:
             print(fec_list)
@@ -3112,11 +3113,186 @@ def test_postprocessing_droplet():
             )
             assert np.isclose(
                 fec_list[0]._end_state_free_energy_difference[0].item(),
-                -13.013142148719849,
+                -13.013144575760862,
+                rtol=1e-3,
             )
-            assert np.isclose(rmse.item(), 8.513120699618273)
+            assert np.isclose(
+                rmse.item(),
+                11.11371282694961,
+                rtol=1e-3,
+            )
+        # exclude restraints, don't load from pickle
+        fec_list = [
+            setup_FEC(
+                name,
+                ANImodel=model,
+                env=env,
+                diameter=diameter,
+                bulk_energy_calculation=True,
+                data_path="data/test_data/droplet",
+                max_snapshots_per_window=10,
+                include_restraint_energy_contribution=False,
+            )
+            for name in names
+        ]
 
-        model._reset_parameters()
+        if idx == 0:
+            print(fec_list)
+            assert len(fec_list) == 1
+            rmse = torch.sqrt(
+                torch.mean(
+                    (
+                        get_perturbed_free_energy_difference(fec_list)
+                        - get_experimental_values(names)
+                    )
+                    ** 2
+                )
+            )
+            assert np.isclose(
+                fec_list[0]._end_state_free_energy_difference[0].item(),
+                -1.664279359190441,
+                rtol=1e-3,
+            )
+            assert np.isclose(rmse.item(), 0.23514418557176664, rtol=1e-3)
+
+        elif idx == 1:
+            print(fec_list)
+            assert len(fec_list) == 1
+            rmse = torch.sqrt(
+                torch.mean(
+                    (
+                        get_perturbed_free_energy_difference(fec_list)
+                        - get_experimental_values(names)
+                    )
+                    ** 2
+                )
+            )
+            assert np.isclose(
+                fec_list[0]._end_state_free_energy_difference[0].item(),
+                -13.013144575760862,
+                rtol=1e-3,
+            )
+            assert np.isclose(
+                rmse.item(),
+                11.11371282694961,
+                rtol=1e-3,
+            )
+
+        # incldue restraints, load from pickle
+        fec_list = [
+            setup_FEC(
+                name,
+                ANImodel=model,
+                env=env,
+                diameter=diameter,
+                bulk_energy_calculation=True,
+                data_path="data/test_data/droplet",
+                max_snapshots_per_window=10,
+                include_restraint_energy_contribution=True,
+                load_pickled_FEC=True,
+            )
+            for name in names
+        ]
+
+        if idx == 0:
+            print(fec_list)
+            assert len(fec_list) == 1
+            rmse = torch.sqrt(
+                torch.mean(
+                    (
+                        get_perturbed_free_energy_difference(fec_list)
+                        - get_experimental_values(names)
+                    )
+                    ** 2
+                )
+            )
+            assert np.isclose(
+                fec_list[0]._end_state_free_energy_difference[0].item(),
+                -1.664279359190441,
+                rtol=1e-3,
+            )
+            assert np.isclose(rmse.item(), 0.23514418557176664, rtol=1e-3)
+
+        elif idx == 1:
+            print(fec_list)
+            assert len(fec_list) == 1
+            rmse = torch.sqrt(
+                torch.mean(
+                    (
+                        get_perturbed_free_energy_difference(fec_list)
+                        - get_experimental_values(names)
+                    )
+                    ** 2
+                )
+            )
+            assert np.isclose(
+                fec_list[0]._end_state_free_energy_difference[0].item(),
+                -13.013144575760862,
+                rtol=1e-3,
+            )
+            assert np.isclose(
+                rmse.item(),
+                11.11371282694961,
+                rtol=1e-3,
+            )
+
+        # exclude restraints, load from pickle
+        fec_list = [
+            setup_FEC(
+                name,
+                ANImodel=model,
+                env=env,
+                diameter=diameter,
+                bulk_energy_calculation=True,
+                data_path="data/test_data/droplet",
+                max_snapshots_per_window=10,
+                include_restraint_energy_contribution=False,
+                load_pickled_FEC=True,
+            )
+            for name in names
+        ]
+
+        if idx == 0:
+            print(fec_list)
+            assert len(fec_list) == 1
+            rmse = torch.sqrt(
+                torch.mean(
+                    (
+                        get_perturbed_free_energy_difference(fec_list)
+                        - get_experimental_values(names)
+                    )
+                    ** 2
+                )
+            )
+            assert np.isclose(
+                fec_list[0]._end_state_free_energy_difference[0].item(),
+                -1.664279359190441,
+                rtol=1e-3,
+            )
+            assert np.isclose(rmse.item(), 0.23514418557176664, rtol=1e-3)
+
+        elif idx == 1:
+            print(fec_list)
+            assert len(fec_list) == 1
+            rmse = torch.sqrt(
+                torch.mean(
+                    (
+                        get_perturbed_free_energy_difference(fec_list)
+                        - get_experimental_values(names)
+                    )
+                    ** 2
+                )
+            )
+            assert np.isclose(
+                fec_list[0]._end_state_free_energy_difference[0].item(),
+                -13.013144575760862,
+                rtol=1e-3,
+            )
+            assert np.isclose(
+                rmse.item(),
+                11.11371282694961,
+                rtol=1e-3,
+            )
 
 
 @pytest.mark.skipif(
