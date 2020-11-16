@@ -1,14 +1,137 @@
 import logging
 import random
 from collections import OrderedDict
+import pickle
 
 import matplotlib.pyplot as plt
+from simtk import unit
 import numpy as np
 import pandas as pd
-from .analysis import bootstrap_rmse_r
+from .analysis import bootstrap_rmse_r, _get_exp_results
+from .constants import _get_names, kT
 
 logger = logging.getLogger(__name__)
 plt.style.use("seaborn-deep")
+
+
+def analyse_optimization(base_path: str):
+    import seaborn as sns
+
+    plt.style.use("seaborn-deep")
+    from scipy.stats import entropy
+    from neutromeratio.analysis import compute_kl_divergence, bootstrap_rmse_r
+
+    all_names = _get_names()
+    # load the model perofrmance before optimization on the training/validation set
+    results_before_retraining = pickle.load(
+        open(base_path + "/results_before_training.pickle", "rb+")
+    )
+    # results_before_retraining is a dictionary of lists, the keys are the mol names, the values are a list of [ddG, validation/training]
+
+    # load the ddG values for the test set before and after training
+    results_test_set = pickle.load(
+        open(base_path + "/results_AFTER_training_for_test_set.pickle", "rb+")
+    )
+    # results_test_set is a dictionary of lists, the key are the mol anmes, the values are [experimental_ddG, before_optimization_ddG, after_optimization_ddG]
+
+    # get everythin in four lists
+    original_ = []
+    reweighted_ = []
+    exp_ = []
+    names_ = []
+
+    exp_results = _get_exp_results()
+
+    for n in results_test_set:
+        original, reweighted = results_test_set[n]
+        exp = (
+            exp_results[n]["energy"] * unit.kilocalorie_per_mole
+        )  # already in kcal/mol
+        names_.append(n)
+        original_.append((original * kT).value_in_unit(unit.kilocalorie_per_mole))
+        reweighted_.append((reweighted * kT).value_in_unit(unit.kilocalorie_per_mole))
+        exp_.append(exp)
+
+    # plot the distribution of ddG before and after optimization
+
+    sns.set(color_codes=True)
+    plt.figure(figsize=[8, 8], dpi=300)
+    fontsize = 25
+    delta_exp_original = np.array(exp_) - np.array(original_)
+    kl = compute_kl_divergence(np.array(exp_), np.array(original_))
+    rmse, mae, rho = bootstrap_rmse_r(np.array(exp_), np.array(original_), 1000)
+    plt.text(
+        -28.0,
+        0.175,
+        f"RMSE$ = {rmse}$",
+        fontsize=fontsize,
+        color=sns.xkcd_rgb["denim blue"],
+    )
+    plt.text(
+        -28.0,
+        0.16,
+        f"MAE$ = {mae}$",
+        fontsize=fontsize,
+        color=sns.xkcd_rgb["denim blue"],
+    )
+    plt.text(
+        -28.0,
+        0.145,
+        f"KL$ = {kl:.2f}$",
+        fontsize=fontsize,
+        color=sns.xkcd_rgb["denim blue"],
+    )
+
+    sns.distplot(
+        delta_exp_original,
+        kde=True,
+        rug=True,
+        bins=15,
+        label="ANI1ccx native",
+        color=sns.xkcd_rgb["denim blue"],
+    )
+    delta_exp_reweighted = np.array(exp_) - np.array(reweighted_)
+    rmse, mae, rho = bootstrap_rmse_r(np.array(exp_), np.array(reweighted_), 1000)
+    kl = compute_kl_divergence(np.array(exp_), np.array(reweighted_))
+    plt.text(
+        -28.0,
+        0.12,
+        f"RMSE$ = {rmse}$",
+        fontsize=fontsize,
+        color=sns.xkcd_rgb["pale red"],
+    )
+    plt.text(
+        -28.0,
+        0.105,
+        f"MAE$ = {mae}$",
+        fontsize=fontsize,
+        color=sns.xkcd_rgb["pale red"],
+    )
+    plt.text(
+        -28.0,
+        0.09,
+        f"KL$ = {kl:.2f}$",
+        fontsize=fontsize,
+        color=sns.xkcd_rgb["pale red"],
+    )
+    sns.distplot(
+        delta_exp_reweighted,
+        kde=True,
+        rug=True,
+        bins=15,
+        label="ANI1ccx optimized",
+        color=sns.xkcd_rgb["pale red"],
+    )
+    plt.legend(fontsize=fontsize - 5)
+    plt.ylabel("Probability", fontsize=fontsize)
+    plt.xlabel(
+        "$\Delta_{r} G_{solv}^{exp} -  \Delta_{r} G_{vac}^{calc}$ [kcal/mol]",
+        fontsize=fontsize,
+    )
+    plt.xticks(fontsize=20)
+    plt.yticks(fontsize=20)
+    plt.yticks([])
+    plt.show()
 
 
 def plot_correlation_analysis(
