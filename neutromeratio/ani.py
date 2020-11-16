@@ -83,9 +83,9 @@ class ANI(torchani.models.BuiltinEnsemble):
         if os.path.isfile(parameter_path):
             parameters = torch.load(parameter_path)
             if extract_from_checkpoint:
-                self.tweaked_neural_network.load_state_dict(parameters["nn"])
+                self.optimized_neural_network.load_state_dict(parameters["nn"])
             else:
-                self.tweaked_neural_network.load_state_dict(parameters)
+                self.optimized_neural_network.load_state_dict(parameters)
         else:
             logger.info(f"Parameter file {parameter_path} does not exist.")
 
@@ -133,7 +133,7 @@ class ANI(torchani.models.BuiltinEnsemble):
             logger.debug("Using original neural network parameters.")
             nn = self.original_neural_network
         else:
-            nn = self.tweaked_neural_network
+            nn = self.optimized_neural_network
             logger.debug("Using possibly tweaked neural network parameters.")
 
         species_coordinates = (species, coordinates)
@@ -146,58 +146,60 @@ class ANI(torchani.models.BuiltinEnsemble):
 
 class ANI1x(ANI):
 
-    tweaked_neural_network = None
+    optimized_neural_network = None
     original_neural_network = None
     name = "ANI1x"
 
     def __init__(self, periodic_table_index: bool = False):
         info_file = "ani-1x_8x.info"
         super().__init__(info_file, periodic_table_index)
-        if ANI1x.tweaked_neural_network == None:
-            ANI1x.tweaked_neural_network = copy.deepcopy(self.neural_networks)
+        if ANI1x.optimized_neural_network == None:
+            ANI1x.optimized_neural_network = copy.deepcopy(self.neural_networks)
         if ANI1x.original_neural_network == None:
             ANI1x.original_neural_network = copy.deepcopy(self.neural_networks)
 
     @classmethod
     def _reset_parameters(cls):
-        ANI1x.tweaked_neural_network = copy.deepcopy(ANI1x.original_neural_network)
+        ANI1x.optimized_neural_network = copy.deepcopy(ANI1x.original_neural_network)
 
 
 class ANI1ccx(ANI):
 
-    tweaked_neural_network = None
+    optimized_neural_network = None
     original_neural_network = None
     name = "ANI1ccx"
 
     def __init__(self, periodic_table_index: bool = False):
         info_file = "ani-1ccx_8x.info"
         super().__init__(info_file, periodic_table_index)
-        if ANI1ccx.tweaked_neural_network == None:
-            ANI1ccx.tweaked_neural_network = copy.deepcopy(self.neural_networks)
+        if ANI1ccx.optimized_neural_network == None:
+            ANI1ccx.optimized_neural_network = copy.deepcopy(self.neural_networks)
         if ANI1ccx.original_neural_network == None:
             ANI1ccx.original_neural_network = copy.deepcopy(self.neural_networks)
 
     @classmethod
     def _reset_parameters(cls):
-        ANI1ccx.tweaked_neural_network = copy.deepcopy(ANI1ccx.original_neural_network)
+        ANI1ccx.optimized_neural_network = copy.deepcopy(
+            ANI1ccx.original_neural_network
+        )
 
 
 class ANI2x(ANI):
-    tweaked_neural_network = None
+    optimized_neural_network = None
     original_neural_network = None
     name = "ANI2x"
 
     def __init__(self, periodic_table_index: bool = False):
         info_file = "ani-2x_8x.info"
         super().__init__(info_file, periodic_table_index)
-        if ANI2x.tweaked_neural_network == None:
-            ANI2x.tweaked_neural_network = copy.deepcopy(self.neural_networks)
+        if ANI2x.optimized_neural_network == None:
+            ANI2x.optimized_neural_network = copy.deepcopy(self.neural_networks)
         if ANI2x.original_neural_network == None:
             ANI2x.original_neural_network = copy.deepcopy(self.neural_networks)
 
     @classmethod
     def _reset_parameters(cls):
-        ANI2x.tweaked_neural_network = copy.deepcopy(ANI2x.original_neural_network)
+        ANI2x.optimized_neural_network = copy.deepcopy(ANI2x.original_neural_network)
 
 
 class AlchemicalANIMixin:
@@ -223,7 +225,7 @@ class AlchemicalANIMixin:
             logger.debug("Using original neural network parameters.")
             nn = self.original_neural_network
         else:
-            nn = self.tweaked_neural_network
+            nn = self.optimized_neural_network
             logger.debug("Using possibly tweaked neural network parameters.")
 
         # setting dummy atoms
@@ -276,13 +278,13 @@ class AlchemicalANIMixin:
             )
 
         # early exit if at endpoint
-        if np.isclose(lam, 0.0, rtol=1e-5):
+        if lam == 0.0:
             _, mod_aevs_0 = self.aev_computer((mod_species_0, mod_coordinates_0))
             # neural net output given these modified AEVs
             state_0 = nn((mod_species_0, mod_aevs_0))
             _, E_0 = self.energy_shifter((mod_species_0, state_0.energies))
             return species, E_0
-        elif np.isclose(lam, 1.0, rtol=1e-5):
+        elif lam == 1.0:
             _, mod_aevs_1 = self.aev_computer((mod_species_1, mod_coordinates_1))
             # neural net output given these modified AEVs
             state_1 = nn((mod_species_1, mod_aevs_1))
@@ -298,7 +300,6 @@ class AlchemicalANIMixin:
             # neural net output given these modified AEVs
             state_1 = nn((mod_species_1, mod_aevs_1))
             _, E_1 = self.energy_shifter((mod_species_1, state_1.energies))
-            # early exit if at endpoint
             E = (lam * E_1) + ((1 - lam) * E_0)
             return species, E
 
@@ -642,7 +643,8 @@ class ANI1_force_and_energy(object):
         coordinates: torch.Tensor,
         lambda_value: float,
         original_neural_network: bool,
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        include_restraint_energy_contribution: bool = True,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Helpter function to return energies as tensor.
         Given a coordinate set the energy is calculated.
@@ -680,10 +682,14 @@ class ANI1_force_and_energy(object):
 
         # convert energy from hartree to kT
         energy_in_kT = energy_in_hartree * hartree_to_kT
-
-        restraint_energy_contribution_in_kT = self._compute_restraint_bias(
-            coordinates, lambda_value=lambda_value
-        )
+        if include_restraint_energy_contribution:
+            restraint_energy_contribution_in_kT = self._compute_restraint_bias(
+                coordinates, lambda_value=lambda_value
+            )
+        else:
+            restraint_energy_contribution_in_kT = torch.tensor(
+                [0.0] * nr_of_mols, device=self.device, dtype=torch.float64
+            )
 
         energy_in_kT += restraint_energy_contribution_in_kT
         return energy_in_kT, restraint_energy_contribution_in_kT
@@ -725,6 +731,7 @@ class ANI1_force_and_energy(object):
         original_neural_network: bool = True,
         requires_grad_wrt_coordinates: bool = True,
         requires_grad_wrt_parameters: bool = True,
+        include_restraint_energy_contribution: bool = True,
     ):
         """
         Given a coordinate set (x) the energy is calculated in kJ/mol.
@@ -743,6 +750,7 @@ class ANI1_force_and_energy(object):
 
         assert type(coordinate_list) == unit.Quantity
         assert 0.0 <= float(lambda_value) <= 1.0
+        print(f"Including restraints: {include_restraint_energy_contribution}")
 
         logger.debug(f"Batch-size: {len(coordinate_list)}")
 
@@ -755,7 +763,10 @@ class ANI1_force_and_energy(object):
         logger.debug(f"coordinates tensor: {coordinates.size()}")
 
         energy_in_kT, restraint_energy_contribution_in_kT = self._calculate_energy(
-            coordinates, lambda_value, original_neural_network
+            coordinates,
+            lambda_value,
+            original_neural_network,
+            include_restraint_energy_contribution,
         )
 
         energy = np.array([e.item() for e in energy_in_kT]) * kT
