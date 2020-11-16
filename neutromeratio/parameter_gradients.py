@@ -39,7 +39,7 @@ class FreeEnergyCalculator:
         potential_energy_trajs: list,
         lambdas: list,
         max_snapshots_per_window: int = 200,
-        pickle_path: str = "",
+        include_restraint_energy_contribution: bool = True,
     ):
         """
         Uses mbar to calculate the free energy difference between trajectories.
@@ -53,151 +53,147 @@ class FreeEnergyCalculator:
             energy trace of trajectories
         lambdas : list
             all lambda states
+        include_restraint_energy_contribution : bool (default: True)
+            including restraint energy
         """
-
-        def get_mix(lambda0, lambda1, lam=0.0):
-            return (1 - lam) * lambda0 + lam * lambda1
 
         K = len(lambdas)
         assert len(md_trajs) == K
         assert len(potential_energy_trajs) == K
         self.ani_model = ani_model
+        self.include_restraint_energy_contribution = (
+            include_restraint_energy_contribution
+        )
         self.potential_energy_trajs = (
             potential_energy_trajs  # for detecting equilibrium
         )
         self.lambdas = lambdas
 
-        if pickle_path and os.path.isfile((pickle_path)):
-            logger.info(f"Loading MBAR results from: {pickle_path}")
-            p = pickle.load(open(pickle_path, "rb"))
-            self.mbar = p["MBAR"]
-            self.coordinates = p["coordinates"]
+        coordinates, N_k = self.combine_snapshots(md_trajs, max_snapshots_per_window)
+        self.setup_mbar(coordinates, N_k, bulk_energy_calculation)
 
-        else:
-            ani_trajs = {}
-            for lam, traj, potential_energy in zip(
-                self.lambdas, md_trajs, self.potential_energy_trajs
+    def combine_snapshots(self, md_trajs: list, max_snapshots_per_window: int):
+        ani_trajs = {}
+        for lam, traj, potential_energy in zip(
+            self.lambdas, md_trajs, self.potential_energy_trajs
+        ):
+            # detect equilibrium
+            equil, g = detectEquilibration(
+                np.array([e / kT for e in potential_energy])
+            )[:2]
+            # thinn snapshots and return max_snapshots_per_window confs
+            quarter_traj_limit = int(len(traj) / 4)
+            snapshots = traj[min(quarter_traj_limit, equil) :].xyz * unit.nanometer
+            further_thinning = max(int(len(snapshots) / max_snapshots_per_window), 1)
+            snapshots = snapshots[::further_thinning][:max_snapshots_per_window]
+            ani_trajs[lam] = snapshots
+            logger.info(len(snapshots))
+
+            # test that we have a lower number of snapshots than max_snapshots_per_window
+            if max_snapshots_per_window == -1:
+                logger.debug(f"There are {len(snapshots)} snapshots per lambda state")
+
+            if max_snapshots_per_window != -1 and (
+                len(snapshots) > max_snapshots_per_window
             ):
-                # detect equilibrium
-                equil, g = detectEquilibration(
-                    np.array([e / kT for e in potential_energy])
-                )[:2]
-                # thinn snapshots and return max_snapshots_per_window confs
-                quarter_traj_limit = int(len(traj) / 4)
-                snapshots = traj[min(quarter_traj_limit, equil) :].xyz * unit.nanometer
-                further_thinning = max(
-                    int(len(snapshots) / max_snapshots_per_window), 1
+                raise RuntimeError(
+                    f"There are {len(snapshots)} snapshots per lambda state (max: {max_snapshots_per_window}). Aborting."
                 )
-                snapshots = snapshots[::further_thinning][:max_snapshots_per_window]
-                ani_trajs[lam] = snapshots
-                logger.info(len(snapshots))
 
-                # test that we have a lower number of snapshots than max_snapshots_per_window
-                if max_snapshots_per_window == -1:
-                    logger.debug(
-                        f"There are {len(snapshots)} snapshots per lambda state"
-                    )
-
-                if max_snapshots_per_window != -1 and (
-                    len(snapshots) > max_snapshots_per_window
-                ):
-                    raise RuntimeError(
-                        f"There are {len(snapshots)} snapshots per lambda state (max: {max_snapshots_per_window}). Aborting."
-                    )
-
-                # test that we have not less than 60% of max_snapshots_per_window
-                if max_snapshots_per_window != -1 and len(snapshots) < (
-                    int(max_snapshots_per_window * 0.6)
-                ):
-                    raise RuntimeError(
-                        f"There are only {len(snapshots)} snapshots per lambda state. Aborting."
-                    )
-                # test that we have not less than 40 snapshots
-                if len(snapshots) < 40:
-                    logger.critical(
-                        f"There are only {len(snapshots)} snapshots per lambda state. Be careful."
-                    )
-
-            snapshots = []
-            N_k = []
-            for lam in sorted(self.lambdas):
-                logger.debug(f"lamb: {lam}")
-                N_k.append(len(ani_trajs[lam]))
-                snapshots.extend(ani_trajs[lam])
-                logger.debug(f"Snapshots per lambda {lam}: {len(ani_trajs[lam])}")
-
-            if len(snapshots) < 300:
+            # test that we have not less than 60% of max_snapshots_per_window
+            if max_snapshots_per_window != -1 and len(snapshots) < (
+                int(max_snapshots_per_window * 0.6)
+            ):
+                raise RuntimeError(
+                    f"There are only {len(snapshots)} snapshots per lambda state. Aborting."
+                )
+            # test that we have not less than 40 snapshots
+            if len(snapshots) < 40:
                 logger.critical(
-                    f"Total number of snapshots is {len(snapshots)} -- is this enough?"
+                    f"There are only {len(snapshots)} snapshots per lambda state. Be careful."
                 )
 
-            coordinates = [
-                sample / unit.angstrom for sample in snapshots
-            ] * unit.angstrom
+        snapshots = []
+        N_k = []
+        for lam in sorted(self.lambdas):
+            logger.debug(f"lamb: {lam}")
+            N_k.append(len(ani_trajs[lam]))
+            snapshots.extend(ani_trajs[lam])
+            logger.debug(f"Snapshots per lambda {lam}: {len(ani_trajs[lam])}")
 
-            logger.debug(f"len(coordinates): {len(coordinates)}")
+        if len(snapshots) < 300:
+            logger.critical(
+                f"Total number of snapshots is {len(snapshots)} -- is this enough?"
+            )
 
-            # end-point energies
-            if bulk_energy_calculation:
-                lambda0_e = self.ani_model.calculate_energy(
-                    coordinates,
+        coordinates = [sample / unit.angstrom for sample in snapshots] * unit.angstrom
+        return coordinates, N_k
+
+    def setup_mbar(self, coordinates: list, N_k: list, bulk_energy_calculation: bool):
+        def get_mix(lambda0, lambda1, lam=0.0):
+            return (1 - lam) * lambda0 + lam * lambda1
+
+        logger.debug(f"len(coordinates): {len(coordinates)}")
+
+        # end-point energies
+        if bulk_energy_calculation:
+            lambda0_e = self.ani_model.calculate_energy(
+                coordinates,
+                lambda_value=0.0,
+                original_neural_network=True,
+                requires_grad_wrt_coordinates=False,
+                requires_grad_wrt_parameters=False,
+                include_restraint_energy_contribution=self.include_restraint_energy_contribution,
+            ).energy
+            lambda1_e = self.ani_model.calculate_energy(
+                coordinates,
+                lambda_value=1.0,
+                original_neural_network=True,
+                requires_grad_wrt_coordinates=False,
+                requires_grad_wrt_parameters=False,
+                include_restraint_energy_contribution=self.include_restraint_energy_contribution,
+            ).energy
+        else:
+            lambda0_e = []
+            lambda1_e = []
+            for coord in coordinates:
+                # getting coord from [N][3] to [1][N][3]
+                coord = np.array([coord / unit.angstrom]) * unit.angstrom
+                e0 = self.ani_model.calculate_energy(
+                    coord,
                     lambda_value=0.0,
                     original_neural_network=True,
                     requires_grad_wrt_coordinates=False,
                     requires_grad_wrt_parameters=False,
+                    include_restraint_energy_contribution=self.include_restraint_energy_contribution,
                 ).energy
-                lambda1_e = self.ani_model.calculate_energy(
-                    coordinates,
+                lambda0_e.append(e0[0] / kT)
+                e1 = self.ani_model.calculate_energy(
+                    coord,
                     lambda_value=1.0,
                     original_neural_network=True,
                     requires_grad_wrt_coordinates=False,
                     requires_grad_wrt_parameters=False,
+                    include_restraint_energy_contribution=self.include_restraint_energy_contribution,
                 ).energy
-            else:
-                lambda0_e = []
-                lambda1_e = []
-                for coord in coordinates:
-                    # getting coord from [N][3] to [1][N][3]
-                    coord = np.array([coord / unit.angstrom]) * unit.angstrom
-                    e0 = self.ani_model.calculate_energy(
-                        coord,
-                        lambda_value=0.0,
-                        original_neural_network=True,
-                        requires_grad_wrt_coordinates=False,
-                        requires_grad_wrt_parameters=False,
-                    ).energy
-                    lambda0_e.append(e0[0] / kT)
-                    e1 = self.ani_model.calculate_energy(
-                        coord,
-                        lambda_value=1.0,
-                        original_neural_network=True,
-                        requires_grad_wrt_coordinates=False,
-                        requires_grad_wrt_parameters=False,
-                    ).energy
-                    lambda1_e.append(e1[0] / kT)
-                lambda0_e = np.array(lambda0_e) * kT
-                lambda1_e = np.array(lambda1_e) * kT
+                lambda1_e.append(e1[0] / kT)
+            lambda0_e = np.array(lambda0_e) * kT
+            lambda1_e = np.array(lambda1_e) * kT
 
-            logger.debug(f"len(lambda0_e): {len(lambda0_e)}")
+        logger.debug(f"len(lambda0_e): {len(lambda0_e)}")
 
-            u_kn = np.stack(
-                [
-                    get_mix(lambda0_e / kT, lambda1_e / kT, lam)
-                    for lam in sorted(self.lambdas)
-                ]
-            )
+        u_kn = np.stack(
+            [
+                get_mix(lambda0_e / kT, lambda1_e / kT, lam)
+                for lam in sorted(self.lambdas)
+            ]
+        )
 
-            del lambda0_e
-            del lambda1_e
+        del lambda0_e
+        del lambda1_e
 
-            self.mbar = MBAR(u_kn, N_k)
-            self.coordinates = coordinates
-
-            if pickle_path:
-                # only save if pickle_path is defined
-                p = {"MBAR": self.mbar, "coordinates": self.coordinates}
-                pickle.dump(p, open(pickle_path, "wb"))
-                logger.info(f"Saving MBAR results to: {pickle_path}")
+        self.mbar = MBAR(u_kn, N_k)
+        self.coordinates = coordinates
 
     @property
     def free_energy_differences(self):
@@ -249,6 +245,7 @@ class FreeEnergyCalculator:
             lambda_value=0.0,
             original_neural_network=False,
             requires_grad_wrt_coordinates=False,
+            include_restraint_energy_contribution=self.include_restraint_energy_contribution,
         ).energy_tensor
 
         # Note: Use class neural network here (that might or might not be modified)!
@@ -257,6 +254,7 @@ class FreeEnergyCalculator:
             lambda_value=1.0,
             original_neural_network=False,
             requires_grad_wrt_coordinates=False,
+            include_restraint_energy_contribution=self.include_restraint_energy_contribution,
         ).energy_tensor
 
         u_ln = torch.stack([u_0, u_1])
@@ -313,7 +311,6 @@ def get_unperturbed_free_energy_difference(fec_list: list):
         else:
             deltaF = fec._end_state_free_energy_difference[0]
         calc.append(deltaF)
-    logger.debug(calc)
     return torch.stack([torchify(e) for e in calc])
 
 
@@ -345,7 +342,8 @@ def calculate_rmse_between_exp_and_calc(
     max_snapshots_per_window: int,
     perturbed_free_energy: bool = True,
     diameter: int = -1,
-    load_pickled_tautomer_object: bool = False,
+    load_pickled_FEC: bool = False,
+    include_restraint_energy_contribution: bool = False,
 ) -> Tuple[float, list]:
     """
     Returns the RMSE between calculated and experimental free energy differences as float.
@@ -370,7 +368,7 @@ def calculate_rmse_between_exp_and_calc(
 
     for name in it:
         fec_list = [
-            setup_mbar(
+            setup_FEC(
                 name=name,
                 ANImodel=model,
                 env=env,
@@ -378,7 +376,8 @@ def calculate_rmse_between_exp_and_calc(
                 data_path=data_path,
                 max_snapshots_per_window=max_snapshots_per_window,
                 diameter=diameter,
-                load_pickled_tautomer_object=load_pickled_tautomer_object,
+                load_pickled_FEC=load_pickled_FEC,
+                include_restraint_energy_contribution=include_restraint_energy_contribution,
             )
         ]
 
@@ -457,7 +456,7 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
     bulk_energy_calculation: bool = True,
     load_checkpoint: bool = True,
     names: list = [],
-    load_pickled_tautomer_object: bool = True,
+    load_pickled_FEC: bool = True,
 ) -> Tuple[list, float]:
 
     """
@@ -482,7 +481,8 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
         [type]: [description]
     """
 
-    import random
+    # initialize an empty ANI model to set default parameters
+    ANImodel([0, 0])
 
     assert int(nr_of_nn) <= 8 and int(nr_of_nn) >= 1
 
@@ -516,7 +516,8 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
         bulk_energy_calculation=bulk_energy_calculation,
         env=env,
         max_snapshots_per_window=max_snapshots_per_window,
-        load_pickled_tautomer_object=load_pickled_tautomer_object,
+        load_pickled_FEC=load_pickled_FEC,
+        include_restraint_energy_contribution=False,
     )
 
     print(f"RMSE on test set BEFORE optimization: {rmse_test}")
@@ -547,7 +548,7 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
         bulk_energy_calculation=bulk_energy_calculation,
         names_training=names_training,
         names_validating=names_validating,
-        load_pickled_tautomer_object=load_pickled_tautomer_object,
+        load_pickled_FEC=load_pickled_FEC,
     )
 
     # final rmsd calculation on test set
@@ -559,7 +560,7 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
         bulk_energy_calculation=bulk_energy_calculation,
         env=env,
         max_snapshots_per_window=max_snapshots_per_window,
-        load_pickled_tautomer_object=load_pickled_tautomer_object,
+        load_pickled_FEC=load_pickled_FEC,
     )
     print(f"RMSE on test set AFTER optimization: {rmse_test}")
 
@@ -585,7 +586,7 @@ def _save_checkpoint(
 ):
     torch.save(
         {
-            "nn": model.tweaked_neural_network.state_dict(),
+            "nn": model.optimized_neural_network.state_dict(),
             "AdamW": AdamW.state_dict(),
             "SGD": SGD.state_dict(),
             "AdamW_scheduler": AdamW_scheduler.state_dict(),
@@ -611,7 +612,7 @@ def _perform_training(
     max_snapshots_per_window: int,
     load_checkpoint: bool,
     rmse_validation: list,
-    load_pickled_tautomer_object: bool,
+    load_pickled_FEC: bool,
 ) -> list:
 
     early_stopping_learning_rate = 1.0e-5
@@ -640,7 +641,7 @@ def _perform_training(
         # checkpoint -- if best parameters on validation set save parameters
         if AdamW_scheduler.is_better(rmse_validation[-1], AdamW_scheduler.best):
             torch.save(
-                ANImodel.tweaked_neural_network.state_dict(), best_model_checkpoint
+                ANImodel.optimized_neural_network.state_dict(), best_model_checkpoint
             )
 
         # define the stepsize
@@ -659,7 +660,7 @@ def _perform_training(
             batch_size=batch_size,
             data_path=data_path,
             max_snapshots_per_window=max_snapshots_per_window,
-            load_pickled_tautomer_object=load_pickled_tautomer_object,
+            load_pickled_FEC=load_pickled_FEC,
         )
 
         # calculate the new free energies on the validation set with optimized parameters
@@ -672,7 +673,8 @@ def _perform_training(
             env=env,
             max_snapshots_per_window=max_snapshots_per_window,
             perturbed_free_energy=True,
-            load_pickled_tautomer_object=load_pickled_tautomer_object,
+            load_pickled_FEC=load_pickled_FEC,
+            include_restraint_energy_contribution=False,
         )
 
         rmse_validation.append(current_rmse)
@@ -708,7 +710,7 @@ def _tweak_parameters(
     batch_size: int,
     data_path: str,
     max_snapshots_per_window: int,
-    load_pickled_tautomer_object: bool,
+    load_pickled_FEC: bool,
 ):
     """
     _tweak_parameters
@@ -743,10 +745,10 @@ def _tweak_parameters(
 
     for idx, names in enumerate(it):
 
-        # define setup_mbar function
+        # define setup_FEC function
         # get mbar instances in a list
         fec_list = [
-            setup_mbar(
+            setup_FEC(
                 name=name,
                 ANImodel=ANImodel,
                 env=env,
@@ -754,7 +756,8 @@ def _tweak_parameters(
                 bulk_energy_calculation=bulk_energy_calculation,
                 max_snapshots_per_window=max_snapshots_per_window,
                 diameter=diameter,
-                load_pickled_tautomer_object=load_pickled_tautomer_object,
+                load_pickled_FEC=load_pickled_FEC,
+                include_restraint_energy_contribution=False,
             )
             for name in names
         ]
@@ -783,7 +786,7 @@ def _load_checkpoint(
     # save checkpoint
     if os.path.isfile(latest_checkpoint):
         checkpoint = torch.load(latest_checkpoint)
-        model.tweaked_neural_network.load_state_dict(checkpoint["nn"])
+        model.optimized_neural_network.load_state_dict(checkpoint["nn"])
         AdamW.load_state_dict(checkpoint["AdamW"])
         SGD.load_state_dict(checkpoint["SGD"])
         AdamW_scheduler.load_state_dict(checkpoint["AdamW_scheduler"])
@@ -828,7 +831,7 @@ def _get_nn_layers_C(nr_of_nn: int, ANImodel: ANI):
     weight_layers = []
     bias_layers = []
     layer = 6
-    model = ANImodel.tweaked_neural_network
+    model = ANImodel.optimized_neural_network
 
     for nn in model[:nr_of_nn]:
         weight_layers.extend(
@@ -848,7 +851,7 @@ def _get_nn_layers_H(nr_of_nn: int, ANImodel: ANI):
     weight_layers = []
     bias_layers = []
     layer = 6
-    model = ANImodel.tweaked_neural_network
+    model = ANImodel.optimized_neural_network
 
     for nn in model[:nr_of_nn]:
         weight_layers.extend(
@@ -868,7 +871,7 @@ def _get_nn_layers_CN(nr_of_nn: int, ANImodel: ANI):
     weight_layers = []
     bias_layers = []
     layer = 6
-    model = ANImodel.tweaked_neural_network
+    model = ANImodel.optimized_neural_network
 
     for nn in model[:nr_of_nn]:
         weight_layers.extend(
@@ -889,7 +892,7 @@ def _get_nn_layers_CN(nr_of_nn: int, ANImodel: ANI):
 def _get_nn_layers_CHON(nr_of_nn: int, ANImodel: ANI):
     weight_layers = []
     bias_layers = []
-    model = ANImodel.tweaked_neural_network
+    model = ANImodel.optimized_neural_network
     layer = 6
     for nn in model[:nr_of_nn]:
         weight_layers.extend(
@@ -927,7 +930,7 @@ def setup_and_perform_parameter_retraining(
     bulk_energy_calculation: bool = True,
     names_training: list = [],
     names_validating: list = [],
-    load_pickled_tautomer_object: bool = True,
+    load_pickled_FEC: bool = True,
 ):
     """
     Much of this code is taken from:
@@ -953,7 +956,7 @@ def setup_and_perform_parameter_retraining(
     assert int(batch_size) <= 10 and int(batch_size) >= 1
     assert int(nr_of_nn) <= 8 and int(nr_of_nn) >= 1
 
-    if load_pickled_tautomer_object:
+    if load_pickled_FEC:
         model_instance = ANImodel(
             [0, 0]
         )  # NOTE: The model needs a single instance to work with pickled tautomer objects
@@ -974,7 +977,8 @@ def setup_and_perform_parameter_retraining(
         max_snapshots_per_window=max_snapshots_per_window,
         diameter=diameter,
         perturbed_free_energy=False,
-        load_pickled_tautomer_object=load_pickled_tautomer_object,
+        load_pickled_FEC=load_pickled_FEC,
+        include_restraint_energy_contribution=False,
     )
 
     rmse_validation.append(rmse_validation_set)
@@ -997,13 +1001,13 @@ def setup_and_perform_parameter_retraining(
         data_path=data_path,
         load_checkpoint=load_checkpoint,
         max_snapshots_per_window=max_snapshots_per_window,
-        load_pickled_tautomer_object=load_pickled_tautomer_object,
+        load_pickled_FEC=load_pickled_FEC,
     )
 
     return rmse_validation
 
 
-def setup_mbar(
+def setup_FEC(
     name: str,
     max_snapshots_per_window: int,
     ANImodel: ANI,
@@ -1012,7 +1016,8 @@ def setup_mbar(
     checkpoint_file: str = "",
     data_path: str = "../data/",
     diameter: int = -1,
-    load_pickled_tautomer_object: bool = False,
+    load_pickled_FEC: bool = False,
+    include_restraint_energy_contribution: bool = True,
 ):
 
     from neutromeratio.analysis import setup_alchemical_system_and_energy_function
@@ -1022,16 +1027,19 @@ def setup_mbar(
     if not os.path.exists(data_path):
         raise RuntimeError(f"{data_path} does not exist!")
 
-    tautomer_pickle = f"{data_path}/{name}/{name}_tautomer_system_{max_snapshots_per_window}_for_{ANImodel.name}.pickle"
-    if os.path.exists(tautomer_pickle) and load_pickled_tautomer_object:
-        t = pickle.load(open(tautomer_pickle, "rb"))
-        print(f"{tautomer_pickle} loading ...")
-        return t
+    fec_pickle = f"{data_path}/{name}/{name}_FEC_{max_snapshots_per_window}_for_{ANImodel.name}.pickle"
+    if os.path.exists(fec_pickle) and load_pickled_FEC:
+        fec = pickle.load(open(fec_pickle, "rb"))
+        print(f"{fec_pickle} loading ...")
+        if (
+            fec.include_restraint_energy_contribution
+            != include_restraint_energy_contribution
+        ):
+            raise RuntimeError(
+                f"Attempted to load FEC with include_restraint_energy_contribution: {fec.include_restraint_energy_contribution}, but asked for include_restraint_energy_contribution: {include_restraint_energy_contribution}"
+            )
+        return fec
 
-    if name in exclude_set_ANI + mols_with_charge + multiple_stereobonds:
-        raise RuntimeError(
-            f"{name} is part of the list of excluded molecules. Aborting"
-        )
     if not (env == "vacuum" or env == "droplet"):
         raise RuntimeError("Only keyword vacuum or droplet are allowed as environment.")
     if env == "droplet" and diameter == -1:
@@ -1091,28 +1099,23 @@ def setup_mbar(
     assert len(lambdas) == len(energies)
     assert len(lambdas) == len(md_trajs)
 
-    if env == "vacuum":
-        pickle_path = f"{data_path}/{name}/{name}_{ANImodel.name}_{max_snapshots_per_window}_{len(tautomer.hybrid_atoms)}_atoms.pickle"
-    else:
-        pickle_path = f"{data_path}/{name}/{name}_{ANImodel.name}_{max_snapshots_per_window}_{diameter}A_{len(tautomer.ligand_in_water_atoms)}_atoms.pickle"
-
     # calculate free energy in kT
     fec = FreeEnergyCalculator(
         ani_model=energy_function,
         md_trajs=md_trajs,
         potential_energy_trajs=energies,
         lambdas=lambdas,
-        pickle_path=pickle_path,
         bulk_energy_calculation=bulk_energy_calculation,
         max_snapshots_per_window=max_snapshots_per_window,
+        include_restraint_energy_contribution=include_restraint_energy_contribution,
     )
 
     fec.flipped = flipped
-    pickle.dump(fec, open(tautomer_pickle, "wb+"))
+    pickle.dump(fec, open(fec_pickle, "wb+"))
     return fec
 
 
-def setup_mbar_for_new_tautomer_pairs(
+def setup_FEC_for_new_tautomer_pairs(
     name: str,
     t1_smiles: str,
     t2_smiles: str,
