@@ -1027,7 +1027,7 @@ def setup_FEC(
     if not os.path.exists(data_path):
         raise RuntimeError(f"{data_path} does not exist!")
 
-    fec_pickle = f"{data_path}/{name}/{name}_FEC_{max_snapshots_per_window}_for_{ANImodel.name}.pickle"
+    fec_pickle = f"{data_path}/{name}/{name}_FEC_{max_snapshots_per_window}_for_{ANImodel.name}_restraint_{include_restraint_energy_contribution}.pickle"
     if os.path.exists(fec_pickle) and load_pickled_FEC:
         fec = pickle.load(open(fec_pickle, "rb"))
         print(f"{fec_pickle} loading ...")
