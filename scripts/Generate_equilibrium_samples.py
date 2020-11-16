@@ -40,7 +40,7 @@ else:
     diameter_in_angstrom = -1
 
 protocol = []
-names = neutromeratio.parameter_gradients._get_names()
+names = neutromeratio.constants._get_names()
 for name in names:
     for lamb in np.linspace(0, 1, 11):
         protocol.append((name, np.round(lamb, 2)))
