@@ -316,6 +316,8 @@ def test_species_conversion():
             model=m, atoms=tautomer.initial_state_ligand_atoms, mol=None
         )
 
+        t = m.species_to_tensor(tautomer.initial_state_ligand_atoms)
+        assert torch.all(t.eq(torch.tensor([3, 1, 2, 2, 1, 1, 1, 3, 0, 0, 0, 0])))
         print(m.species_to_tensor(tautomer.initial_state_ligand_atoms))
 
     for model in [AlchemicalANI2x, AlchemicalANI1ccx]:
@@ -323,8 +325,10 @@ def test_species_conversion():
         energy_function = neutromeratio.ANI1_force_and_energy(
             model=m, atoms=tautomer.initial_state_ligand_atoms, mol=None
         )
+        assert torch.all(t.eq(torch.tensor([3, 1, 2, 2, 1, 1, 1, 3, 0, 0, 0, 0])))
 
         print(m.species_to_tensor(tautomer.initial_state_ligand_atoms))
+
 
 
 def test_tochani_neutromeratio_sync():
@@ -2691,7 +2695,8 @@ def test_parameter_gradient():
 
 
 @pytest.mark.skipif(
-    os.environ.get("TRAVIS", None) == "true", reason="Test is failing on travis on MacOS."
+    os.environ.get("TRAVIS", None) == "true",
+    reason="Test is failing on travis on MacOS.",
 )
 def test_thinning():
     from glob import glob
