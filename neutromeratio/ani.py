@@ -3,9 +3,7 @@ import logging
 import os
 import random
 from collections import namedtuple
-from functools import partial
 from typing import NamedTuple, Optional, Tuple
-import copy
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -17,29 +15,23 @@ from ase.thermochemistry import IdealGasThermo
 from ase.vibrations import Vibrations
 from simtk import unit
 from torch import Tensor
-from enum import Enum
+from torchani.nn import SpeciesEnergies
 
 from .constants import (
-    eV_to_kJ_mol,
     device,
+    eV_to_kJ_mol,
     hartree_to_kJ_mol,
+    hartree_to_kT,
     kT,
+    kT_to_kJ_mol,
     nm_to_angstroms,
     platform,
     pressure,
     temperature,
-    hartree_to_kT,
-    kT_to_kJ_mol,
 )
 from .restraints import BaseDistanceRestraint
 
 logger = logging.getLogger(__name__)
-
-
-class SpeciesEnergies(NamedTuple):
-    species: Tensor
-    energies: Tensor
-    stddev: Tensor
 
 
 class DecomposedForce(NamedTuple):
@@ -202,52 +194,20 @@ class ANI2x(ANI):
         ANI2x.optimized_neural_network = copy.deepcopy(ANI2x.original_neural_network)
 
 
-class AlchemicalANIMixin:
-    def forward(self, species_coordinates_lamb):
-        """
-        Energy and stddev are calculated and linearly interpolated between
-        the physical endstates at lambda 0 and lamb 1.
-        Parameters
-        ----------
-        species_coordinates
-        Returns
-        ----------
-        E : float
-            energy in hartree
-        stddev : float
-            energy in hartree
-        """
+class AlchemicalANI_Mixin:
+    """
+    Makes and AlchemicalANI out of ANI.
+    """
 
-        species, coordinates, lam, original_parameters = species_coordinates_lamb
-        species_coordinates = (species, coordinates)
-
-        if original_parameters:
-            logger.debug("Using original neural network parameters.")
-            nn = self.original_neural_network
-        else:
-            nn = self.optimized_neural_network
-            logger.debug("Using possibly tweaked neural network parameters.")
-
-        # setting dummy atoms
-        dummy_atom_0 = self.alchemical_atoms[0]
-        dummy_atom_1 = self.alchemical_atoms[1]
-
-        # neural net output given these AEVs
-        mod_species_0 = torch.cat(
-            (species[:, :dummy_atom_0], species[:, dummy_atom_0 + 1 :]), dim=1
-        )
-        mod_coordinates_0 = torch.cat(
-            (coordinates[:, :dummy_atom_0], coordinates[:, dummy_atom_0 + 1 :]), dim=1
-        )
-
-        # neural net output given these AEVs
-        mod_species_1 = torch.cat(
-            (species[:, :dummy_atom_1], species[:, dummy_atom_1 + 1 :]), dim=1
-        )
-        mod_coordinates_1 = torch.cat(
-            (coordinates[:, :dummy_atom_1], coordinates[:, dummy_atom_1 + 1 :]), dim=1
-        )
-
+    @staticmethod
+    def _checks(
+        mod_species_0,
+        mod_species_1,
+        species,
+        mod_coordinates_0,
+        mod_coordinates_1,
+        coordinates,
+    ):
         if not (
             mod_species_0.size()[0] == species.size()[0]
             and mod_species_0.size()[1] == species.size()[1] - 1
@@ -277,34 +237,87 @@ class AlchemicalANIMixin:
                 f"Something went wrong for mod_coordinates_1. Alchemical atoms: {dummy_atom_0} and {dummy_atom_1}. Coord tensor size {mod_coordinates_1.size()} is not equal mod coord tensor {mod_coordinates_1.size()}"
             )
 
+    def _forward(self, nn, mod_species, mod_coordinates):
+        _, mod_aevs = self.aev_computer((mod_species, mod_coordinates))
+        # neural net output given these modified AEVs
+        state = nn((mod_species, mod_aevs))
+        return self.energy_shifter((mod_species, state.energies))
+
+    @staticmethod
+    def _get_modified_species(species, dummy_atom):
+        return torch.cat((species[:, :dummy_atom], species[:, dummy_atom + 1 :]), dim=1)
+
+    @staticmethod
+    def _get_modified_coordiantes(coordinates, dummy_atom):
+        return torch.cat(
+            (coordinates[:, :dummy_atom], coordinates[:, dummy_atom + 1 :]), dim=1
+        )
+
+    def forward(self, species_coordinates_lamb):
+        """
+        Energy and stddev are calculated and linearly interpolated between
+        the physical endstates at lambda 0 and lamb 1.
+        Parameters
+        ----------
+        species_coordinates
+        Returns
+        ----------
+        E : float
+            energy in hartree
+        stddev : float
+            energy in hartree
+        """
+
+        species, coordinates, lam, original_parameters = species_coordinates_lamb
+        species_coordinates = (species, coordinates)
+
+        if original_parameters:
+            logger.debug("Using original neural network parameters.")
+            nn = self.original_neural_network
+        else:
+            nn = self.optimized_neural_network
+            logger.debug("Using possibly tweaked neural network parameters.")
+
+        # get new species tensor
+        mod_species_0 = self._get_modified_species(species, self.alchemical_atoms[0])
+        mod_species_1 = self._get_modified_species(species, self.alchemical_atoms[1])
+
+        # get new coordinate tensor
+        mod_coordinates_0 = self._get_modified_coordiantes(
+            coordinates, self.alchemical_atoms[0]
+        )
+        mod_coordinates_1 = self._get_modified_coordiantes(
+            coordinates, self.alchemical_atoms[1]
+        )
+
+        # perform some checks
+        self._checks(
+            mod_species_0,
+            mod_species_1,
+            species,
+            mod_coordinates_0,
+            mod_coordinates_1,
+            coordinates,
+        )
+
         # early exit if at endpoint
         if lam == 0.0:
-            _, mod_aevs_0 = self.aev_computer((mod_species_0, mod_coordinates_0))
-            # neural net output given these modified AEVs
-            state_0 = nn((mod_species_0, mod_aevs_0))
-            _, E_0 = self.energy_shifter((mod_species_0, state_0.energies))
+            _, E_0 = self._forward(nn, mod_species_0, mod_coordinates_0)
             return species, E_0
+
+        # early exit if at endpoint
         elif lam == 1.0:
-            _, mod_aevs_1 = self.aev_computer((mod_species_1, mod_coordinates_1))
-            # neural net output given these modified AEVs
-            state_1 = nn((mod_species_1, mod_aevs_1))
-            _, E_1 = self.energy_shifter((mod_species_1, state_1.energies))
-            # early exit if at endpoint
+            _, E_1 = self._forward(nn, mod_species_1, mod_coordinates_1)
             return species, E_1
+
         else:
-            _, mod_aevs_0 = self.aev_computer((mod_species_0, mod_coordinates_0))
-            # neural net output given these modified AEVs
-            state_0 = nn((mod_species_0, mod_aevs_0))
-            _, E_0 = self.energy_shifter((mod_species_0, state_0.energies))
-            _, mod_aevs_1 = self.aev_computer((mod_species_1, mod_coordinates_1))
-            # neural net output given these modified AEVs
-            state_1 = nn((mod_species_1, mod_aevs_1))
-            _, E_1 = self.energy_shifter((mod_species_1, state_1.energies))
+            _, E_0 = self._forward(nn, mod_species_0, mod_coordinates_0)
+            _, E_1 = self._forward(nn, mod_species_1, mod_coordinates_1)
             E = (lam * E_1) + ((1 - lam) * E_0)
             return species, E
 
 
-class AlchemicalANI1ccx(AlchemicalANIMixin, ANI1ccx):
+class AlchemicalANI1ccx(AlchemicalANI_Mixin, ANI1ccx):
 
     name = "AlchemicalANI1ccx"
 
@@ -327,7 +340,7 @@ class AlchemicalANI1ccx(AlchemicalANIMixin, ANI1ccx):
         assert self.neural_networks == None
 
 
-class AlchemicalANI1x(AlchemicalANIMixin, ANI1x):
+class AlchemicalANI1x(AlchemicalANI_Mixin, ANI1x):
 
     name = "AlchemicalANI1x"
 
@@ -350,7 +363,7 @@ class AlchemicalANI1x(AlchemicalANIMixin, ANI1x):
         assert self.neural_networks == None
 
 
-class AlchemicalANI2x(AlchemicalANIMixin, ANI2x):
+class AlchemicalANI2x(AlchemicalANI_Mixin, ANI2x):
 
     name = "AlchemicalANI2x"
 
