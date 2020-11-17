@@ -67,6 +67,25 @@ def decide_unspec_stereo(smiles: str) -> str:
     return Chem.MolToSmiles(m)
 
 
+def _get_traj(traj_path: str, top_path: str, remove_idx: int = -1):
+    import torchani
+    from neutromeratio.constants import device
+
+    nn = torchani.models.ANI1ccx(periodic_table_index=True).to(device)
+
+    top = md.load(top_path).topology
+    traj = md.load(traj_path, top=top)
+    atoms = [a for a in range(top.n_atoms)]
+    if remove_idx >= 0:
+        print(atoms)
+        atoms.remove(remove_idx)
+        print(atoms)
+        traj = traj.atom_slice(atoms)
+    species = "".join([a.element.symbol for a in top.atoms])
+    species = nn.species_to_tensor(species).to(device).unsqueeze(0)
+    return traj, top, species
+
+
 def get_nr_of_stereobonds(smiles: str) -> int:
     """
     Calculates the nr of stereobonds.
@@ -137,6 +156,7 @@ def generate_new_tautomer_pair(name: str, t1_smiles: str, t2_smiles: str):
     from t1 and t2 smiles"""
     # TOOD: should this also accept nr_of_conformations, enforceChirality?
     from neutromeratio.tautomers import Tautomer
+
     return Tautomer(
         name=name,
         initial_state_mol=generate_rdkit_mol(t1_smiles),
@@ -216,7 +236,6 @@ def generate_tautomer_class_stereobond_aware(
 
             tautomers.append(_tautomer(t1_a, t2_a))
             tautomers.append(_tautomer(t1_b, t2_b))
-
 
         elif flag_unspec_stereo(t2_smiles):
             flipped = True

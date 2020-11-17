@@ -16,37 +16,39 @@ computing all layers up until the last one).
 
 from copy import deepcopy
 
-import numpy as np
 import torch
+import numpy as np
+from simtk import unit
 
 torch.set_default_dtype(torch.float64)
 import torch.autograd.profiler as profiler
-
 import torchani
 
-print('TorchANI version: ', torchani.__version__)
-
-from torchani.nn import ANIModel
+print("TorchANI version: ", torchani.__version__)
 
 from typing import Optional, Tuple
+
 from torch import Tensor
-from torchani.nn import SpeciesEnergies
+from torchani.nn import ANIModel, SpeciesEnergies
 
 
 class PartialANIModel(ANIModel):
     """just like ANIModel, but don't do the sum over atoms in the last step, and
     don't flatten last layer output!"""
 
-    def forward(self, species_aev: Tuple[Tensor, Tensor],  # type: ignore
-                cell: Optional[Tensor] = None,
-                pbc: Optional[Tensor] = None) -> Tuple[Tensor, Tensor]:
+    def forward(
+        self,
+        species_aev: Tuple[Tensor, Tensor],  # type: ignore
+        cell: Optional[Tensor] = None,
+        pbc: Optional[Tensor] = None,
+    ) -> Tuple[Tensor, Tensor]:
 
         species, aev = species_aev
         assert species.shape == aev.shape[:-1]
 
         # in our case, species will be the same for all snapshots
         atom_species = species[0]
-        assert ((atom_species == species).all())
+        assert (atom_species == species).all()
 
         # NOTE: depending on the element, outputs will have different dimensions...
         # something like output.shape = n_snapshots, n_atoms, n_dims
@@ -79,8 +81,7 @@ class PartialANIEnsemble(torch.nn.Module):
 
     def forward(self, species_aev):
         species, _ = species_aev
-        output = torch.stack(
-            [m(species_aev).energies for m in self.ani_models], dim=2)
+        output = torch.stack([m(species_aev).energies for m in self.ani_models], dim=2)
         return SpeciesEnergies(species, output)
 
 
@@ -88,10 +89,10 @@ class Precomputation(torch.nn.Module):
     def __init__(self, model: ANIModel):
         super().__init__()
         stages = list(model.children())
-        assert (len(stages) == 4)
+        assert len(stages) == 4
 
         ensemble = stages[2]
-        assert (type(ensemble) == torchani.nn.Ensemble)
+        assert type(ensemble) == torchani.nn.Ensemble
 
         # define new ensemble that does everything from AEV up to the last layer
         modified_ensemble = deepcopy(ensemble)
@@ -115,10 +116,10 @@ class LastLayerComputation(torch.nn.Module):
     def __init__(self, model: ANIModel):
         super().__init__()
         stages = list(model.children())
-        assert (len(stages) == 4)
+        assert len(stages) == 4
 
         ensemble = stages[2]
-        assert (type(ensemble) == torchani.nn.Ensemble)
+        assert type(ensemble) == torchani.nn.Ensemble
 
         # define new ensemble that does just the last layer of computation
         last_step_ensemble = deepcopy(ensemble)
@@ -128,7 +129,7 @@ class LastLayerComputation(torch.nn.Module):
 
         self.last_step_ensemble = last_step_ensemble
         self.energy_shifter = stages[-1]
-        assert (type(self.energy_shifter) == torchani.EnergyShifter)
+        assert type(self.energy_shifter) == torchani.EnergyShifter
 
     def forward(self, species_y):
         """
@@ -144,8 +145,9 @@ class LastLayerComputation(torch.nn.Module):
         return self.energy_shifter.forward((species, energies / n_nets))
 
 
-def break_into_two_stages(model: ANIModel) -> Tuple[
-    Precomputation, LastLayerComputation]:
+def break_into_two_stages(
+    model: ANIModel,
+) -> Tuple[Precomputation, LastLayerComputation]:
     """ANIModel.forward(...) is pretty expensive, and in some cases we might want
     to do a computation where the first stage of the calculation is pretty expensive
     and the subsequent stages are less expensive.
@@ -161,30 +163,41 @@ def break_into_two_stages(model: ANIModel) -> Tuple[
     return f, g
 
 
-if __name__ == '__main__':
+def get_coordinates_and_species_of_droplet(n_snapshots: int):
+    from neutromeratio.utils import _get_traj
+
+    traj_path = "../data/test_data/droplet/molDWRow_298/molDWRow_298_lambda_0.0000_in_droplet.dcd"
+    top_path = "../data/test_data/droplet/molDWRow_298/molDWRow_298_in_droplet.pdb"
+    # _get_traj remove the dummy atom
+    traj, top, species = _get_traj(traj_path, top_path)
+    # overwrite the coordinates that rdkit generated with the first frame in the traj
+    n_snapshots_coordinates = [x.xyz[0] for x in traj[:n_snapshots]] * unit.nanometer
+    n_snapshots_species = torch.stack(
+        [species[0]] * n_snapshots
+    )  # species is a [1][1] tensor, afterwards it's a [1][nr_of_mols]
+
+    n_snapshots_coordinates = torch.tensor(
+        n_snapshots_coordinates.value_in_unit(unit.angstrom),
+    )
+    return n_snapshots_coordinates, n_snapshots_species
+
+
+if __name__ == "__main__":
     # download and initialize model
     model = torchani.models.ANI2x(periodic_table_index=True)
 
-    # a bunch of snapshots for methane
-    n_snapshots = 1000
-    methane_coords = [[0.03192167, 0.00638559, 0.01301679],
-                      [-0.83140486, 0.39370209, -0.26395324],
-                      [-0.66518241, -0.84461308, 0.20759389],
-                      [0.45554739, 0.54289633, 0.81170881],
-                      [0.66091919, -0.16799635, -0.91037834]]
-    coordinates = torch.tensor([methane_coords] * n_snapshots)
-    print(coordinates.shape)
-    species = torch.tensor([[6, 1, 1, 1, 1]] * n_snapshots)
+    # a bunch of snapshots for a droplet system
+    n_snapshots = 50
+    coordinates, species = get_coordinates_and_species_of_droplet(n_snapshots)
     species_coordinates = (species, coordinates)
 
     # the original potential energy function
-
     with profiler.profile(record_shapes=True, profile_memory=True) as prof:
         with profiler.record_function("model_inference"):
             species_e_ref = model.forward(species_coordinates)
 
     s = prof.self_cpu_time_total / 1000000
-    print(f'time to compute energies in batch: {s:.3f} s')
+    print(f"time to compute energies in batch: {s:.3f} s")
 
     f, g = break_into_two_stages(model)
 
@@ -192,19 +205,19 @@ if __name__ == '__main__':
     species_e = g.forward(species_y)
 
     e_residuals = species_e.energies - species_e_ref.energies
-    print('energy error: |g(f(x)) - model(x)|: ', torch.norm(e_residuals))
+    print("energy error: |g(f(x)) - model(x)|: ", torch.norm(e_residuals))
 
     with profiler.profile(record_shapes=True) as prof_f:
         with profiler.record_function("model_inference"):
             species_y = f.forward(species_coordinates)
     s = prof_f.self_cpu_time_total / 1000000
-    print(f'time to precompute up until last layer (f): {s:.3f} s')
+    print(f"time to precompute up until last layer (f): {s:.3f} s")
 
     with profiler.profile(record_shapes=True) as prof_g:
         with profiler.record_function("model_inference"):
             species_e = g.forward(species_y)
     s = prof_g.self_cpu_time_total / 1000000
-    print(f'time to compute last layer (g): {s:.3f} s')
+    print(f"time to compute last layer (g): {s:.3f} s")
 
     # finally, compute gradients w.r.t. last layer only
     g.train()
@@ -223,4 +236,4 @@ if __name__ == '__main__':
             L.backward()
 
     s = prof_backprop.self_cpu_time_total / 1000000
-    print(f'time to compute derivatives of E w.r.t. last layer: {s:.3f} s')
+    print(f"time to compute derivatives of E w.r.t. last layer: {s:.3f} s")
