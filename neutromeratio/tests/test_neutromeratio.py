@@ -2717,6 +2717,10 @@ def test_thinning():
         assert max_snapshots_per_window == len(snapshots)
 
 
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true",
+    reason="Slow tests are failing on Travis.",
+)
 def test_max_nr_of_snapshots():
     from ..parameter_gradients import calculate_rmse_between_exp_and_calc
     from ..ani import AlchemicalANI1ccx, AlchemicalANI1x, AlchemicalANI2x

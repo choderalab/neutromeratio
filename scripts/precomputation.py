@@ -15,6 +15,7 @@ computing all layers up until the last one).
 """
 
 from copy import deepcopy
+from neutromeratio.constants import hartree_to_kcal_mol
 
 import torch
 import numpy as np
@@ -30,6 +31,8 @@ from typing import Optional, Tuple
 
 from torch import Tensor
 from torchani.nn import ANIModel, SpeciesEnergies
+
+torch.set_num_threads(1)
 
 
 class PartialANIModel(ANIModel):
@@ -163,7 +166,7 @@ def break_into_two_stages(
     return f, g
 
 
-def get_coordinates_and_species_of_droplet(n_snapshots: int):
+def get_coordinates_and_species_of_droplet(n_snapshots: int) -> Tuple[(Tensor, Tensor)]:
     from neutromeratio.utils import _get_traj
 
     traj_path = "../data/test_data/droplet/molDWRow_298/molDWRow_298_lambda_0.0000_in_droplet.dcd"
@@ -171,30 +174,46 @@ def get_coordinates_and_species_of_droplet(n_snapshots: int):
     # _get_traj remove the dummy atom
     traj, top, species = _get_traj(traj_path, top_path)
     # overwrite the coordinates that rdkit generated with the first frame in the traj
-    n_snapshots_coordinates = [x.xyz[0] for x in traj[:n_snapshots]] * unit.nanometer
+    n_snapshots_coordinates = (
+        [x.xyz[0] for x in traj[:n_snapshots]] * unit.nanometer
+    ).value_in_unit(unit.angstrom)
     n_snapshots_species = torch.stack(
         [species[0]] * n_snapshots
     )  # species is a [1][1] tensor, afterwards it's a [1][nr_of_mols]
 
     n_snapshots_coordinates = torch.tensor(
-        n_snapshots_coordinates.value_in_unit(unit.angstrom),
+        n_snapshots_coordinates, dtype=torch.float64, requires_grad=True
     )
     return n_snapshots_coordinates, n_snapshots_species
 
 
 if __name__ == "__main__":
     # download and initialize model
-    model = torchani.models.ANI2x(periodic_table_index=True)
+    model = torchani.models.ANI2x(periodic_table_index=False)
 
     # a bunch of snapshots for a droplet system
-    n_snapshots = 50
+    n_snapshots = 500
+
     coordinates, species = get_coordinates_and_species_of_droplet(n_snapshots)
+
+    # methane_coords = [
+    #     [0.03192167, 0.00638559, 0.01301679],
+    #     [-0.83140486, 0.39370209, -0.26395324],
+    #     [-0.66518241, -0.84461308, 0.20759389],
+    #     [0.45554739, 0.54289633, 0.81170881],
+    #     [0.66091919, -0.16799635, -0.91037834],
+    # ]
+    # coordinates = torch.tensor([methane_coords * 10] * n_snapshots)
+    # species = torch.tensor([[1, 0, 0, 0, 0] * 10] * n_snapshots)
+
+    print(species.size())
     species_coordinates = (species, coordinates)
 
     # the original potential energy function
     with profiler.profile(record_shapes=True, profile_memory=True) as prof:
         with profiler.record_function("model_inference"):
             species_e_ref = model.forward(species_coordinates)
+            print(species_e_ref.energies * hartree_to_kcal_mol)
 
     s = prof.self_cpu_time_total / 1000000
     print(f"time to compute energies in batch: {s:.3f} s")
