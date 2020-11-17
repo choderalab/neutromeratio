@@ -1,3 +1,4 @@
+import torch
 import logging
 import os
 import random
@@ -15,6 +16,22 @@ StereoBondType = Union[Any, str]
 from neutromeratio.constants import kT
 
 logger = logging.getLogger(__name__)
+
+
+def find_idx(query_name: str) -> list:
+    from neutromeratio.constants import _get_names
+
+    protocol = dict()
+    idx = 1
+    for name in _get_names():
+        list_of_idx = []
+        list_of_lambdas = []
+        for lamb in np.linspace(0, 1, 11):
+            list_of_lambdas.append(lamb)
+            list_of_idx.append(idx)
+            idx += 1
+        protocol[name] = (list_of_idx, list_of_lambdas)
+    return protocol[query_name]
 
 
 def write_pdb(mol: Chem.Mol, filepath: str, confId: int = -1) -> str:

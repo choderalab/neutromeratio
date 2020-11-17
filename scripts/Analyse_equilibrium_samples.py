@@ -1,10 +1,11 @@
+import torch
 import neutromeratio
 from simtk import unit
 import numpy as np
 import pickle
 import sys
 import torch
-from neutromeratio.parameter_gradients import setup_mbar
+from neutromeratio.parameter_gradients import setup_FEC
 from neutromeratio.constants import (
     kT,
     device,
@@ -47,7 +48,7 @@ else:
 
 if env == "droplet":
     print("Simulating in environment: droplet.")
-    fec = setup_mbar(
+    fec = setup_FEC(
         name=name,
         data_path=base_path,
         ANImodel=AlchemicalANI,
@@ -58,7 +59,7 @@ if env == "droplet":
     )
 elif env == "vacuum":
     print("Simulating in environment: vacuum.")
-    fec = setup_mbar(
+    fec = setup_FEC(
         name=name,
         data_path=base_path,
         ANImodel=AlchemicalANI,
