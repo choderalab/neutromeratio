@@ -831,7 +831,7 @@ class ANI1_force_and_energy(object):
 
         nr_of_mols = len(coordinates)
         logger.debug(f"len(coordinates): {nr_of_mols}")
-        batch_species = torch.stack([self.species[0]] * nr_of_mols)
+        batch_species = torch.stack([self.species[0]] * nr_of_mols) # species is a [1][1] tensor, afterwards it's a [1][nr_of_mols]
 
         assert 0.0 <= float(lambda_value) <= 1.0
         assert isinstance(original_neural_network, bool)
