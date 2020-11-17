@@ -1,7 +1,7 @@
+import torch
 import logging
 
 import numpy as np
-import torch
 from openmmtools.constants import kB
 from scipy.stats import norm
 from simtk import unit

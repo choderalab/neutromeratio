@@ -2,8 +2,8 @@
 
 import logging
 
-import numpy as np
 import torch
+import numpy as np
 from pymbar import MBAR
 from pymbar.timeseries import detectEquilibration
 from simtk import unit

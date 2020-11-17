@@ -1,3 +1,4 @@
+import torch
 import neutromeratio
 from simtk import unit
 import numpy as np
