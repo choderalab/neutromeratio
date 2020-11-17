@@ -1,9 +1,9 @@
+import torch
 import sys
 import numpy as np
 import logging
 import pickle
 
-import torch
 from openmmtools.constants import kB
 from simtk import unit
 import pkg_resources

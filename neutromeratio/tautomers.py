@@ -1,3 +1,4 @@
+import torch
 import copy
 import logging
 import os
@@ -7,7 +8,6 @@ import mdtraj as md
 import networkx as nx
 import numpy as np
 import parmed as pm
-import torch
 import torchani
 from ase import Atom, Atoms
 from pdbfixer import PDBFixer

@@ -1,3 +1,4 @@
+import torch
 from simtk import unit
 import numpy as np
 import mdtraj as md
@@ -5,7 +6,6 @@ import neutromeratio
 from neutromeratio.constants import _get_names, device, platform, kT
 import sys
 import os
-import torch
 from neutromeratio.analysis import setup_alchemical_system_and_energy_function
 from neutromeratio.ani import AlchemicalANI2x
 

@@ -1,3 +1,4 @@
+import torch
 import copy
 import logging
 import pickle
@@ -11,7 +12,6 @@ import pandas as pd
 import pkg_resources
 import scipy.stats as scs
 import seaborn as sns
-import torch
 import torchani
 from rdkit import Chem, Geometry
 from rdkit.Chem import AllChem, rdFMCS

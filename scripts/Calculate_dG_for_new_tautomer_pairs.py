@@ -1,9 +1,10 @@
+import torch
 import neutromeratio
 from simtk import unit
 import numpy as np
 import pickle
 import sys
-import torch
+
 from neutromeratio.parameter_gradients import setup_mbar_for_new_tautomer_pairs
 from neutromeratio.constants import (
     kT,
