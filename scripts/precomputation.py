@@ -86,6 +86,7 @@ class LastLayerANIModel(ANIModel):
     """just like ANIModel, but only does the final calculation and cuts input arrays to the input feature size of the
     different atom nets!"""
 
+
     def forward(
         self,
         species_aev: Tuple[Tensor, Tensor],
@@ -194,7 +195,7 @@ class LastLayersComputation(torch.nn.Module):
 
 
 def break_into_two_stages(
-    model: ANIModel, break_at: int = 6
+    model: ANIModel, break_at: int
 ) -> Tuple[Precomputation, LastLayersComputation]:
     """ANIModel.forward(...) is pretty expensive, and in some cases we might want
     to do a computation where the first stage of the calculation is pretty expensive
@@ -215,7 +216,7 @@ def break_into_two_stages(
         last_layers = 2
         nr_of_included_layers = 5
     else:
-        RuntimeError("Only the last two layers are of interest.")
+        raise RuntimeError("Only the last two layers are of interest.")
 
     f = Precomputation(model, nr_of_included_layers=nr_of_included_layers)
     g = LastLayersComputation(model, last_layers=last_layers)
@@ -248,7 +249,7 @@ if __name__ == "__main__":
     model = torchani.models.ANI2x(periodic_table_index=False)
 
     # a bunch of snapshots for a droplet system
-    n_snapshots = 50
+    n_snapshots = 100
 
     coordinates, species = get_coordinates_and_species_of_droplet(n_snapshots)
 
@@ -268,7 +269,7 @@ if __name__ == "__main__":
     with profiler.profile(record_shapes=True, profile_memory=True) as prof:
         with profiler.record_function("model_inference"):
             species_e_ref = model.forward(species_coordinates)
-            print(species_e_ref.energies * hartree_to_kcal_mol)
+            # print(species_e_ref.energies * hartree_to_kcal_mol)
 
     s = prof.self_cpu_time_total / 1000000
     print(f"time to compute energies in batch: {s:.3f} s")
@@ -285,13 +286,13 @@ if __name__ == "__main__":
         with profiler.record_function("model_inference"):
             species_y = f.forward(species_coordinates)
     s = prof_f.self_cpu_time_total / 1000000
-    print(f"time to precompute up until last layer (f): {s:.3f} s")
+    print(f"time to precompute up until last layer(s) (f): {s:.3f} s")
 
     with profiler.profile(record_shapes=True) as prof_g:
         with profiler.record_function("model_inference"):
             species_e = g.forward(species_y)
     s = prof_g.self_cpu_time_total / 1000000
-    print(f"time to compute last layer (g): {s:.3f} s")
+    print(f"time to compute last layer(s) (g): {s:.3f} s")
 
     # finally, compute gradients w.r.t. last layer only
     g.train()
