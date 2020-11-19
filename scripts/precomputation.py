@@ -61,7 +61,7 @@ class PartialANIModel(ANIModel):
         # into the first 96, 128, or 160 elements, NaN-poisoning the rest
         # TODO: make this less hard-code-y
         n_snapshots, n_atoms = species.shape
-        max_dim = 160
+        max_dim = 200
         output = torch.zeros((n_snapshots, n_atoms, max_dim)) * np.nan
         # TODO: note intentional NaN-poisoning here -- not sure if there's a
         #   better way to emulate jagged array
@@ -86,6 +86,15 @@ class LastLayerANIModel(ANIModel):
     """just like ANIModel, but only does the final calculation and cuts input arrays to the input feature size of the
     different atom nets!"""
 
+    last_two_layer_nr_of_feature: dict = {
+        3: {0: 192, 1: 192, 2: 160, 3: 160},
+        1: {0: 160, 1: 160, 2: 128, 3: 128},
+    }
+
+    def __init__(self, modules, index_of_last_layer: int):
+        super().__init__(modules)
+        self.index_of_last_layer = index_of_last_layer
+        print(f"Index of last layer: {index_of_last_layer}")
 
     def forward(
         self,
@@ -104,10 +113,9 @@ class LastLayerANIModel(ANIModel):
             midx = mask.nonzero().flatten()
             if midx.shape[0] > 0:
                 input_ = aev.index_select(0, midx)
-                if i == 2:
-                    input_ = input_[:, :128]
-                elif i == 3:
-                    input_ = input_[:, :128]
+                input_ = input_[
+                    :, : self.last_two_layer_nr_of_feature[self.index_of_last_layer][i]
+                ]
                 output.masked_scatter_(mask, m(input_).flatten())
         output = output.view_as(species)
         return SpeciesEnergies(species, torch.sum(output, dim=1))
@@ -156,11 +164,11 @@ class Precomputation(torch.nn.Module):
 
 
 class LastLayersComputation(torch.nn.Module):
-    def __init__(self, model: ANIModel, last_layers):
+    def __init__(self, model: ANIModel, index_of_last_layers):
         super().__init__()
         stages = list(model.children())
         assert len(stages) == 4
-
+        assert index_of_last_layers == 1 or index_of_last_layers == 3
         ensemble = stages[2]
         assert type(ensemble) == torchani.nn.Ensemble
 
@@ -168,9 +176,13 @@ class LastLayersComputation(torch.nn.Module):
         last_step_ensemble = deepcopy(ensemble)
         for e in last_step_ensemble:
             for element in e.keys():
-                e[element] = e[element][-last_layers:]
+                e[element] = e[element][-index_of_last_layers:]
 
-        ani_models = [LastLayerANIModel(m.children()) for m in last_step_ensemble]
+        ani_models = [
+            LastLayerANIModel(m.children(), index_of_last_layers)
+            for m in last_step_ensemble
+        ]
+
         self.last_step_ensemble = torchani.nn.Ensemble(ani_models)
         self.energy_shifter = stages[-1]
         assert type(self.energy_shifter) == torchani.EnergyShifter
@@ -195,7 +207,7 @@ class LastLayersComputation(torch.nn.Module):
 
 
 def break_into_two_stages(
-    model: ANIModel, break_at: int
+    model: ANIModel, split_at: int
 ) -> Tuple[Precomputation, LastLayersComputation]:
     """ANIModel.forward(...) is pretty expensive, and in some cases we might want
     to do a computation where the first stage of the calculation is pretty expensive
@@ -207,19 +219,19 @@ def break_into_two_stages(
     This is beneficial if we only ever need to recompute and adjust g, not f
     """
 
-    if break_at == 6:
-        print("Break at layer 6")
-        last_layers = 1
+    if split_at == 6:
+        print("Split at layer 6")
+        index_of_last_layers = 1
         nr_of_included_layers = 6
-    elif break_at == 5:
-        print("Break at layer 5")
-        last_layers = 2
-        nr_of_included_layers = 5
+    elif split_at == 4:
+        print("Split at layer 4")
+        index_of_last_layers = 3
+        nr_of_included_layers = 4
     else:
-        raise RuntimeError("Only the last two layers are of interest.")
+        raise RuntimeError("Either split at layer 4 or 6.")
 
     f = Precomputation(model, nr_of_included_layers=nr_of_included_layers)
-    g = LastLayersComputation(model, last_layers=last_layers)
+    g = LastLayersComputation(model, index_of_last_layers=index_of_last_layers)
     return f, g
 
 
@@ -274,7 +286,7 @@ if __name__ == "__main__":
     s = prof.self_cpu_time_total / 1000000
     print(f"time to compute energies in batch: {s:.3f} s")
 
-    f, g = break_into_two_stages(model, 5)
+    f, g = break_into_two_stages(model, 4)
 
     species_y = f.forward(species_coordinates)
     species_e = g.forward(species_y)
