@@ -66,15 +66,50 @@ class PartialANIModel(ANIModel):
         # TODO: note intentional NaN-poisoning here -- not sure if there's a
         #   better way to emulate jagged array
 
+        # loop through atom nets
         for i, (_, module) in enumerate(self.items()):
             mask = atom_species == i
-
+            # look only at the elements that are present in species
             if sum(mask) > 0:
+                # get output for these atoms given the aev for these atoms
                 current_out = module(aev[:, mask, :])
+                # dimenstion of current_out is [nr_of_frames, nr_of_atoms_with_element_i,max_dim]
                 out_dim = current_out.shape[-1]
+                # jagged array
                 output[:, mask, :out_dim] = current_out
+                # final dimenstions are [n_snapshots, n_atoms, max_dim]
 
         return SpeciesEnergies(species, output)
+
+
+class LastLayerANIModel(ANIModel):
+    """just like ANIModel, but only does the final calculation and cuts input arrays to the input feature size of the
+    different atom nets!"""
+
+    def forward(
+        self,
+        species_aev: Tuple[Tensor, Tensor],
+        cell: Optional[Tensor] = None,
+        pbc: Optional[Tensor] = None,
+    ) -> SpeciesEnergies:
+        species, aev = species_aev
+        species_ = species.flatten()
+        aev = aev.flatten(0, 1)
+
+        output = aev.new_zeros(species_.shape)
+
+        for i, (_, m) in enumerate(self.items()):
+            mask = species_ == i
+            midx = mask.nonzero().flatten()
+            if midx.shape[0] > 0:
+                input_ = aev.index_select(0, midx)
+                if i == 2:
+                    input_ = input_[:, :128]
+                elif i == 3:
+                    input_ = input_[:, :128]
+                output.masked_scatter_(mask, m(input_).flatten())
+        output = output.view_as(species)
+        return SpeciesEnergies(species, torch.sum(output, dim=1))
 
 
 class PartialANIEnsemble(torch.nn.Module):
@@ -85,6 +120,7 @@ class PartialANIEnsemble(torch.nn.Module):
     def forward(self, species_aev):
         species, _ = species_aev
         output = torch.stack([m(species_aev).energies for m in self.ani_models], dim=2)
+
         return SpeciesEnergies(species, output)
 
 
@@ -100,6 +136,7 @@ class Precomputation(torch.nn.Module):
         # define new ensemble that does everything from AEV up to the last layer
         modified_ensemble = deepcopy(ensemble)
 
+        # remove last layer
         for e in modified_ensemble:
             for element in e.keys():
                 e[element] = e[element][:6]
@@ -110,7 +147,8 @@ class Precomputation(torch.nn.Module):
         self.aev = stages[1]
 
     def forward(self, species_coordinates):
-        x = self.species_converter.forward(species_coordinates)
+        # x = self.species_converter.forward(species_coordinates)
+        x = species_coordinates
         species_y = self.partial_ani_ensemble.forward(self.aev.forward(x))
         return species_y
 
@@ -130,7 +168,8 @@ class LastLayerComputation(torch.nn.Module):
             for element in e.keys():
                 e[element] = e[element][-1:]
 
-        self.last_step_ensemble = last_step_ensemble
+        ani_models = [LastLayerANIModel(m.children()) for m in last_step_ensemble]
+        self.last_step_ensemble = torchani.nn.Ensemble(ani_models)
         self.energy_shifter = stages[-1]
         assert type(self.energy_shifter) == torchani.EnergyShifter
 
@@ -139,11 +178,16 @@ class LastLayerComputation(torch.nn.Module):
         TODO: this should only work for elements where the last layer dimension
             is 160
         """
+        # y contains the tensor with dimension [n_snapshots, n_atoms, ensemble, max_dimension_of_atom_net (160)]
         species, y = species_y
         n_nets = len(self.last_step_ensemble)
         energies = torch.zeros(y.shape[0])
+
+        # loop through ensembles
         for i in range(n_nets):
+            # get last layer for this ensemble
             m = self.last_step_ensemble[i]
+
             energies += m.forward((species, y[:, :, i, :])).energies
         return self.energy_shifter.forward((species, energies / n_nets))
 
@@ -192,28 +236,27 @@ if __name__ == "__main__":
     model = torchani.models.ANI2x(periodic_table_index=False)
 
     # a bunch of snapshots for a droplet system
-    n_snapshots = 500
+    n_snapshots = 100
 
     coordinates, species = get_coordinates_and_species_of_droplet(n_snapshots)
 
-    # methane_coords = [
-    #     [0.03192167, 0.00638559, 0.01301679],
-    #     [-0.83140486, 0.39370209, -0.26395324],
-    #     [-0.66518241, -0.84461308, 0.20759389],
-    #     [0.45554739, 0.54289633, 0.81170881],
-    #     [0.66091919, -0.16799635, -0.91037834],
-    # ]
-    # coordinates = torch.tensor([methane_coords * 10] * n_snapshots)
-    # species = torch.tensor([[1, 0, 0, 0, 0] * 10] * n_snapshots)
+    methane_coords = [
+        [0.03192167, 0.00638559, 0.01301679],
+        [-0.83140486, 0.39370209, -0.26395324],
+        [-0.66518241, -0.84461308, 0.20759389],
+        [0.45554739, 0.54289633, 0.81170881],
+        [0.66091919, -0.16799635, -0.91037834],
+    ]
+    coordinates = torch.tensor([methane_coords * 10] * n_snapshots)
+    species = torch.tensor([[1, 0, 0, 0, 3] * 10] * n_snapshots)
 
-    print(species.size())
     species_coordinates = (species, coordinates)
 
     # the original potential energy function
     with profiler.profile(record_shapes=True, profile_memory=True) as prof:
         with profiler.record_function("model_inference"):
             species_e_ref = model.forward(species_coordinates)
-            print(species_e_ref.energies * hartree_to_kcal_mol)
+            # print(species_e_ref.energies * hartree_to_kcal_mol)
 
     s = prof.self_cpu_time_total / 1000000
     print(f"time to compute energies in batch: {s:.3f} s")
