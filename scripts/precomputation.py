@@ -87,8 +87,8 @@ class LastLayerANIModel(ANIModel):
     different atom nets!"""
 
     last_two_layer_nr_of_feature: dict = {
-        3: {0: 192, 1: 192, 2: 160, 3: 160},
-        1: {0: 160, 1: 160, 2: 128, 3: 128},
+        -3: {0: 192, 1: 192, 2: 160, 3: 160},
+        -1: {0: 160, 1: 160, 2: 128, 3: 128},
     }
 
     def __init__(self, modules, index_of_last_layer: int):
@@ -168,7 +168,7 @@ class LastLayersComputation(torch.nn.Module):
         super().__init__()
         stages = list(model.children())
         assert len(stages) == 4
-        assert index_of_last_layers == 1 or index_of_last_layers == 3
+        assert index_of_last_layers == -1 or index_of_last_layers == -3
         ensemble = stages[2]
         assert type(ensemble) == torchani.nn.Ensemble
 
@@ -176,7 +176,7 @@ class LastLayersComputation(torch.nn.Module):
         last_step_ensemble = deepcopy(ensemble)
         for e in last_step_ensemble:
             for element in e.keys():
-                e[element] = e[element][-index_of_last_layers:]
+                e[element] = e[element][index_of_last_layers:]
 
         ani_models = [
             LastLayerANIModel(m.children(), index_of_last_layers)
@@ -221,11 +221,11 @@ def break_into_two_stages(
 
     if split_at == 6:
         print("Split at layer 6")
-        index_of_last_layers = 1
+        index_of_last_layers = -1
         nr_of_included_layers = 6
     elif split_at == 4:
         print("Split at layer 4")
-        index_of_last_layers = 3
+        index_of_last_layers = -3
         nr_of_included_layers = 4
     else:
         raise RuntimeError("Either split at layer 4 or 6.")
