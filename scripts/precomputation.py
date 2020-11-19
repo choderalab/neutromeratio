@@ -125,8 +125,9 @@ class PartialANIEnsemble(torch.nn.Module):
 
 
 class Precomputation(torch.nn.Module):
-    def __init__(self, model: ANIModel):
+    def __init__(self, model: ANIModel, nr_of_included_layers: int):
         super().__init__()
+        assert nr_of_included_layers <= 6
         stages = list(model.children())
         assert len(stages) == 4
 
@@ -139,7 +140,7 @@ class Precomputation(torch.nn.Module):
         # remove last layer
         for e in modified_ensemble:
             for element in e.keys():
-                e[element] = e[element][:6]
+                e[element] = e[element][:nr_of_included_layers]
 
         ani_models = [PartialANIModel(m.children()) for m in modified_ensemble]
         self.partial_ani_ensemble = PartialANIEnsemble(ani_models)
@@ -153,8 +154,8 @@ class Precomputation(torch.nn.Module):
         return species_y
 
 
-class LastLayerComputation(torch.nn.Module):
-    def __init__(self, model: ANIModel):
+class LastLayersComputation(torch.nn.Module):
+    def __init__(self, model: ANIModel, last_layers):
         super().__init__()
         stages = list(model.children())
         assert len(stages) == 4
@@ -166,7 +167,7 @@ class LastLayerComputation(torch.nn.Module):
         last_step_ensemble = deepcopy(ensemble)
         for e in last_step_ensemble:
             for element in e.keys():
-                e[element] = e[element][-1:]
+                e[element] = e[element][-last_layers:]
 
         ani_models = [LastLayerANIModel(m.children()) for m in last_step_ensemble]
         self.last_step_ensemble = torchani.nn.Ensemble(ani_models)
@@ -193,8 +194,8 @@ class LastLayerComputation(torch.nn.Module):
 
 
 def break_into_two_stages(
-    model: ANIModel,
-) -> Tuple[Precomputation, LastLayerComputation]:
+    model: ANIModel, break_at: int = 6
+) -> Tuple[Precomputation, LastLayersComputation]:
     """ANIModel.forward(...) is pretty expensive, and in some cases we might want
     to do a computation where the first stage of the calculation is pretty expensive
     and the subsequent stages are less expensive.
@@ -205,8 +206,19 @@ def break_into_two_stages(
     This is beneficial if we only ever need to recompute and adjust g, not f
     """
 
-    f = Precomputation(model)
-    g = LastLayerComputation(model)
+    if break_at == 6:
+        print("Break at layer 6")
+        last_layers = 1
+        nr_of_included_layers = 6
+    elif break_at == 5:
+        print("Break at layer 5")
+        last_layers = 2
+        nr_of_included_layers = 5
+    else:
+        RuntimeError("Only the last two layers are of interest.")
+
+    f = Precomputation(model, nr_of_included_layers=nr_of_included_layers)
+    g = LastLayersComputation(model, last_layers=last_layers)
     return f, g
 
 
@@ -236,7 +248,7 @@ if __name__ == "__main__":
     model = torchani.models.ANI2x(periodic_table_index=False)
 
     # a bunch of snapshots for a droplet system
-    n_snapshots = 100
+    n_snapshots = 50
 
     coordinates, species = get_coordinates_and_species_of_droplet(n_snapshots)
 
@@ -256,12 +268,12 @@ if __name__ == "__main__":
     with profiler.profile(record_shapes=True, profile_memory=True) as prof:
         with profiler.record_function("model_inference"):
             species_e_ref = model.forward(species_coordinates)
-            # print(species_e_ref.energies * hartree_to_kcal_mol)
+            print(species_e_ref.energies * hartree_to_kcal_mol)
 
     s = prof.self_cpu_time_total / 1000000
     print(f"time to compute energies in batch: {s:.3f} s")
 
-    f, g = break_into_two_stages(model)
+    f, g = break_into_two_stages(model, 5)
 
     species_y = f.forward(species_coordinates)
     species_e = g.forward(species_y)
