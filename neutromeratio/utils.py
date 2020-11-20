@@ -84,23 +84,16 @@ def decide_unspec_stereo(smiles: str) -> str:
     return Chem.MolToSmiles(m)
 
 
-def _get_traj(traj_path: str, top_path: str, remove_idx: int = -1):
-    import torchani
-    from neutromeratio.constants import device
-
-    nn = torchani.models.ANI1ccx(periodic_table_index=False).to(device)
-
+def _get_traj(traj_path, top_path, remove_idx=None):
     top = md.load(top_path).topology
     traj = md.load(traj_path, top=top)
     atoms = [a for a in range(top.n_atoms)]
-    if remove_idx >= 0:
+    if remove_idx:
+        print(atoms)
         atoms.remove(remove_idx)
+        print(atoms)
         traj = traj.atom_slice(atoms)
-    species = "".join([a.element.symbol for a in top.atoms])
-    print(species)
-    species = nn.species_to_tensor(species).to(device).unsqueeze(0)
-    print(species)
-    return traj, top, species
+    return traj, top
 
 
 def get_nr_of_stereobonds(smiles: str) -> int:
