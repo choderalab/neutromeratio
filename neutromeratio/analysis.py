@@ -23,6 +23,7 @@ from neutromeratio.ani import (
     AlchemicalANI1ccx,
     AlchemicalANI1x,
     AlchemicalANI2x,
+    CompartimentedAlchemicalANI2x,
     ANI1_force_and_energy,
 )
 from neutromeratio.constants import (
@@ -460,7 +461,15 @@ def setup_alchemical_system_and_energy_function(
     import os
 
     if not (
-        issubclass(ANImodel, (AlchemicalANI2x, AlchemicalANI1ccx, AlchemicalANI1x))
+        issubclass(
+            ANImodel,
+            (
+                AlchemicalANI2x,
+                AlchemicalANI1ccx,
+                AlchemicalANI1x,
+                CompartimentedAlchemicalANI2x,
+            ),
+        )
     ):
         raise RuntimeError("Only Alchemical ANI objects allowed! Aborting.")
 
