@@ -94,7 +94,6 @@ class LastLayerANIModel(ANIModel):
     def __init__(self, modules, index_of_last_layer: int):
         super().__init__(modules)
         self.index_of_last_layer = index_of_last_layer
-        print(f"Index of last layer: {index_of_last_layer}")
 
     def forward(
         self,
@@ -233,27 +232,7 @@ def break_into_two_stages(
     f = Precomputation(model, nr_of_included_layers=nr_of_included_layers)
     g = LastLayersComputation(model, index_of_last_layers=index_of_last_layers)
     return f, g
-
-
-def get_coordinates_and_species_of_droplet(n_snapshots: int) -> Tuple[(Tensor, Tensor)]:
-    from neutromeratio.utils import _get_traj
-
-    traj_path = "../data/test_data/droplet/molDWRow_298/molDWRow_298_lambda_0.0000_in_droplet.dcd"
-    top_path = "../data/test_data/droplet/molDWRow_298/molDWRow_298_in_droplet.pdb"
-    # _get_traj remove the dummy atom
-    traj, top, species = _get_traj(traj_path, top_path)
-    # overwrite the coordinates that rdkit generated with the first frame in the traj
-    n_snapshots_coordinates = (
-        [x.xyz[0] for x in traj[:n_snapshots]] * unit.nanometer
-    ).value_in_unit(unit.angstrom)
-    n_snapshots_species = torch.stack(
-        [species[0]] * n_snapshots
-    )  # species is a [1][1] tensor, afterwards it's a [1][nr_of_mols]
-
-    n_snapshots_coordinates = torch.tensor(
-        n_snapshots_coordinates, dtype=torch.float64, requires_grad=True
-    )
-    return n_snapshots_coordinates, n_snapshots_species
+ 
 
 
 if __name__ == "__main__":
@@ -262,8 +241,6 @@ if __name__ == "__main__":
 
     # a bunch of snapshots for a droplet system
     n_snapshots = 100
-
-    coordinates, species = get_coordinates_and_species_of_droplet(n_snapshots)
 
     methane_coords = [
         [0.03192167, 0.00638559, 0.01301679],
@@ -286,7 +263,7 @@ if __name__ == "__main__":
     s = prof.self_cpu_time_total / 1000000
     print(f"time to compute energies in batch: {s:.3f} s")
 
-    f, g = break_into_two_stages(model, 4)
+    f, g = break_into_two_stages(model, 6)
 
     species_y = f.forward(species_coordinates)
     species_e = g.forward(species_y)
