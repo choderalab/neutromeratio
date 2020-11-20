@@ -694,7 +694,6 @@ def test_break_up_calculation():
     import numpy as np
     from simtk import unit
 
-    torch.set_default_dtype(torch.float64)
     import torch.autograd.profiler as profiler
     import torchani
 
@@ -1075,7 +1074,7 @@ def test_neutromeratio_energy_calculations_with_AlchemicalANI2x_in_vacuum():
     )
 
 
-def test_break_up_AlchemicalANI2x():
+def test_break_up_AlchemicalANI2x_energies():
 
     from ..tautomers import Tautomer
     from ..constants import kT
@@ -1141,6 +1140,54 @@ def test_break_up_AlchemicalANI2x():
         AlchemicalANI2x_energy_lambda_0.energy[0].in_units_of(unit.kilojoule_per_mole),
         rtol=1e-5,
     )
+
+
+def test_break_up_AlchemicalANI2x_timings():
+
+    from ..tautomers import Tautomer
+    from ..constants import kT
+    from ..analysis import setup_alchemical_system_and_energy_function
+    import numpy as np
+    from ..ani import AlchemicalANI2x, CompartimentedAlchemicalANI2x
+
+    # vacuum system
+    name = "molDWRow_298"
+
+    # read in pregenerated traj
+    traj_path = (
+        "data/test_data/vacuum/molDWRow_298/molDWRow_298_lambda_0.0000_in_vacuum.dcd"
+    )
+    top_path = "data/test_data/vacuum/molDWRow_298/molDWRow_298.pdb"
+
+    # test energies with neutromeratio AlchemicalANI objects
+    # with ANI2x
+    traj, top = _get_traj(traj_path, top_path, None)
+    coordinates = [x.xyz[0] for x in traj[:100]] * unit.nanometer
+
+    energy_function, tautomer, flipped = setup_alchemical_system_and_energy_function(
+        name=name, ANImodel=AlchemicalANI2x, env="vacuum"
+    )
+
+    AlchemicalANI2x_energy_lambda_1 = energy_function.calculate_energy(
+        coordinates, lambda_value=1.0
+    )
+
+    energy_function, tautomer, flipped = setup_alchemical_system_and_energy_function(
+        name=name, ANImodel=CompartimentedAlchemicalANI2x, env="vacuum"
+    )
+
+    CompartimentedAlchemicalANI2x_1 = energy_function.calculate_energy(
+        coordinates, lambda_value=1.0
+    )
+
+    for e1, e2 in zip(
+        AlchemicalANI2x_energy_lambda_1.energy, CompartimentedAlchemicalANI2x_1.energy
+    ):
+        assert is_quantity_close(
+            e1.in_units_of(unit.kilojoule_per_mole),
+            e2.in_units_of(unit.kilojoule_per_mole),
+            rtol=1e-5,
+        )
 
 
 def test_neutromeratio_energy_calculations_with_ANI_in_droplet():
