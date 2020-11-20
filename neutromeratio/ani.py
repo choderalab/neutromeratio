@@ -471,7 +471,6 @@ class AlchemicalANI_Mixin:
             mod_coordinates_1,
             coordinates,
         )
-        print(f"Do you also get called? : {lam}")
         # early exit if at endpoint
         if lam == 0.0:
             _, E_0 = self._forward(nn, mod_species_0, mod_coordinates_0)
@@ -485,8 +484,6 @@ class AlchemicalANI_Mixin:
         else:
             _, E_0 = self._forward(nn, mod_species_0, mod_coordinates_0)
             _, E_1 = self._forward(nn, mod_species_1, mod_coordinates_1)
-            print(E_0)
-            print(E_1)
             E = (lam * E_1) + ((1 - lam) * E_0)
             return species, E
 
@@ -1008,7 +1005,6 @@ class CompartimentedAlchemicalANI2x(AlchemicalANI_Mixin, ANI2x):
         _, ANILastPart = self.break_into_two_stages(
             self.optimized_neural_network, split_at=self.split_at
         )  # only keep
-        print("do you get called?")
         species_coordinates = (mod_species, mod_coordinates)
 
         coordinate_hash = hash(tuple(mod_coordinates[0].flatten().tolist()))
@@ -1035,11 +1031,11 @@ class CompartimentedAlchemicalANI2x(AlchemicalANI_Mixin, ANI2x):
         """
 
         if split_at == 6:
-            print("Split at layer 6")
+            logger.debug("Split at layer 6")
             index_of_last_layers = -1
             nr_of_included_layers = 6
         elif split_at == 4:
-            print("Split at layer 4")
+            logger.debug("Split at layer 4")
             index_of_last_layers = -3
             nr_of_included_layers = 4
         else:
