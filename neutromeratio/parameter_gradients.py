@@ -518,6 +518,7 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
         max_snapshots_per_window=max_snapshots_per_window,
         load_pickled_FEC=load_pickled_FEC,
         include_restraint_energy_contribution=False,
+        perturbed_free_energy=False,
     )
 
     print(f"RMSE on test set BEFORE optimization: {rmse_test}")
@@ -625,10 +626,10 @@ def _perform_training(
             checkpoint_filename, ANImodel, AdamW, AdamW_scheduler, SGD, SGD_scheduler
         )
 
-    logger.info(f"training starting from epoch {AdamW_scheduler.last_epoch + 1}")
-
     base = checkpoint_filename.split(".")[0]
     best_model_checkpoint = f"{base}_best.pt"
+    logger.info(f"training starting from epoch {AdamW_scheduler.last_epoch + 1}")
+    logger.info(f"Writing checkpoint files to: {base}")
 
     ## training loop
     for i in range(AdamW_scheduler.last_epoch + 1, max_epochs):
@@ -830,7 +831,7 @@ def _get_nn_layers(nr_of_nn: int, ANImodel: ANI, elements: str = "CHON"):
 def _get_nn_layers_C(nr_of_nn: int, ANImodel: ANI):
     weight_layers = []
     bias_layers = []
-    layer = 6
+    layer = -1
     model = ANImodel.optimized_neural_network
 
     for nn in model[:nr_of_nn]:
@@ -850,7 +851,7 @@ def _get_nn_layers_C(nr_of_nn: int, ANImodel: ANI):
 def _get_nn_layers_H(nr_of_nn: int, ANImodel: ANI):
     weight_layers = []
     bias_layers = []
-    layer = 6
+    layer = -1
     model = ANImodel.optimized_neural_network
 
     for nn in model[:nr_of_nn]:
@@ -870,7 +871,7 @@ def _get_nn_layers_H(nr_of_nn: int, ANImodel: ANI):
 def _get_nn_layers_CN(nr_of_nn: int, ANImodel: ANI):
     weight_layers = []
     bias_layers = []
-    layer = 6
+    layer = -1
     model = ANImodel.optimized_neural_network
 
     for nn in model[:nr_of_nn]:
@@ -893,7 +894,7 @@ def _get_nn_layers_CHON(nr_of_nn: int, ANImodel: ANI):
     weight_layers = []
     bias_layers = []
     model = ANImodel.optimized_neural_network
-    layer = 6
+    layer = -1
     for nn in model[:nr_of_nn]:
         weight_layers.extend(
             [

@@ -85,7 +85,7 @@ class LastLayerANIModel(ANIModel):
     """just like ANIModel, but only does the final calculation and cuts input arrays to the input feature size of the
     different atom nets!"""
 
-    last_two_layer_nr_of_feature: dict = {
+    last_ayers_nr_of_feature: dict = {
         -3: {0: 192, 1: 192, 2: 160, 3: 160},
         -1: {0: 160, 1: 160, 2: 128, 3: 128},
     }
@@ -112,7 +112,7 @@ class LastLayerANIModel(ANIModel):
             if midx.shape[0] > 0:
                 input_ = aev.index_select(0, midx)
                 input_ = input_[
-                    :, : self.last_two_layer_nr_of_feature[self.index_of_last_layer][i]
+                    :, : self.last_ayers_nr_of_feature[self.index_of_last_layer][i]
                 ]
                 output.masked_scatter_(mask, m(input_).flatten())
         output = output.view_as(species)
@@ -141,7 +141,6 @@ class Precomputation(torch.nn.Module):
 
         # define new ensemble that does everything from AEV up to the last layer
         modified_ensemble = copy.deepcopy(ensemble)
-
         # remove last layer
         for e in modified_ensemble:
             for element in e.keys():
@@ -158,11 +157,6 @@ class Precomputation(torch.nn.Module):
         species_y = self.partial_ani_ensemble.forward(self.aev.forward(x))
         return species_y
 
-        if self.periodic_table_index:
-            species_coordinates = self.species_converter(species_coordinates)
-        species_aevs = self.aev_computer(species_coordinates, cell=None, pbc=None)
-        species_energies = nn(species_aevs)
-
 
 class LastLayersComputation(torch.nn.Module):
     def __init__(self, model: ANIModel, index_of_last_layers):
@@ -173,10 +167,12 @@ class LastLayersComputation(torch.nn.Module):
         assert type(ensemble) == torchani.nn.Ensemble
 
         # define new ensemble that does just the last layer of computation
-        last_step_ensemble = copy.deepcopy(ensemble)
-        for e in last_step_ensemble:
-            for element in e.keys():
-                e[element] = e[element][index_of_last_layers:]
+        last_step_ensemble = copy.deepcopy(
+            ensemble
+        )  # NOTE: copy reference to original ensemble!
+        for e_original, e_copy in zip(ensemble, last_step_ensemble):
+            for element in e_original.keys():
+                e_copy[element] = e_original[element][index_of_last_layers:]
 
         ani_models = [
             LastLayerANIModel(m.children(), index_of_last_layers)
@@ -552,7 +548,7 @@ class AlchemicalANI2x(AlchemicalANI_Mixin, ANI2x):
 
         assert len(alchemical_atoms) == 2
         super().__init__(periodic_table_index)
-        self.alchemical_atoms = alchemical_atoms
+        self.alchemical_atoms: list = alchemical_atoms
         self.neural_networks = None
         assert self.neural_networks == None
 
@@ -1001,10 +997,11 @@ class CompartimentedAlchemicalANI2x(AlchemicalANI_Mixin, ANI2x):
             self.optimized_neural_network, split_at=self.split_at
         )  # only keep the first part since this is always the same
 
-    def _forward(self, _, mod_species, mod_coordinates):
+    def _forward(self, nn, mod_species, mod_coordinates):
         _, ANILastPart = self.break_into_two_stages(
-            self.optimized_neural_network, split_at=self.split_at
+            nn, split_at=self.split_at
         )  # only keep
+
         species_coordinates = (mod_species, mod_coordinates)
 
         coordinate_hash = hash(tuple(mod_coordinates[0].flatten().tolist()))
