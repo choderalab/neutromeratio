@@ -23,9 +23,9 @@ from neutromeratio.constants import (
 import torchani, torch
 import os
 import neutromeratio
-import pickle
 import mdtraj as md
 from typing import Tuple
+import pickle
 
 logger = logging.getLogger(__name__)
 
@@ -64,18 +64,25 @@ class FreeEnergyCalculator:
         self.include_restraint_energy_contribution = (
             include_restraint_energy_contribution
         )
-        self.potential_energy_trajs = (
-            potential_energy_trajs  # for detecting equilibrium
-        )
+        potential_energy_trajs = potential_energy_trajs  # for detecting equilibrium
         self.lambdas = lambdas
 
-        coordinates, N_k = self.combine_snapshots(md_trajs, max_snapshots_per_window)
+        coordinates, N_k = self.combine_snapshots(
+            md_trajs, potential_energy_trajs, max_snapshots_per_window
+        )
         self.setup_mbar(coordinates, N_k, bulk_energy_calculation)
+        md_trajs = []
+        potential_energy_trajs = []
 
-    def combine_snapshots(self, md_trajs: list, max_snapshots_per_window: int):
+    def combine_snapshots(
+        self,
+        md_trajs: list,
+        potential_energy_trajs: list,
+        max_snapshots_per_window: int,
+    ):
         ani_trajs = {}
         for lam, traj, potential_energy in zip(
-            self.lambdas, md_trajs, self.potential_energy_trajs
+            self.lambdas, md_trajs, potential_energy_trajs
         ):
             # detect equilibrium
             equil, g = detectEquilibration(
@@ -1023,14 +1030,18 @@ def setup_FEC(
 
     from neutromeratio.analysis import setup_alchemical_system_and_energy_function
     import os
+    from compress_pickle import dump, load
 
     data_path = os.path.abspath(data_path)
     if not os.path.exists(data_path):
         raise RuntimeError(f"{data_path} does not exist!")
 
-    fec_pickle = f"{data_path}/{name}/{name}_FEC_{max_snapshots_per_window}_for_{ANImodel.name}_restraint_{include_restraint_energy_contribution}.pickle"
+    fec_pickle = f"{data_path}/{name}/{name}_FEC_{max_snapshots_per_window}_for_{ANImodel.name}_restraint_{include_restraint_energy_contribution}.gz"
     if os.path.exists(fec_pickle) and load_pickled_FEC:
-        fec = pickle.load(open(fec_pickle, "rb"))
+        fec = load(fec_pickle)
+        # set ANI Model
+        fec.ani_model.model = ANImodel
+
         print(f"{fec_pickle} loading ...")
         if (
             fec.include_restraint_energy_contribution
@@ -1112,7 +1123,9 @@ def setup_FEC(
     )
 
     fec.flipped = flipped
-    pickle.dump(fec, open(fec_pickle, "wb+"))
+
+    dump(fec, fec_pickle)
+
     return fec
 
 
