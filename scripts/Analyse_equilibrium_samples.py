@@ -14,7 +14,7 @@ from neutromeratio.constants import (
     _get_names,
 )
 from glob import glob
-from neutromeratio.ani import AlchemicalANI1ccx, AlchemicalANI2x
+from neutromeratio.ani import AlchemicalANI1ccx, CompartimentedAlchemicalANI2x
 
 #######################
 #######################
@@ -24,6 +24,9 @@ idx = int(sys.argv[1])
 base_path = str(sys.argv[2])
 env = str(sys.argv[3])
 potential_name = str(sys.argv[4])
+if env == "droplet":
+    diameter = int(sys.argv[5])
+max_snapshots_per_window = 300
 #######################
 #######################
 # read in exp results, smiles and names
@@ -41,7 +44,7 @@ print(f"Using potential: {potential_name}")
 if potential_name == "ANI1ccx":
     AlchemicalANI = AlchemicalANI1ccx
 elif potential_name == "ANI2x":
-    AlchemicalANI = AlchemicalANI2x
+    AlchemicalANI = CompartimentedAlchemicalANI2x
 else:
     raise RuntimeError("Potential needs to be either ANI1ccx or ANI2x")
 
@@ -52,10 +55,12 @@ if env == "droplet":
         name=name,
         data_path=base_path,
         ANImodel=AlchemicalANI,
-        bulk_energy_calculation=False,
+        bulk_energy_calculation=True,
         env="droplet",
-        max_snapshots_per_window=300,
-        diameter=18,
+        max_snapshots_per_window=max_snapshots_per_window,
+        diameter=diameter,
+        load_pickled_FEC=False,
+        include_restraint_energy_contribution=False,
     )
 elif env == "vacuum":
     print("Simulating in environment: vacuum.")
@@ -65,7 +70,9 @@ elif env == "vacuum":
         ANImodel=AlchemicalANI,
         bulk_energy_calculation=True,
         env="vacuum",
-        max_snapshots_per_window=300,
+        max_snapshots_per_window=max_snapshots_per_window,
+        load_pickled_FEC=False,
+        include_restraint_energy_contribution=False,
     )
 else:
     raise RuntimeError("No env specified. Aborting.")
@@ -75,6 +82,9 @@ if fec.flipped:
     DeltaF_ji *= -1
 print(DeltaF_ji)
 
-f = open(f"{base_path}/{potential_name}_{env}_rfe_results_in_kT_300snapshots.csv", "a+")
+f = open(
+    f"{base_path}/{potential_name}_{env}_rfe_results_in_kT_{max_snapshots_per_window}_snapshots.csv",
+    "a+",
+)
 f.write(f"{name}, {DeltaF_ji}, {dDeltaF_ji}\n")
 f.close()

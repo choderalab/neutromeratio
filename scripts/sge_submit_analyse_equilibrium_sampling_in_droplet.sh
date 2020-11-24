@@ -10,7 +10,7 @@
 idx=${1} 
 hostname
 env='droplet'
-diameter=18
+diameter=16
 potential_name='ANI2x'
 #potential_name='ANI1ccx'
 echo 'Using potential ' ${potential_name}
@@ -23,4 +23,4 @@ echo 'Base path: '${base_path}
 conda activate ani36v3
 # nr of jobs: 400
 cd /home/mwieder/Work/Projects/neutromeratio/scripts
-python Analyse_equilibrium_samples.py ${idx} ${base_path} ${env} ${potential_name}
+python Analyse_equilibrium_samples.py ${idx} ${base_path} ${env} ${potential_name} ${diameter}

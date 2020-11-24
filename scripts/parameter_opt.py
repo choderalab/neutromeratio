@@ -34,8 +34,7 @@ else:
     torch.set_num_threads(4)
     bulk_energy_calculation = True
 
-max_epochs = 0
-max_epochs += 10
+max_epochs = 100
 
 (
     rmse_validation,
@@ -44,6 +43,7 @@ max_epochs += 10
     env=env,
     ANImodel=model,
     batch_size=1,
+    load_checkpoint=False
     max_snapshots_per_window=max_snapshots_per_window,
     checkpoint_filename=f"parameters_{model_name}_{env}.pt",
     data_path=data_path,
@@ -52,5 +52,5 @@ max_epochs += 10
     elements=elements,
     max_epochs=max_epochs,
     diameter=diameter,
-    load_pickled_tautomer_object=True,
+    load_pickled_FEC=True,
 )
