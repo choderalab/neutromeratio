@@ -29,8 +29,6 @@ if env == "droplet":
 max_snapshots_per_window = 300
 #######################
 #######################
-# read in exp results, smiles and names
-exp_results = pickle.load(open("../data/exp_results.pickle", "rb"))
 
 # name of the system
 names = _get_names()
