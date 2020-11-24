@@ -3541,9 +3541,8 @@ def test_parameter_gradient_opt_script():
     elements = "CHON"
     data_path = f"./data/test_data/{env}"
     for model_name in ["ANI1ccx", "ANI2x"]:
-        model_name = "ANI1ccx"
 
-        max_snapshots_per_window = 50
+        max_snapshots_per_window = 10
         print(f"Max nr of snapshots: {max_snapshots_per_window}")
 
         if model_name == "ANI2x":
@@ -3622,6 +3621,7 @@ def test_calculate_rmse_between_exp_and_calc():
             exp_values[2].item(),
         )
         rmse_list.append(rmse)
+        model._reset_parameters()
 
     print(exp_values.tolist())
     print(rmse_list)
@@ -3661,6 +3661,7 @@ def test_calculate_rmse_between_exp_and_calc_droplet():
     )
 
     for model in [AlchemicalANI1ccx, AlchemicalANI2x, AlchemicalANI1x]:
+        model._reset_parameters()
 
         rmse, e_calc = calculate_rmse_between_exp_and_calc(
             names=names,
