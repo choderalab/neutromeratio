@@ -1039,9 +1039,6 @@ def setup_FEC(
     fec_pickle = f"{data_path}/{name}/{name}_FEC_{max_snapshots_per_window}_for_{ANImodel.name}_restraint_{include_restraint_energy_contribution}.gz"
     if os.path.exists(fec_pickle) and load_pickled_FEC:
         fec = load(fec_pickle)
-        # set ANI Model
-        fec.ani_model.model = ANImodel
-
         print(f"{fec_pickle} loading ...")
         if (
             fec.include_restraint_energy_contribution
