@@ -5232,6 +5232,9 @@ def test_timing_for_single_energy_calculation_with_AlchemicalANI_1100_snapshot_b
     benchmark(wrap1)
 
 
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
 @pytest.mark.benchmark(min_rounds=2)
 def test_timing_for_single_energy_calculation_with_AlchemicalANI_20_snapshot_sequence(
     benchmark,
@@ -5271,6 +5274,9 @@ def test_timing_for_single_energy_calculation_with_AlchemicalANI_20_snapshot_seq
     benchmark(wrap1)
 
 
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
 @pytest.mark.benchmark(min_rounds=2)
 def test_timing_for_single_energy_calculation_with_AlchemicalANI_100_snapshot_sequence(
     benchmark,
@@ -5311,7 +5317,9 @@ def test_timing_for_single_energy_calculation_with_AlchemicalANI_100_snapshot_se
 
     benchmark(wrap1)
 
-
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
 @pytest.mark.benchmark(min_rounds=2)
 def test_timing_for_single_energy_calculation_with_AlchemicalANI_200_snapshot_sequence(
     benchmark,

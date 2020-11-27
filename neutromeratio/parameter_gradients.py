@@ -800,7 +800,8 @@ def _load_checkpoint(
         AdamW_scheduler.load_state_dict(checkpoint["AdamW_scheduler"])
         SGD_scheduler.load_state_dict(checkpoint["SGD_scheduler"])
     else:
-        logger.info(f"Checkoint {latest_checkpoint} does not exist.")
+        logger.critical(f"Checkoint {latest_checkpoint} does not exist.")
+        raise RuntimeError("Wanted to laod checkpoint but checkpoint does not exist")
 
 
 def _get_nn_layers(nr_of_nn: int, ANImodel: ANI, elements: str = "CHON"):
