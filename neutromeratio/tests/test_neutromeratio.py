@@ -2538,7 +2538,7 @@ def test_FEC_with_different_free_energy_calls():
     print(fec_values)
     for e1, e2 in zip(fec_values, [-8.7152, -9.2873]):
         assert np.isclose(e1.item(), e2, rtol=1e-2)
-
+    del fec_list
 
 @pytest.mark.skipif(
     os.environ.get("TRAVIS", None) == "true", reason="Slow calculation."
@@ -3204,10 +3204,11 @@ def test_loading_saving_mbar_object_CompartimentedAlchemicalANI2x():
     params2 = list(model_instance.optimized_neural_network.parameters())[6][0].tolist()
     assert params1 != params2
     # get new free energy
-    # assert np.isclose(
-    #    3.2730393726044866, get_perturbed_free_energy_difference([fec]).tolist()[0]     #-1.3759686627878307
-    # )
-    # del fec
+    assert np.isclose(
+        3.2730393726044866,
+        get_perturbed_free_energy_difference([fec]).tolist()[0],  # -1.3759686627878307
+    )
+    del fec
 
     # load FEC object --> the FEC should now use the optimized parameters!
     fec = setup_FEC(
@@ -3285,6 +3286,7 @@ def test_io_checkpoints():
         params3 = list(m.optimized_neural_network.parameters())[6][0].tolist()
         assert params2 == params3
         model._reset_parameters()
+        del model
 
 
 def test_load_parameters():
@@ -3585,6 +3587,7 @@ def test_parameter_gradient_opt_script():
         )
 
         model._reset_parameters()
+        del model
 
 
 @pytest.mark.skipif(
@@ -3622,7 +3625,7 @@ def test_calculate_rmse_between_exp_and_calc():
         )
         rmse_list.append(rmse)
         model._reset_parameters()
-
+        del model
     print(exp_values.tolist())
     print(rmse_list)
     for e1, e2 in zip(
@@ -3759,6 +3762,8 @@ def test_postprocessing_vacuum():
         ]
     ):
 
+        model._reset_parameters()
+
         if idx == 0:
             fec_list = [
                 setup_FEC(
@@ -3878,6 +3883,8 @@ def test_postprocessing_vacuum():
             assert np.isclose(rmse.item(), 5.1878913627689895)
 
         model._reset_parameters()
+        del model
+    del fec_list
 
 
 @pytest.mark.skipif(
@@ -4127,6 +4134,8 @@ def test_postprocessing_droplet():
                 11.11371282694961,
                 rtol=1e-3,
             )
+
+    del fec_list
 
 
 @pytest.mark.skipif(
@@ -4459,6 +4468,7 @@ def test_tweak_parameters_vacuum_single_tautomer_AlchemicalANI2x():
             _remove_files(model_name + "_vacuum", max_epochs)
 
         model._reset_parameters()
+        del model
 
 
 @pytest.mark.skipif(
@@ -4506,6 +4516,7 @@ def test_tweak_parameters_vacuum_single_tautomer_CompartimentedAlchemicalANI2x()
             _remove_files(model_name + "_vacuum", max_epochs)
 
         model._reset_parameters()
+        del model
 
 
 @pytest.mark.skipif(
@@ -4553,6 +4564,7 @@ def test_tweak_parameters_vacuum_single_tautomer_CompartimentedAlchemicalANI2x_l
             _remove_files(model_name + "_vacuum", max_epochs)
 
         model._reset_parameters()
+        del model
 
 
 @pytest.mark.skipif(
@@ -4624,6 +4636,7 @@ def test_tweak_parameters_droplet_with_AlchemicalANI():
                 _remove_files(model_name + "_droplet", max_epochs)
                 print(rmse_val, rmse_test)
         model._reset_parameters()
+        del model
 
 
 @pytest.mark.skipif(
@@ -4665,9 +4678,10 @@ def test_tweak_parameters_droplet_with_CompartimentedAlchemicalANI():
         assert np.isclose(rmse_val[0], 16.44867706298828)
         assert np.isclose(rmse_val[-1], 3.080704689025879)
     finally:
-        # _remove_files(model_name + "_droplet", max_epochs)
+        _remove_files(model_name + "_droplet", max_epochs)
         print(rmse_val, rmse_test)
-    # model._reset_parameters()
+    model._reset_parameters()
+    del model
 
 
 @pytest.mark.skipif(
@@ -4712,6 +4726,7 @@ def test_tweak_parameters_droplet_with_CompartimentedAlchemicalANI_load_FEC():
         _remove_files(model_name + "_droplet", max_epochs)
         print(rmse_val, rmse_test)
     model._reset_parameters()
+    del model
 
 
 @pytest.mark.skipif(
@@ -4755,8 +4770,8 @@ def test_tweak_parameters_droplet_with_AlchemicalANI2x():
     finally:
         _remove_files(model_name + "_droplet", max_epochs)
         print(rmse_val, rmse_test)
-    # model._reset_parameters()
-    raise RuntimeError()
+    model._reset_parameters()
+    del model
 
 
 @pytest.mark.skipif(
@@ -4793,6 +4808,7 @@ def test_timing_for_perturebed_free_energy_u_ln(benchmark):
         fec._form_u_ln()
 
     benchmark.pedantic(wrap, rounds=1, iterations=3)
+    del fec
 
 
 @pytest.mark.skipif(
@@ -4829,6 +4845,7 @@ def test_timing_for_perturebed_free_energy_u_ln_and_perturbed_free_energy(benchm
         get_perturbed_free_energy_difference([fec])
 
     benchmark.pedantic(wrap, rounds=1, iterations=3)
+    del FEC
 
 
 @pytest.mark.skipif(
