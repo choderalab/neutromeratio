@@ -2540,6 +2540,7 @@ def test_FEC_with_different_free_energy_calls():
         assert np.isclose(e1.item(), e2, rtol=1e-2)
     del fec_list
 
+
 @pytest.mark.skipif(
     os.environ.get("TRAVIS", None) == "true", reason="Slow calculation."
 )
@@ -3231,7 +3232,7 @@ def test_loading_saving_mbar_object_CompartimentedAlchemicalANI2x():
 
     assert params2 == params3
     del fec
-
+    del model_instance
 
 def test_io_checkpoints():
     from ..parameter_gradients import _save_checkpoint, _load_checkpoint, _get_nn_layers
@@ -3343,7 +3344,7 @@ def test_load_parameters():
         params3 = list(m.optimized_neural_network.parameters())[6][0].tolist()
         assert params2 == params3
         model._reset_parameters()
-
+    del model
 
 @pytest.mark.skipif(
     os.environ.get("TRAVIS", None) == "true", reason="Slow calculation."
@@ -3435,6 +3436,7 @@ def test_parameter_gradient():
             raise RuntimeError()
         model._reset_parameters()
         del fec
+    del model
 
 
 @pytest.mark.skipif(
@@ -3458,6 +3460,7 @@ def test_thinning():
         snapshots = snapshots[::further_thinning][:max_snapshots_per_window]
         print(len(snapshots))
         assert max_snapshots_per_window == len(snapshots)
+    del traj
 
 
 @pytest.mark.skipif(
@@ -3484,6 +3487,7 @@ def test_max_nr_of_snapshots():
             bulk_energy_calculation=True,
             max_snapshots_per_window=nr_of_snapshots,
         )
+    del model
 
 
 def test_unperturbed_perturbed_free_energy():
@@ -3528,6 +3532,7 @@ def test_unperturbed_perturbed_free_energy():
         a_CompartimentedAlchemicalANI2x.item(), b_CompartimentedAlchemicalANI2x.item()
     )
     np.isclose(a_CompartimentedAlchemicalANI2x.item(), b_AlchemicalANI2x.item())
+    del fec
 
 
 @pytest.mark.skipif(
@@ -3546,6 +3551,7 @@ def test_parameter_gradient_opt_script():
 
         max_snapshots_per_window = 10
         print(f"Max nr of snapshots: {max_snapshots_per_window}")
+        model._reset_parameters()
 
         if model_name == "ANI2x":
             model = neutromeratio.ani.AlchemicalANI2x
@@ -3638,6 +3644,7 @@ def test_calculate_rmse_between_exp_and_calc():
         rmse_list, [5.662402153015137, 5.6707963943481445, 4.7712321281433105]
     ):
         assert np.isclose(e1, e2)
+    del model
 
 
 @pytest.mark.skipif(
@@ -3677,12 +3684,14 @@ def test_calculate_rmse_between_exp_and_calc_droplet():
             perturbed_free_energy=False,
         )
         rmse_list.append(rmse)
+        model._reset_parameters()
 
     print(rmse_list)
     for e1, e2 in zip(
         rmse_list, [0.23515522480010986, 16.44867706298828, 11.113712310791016]
     ):
         assert np.isclose(e1, e2)
+    del model
 
 
 def test_calculate_mse():
@@ -4845,7 +4854,7 @@ def test_timing_for_perturebed_free_energy_u_ln_and_perturbed_free_energy(benchm
         get_perturbed_free_energy_difference([fec])
 
     benchmark.pedantic(wrap, rounds=1, iterations=3)
-    del FEC
+    del fec
 
 
 @pytest.mark.skipif(
@@ -5316,6 +5325,7 @@ def test_timing_for_single_energy_calculation_with_AlchemicalANI_100_snapshot_se
             energy_function.calculate_energy(c, lambda_value)
 
     benchmark(wrap1)
+
 
 @pytest.mark.skipif(
     os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
