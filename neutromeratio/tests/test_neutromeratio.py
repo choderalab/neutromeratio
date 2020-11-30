@@ -2333,6 +2333,7 @@ def test_setup_FEC_test_pickle_files():
     test = os.listdir("data/test_data/vacuum")
 
     name = "molDWRow_298"
+    model = AlchemicalANI1ccx
     # remove the pickle files
     for testdir in [
         f"data/test_data/droplet/{name}",
@@ -2348,7 +2349,7 @@ def test_setup_FEC_test_pickle_files():
         name,
         env="vacuum",
         data_path="data/test_data/vacuum",
-        ANImodel=AlchemicalANI1ccx,
+        ANImodel=model,
         bulk_energy_calculation=False,
         max_snapshots_per_window=20,
     )
@@ -2359,11 +2360,13 @@ def test_setup_FEC_test_pickle_files():
         name,
         env="vacuum",
         data_path="data/test_data/vacuum",
-        ANImodel=AlchemicalANI1ccx,
+        ANImodel=model,
         bulk_energy_calculation=False,
         max_snapshots_per_window=20,
         load_pickled_FEC=True,
     )
+    model._reset_parameters()
+    del model
     assert np.isclose(-3.2194223855155357, fec._end_state_free_energy_difference[0])
 
 
@@ -4360,6 +4363,7 @@ def test_tweak_parameters_vacuum_multiple_tautomer():
         )
     ):
 
+        model._reset_parameters()
         (
             rmse_val,
             rmse_test,
@@ -4400,7 +4404,7 @@ def test_tweak_parameters_vacuum_multiple_tautomer():
         if idx == 2:
             print(rmse_val)
             try:
-                assert np.isclose(rmse_val[-1], rmse_test)
+                assert np.isclose(rmse_val[-1q], rmse_test)
                 assert np.isclose(rmse_val[0], 4.582426071166992)
                 assert np.isclose(rmse_val[-1], 2.2336010932922363)
             finally:
