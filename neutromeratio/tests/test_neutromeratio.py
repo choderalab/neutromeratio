@@ -2539,6 +2539,7 @@ def test_FEC_with_different_free_energy_calls():
     for e1, e2 in zip(fec_values, [-8.7152, -9.2873]):
         assert np.isclose(e1.item(), e2, rtol=1e-2)
     del fec_list
+    del model
 
 
 @pytest.mark.skipif(
@@ -2686,8 +2687,8 @@ def test_FEC_with_perturbed_free_energies():
             print(fec)
             for e1, e2 in zip(fec, [8.8213, -9.664895714083166]):
                 assert np.isclose(e1.item(), e2, rtol=1e-4)
-
         del fec_list
+        del model
 
 
 @pytest.mark.skipif(
@@ -2743,6 +2744,7 @@ def test_FEC_with_perturbed_free_energies_with_and_without_restraints():
     print(fec)
     for e1, e2 in zip(fec, [8.8213, -9.6649]):
         assert np.isclose(e1.item(), e2, rtol=1e-4)
+    del model
 
 
 def test_change_stereobond():
@@ -2843,6 +2845,8 @@ def test_tautomer_conformation():
             e_correction = energy_function.get_thermo_correction(x)
             print(f"Energy: {energy.energy}")
             print(f"Energy correction: {e_correction}")
+
+    del model
 
 
 def test_mining_minima():
@@ -2961,6 +2965,8 @@ def test_generating_droplet():
     assert is_quantity_close(
         energy.energy[0], (-15018040.86806798 * unit.kilojoule_per_mole), rtol=1e-7
     )
+
+    del model
 
 
 @pytest.mark.skipif(
@@ -3154,6 +3160,7 @@ def test_loading_saving_mbar_object_AlchemicalANI2x():
 
     assert params2 == params3
     del fec
+    del model_instance
 
 
 @pytest.mark.skipif(
@@ -3233,6 +3240,7 @@ def test_loading_saving_mbar_object_CompartimentedAlchemicalANI2x():
     assert params2 == params3
     del fec
     del model_instance
+
 
 def test_io_checkpoints():
     from ..parameter_gradients import _save_checkpoint, _load_checkpoint, _get_nn_layers
@@ -3344,7 +3352,8 @@ def test_load_parameters():
         params3 = list(m.optimized_neural_network.parameters())[6][0].tolist()
         assert params2 == params3
         model._reset_parameters()
-    del model
+        del model
+
 
 @pytest.mark.skipif(
     os.environ.get("TRAVIS", None) == "true", reason="Slow calculation."
@@ -3436,7 +3445,7 @@ def test_parameter_gradient():
             raise RuntimeError()
         model._reset_parameters()
         del fec
-    del model
+        del model
 
 
 @pytest.mark.skipif(
@@ -3551,7 +3560,6 @@ def test_parameter_gradient_opt_script():
 
         max_snapshots_per_window = 10
         print(f"Max nr of snapshots: {max_snapshots_per_window}")
-        model._reset_parameters()
 
         if model_name == "ANI2x":
             model = neutromeratio.ani.AlchemicalANI2x
@@ -3564,6 +3572,8 @@ def test_parameter_gradient_opt_script():
             print(f"Using {model_name}.")
         else:
             raise RuntimeError(f"Unknown model name: {model_name}")
+
+        model._reset_parameters()
 
         if env == "droplet":
             bulk_energy_calculation = False
@@ -3615,6 +3625,8 @@ def test_calculate_rmse_between_exp_and_calc():
 
     rmse_list = []
     for model in [AlchemicalANI1ccx, AlchemicalANI2x, AlchemicalANI1x]:
+        print(model.name)
+
         model._reset_parameters()
         rmse, e_calc = calculate_rmse_between_exp_and_calc(
             names,
@@ -3644,7 +3656,6 @@ def test_calculate_rmse_between_exp_and_calc():
         rmse_list, [5.662402153015137, 5.6707963943481445, 4.7712321281433105]
     ):
         assert np.isclose(e1, e2)
-    del model
 
 
 @pytest.mark.skipif(
@@ -3672,6 +3683,7 @@ def test_calculate_rmse_between_exp_and_calc_droplet():
 
     for model in [AlchemicalANI1ccx, AlchemicalANI2x, AlchemicalANI1x]:
         model._reset_parameters()
+        print(model.name)
 
         rmse, e_calc = calculate_rmse_between_exp_and_calc(
             names=names,
@@ -3685,13 +3697,13 @@ def test_calculate_rmse_between_exp_and_calc_droplet():
         )
         rmse_list.append(rmse)
         model._reset_parameters()
+        del model
 
     print(rmse_list)
     for e1, e2 in zip(
         rmse_list, [0.23515522480010986, 16.44867706298828, 11.113712310791016]
     ):
         assert np.isclose(e1, e2)
-    del model
 
 
 def test_calculate_mse():
@@ -3772,6 +3784,7 @@ def test_postprocessing_vacuum():
     ):
 
         model._reset_parameters()
+        print(model.name)
 
         if idx == 0:
             fec_list = [
@@ -3911,6 +3924,7 @@ def test_postprocessing_droplet():
     from ..ani import AlchemicalANI1ccx, AlchemicalANI1x, AlchemicalANI2x
 
     for idx, model in enumerate([AlchemicalANI1ccx, AlchemicalANI1x]):
+        print(model.name)
 
         env = "droplet"
         names = ["molDWRow_298"]
