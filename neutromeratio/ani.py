@@ -237,17 +237,16 @@ class ANI(torchani.models.BuiltinEnsemble):
         """
         super().__init__(*self._from_neurochem_resources(nn_path, periodic_table_index))
 
-    def load_nn_parameters(
-        self, parameter_path: str, extract_from_checkpoint: bool = False
-    ):
+    def load_nn_parameters(self, parameter_path: str):
+
         if os.path.isfile(parameter_path):
             parameters = torch.load(parameter_path)
-            if extract_from_checkpoint:
+            try:
                 self.optimized_neural_network.load_state_dict(parameters["nn"])
-            else:
+            except KeyError:
                 self.optimized_neural_network.load_state_dict(parameters)
         else:
-            logger.info(f"Parameter file {parameter_path} does not exist.")
+            raise RuntimeError(f"Parameter file {parameter_path} does not exist.")
 
     def _from_neurochem_resources(self, info_file_path, periodic_table_index):
         (
@@ -320,7 +319,10 @@ class ANI1x(ANI):
 
     @classmethod
     def _reset_parameters(cls):
-        ANI1x.optimized_neural_network = copy.deepcopy(ANI1x.original_neural_network)
+        if cls.original_neural_network:
+            cls.optimized_neural_network = copy.deepcopy(cls.original_neural_network)
+        else:
+            logger.info("_reset_parameters called, but nothing to do.")
 
 
 class ANI1ccx(ANI):
@@ -339,9 +341,10 @@ class ANI1ccx(ANI):
 
     @classmethod
     def _reset_parameters(cls):
-        ANI1ccx.optimized_neural_network = copy.deepcopy(
-            ANI1ccx.original_neural_network
-        )
+        if cls.original_neural_network:
+            cls.optimized_neural_network = copy.deepcopy(cls.original_neural_network)
+        else:
+            logger.info("_reset_parameters called, but nothing to do.")
 
 
 class ANI2x(ANI):
@@ -359,7 +362,10 @@ class ANI2x(ANI):
 
     @classmethod
     def _reset_parameters(cls):
-        ANI2x.optimized_neural_network = copy.deepcopy(ANI2x.original_neural_network)
+        if cls.original_neural_network:
+            cls.optimized_neural_network = copy.deepcopy(cls.original_neural_network)
+        else:
+            logger.info("_reset_parameters called, but nothing to do.")
 
 
 class AlchemicalANI_Mixin:

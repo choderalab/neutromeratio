@@ -533,7 +533,7 @@ def setup_alchemical_system_and_energy_function(
     model = ANImodel(alchemical_atoms=alchemical_atoms).to(device)
     # if specified, load nn parameters
     if checkpoint_file:
-        logger.debug("Loading nn parameters ...")
+        logger.warning("Loading nn parameters ...")
         model.load_nn_parameters(checkpoint_file)
 
     # setup energy function
@@ -635,7 +635,7 @@ def setup_new_alchemical_system_and_energy_function(
     model = ANImodel(alchemical_atoms=alchemical_atoms).to(device)
     # if specified, load nn parameters
     if checkpoint_file:
-        logger.debug("Loading nn parameters ...")
+        logger.warning("Loading nn parameters ...")
         model.load_nn_parameters(checkpoint_file)
 
     # setup energy function

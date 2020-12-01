@@ -3339,9 +3339,7 @@ def test_load_parameters():
         ].tolist()
         assert params1 == params2
         # load parameters
-        model_instance.load_nn_parameters(
-            f"data/test_data/{model_name}_3.pt", extract_from_checkpoint=True
-        )
+        model_instance.load_nn_parameters(f"data/test_data/{model_name}_3.pt")
         params1 = list(model_instance.original_neural_network.parameters())[6][
             0
         ].tolist()
@@ -4404,7 +4402,7 @@ def test_tweak_parameters_vacuum_multiple_tautomer():
         if idx == 2:
             print(rmse_val)
             try:
-                assert np.isclose(rmse_val[-1q], rmse_test)
+                assert np.isclose(rmse_val[-1], rmse_test)
                 assert np.isclose(rmse_val[0], 4.582426071166992)
                 assert np.isclose(rmse_val[-1], 2.2336010932922363)
             finally:
