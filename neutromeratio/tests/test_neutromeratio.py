@@ -3926,6 +3926,7 @@ def test_postprocessing_droplet():
 
     for idx, model in enumerate([AlchemicalANI1ccx, AlchemicalANI1x]):
         print(model.name)
+        model._reset_parameters()
 
         env = "droplet"
         names = ["molDWRow_298"]
@@ -4176,6 +4177,8 @@ def test_tweak_parameters_and_class_nn_AlchemicalANI1ccx():
 
     names = ["molDWRow_298"]
     max_epochs = 3
+    AlchemicalANI1ccx._reset_parameters()
+    CompartimentedAlchemicalANI2x._reset_parameters()
 
     # start with model 1
     model1 = AlchemicalANI1ccx([0, 0])
@@ -4301,7 +4304,7 @@ def test_tweak_parameters_and_class_nn_CompartimentedAlchemicalANI2x():
 
     names = ["molDWRow_298"]
     max_epochs = 3
-
+    CompartimentedAlchemicalANI2x._reset_parameters()
     # start with model 1
     model1 = CompartimentedAlchemicalANI2x([0, 0])
     # save parameters at the beginning
@@ -4428,7 +4431,7 @@ def test_tweak_parameters_vacuum_single_tautomer_AlchemicalANI2x():
         [AlchemicalANI2x],
         ["AlchemicalANI2x"],
     ):
-        model([0, 0])
+        model._reset_parameters()
 
         (
             rmse_val,
@@ -4455,7 +4458,6 @@ def test_tweak_parameters_vacuum_single_tautomer_AlchemicalANI2x():
         finally:
             _remove_files(model_name + "_vacuum", max_epochs)
 
-        model._reset_parameters()
 
     # without pickled tautomer object
     names = ["molDWRow_298"]
@@ -4464,7 +4466,7 @@ def test_tweak_parameters_vacuum_single_tautomer_AlchemicalANI2x():
         [AlchemicalANI2x],
         ["AlchemicalANI2x"],
     ):
-        model([0, 0])
+        model._reset_parameters()
 
         (
             rmse_val,
@@ -4513,6 +4515,7 @@ def test_tweak_parameters_vacuum_single_tautomer_CompartimentedAlchemicalANI2x()
         [CompartimentedAlchemicalANI2x],
         ["CompartimentedAlchemicalANI2x"],
     ):
+        model._reset_parameters()
 
         (
             rmse_val,
@@ -4561,6 +4564,7 @@ def test_tweak_parameters_vacuum_single_tautomer_CompartimentedAlchemicalANI2x_l
         [CompartimentedAlchemicalANI2x],
         ["CompartimentedAlchemicalANI2x"],
     ):
+        model._reset_parameters()
 
         (
             rmse_val,
@@ -4588,7 +4592,6 @@ def test_tweak_parameters_vacuum_single_tautomer_CompartimentedAlchemicalANI2x_l
         finally:
             _remove_files(model_name + "_vacuum", max_epochs)
 
-        model._reset_parameters()
         del model
 
 
@@ -4682,6 +4685,7 @@ def test_tweak_parameters_droplet_with_CompartimentedAlchemicalANI():
     model = CompartimentedAlchemicalANI2x
     model_name = "CompartimentedAlchemicalANI2x"
     # model._reset_parameters()
+    model._reset_parameters()
 
     (rmse_val, rmse_test,) = setup_and_perform_parameter_retraining_with_test_set_split(
         env=env,
@@ -4705,7 +4709,6 @@ def test_tweak_parameters_droplet_with_CompartimentedAlchemicalANI():
     finally:
         _remove_files(model_name + "_droplet", max_epochs)
         print(rmse_val, rmse_test)
-    model._reset_parameters()
     del model
 
 
@@ -4726,7 +4729,7 @@ def test_tweak_parameters_droplet_with_CompartimentedAlchemicalANI_load_FEC():
 
     model = CompartimentedAlchemicalANI2x
     model_name = "CompartimentedAlchemicalANI2x"
-    # model._reset_parameters()
+    model._reset_parameters()
 
     (rmse_val, rmse_test,) = setup_and_perform_parameter_retraining_with_test_set_split(
         env=env,
@@ -4771,7 +4774,7 @@ def test_tweak_parameters_droplet_with_AlchemicalANI2x():
 
     model = AlchemicalANI2x
     model_name = "AlchemicalANI2x"
-    # model._reset_parameters()
+    model._reset_parameters()
 
     (rmse_val, rmse_test,) = setup_and_perform_parameter_retraining_with_test_set_split(
         env=env,
@@ -4813,6 +4816,7 @@ def test_timing_for_perturebed_free_energy_u_ln(benchmark):
     names = ["molDWRow_298"]
     env = "droplet"
     diameter = 10
+    model._reset_parameters()
     m = model([0, 0])
     torch.set_num_threads(4)
 
@@ -4846,6 +4850,8 @@ def test_timing_for_perturebed_free_energy_u_ln_and_perturbed_free_energy(benchm
     import os
 
     model = AlchemicalANI2x
+    model._reset_parameters()
+
     max_snapshots_per_window = 100
     names = ["molDWRow_298"]
     env = "droplet"
