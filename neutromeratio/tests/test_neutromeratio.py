@@ -482,6 +482,8 @@ def test_query_names():
     from ..utils import find_idx
 
     print(find_idx(query_name="molDWRow_109"))
+    print(find_idx(query_name="molDWRow_996"))
+    raise RuntimeError()
 
 
 @pytest.mark.skipif(
@@ -4458,7 +4460,6 @@ def test_tweak_parameters_vacuum_single_tautomer_AlchemicalANI2x():
         finally:
             _remove_files(model_name + "_vacuum", max_epochs)
 
-
     # without pickled tautomer object
     names = ["molDWRow_298"]
     max_epochs = 4
@@ -4541,7 +4542,8 @@ def test_tweak_parameters_vacuum_single_tautomer_CompartimentedAlchemicalANI2x()
             assert np.isclose(rmse_val[0], 5.7811503410339355)
             assert np.isclose(rmse_val[-1], 2.1603381633758545)
         finally:
-            _remove_files(model_name + "_vacuum", max_epochs)
+            pass
+            # _remove_files(model_name + "_vacuum", max_epochs)
 
         model._reset_parameters()
         del model
@@ -4727,6 +4729,9 @@ def test_tweak_parameters_droplet_with_CompartimentedAlchemicalANI_load_FEC():
     diameter = 10
     max_epochs = 3
 
+    ################################
+    # standard training run for weights and bias
+
     model = CompartimentedAlchemicalANI2x
     model_name = "CompartimentedAlchemicalANI2x"
     model._reset_parameters()
@@ -4744,6 +4749,78 @@ def test_tweak_parameters_droplet_with_CompartimentedAlchemicalANI_load_FEC():
         diameter=diameter,
         load_checkpoint=False,
         load_pickled_FEC=True,
+    )
+
+    try:
+        assert np.isclose(rmse_val[-1], rmse_test)
+        assert np.isclose(rmse_val[0], 16.44867706298828)
+        assert np.isclose(rmse_val[-1], 3.080704689025879)
+    finally:
+        _remove_files(model_name + "_droplet", max_epochs)
+        print(rmse_val, rmse_test)
+    model._reset_parameters()
+    del model
+
+    #############################################
+    # tweak larning rate
+
+    model = CompartimentedAlchemicalANI2x
+    model_name = "CompartimentedAlchemicalANI2x"
+    model._reset_parameters()
+
+    (rmse_val, rmse_test,) = setup_and_perform_parameter_retraining_with_test_set_split(
+        env=env,
+        names=names,
+        ANImodel=model,
+        batch_size=1,
+        max_snapshots_per_window=10,
+        checkpoint_filename=f"{model_name}_droplet.pt",
+        data_path=f"./data/test_data/{env}",
+        nr_of_nn=8,
+        max_epochs=max_epochs,
+        diameter=diameter,
+        load_checkpoint=False,
+        load_pickled_FEC=True,
+        lr_AdamW=1e-4,
+        lr_SGD=1e-4,
+        only_bias=False,
+        weight_decay=0.000001,
+    )
+
+    try:
+        assert np.isclose(rmse_val[-1], rmse_test)
+        assert np.isclose(rmse_val[0], 16.44867706298828)
+        assert np.isclose(rmse_val[-1], 14.533025741577148)
+    finally:
+        _remove_files(model_name + "_droplet", max_epochs)
+        print(rmse_val, rmse_test)
+    model._reset_parameters()
+    del model
+
+    #############################################
+    # tweak weight_decay
+
+    model = CompartimentedAlchemicalANI2x
+    model_name = "CompartimentedAlchemicalANI2x"
+    model._reset_parameters()
+
+    (rmse_val, rmse_test,) = setup_and_perform_parameter_retraining_with_test_set_split(
+        env=env,
+        names=names,
+        ANImodel=model,
+        batch_size=1,
+        max_snapshots_per_window=10,
+        checkpoint_filename=f"{model_name}_droplet.pt",
+        data_path=f"./data/test_data/{env}",
+        nr_of_nn=8,
+        max_epochs=max_epochs,
+        diameter=diameter,
+        load_checkpoint=False,
+        load_pickled_FEC=True,
+        lr_AdamW=1e-3,
+        lr_SGD=1e-3,
+        only_bias=False,
+        weight_decay=0.0,
     )
 
     try:
