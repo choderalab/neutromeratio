@@ -464,6 +464,10 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
     load_checkpoint: bool = True,
     names: list = [],
     load_pickled_FEC: bool = True,
+    lr_AdamW: float = 1e-3,
+    lr_SGD: float = 1e-3,
+    only_bias: bool = False,
+    weight_decay: float = 0.000001,
 ) -> Tuple[list, float]:
 
     """
@@ -487,9 +491,21 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
     Returns:
         [type]: [description]
     """
+    import datetime
 
     # initialize an empty ANI model to set default parameters
-    ANImodel([0, 0])
+    _ = ANImodel([0, 0])
+    ct = datetime.datetime.now()
+
+    # write detail of run and all parameters in the training directory
+    fname = "run_info.csv"
+    logger.info(f"... writing run details to {fname}  ...")
+    local_variables = locals()
+    with open(fname, "w+") as f:
+        f.write(f"{str(ct)}\n")
+        for key, value in local_variables.items():
+            logger.info(f"{key}: {value}")
+            f.write(f"{key}: {value}\n")
 
     assert int(nr_of_nn) <= 8 and int(nr_of_nn) >= 1
 
@@ -514,6 +530,17 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
             names_test,
         ) = _split_names_in_training_validation_test_set(names_list)
 
+    # save the split for this particular training/validation/test split
+    split = {}
+    for name, which_set in zip(
+        names_training + names_validating + names_test,
+        ["training"] * len(names_training)
+        + ["validation"] * len(names_validating)
+        + ["testing"] * len(names_validating),
+    ):
+        split[name] = which_set
+    pickle.dump(split, open(f"training_validation_tests.pickle", "wb+"))
+
     # rmsd calculation on test set
     rmse_test, dG_calc_test_initial = calculate_rmse_between_exp_and_calc(
         model=ANImodel,
@@ -529,16 +556,6 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
     )
 
     print(f"RMSE on test set BEFORE optimization: {rmse_test}")
-
-    split = {}
-    for name, which_set in zip(
-        names_training + names_validating + names_test,
-        ["training"] * len(names_training)
-        + ["validation"] * len(names_validating)
-        + ["testing"] * len(names_validating),
-    ):
-        split[name] = which_set
-    pickle.dump(split, open(f"training_validation_tests.pickle", "wb+"))
 
     # save batch loss through epochs
     rmse_validation = setup_and_perform_parameter_retraining(
@@ -557,6 +574,10 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
         names_training=names_training,
         names_validating=names_validating,
         load_pickled_FEC=load_pickled_FEC,
+        lr_AdamW=lr_AdamW,
+        lr_SGD=lr_SGD,
+        only_bias=only_bias,
+        weight_decay=weight_decay,
     )
 
     # final rmsd calculation on test set
@@ -621,14 +642,31 @@ def _perform_training(
     load_checkpoint: bool,
     rmse_validation: list,
     load_pickled_FEC: bool,
+    lr_AdamW: float,
+    lr_SGD: float,
+    only_bias: bool,
+    weight_decay: float,
 ) -> list:
 
     early_stopping_learning_rate = 1.0e-5
     AdamW, AdamW_scheduler, SGD, SGD_scheduler = _get_nn_layers(
-        nr_of_nn, ANImodel, elements=elements
+        nr_of_nn,
+        ANImodel,
+        elements=elements,
+        lr_AdamW=lr_AdamW,
+        lr_SGD=lr_SGD,
+        only_bias=only_bias,
+        weight_decay=weight_decay,
     )
 
+    logger.info("_perform_training called ...")
+    local_variables = locals()
+    for key, value in local_variables.items():
+        logger.info(f"{key}: {value}")
+
     if load_checkpoint:
+        # load checkpoint file and parameters if specified
+        logger.warning(f"CHECKPOINT file {checkpoint_filename} is loaded ...")
         _load_checkpoint(
             checkpoint_filename, ANImodel, AdamW, AdamW_scheduler, SGD, SGD_scheduler
         )
@@ -748,6 +786,7 @@ def _tweak_parameters(
 
     """
 
+    logger.info("_tweak_parameters called ...")
     # iterate over batches of molecules
     it = tqdm(chunks(names_training, batch_size))
 
@@ -804,48 +843,98 @@ def _load_checkpoint(
         raise RuntimeError("Wanted to laod checkpoint but checkpoint does not exist")
 
 
-def _get_nn_layers(nr_of_nn: int, ANImodel: ANI, elements: str = "CHON"):
+def _get_nn_layers(
+    nr_of_nn: int,
+    ANImodel: ANI,
+    elements: str,
+    lr_AdamW: float,
+    lr_SGD: float,
+    only_bias: bool,
+    weight_decay: float,
+    layer: int = -1,
+):
+
+    """
+    Extracts the trainable parameters of the defined layer for some elements of the pretrained ANI net.
+
+    Parmaeters
+    -------
+    elements: str
+    lr_AdamW: float
+    lr_SGD: float
+    only_bias:bool
+    weight_decay:float
+    layer:which layer will be optimized (default -1)
+
+    Returns
+    -------
+    [type]
+        [description]
+
+    Raises
+    ------
+    RuntimeError
+        [description]
+    """
+
+    layer = layer
+    model = ANImodel.optimized_neural_network
 
     if elements == "CHON":
         logger.info("Using `CHON` elements.")
-        weight_layers, bias_layers = _get_nn_layers_CHON(nr_of_nn, ANImodel)
+        weight_layers, bias_layers = _get_nn_layers_CHON(
+            nr_of_nn, ANImodel, weight_decay, layer, model
+        )
     elif elements == "CN":
         logger.info("Using `CN` elements.")
-        weight_layers, bias_layers = _get_nn_layers_CN(nr_of_nn, ANImodel)
+        weight_layers, bias_layers = _get_nn_layers_CN(
+            nr_of_nn, ANImodel, weight_decay, layer, model
+        )
     elif elements == "H":
         logger.info("Using `H` elements.")
-        weight_layers, bias_layers = _get_nn_layers_H(nr_of_nn, ANImodel)
+        weight_layers, bias_layers = _get_nn_layers_H(
+            nr_of_nn, ANImodel, weight_decay, layer, model
+        )
     elif elements == "C":
         logger.info("Using `C` elements.")
-        weight_layers, bias_layers = _get_nn_layers_C(nr_of_nn, ANImodel)
+        weight_layers, bias_layers = _get_nn_layers_C(
+            nr_of_nn, ANImodel, weight_decay, layer, model
+        )
     else:
         raise RuntimeError("Only `CHON` or `CN` as atoms allowed. Aborting.")
 
-    # set up minimizer for weights
-    AdamW = torch.optim.AdamW(weight_layers)
+    print(f"only_bias: {only_bias}")
+
+    if only_bias:
+        # set up minimizer for weights
+        AdamW = torch.optim.AdamW([], lr=lr_AdamW)
+    else:
+        # set up minimizer for weights
+        AdamW = torch.optim.AdamW(weight_layers, lr=lr_AdamW)
+
     # set up minimizer for bias
-    SGD = torch.optim.SGD(bias_layers, lr=1e-3)
+    SGD = torch.optim.SGD(bias_layers, lr=lr_SGD)
 
     AdamW_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        AdamW, factor=0.5, patience=100, threshold=0
+        AdamW, factor=0.5, patience=5, threshold=0
     )
     SGD_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        SGD, factor=0.5, patience=100, threshold=0
+        SGD, factor=0.5, patience=5, threshold=0
     )
 
     return (AdamW, AdamW_scheduler, SGD, SGD_scheduler)
 
 
-def _get_nn_layers_C(nr_of_nn: int, ANImodel: ANI):
+def _get_nn_layers_C(
+    nr_of_nn: int, ANImodel: ANI, weight_decay: float, layer: int, model
+) -> Tuple[list, list]:
     weight_layers = []
     bias_layers = []
-    layer = -1
-    model = ANImodel.optimized_neural_network
 
     for nn in model[:nr_of_nn]:
         weight_layers.extend(
             [
-                {"params": [nn.C[layer].weight], "weight_decay": 0.000001},
+                {"params": [nn.C[layer].weight], "weight_decay": weight_decay},
             ]
         )
         bias_layers.extend(
@@ -856,16 +945,16 @@ def _get_nn_layers_C(nr_of_nn: int, ANImodel: ANI):
     return (weight_layers, bias_layers)
 
 
-def _get_nn_layers_H(nr_of_nn: int, ANImodel: ANI):
+def _get_nn_layers_H(
+    nr_of_nn: int, ANImodel: ANI, weight_decay: float, layer: int, model
+) -> Tuple[list, list]:
     weight_layers = []
     bias_layers = []
-    layer = -1
-    model = ANImodel.optimized_neural_network
 
     for nn in model[:nr_of_nn]:
         weight_layers.extend(
             [
-                {"params": [nn.H[layer].weight], "weight_decay": 0.000001},
+                {"params": [nn.H[layer].weight], "weight_decay": weight_decay},
             ]
         )
         bias_layers.extend(
@@ -876,17 +965,17 @@ def _get_nn_layers_H(nr_of_nn: int, ANImodel: ANI):
     return (weight_layers, bias_layers)
 
 
-def _get_nn_layers_CN(nr_of_nn: int, ANImodel: ANI):
+def _get_nn_layers_CN(
+    nr_of_nn: int, ANImodel: ANI, weight_decay: float, layer: int, model
+) -> Tuple[list, list]:
     weight_layers = []
     bias_layers = []
-    layer = -1
-    model = ANImodel.optimized_neural_network
 
     for nn in model[:nr_of_nn]:
         weight_layers.extend(
             [
-                {"params": [nn.C[layer].weight], "weight_decay": 0.000001},
-                {"params": [nn.N[layer].weight], "weight_decay": 0.000001},
+                {"params": [nn.C[layer].weight], "weight_decay": weight_decay},
+                {"params": [nn.N[layer].weight], "weight_decay": weight_decay},
             ]
         )
         bias_layers.extend(
@@ -898,18 +987,19 @@ def _get_nn_layers_CN(nr_of_nn: int, ANImodel: ANI):
     return (weight_layers, bias_layers)
 
 
-def _get_nn_layers_CHON(nr_of_nn: int, ANImodel: ANI):
+def _get_nn_layers_CHON(
+    nr_of_nn: int, ANImodel: ANI, weight_decay: float, layer: int, model
+) -> Tuple[list, list]:
     weight_layers = []
     bias_layers = []
-    model = ANImodel.optimized_neural_network
-    layer = -1
+
     for nn in model[:nr_of_nn]:
         weight_layers.extend(
             [
-                {"params": [nn.C[layer].weight], "weight_decay": 0.000001},
-                {"params": [nn.H[layer].weight], "weight_decay": 0.000001},
-                {"params": [nn.O[layer].weight], "weight_decay": 0.000001},
-                {"params": [nn.N[layer].weight], "weight_decay": 0.000001},
+                {"params": [nn.C[layer].weight], "weight_decay": weight_decay},
+                {"params": [nn.H[layer].weight], "weight_decay": weight_decay},
+                {"params": [nn.O[layer].weight], "weight_decay": weight_decay},
+                {"params": [nn.N[layer].weight], "weight_decay": weight_decay},
             ]
         )
         bias_layers.extend(
@@ -940,6 +1030,10 @@ def setup_and_perform_parameter_retraining(
     names_training: list = [],
     names_validating: list = [],
     load_pickled_FEC: bool = True,
+    lr_AdamW: float = 1e-3,
+    lr_SGD: float = 1e-3,
+    only_bias: bool = False,
+    weight_decay: float = 0.000001,
 ):
     """
     Much of this code is taken from:
@@ -965,10 +1059,15 @@ def setup_and_perform_parameter_retraining(
     assert int(batch_size) <= 10 and int(batch_size) >= 1
     assert int(nr_of_nn) <= 8 and int(nr_of_nn) >= 1
 
+    logger.info("setup_and_perform_parameter_retraining called ...")
+    local_variables = locals()
+    for key, value in local_variables.items():
+        logger.info(f"{key}: {value}")
+
     if load_pickled_FEC:
-        model_instance = ANImodel(
+        _ = ANImodel(
             [0, 0]
-        )  # NOTE: The model needs a single instance to work with pickled tautomer objects
+        )  # NOTE: The model needs a single initialized instance to work with pickled tautomer objects
 
     if env == "droplet" and diameter == -1:
         raise RuntimeError(f"Did you forget to pass the 'diamter' argument? Aborting.")
@@ -1011,6 +1110,10 @@ def setup_and_perform_parameter_retraining(
         load_checkpoint=load_checkpoint,
         max_snapshots_per_window=max_snapshots_per_window,
         load_pickled_FEC=load_pickled_FEC,
+        lr_AdamW=lr_AdamW,
+        lr_SGD=lr_SGD,
+        only_bias=only_bias,
+        weight_decay=weight_decay,
     )
 
     return rmse_validation
@@ -1038,17 +1141,21 @@ def setup_FEC(
         raise RuntimeError(f"{data_path} does not exist!")
 
     fec_pickle = f"{data_path}/{name}/{name}_FEC_{max_snapshots_per_window}_for_{ANImodel.name}_restraint_{include_restraint_energy_contribution}.gz"
-    if os.path.exists(fec_pickle) and load_pickled_FEC:
-        fec = load(fec_pickle)
-        print(f"{fec_pickle} loading ...")
-        if (
-            fec.include_restraint_energy_contribution
-            != include_restraint_energy_contribution
-        ):
-            raise RuntimeError(
-                f"Attempted to load FEC with include_restraint_energy_contribution: {fec.include_restraint_energy_contribution}, but asked for include_restraint_energy_contribution: {include_restraint_energy_contribution}"
-            )
-        return fec
+    if load_pickled_FEC:
+        if os.path.exists(fec_pickle):
+            fec = load(fec_pickle)
+            print(f"{fec_pickle} loading ...")
+            if (
+                fec.include_restraint_energy_contribution
+                != include_restraint_energy_contribution
+            ):
+                raise RuntimeError(
+                    f"Attempted to load FEC with include_restraint_energy_contribution: {fec.include_restraint_energy_contribution}, but asked for include_restraint_energy_contribution: {include_restraint_energy_contribution}"
+                )
+            return fec
+        else:
+            print(f"Tried to load {fec_pickle} but failed!")
+            logger.critical(f"Tried to load {fec_pickle} but failed!")
 
     if not (env == "vacuum" or env == "droplet"):
         raise RuntimeError("Only keyword vacuum or droplet are allowed as environment.")
