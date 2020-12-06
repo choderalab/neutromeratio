@@ -676,6 +676,16 @@ def _perform_training(
     logger.info(f"training starting from epoch {AdamW_scheduler.last_epoch + 1}")
     logger.info(f"Writing checkpoint files to: {base}")
 
+    # save starting point
+    _save_checkpoint(
+        ANImodel,
+        AdamW,
+        AdamW_scheduler,
+        SGD,
+        SGD_scheduler,
+        f"{base}_{0}.pt",
+    )
+
     ## training loop
     for i in range(AdamW_scheduler.last_epoch + 1, max_epochs):
 
