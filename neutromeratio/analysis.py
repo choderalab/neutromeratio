@@ -531,7 +531,7 @@ def setup_alchemical_system_and_energy_function(
     ]
 
     model = ANImodel(alchemical_atoms=alchemical_atoms).to(device)
-    # if specified, load nn parameters
+    # if specified, load nn parameters for modified potential!
     if checkpoint_file:
         logger.warning("Loading nn parameters ...")
         model.load_nn_parameters(checkpoint_file)

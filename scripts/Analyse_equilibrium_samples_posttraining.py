@@ -1,3 +1,6 @@
+# This script calculates the free energy estimate given a checkpoint file
+# and writes out the result in the training directory
+
 import torch
 import neutromeratio
 from simtk import unit
@@ -23,15 +26,15 @@ import argparse
 ## hardcoding some params
 torch.set_num_threads(4)
 max_snapshots_per_window = 300
+diameter = 16
 ########
 
 ### parse command line arg
 parser = argparse.ArgumentParser()
-parser.add_argument("idx", action="store", required=True, type=int)
-parser.add_argument("base_path", action="store", required=True, type=str)
-parser.add_argument("env", action="store", required=True, type=str)
-parser.add_argument("potential_name", action="store", required=True, type=str)
-parser.add_argument("diameter", action="store", required=False, type=int)
+parser.add_argument("idx", action="store", type=int)
+parser.add_argument("base_path", action="store", type=str)
+parser.add_argument("env", action="store", type=str)
+parser.add_argument("potential_name", action="store", type=str)
 parser.add_argument(
     "-c",
     "--checkpoint_file",
@@ -57,7 +60,6 @@ else:
 names = _get_names()
 name = names[args.idx - 1]
 print(f"Analysing samples for tautomer pair: {name}")
-print(f"Saving results in: {args.base_path}")
 print(f"Using potential: {AlchemicalANI.name}")
 
 which_set_does_it_belong_to = ""
@@ -65,8 +67,8 @@ if all_names[name] == "training":
     which_set_does_it_belong_to = "training"
 elif all_names[name] == "testing":
     which_set_does_it_belong_to = "testing"
-elif all_names[name] == "validate":
-    which_set_does_it_belong_to = "validate"
+elif all_names[name] == "validation":
+    which_set_does_it_belong_to = "validating"
 else:
     raise RuntimeError("That should not have happend.")
 
@@ -104,11 +106,11 @@ elif args.env == "vacuum":
 else:
     raise RuntimeError("No env specified. Aborting.")
 
-DeltaF_ji, dDeltaF_ji = get_perturbed_free_energy_difference([fec])
+DeltaF_ji = get_perturbed_free_energy_difference([fec])[0].item()
 
 
 with open(
     f"{checkpoint_file_base}_rfe_results_in_kT_{max_snapshots_per_window}_snapshots.csv",
     "a+",
 ) as f:
-    f.write(f"{name}, {which_set_does_it_belong_to}, {DeltaF_ji}, {dDeltaF_ji}\n")
+    f.write(f"{name}, {which_set_does_it_belong_to}, {DeltaF_ji}\n")
