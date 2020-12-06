@@ -1129,6 +1129,7 @@ def setup_FEC(
     data_path: str = "../data/",
     diameter: int = -1,
     load_pickled_FEC: bool = False,
+    save_pickled_FEC: bool = True,  # default saves the pickled FEC
     include_restraint_energy_contribution: bool = True,
 ):
 
@@ -1229,7 +1230,8 @@ def setup_FEC(
 
     fec.flipped = flipped
 
-    dump(fec, fec_pickle)
+    if save_pickled_FEC:
+        dump(fec, fec_pickle)
 
     return fec
 
