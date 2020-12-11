@@ -559,7 +559,7 @@ class AlchemicalANI2x(AlchemicalANI_Mixin, ANI2x):
         assert self.neural_networks == None
 
 
-class ANI1_force_and_energy(object):
+class ANI_force_and_energy(object):
     def __init__(self, model: ANI, atoms: str, mol: Atoms = None):
         """
         Performs energy and force calculations.
