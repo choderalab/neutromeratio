@@ -786,9 +786,7 @@ def _perform_training(
             )
 
         # define the stepsize
-        AdamW_scheduler.step(
-            rmse_validation[-1]
-        )  # NOTE: HERE WE MIGHT WANT TO HAVE AN SCHEME THAT MINIMIZES THE STEPSIZE
+        AdamW_scheduler.step(rmse_validation[-1])
         SGD_scheduler.step(rmse_validation[-1])
 
         # perform the parameter optimization and importance weighting
@@ -866,7 +864,7 @@ def _tweak_parameters(
         the ANI class used for energy calculation
     AdamW :
         AdamW instance
-    SGD : [type]
+    SGD :
         SGD instance
     env : str
         either 'droplet' or vacuum
@@ -944,9 +942,9 @@ def _get_nn_layers(
     nr_of_nn: int,
     ANImodel: ANI,
     elements: str,
-    lr_AdamW: float,
-    lr_SGD: float,
-    weight_decay: float,
+    lr_AdamW: float = 1e-3,
+    lr_SGD: float = 1e-3,
+    weight_decay: float = 1e-6,
     layer: int = -1,
 ):
 

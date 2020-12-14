@@ -2232,6 +2232,9 @@ def test_setup_FEC():
         ANImodel=AlchemicalANI1ccx,
         bulk_energy_calculation=False,
         max_snapshots_per_window=20,
+        load_pickled_FEC=False,
+        include_restraint_energy_contribution=True,
+        save_pickled_FEC=False,
     )
     assert np.isclose(-3.2194223855155357, fec._end_state_free_energy_difference[0])
 
@@ -2243,6 +2246,9 @@ def test_setup_FEC():
         ANImodel=AlchemicalANI2x,
         bulk_energy_calculation=False,
         max_snapshots_per_window=20,
+        load_pickled_FEC=False,
+        include_restraint_energy_contribution=True,
+        save_pickled_FEC=False,
     )
     assert np.isclose(-11.554636171428106, fec._end_state_free_energy_difference[0])
 
@@ -2254,6 +2260,9 @@ def test_setup_FEC():
         ANImodel=CompartimentedAlchemicalANI2x,
         bulk_energy_calculation=False,
         max_snapshots_per_window=20,
+        load_pickled_FEC=False,
+        include_restraint_energy_contribution=True,
+        save_pickled_FEC=False,
     )
     assert np.isclose(-11.554636171428106, fec._end_state_free_energy_difference[0])
 
@@ -2264,6 +2273,9 @@ def test_setup_FEC():
         ANImodel=AlchemicalANI1x,
         bulk_energy_calculation=False,
         max_snapshots_per_window=20,
+        load_pickled_FEC=False,
+        include_restraint_energy_contribution=True,
+        save_pickled_FEC=False,
     )
     assert np.isclose(-12.413598945128637, fec._end_state_free_energy_difference[0])
 
@@ -2276,6 +2288,9 @@ def test_setup_FEC():
         ANImodel=AlchemicalANI1ccx,
         bulk_energy_calculation=False,
         max_snapshots_per_window=10,
+        load_pickled_FEC=False,
+        include_restraint_energy_contribution=True,
+        save_pickled_FEC=False,
     )
     assert np.isclose(-1.6642793589801324, fec._end_state_free_energy_difference[0])
 
@@ -2288,6 +2303,9 @@ def test_setup_FEC():
         ANImodel=AlchemicalANI2x,
         bulk_energy_calculation=False,
         max_snapshots_per_window=10,
+        load_pickled_FEC=False,
+        include_restraint_energy_contribution=True,
+        save_pickled_FEC=False,
     )
     assert np.isclose(-18.348107633661936, fec._end_state_free_energy_difference[0])
 
@@ -2300,6 +2318,9 @@ def test_setup_FEC():
         ANImodel=CompartimentedAlchemicalANI2x,
         bulk_energy_calculation=False,
         max_snapshots_per_window=10,
+        load_pickled_FEC=False,
+        include_restraint_energy_contribution=True,
+        save_pickled_FEC=False,
     )
     assert np.isclose(-18.348107633661936, fec._end_state_free_energy_difference[0])
 
@@ -2311,6 +2332,9 @@ def test_setup_FEC():
         ANImodel=AlchemicalANI1x,
         bulk_energy_calculation=False,
         max_snapshots_per_window=10,
+        load_pickled_FEC=False,
+        include_restraint_energy_contribution=True,
+        save_pickled_FEC=False,
     )
     assert np.isclose(-13.013142148962665, fec._end_state_free_energy_difference[0])
 
@@ -2354,6 +2378,8 @@ def test_setup_FEC_test_pickle_files():
         ANImodel=model,
         bulk_energy_calculation=False,
         max_snapshots_per_window=20,
+        load_pickled_FEC=False,
+        include_restraint_energy_contribution=True,
     )
     assert np.isclose(-3.2194223855155357, fec._end_state_free_energy_difference[0])
 
@@ -2366,6 +2392,7 @@ def test_setup_FEC_test_pickle_files():
         bulk_energy_calculation=False,
         max_snapshots_per_window=20,
         load_pickled_FEC=True,
+        include_restraint_energy_contribution=True,
     )
     model._reset_parameters()
     del model
@@ -2407,6 +2434,9 @@ def test_FEC_with_different_free_energy_calls():
             bulk_energy_calculation=bulk_energy_calculation,
             data_path="./data/test_data/vacuum",
             max_snapshots_per_window=80,
+            load_pickled_FEC=False,
+            include_restraint_energy_contribution=True,
+            save_pickled_FEC=False,
         )
         for name in names
     ]
@@ -2457,6 +2487,9 @@ def test_FEC_with_different_free_energy_calls():
             bulk_energy_calculation=bulk_energy_calculation,
             data_path="./data/test_data/vacuum",
             max_snapshots_per_window=80,
+            load_pickled_FEC=False,
+            include_restraint_energy_contribution=True,
+            save_pickled_FEC=False,
         )
         for name in names
     ]
@@ -2507,6 +2540,9 @@ def test_FEC_with_different_free_energy_calls():
             bulk_energy_calculation=bulk_energy_calculation,
             data_path="./data/test_data/vacuum",
             max_snapshots_per_window=80,
+            load_pickled_FEC=False,
+            include_restraint_energy_contribution=True,
+            save_pickled_FEC=False,
         )
         for name in names
     ]
@@ -2587,6 +2623,9 @@ def test_FEC_with_perturbed_free_energies():
                     bulk_energy_calculation=bulk_energy_calculation,
                     data_path="./data/test_data/vacuum",
                     max_snapshots_per_window=80,
+                    load_pickled_FEC=False,
+                    include_restraint_energy_contribution=True,
+                    save_pickled_FEC=False,
                 )
                 for name in names
             ]
@@ -2606,6 +2645,9 @@ def test_FEC_with_perturbed_free_energies():
                     bulk_energy_calculation=bulk_energy_calculation,
                     data_path="./data/test_data/vacuum",
                     max_snapshots_per_window=80,
+                    load_pickled_FEC=False,
+                    include_restraint_energy_contribution=True,
+                    save_pickled_FEC=False,
                 )
                 for name in names
             ]
@@ -2623,6 +2665,9 @@ def test_FEC_with_perturbed_free_energies():
                 bulk_energy_calculation=True,
                 data_path="./data/test_data/vacuum",
                 max_snapshots_per_window=80,
+                load_pickled_FEC=False,
+                include_restraint_energy_contribution=True,
+                save_pickled_FEC=False,
             )
             assert np.isclose(
                 fec._end_state_free_energy_difference[0],
@@ -2641,6 +2686,9 @@ def test_FEC_with_perturbed_free_energies():
                     bulk_energy_calculation=bulk_energy_calculation,
                     data_path="./data/test_data/vacuum",
                     max_snapshots_per_window=60,
+                    load_pickled_FEC=False,
+                    include_restraint_energy_contribution=True,
+                    save_pickled_FEC=False,
                 )
                 for name in names
             ]
@@ -2662,6 +2710,9 @@ def test_FEC_with_perturbed_free_energies():
                     bulk_energy_calculation=bulk_energy_calculation,
                     data_path="./data/test_data/vacuum",
                     max_snapshots_per_window=60,
+                    load_pickled_FEC=False,
+                    include_restraint_energy_contribution=True,
+                    save_pickled_FEC=False,
                 )
                 for name in names
             ]
@@ -2683,6 +2734,9 @@ def test_FEC_with_perturbed_free_energies():
                     bulk_energy_calculation=bulk_energy_calculation,
                     data_path="./data/test_data/vacuum",
                     max_snapshots_per_window=60,
+                    load_pickled_FEC=False,
+                    include_restraint_energy_contribution=True,
+                    save_pickled_FEC=False,
                 )
                 for name in names
             ]
@@ -2721,6 +2775,9 @@ def test_FEC_with_perturbed_free_energies_with_and_without_restraints():
             bulk_energy_calculation=bulk_energy_calculation,
             data_path="./data/test_data/vacuum",
             max_snapshots_per_window=60,
+            load_pickled_FEC=False,
+            include_restraint_energy_contribution=True,
+            save_pickled_FEC=False,
         )
         for name in names
     ]
@@ -2739,7 +2796,9 @@ def test_FEC_with_perturbed_free_energies_with_and_without_restraints():
             bulk_energy_calculation=bulk_energy_calculation,
             data_path="./data/test_data/vacuum",
             max_snapshots_per_window=60,
+            load_pickled_FEC=False,
             include_restraint_energy_contribution=False,
+            save_pickled_FEC=False,
         )
         for name in names
     ]
@@ -3106,11 +3165,13 @@ def test_loading_saving_mbar_object_AlchemicalANI2x():
     model_name = "AlchemicalANI2x"
     name = "molDWRow_298"
     model_instance = AlchemicalANI2x([0, 0])
-    AdamW, AdamW_scheduler, SGD, SGD_scheduler = _get_nn_layers(8, model_instance)
+    AdamW, AdamW_scheduler, SGD, SGD_scheduler = _get_nn_layers(
+        nr_of_nn=8, ANImodel=model_instance, elements="CHON"
+    )
     # initial parameters
     params1 = list(model_instance.optimized_neural_network.parameters())[6][0].tolist()
 
-    # droplet
+    # setup FEC and save pickle file
     fec = setup_FEC(
         name,
         env="droplet",
@@ -3120,6 +3181,8 @@ def test_loading_saving_mbar_object_AlchemicalANI2x():
         bulk_energy_calculation=True,
         max_snapshots_per_window=10,
         load_pickled_FEC=False,
+        include_restraint_energy_contribution=True,
+        save_pickled_FEC=True,
     )
     assert np.isclose(
         18.348107633661936, get_perturbed_free_energy_difference([fec]).tolist()[0]
@@ -3154,6 +3217,8 @@ def test_loading_saving_mbar_object_AlchemicalANI2x():
         bulk_energy_calculation=True,
         max_snapshots_per_window=10,
         load_pickled_FEC=True,
+        include_restraint_energy_contribution=True,
+        save_pickled_FEC=False,
     )
 
     assert np.isclose(
@@ -3185,7 +3250,9 @@ def test_loading_saving_mbar_object_CompartimentedAlchemicalANI2x():
     model_name = "CompartimentedAlchemicalANI2x"
     name = "molDWRow_298"
     model_instance = CompartimentedAlchemicalANI2x([0, 0])
-    AdamW, AdamW_scheduler, SGD, SGD_scheduler = _get_nn_layers(8, model_instance)
+    AdamW, AdamW_scheduler, SGD, SGD_scheduler = _get_nn_layers(
+        nr_of_nn=8, ANImodel=model_instance, elements="CHON"
+    )
     # initial parameters
     params1 = list(model_instance.optimized_neural_network.parameters())[6][0].tolist()
 
@@ -3199,6 +3266,8 @@ def test_loading_saving_mbar_object_CompartimentedAlchemicalANI2x():
         bulk_energy_calculation=True,
         max_snapshots_per_window=10,
         load_pickled_FEC=False,
+        include_restraint_energy_contribution=True,
+        save_pickled_FEC=True,
     )
     assert np.isclose(
         18.348107633661936, get_perturbed_free_energy_difference([fec]).tolist()[0]
@@ -3233,6 +3302,8 @@ def test_loading_saving_mbar_object_CompartimentedAlchemicalANI2x():
         bulk_energy_calculation=True,
         max_snapshots_per_window=10,
         load_pickled_FEC=True,
+        include_restraint_energy_contribution=True,
+        save_pickled_FEC=False,
     )
 
     assert np.isclose(
@@ -3277,7 +3348,9 @@ def test_io_checkpoints():
         # set tweaked parameters
         print(model_name)
         model_instance = model([0, 0])
-        AdamW, AdamW_scheduler, SGD, SGD_scheduler = _get_nn_layers(8, model_instance)
+        AdamW, AdamW_scheduler, SGD, SGD_scheduler = _get_nn_layers(
+            8, model_instance, elements="CHON"
+        )
         # initial parameters
         params1 = list(model.optimized_neural_network.parameters())[6][0].tolist()
 
@@ -3521,6 +3594,9 @@ def test_unperturbed_perturbed_free_energy():
         ANImodel=AlchemicalANI2x,
         bulk_energy_calculation=True,
         max_snapshots_per_window=20,
+        load_pickled_FEC=False,
+        include_restraint_energy_contribution=True,
+        save_pickled_FEC=False,
     )
 
     a_AlchemicalANI2x = get_unperturbed_free_energy_difference([fec])
@@ -3536,6 +3612,9 @@ def test_unperturbed_perturbed_free_energy():
         ANImodel=CompartimentedAlchemicalANI2x,
         bulk_energy_calculation=True,
         max_snapshots_per_window=20,
+        load_pickled_FEC=False,
+        include_restraint_energy_contribution=True,
+        save_pickled_FEC=False,
     )
 
     a_CompartimentedAlchemicalANI2x = get_unperturbed_free_energy_difference([fec])
@@ -3798,6 +3877,9 @@ def test_postprocessing_vacuum():
                     data_path="data/test_data/vacuum",
                     bulk_energy_calculation=True,
                     max_snapshots_per_window=80,
+                    load_pickled_FEC=False,
+                    include_restraint_energy_contribution=True,
+                    save_pickled_FEC=False,
                 )
                 for name in names
             ]
@@ -3828,6 +3910,9 @@ def test_postprocessing_vacuum():
                     data_path="data/test_data/vacuum",
                     bulk_energy_calculation=True,
                     max_snapshots_per_window=80,
+                    load_pickled_FEC=False,
+                    include_restraint_energy_contribution=True,
+                    save_pickled_FEC=False,
                 )
                 for name in names
             ]
@@ -3858,6 +3943,9 @@ def test_postprocessing_vacuum():
                     data_path="./data/test_data/vacuum",
                     bulk_energy_calculation=True,
                     max_snapshots_per_window=50,
+                    load_pickled_FEC=False,
+                    include_restraint_energy_contribution=True,
+                    save_pickled_FEC=False,
                 )
                 for name in names
             ]
@@ -3887,6 +3975,9 @@ def test_postprocessing_vacuum():
                     data_path="./data/test_data/vacuum",
                     bulk_energy_calculation=True,
                     max_snapshots_per_window=50,
+                    load_pickled_FEC=False,
+                    include_restraint_energy_contribution=True,
+                    save_pickled_FEC=False,
                 )
                 for name in names
             ]
@@ -3944,6 +4035,9 @@ def test_postprocessing_droplet():
                 bulk_energy_calculation=True,
                 data_path="data/test_data/droplet",
                 max_snapshots_per_window=10,
+                load_pickled_FEC=False,
+                include_restraint_energy_contribution=True,
+                save_pickled_FEC=True,
             )
             for name in names
         ]
@@ -4000,6 +4094,8 @@ def test_postprocessing_droplet():
                 data_path="data/test_data/droplet",
                 max_snapshots_per_window=10,
                 include_restraint_energy_contribution=False,
+                load_pickled_FEC=False,
+                save_pickled_FEC=True,
             )
             for name in names
         ]
@@ -4058,6 +4154,7 @@ def test_postprocessing_droplet():
                 max_snapshots_per_window=10,
                 include_restraint_energy_contribution=True,
                 load_pickled_FEC=True,
+                save_pickled_FEC=True,
             )
             for name in names
         ]
