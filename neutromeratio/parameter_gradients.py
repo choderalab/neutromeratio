@@ -9,7 +9,7 @@ from pymbar.timeseries import detectEquilibration
 from simtk import unit
 from tqdm import tqdm
 from glob import glob
-from .ani import ANI1_force_and_energy, ANI
+from .ani import ANI_force_and_energy, ANI
 from neutromeratio.constants import (
     _get_names,
     hartree_to_kJ_mol,
@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 class FreeEnergyCalculator:
     def __init__(
         self,
-        ani_model: ANI1_force_and_energy,
+        ani_model: ANI_force_and_energy,
         md_trajs: list,
         bulk_energy_calculation: bool,
         potential_energy_trajs: list,
@@ -390,7 +390,9 @@ def calculate_rmse_between_exp_and_calc(
 
         # append calculated values
         if perturbed_free_energy:
-            e_calc.append(get_perturbed_free_energy_difference(fec_list)[0].item())
+            e_calc.append(
+                get_perturbed_free_energy_difference(fec_list)[0].item()
+            )  # NOTE: only works with batch size = 1
         else:
             e_calc.append(get_unperturbed_free_energy_difference(fec_list)[0].item())
 
@@ -536,7 +538,7 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
         names_training + names_validating + names_test,
         ["training"] * len(names_training)
         + ["validation"] * len(names_validating)
-        + ["testing"] * len(names_validating),
+        + ["testing"] * len(names_test),
     ):
         split[name] = which_set
     pickle.dump(split, open(f"training_validation_tests.pickle", "wb+"))
@@ -701,7 +703,7 @@ def _perform_training(
             )
 
         # define the stepsize
-        AdamW_scheduler.step(rmse_validation[-1])
+        AdamW_scheduler.step(rmse_validation[-1])   # NOTE: HERE WE MIGHT WANT TO HAVE AN SCHEME THAT MINIMIZES THE STEPSIZE
         SGD_scheduler.step(rmse_validation[-1])
 
         # perform the parameter optimization and importance weighting
@@ -926,10 +928,10 @@ def _get_nn_layers(
     SGD = torch.optim.SGD(bias_layers, lr=lr_SGD)
 
     AdamW_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        AdamW, factor=0.5, patience=5, threshold=0
+        AdamW, factor=0.5, patience=2, threshold=0.2
     )
     SGD_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        SGD, factor=0.5, patience=5, threshold=0
+        SGD, factor=0.5, patience=2, threshold=0.2
     )
 
     return (AdamW, AdamW_scheduler, SGD, SGD_scheduler)

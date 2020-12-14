@@ -6,7 +6,7 @@ import numpy as np
 from simtk import unit
 from tqdm import tqdm
 
-from .ani import ANI1_force_and_energy
+from .ani import ANI_force_and_energy
 from .constants import distance_unit, kB, mass_dict_in_daltons, speed_unit, temperature
 
 logger = logging.getLogger(__name__)
@@ -192,7 +192,7 @@ def use_precalculated_md_and_performe_mc(
 
 
 class MonteCarloBarostat(object):
-    def __init__(self, pbc_box_length: unit.Quantity, energy: ANI1_force_and_energy):
+    def __init__(self, pbc_box_length: unit.Quantity, energy: ANI_force_and_energy):
 
         assert type(pbc_box_length) == unit.Quantity
         self.current_volumn = pbc_box_length ** 3

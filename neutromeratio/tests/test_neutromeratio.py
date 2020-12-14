@@ -312,7 +312,7 @@ def test_species_conversion():
 
     for model in [ANI1x, ANI2x, ANI1ccx]:
         m = model()
-        energy_function = neutromeratio.ANI1_force_and_energy(
+        energy_function = neutromeratio.ANI_force_and_energy(
             model=m, atoms=tautomer.initial_state_ligand_atoms, mol=None
         )
 
@@ -322,7 +322,7 @@ def test_species_conversion():
 
     for model in [AlchemicalANI2x, AlchemicalANI1ccx]:
         m = model([1, 2])
-        energy_function = neutromeratio.ANI1_force_and_energy(
+        energy_function = neutromeratio.ANI_force_and_energy(
             model=m, atoms=tautomer.initial_state_ligand_atoms, mol=None
         )
         assert torch.all(t.eq(torch.tensor([3, 1, 2, 2, 1, 1, 1, 3, 0, 0, 0, 0])))
@@ -598,7 +598,7 @@ def test_neutromeratio_energy_calculations_with_ANI_in_vacuum():
     # first with ANI1ccx
     model = neutromeratio.ani.ANI1ccx()
     torch.set_num_threads(1)
-    energy_function = neutromeratio.ANI1_force_and_energy(
+    energy_function = neutromeratio.ANI_force_and_energy(
         model=model, atoms=tautomer.initial_state_ligand_atoms, mol=None
     )
     energy = energy_function.calculate_energy(coordinates)
@@ -612,7 +612,7 @@ def test_neutromeratio_energy_calculations_with_ANI_in_vacuum():
     # with ANI2x
     model = neutromeratio.ani.ANI2x()
     torch.set_num_threads(1)
-    energy_function = neutromeratio.ANI1_force_and_energy(
+    energy_function = neutromeratio.ANI_force_and_energy(
         model=model, atoms=tautomer.initial_state_ligand_atoms, mol=None
     )
     energy = energy_function.calculate_energy(coordinates)
@@ -1025,7 +1025,7 @@ def test_neutromeratio_energy_calculations_with_AlchemicalANI2x_in_vacuum():
     traj, top = _get_traj(traj_path, top_path, tautomer.hybrid_hydrogen_idx_at_lambda_1)
     coordinates = [x.xyz[0] for x in traj[:10]] * unit.nanometer
     assert len(tautomer.initial_state_ligand_atoms) == len(coordinates[0])
-    energy_function = neutromeratio.ANI1_force_and_energy(
+    energy_function = neutromeratio.ANI_force_and_energy(
         model=model, atoms=tautomer.final_state_ligand_atoms, mol=None
     )
     ANI2x_energy_final_state = energy_function.calculate_energy(
@@ -1034,7 +1034,7 @@ def test_neutromeratio_energy_calculations_with_AlchemicalANI2x_in_vacuum():
     # initial state
     traj, top = _get_traj(traj_path, top_path, tautomer.hybrid_hydrogen_idx_at_lambda_0)
     coordinates = [x.xyz[0] for x in traj[:10]] * unit.nanometer
-    energy_function = neutromeratio.ANI1_force_and_energy(
+    energy_function = neutromeratio.ANI_force_and_energy(
         model=model, atoms=tautomer.initial_state_ligand_atoms, mol=None
     )
     ANI2x_energy_initial_state = energy_function.calculate_energy(
@@ -1233,7 +1233,7 @@ def test_neutromeratio_energy_calculations_with_ANI_in_droplet():
 
     # ANI1ccx
     model = neutromeratio.ani.ANI1ccx()
-    energy_function = neutromeratio.ANI1_force_and_energy(
+    energy_function = neutromeratio.ANI_force_and_energy(
         model=model, atoms=atoms, mol=None
     )
     energy = energy_function.calculate_energy(coordinates)
@@ -1251,7 +1251,7 @@ def test_neutromeratio_energy_calculations_with_ANI_in_droplet():
         + tautomer.ligand_in_water_atoms[tautomer.hybrid_hydrogen_idx_at_lambda_0 + 1 :]
     )
     assert len(tautomer.ligand_in_water_atoms) == len(atoms) + 1
-    energy_function = neutromeratio.ANI1_force_and_energy(
+    energy_function = neutromeratio.ANI_force_and_energy(
         model=model, atoms=atoms, mol=None
     )
     energy = energy_function.calculate_energy(coordinates)
@@ -1320,7 +1320,7 @@ def test_neutromeratio_energy_calculations_with_AlchemicalANI1ccx_in_vacuum():
     traj, top = _get_traj(traj_path, top_path, tautomer.hybrid_hydrogen_idx_at_lambda_1)
     model = ANI1ccx()
 
-    energy_function = neutromeratio.ANI1_force_and_energy(
+    energy_function = neutromeratio.ANI_force_and_energy(
         model=model, atoms=tautomer.final_state_ligand_atoms, mol=None
     )
 
@@ -1332,7 +1332,7 @@ def test_neutromeratio_energy_calculations_with_AlchemicalANI1ccx_in_vacuum():
 
     traj, top = _get_traj(traj_path, top_path, tautomer.hybrid_hydrogen_idx_at_lambda_0)
 
-    energy_function = neutromeratio.ANI1_force_and_energy(
+    energy_function = neutromeratio.ANI_force_and_energy(
         model=model, atoms=tautomer.initial_state_ligand_atoms, mol=None
     )
 
@@ -1448,7 +1448,7 @@ def test_neutromeratio_energy_calculations_with_AlchemicalANI1ccx_in_droplet():
         + tautomer.ligand_in_water_atoms[tautomer.hybrid_hydrogen_idx_at_lambda_1 + 1 :]
     )
 
-    energy_function = neutromeratio.ANI1_force_and_energy(
+    energy_function = neutromeratio.ANI_force_and_energy(
         model=model, atoms=atoms, mol=None
     )
 
@@ -1491,7 +1491,7 @@ def test_neutromeratio_energy_calculations_with_AlchemicalANI1ccx_in_droplet():
         + tautomer.ligand_in_water_atoms[tautomer.hybrid_hydrogen_idx_at_lambda_1 + 1 :]
     )
 
-    energy_function = neutromeratio.ANI1_force_and_energy(
+    energy_function = neutromeratio.ANI_force_and_energy(
         model=model, atoms=atoms, mol=None
     )
 
@@ -1968,7 +1968,7 @@ def test_min_and_single_point_energy():
             tautomer.get_final_state_ligand_coords,
         ],
     ):
-        energy_function = neutromeratio.ANI1_force_and_energy(
+        energy_function = neutromeratio.ANI_force_and_energy(
             model=model, atoms=ligand_atoms, mol=ase_mol
         )
 
@@ -2017,7 +2017,7 @@ def test_thermochemistry():
             tautomer.get_final_state_ligand_coords,
         ],
     ):
-        energy_function = neutromeratio.ANI1_force_and_energy(
+        energy_function = neutromeratio.ANI_force_and_energy(
             model=model,
             atoms=ligand_atoms,
             mol=ase_mol,
@@ -2832,7 +2832,7 @@ def test_tautomer_conformation():
             tautomer.get_final_state_ligand_coords,
         ],
     ):
-        energy_function = neutromeratio.ANI1_force_and_energy(
+        energy_function = neutromeratio.ANI_force_and_energy(
             model=model,
             atoms=ligand_atoms,
             mol=ase_mol,
@@ -2924,7 +2924,7 @@ def test_generating_droplet():
     model = model.to(device)
 
     # perform initial sampling
-    energy_function = neutromeratio.ANI1_force_and_energy(
+    energy_function = neutromeratio.ANI_force_and_energy(
         model=model,
         atoms=tautomer.ligand_in_water_atoms,
         mol=None,

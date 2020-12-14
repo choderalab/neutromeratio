@@ -24,7 +24,7 @@ from neutromeratio.ani import (
     AlchemicalANI1x,
     AlchemicalANI2x,
     CompartimentedAlchemicalANI2x,
-    ANI1_force_and_energy,
+    ANI_force_and_energy,
 )
 from neutromeratio.constants import (
     device,
@@ -309,10 +309,10 @@ def compare_confomer_generator_and_trajectory_minimum_structures(
     mol.RemoveAllConformers()
 
     # generate energy function, use atom symbols of rdkti mol
-    from .ani import ANI1_force_and_energy, ANI1ccx
+    from .ani import ANI_force_and_energy, ANI1ccx
 
     model = ANI1ccx()
-    energy_function = ANI1_force_and_energy(
+    energy_function = ANI_force_and_energy(
         model=model, atoms=[a.GetSymbol() for a in mol.GetAtoms()], mol=None
     )
 
@@ -538,13 +538,13 @@ def setup_alchemical_system_and_energy_function(
 
     # setup energy function
     if env == "vacuum":
-        energy_function = ANI1_force_and_energy(
+        energy_function = ANI_force_and_energy(
             model=model,
             atoms=tautomer.hybrid_atoms,
             mol=None,
         )
     else:
-        energy_function = ANI1_force_and_energy(
+        energy_function = ANI_force_and_energy(
             model=model,
             atoms=tautomer.ligand_in_water_atoms,
             mol=None,
@@ -640,13 +640,13 @@ def setup_new_alchemical_system_and_energy_function(
 
     # setup energy function
     if env == "vacuum":
-        energy_function = ANI1_force_and_energy(
+        energy_function = ANI_force_and_energy(
             model=model,
             atoms=tautomer.hybrid_atoms,
             mol=None,
         )
     else:
-        energy_function = ANI1_force_and_energy(
+        energy_function = ANI_force_and_energy(
             model=model,
             atoms=tautomer.ligand_in_water_atoms,
             mol=None,
