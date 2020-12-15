@@ -54,6 +54,9 @@ elif args.potential_name == "ANI2x":
 else:
     raise RuntimeError("Potential needs to be either ANI1ccx or ANI2x")
 
+# initialize
+_ = AlchemicalANI([0, 0])
+
 # name of the system
 names = _get_names()
 name = names[args.idx - 1]
@@ -81,9 +84,9 @@ if args.env == "droplet":
         bulk_energy_calculation=True,
         env="droplet",
         max_snapshots_per_window=max_snapshots_per_window,
-        diameter=args.diameter,
+        diameter=diameter,
         load_pickled_FEC=True,
-        save_pickled_FEC=True,
+        save_pickled_FEC=False,
         include_restraint_energy_contribution=False,
     )
 elif args.env == "vacuum":
@@ -103,7 +106,7 @@ else:
     raise RuntimeError("No env specified. Aborting.")
 
 # load perturbed ani parameters
-fec.ani_model.load_nn_parameters(args.checkpoint_file)
+fec.ani_model.model.load_nn_parameters(args.checkpoint_file)
 
 # calculate perturbed free energy
 DeltaF_ji = get_perturbed_free_energy_difference([fec])[0].item()

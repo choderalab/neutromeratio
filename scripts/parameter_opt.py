@@ -35,7 +35,7 @@ else:
     torch.set_num_threads(4)
     bulk_energy_calculation = True
 
-max_epochs = 20
+max_epochs = 50
 
 (
     rmse_validation,
