@@ -227,7 +227,6 @@ class FreeEnergyCalculator:
 
         del lambda0_e
         del lambda1_e
-
         self.mbar = MBAR(u_kn, N_k)
         self.coordinates = coordinates
 
@@ -772,7 +771,7 @@ def _perform_training(
     )
 
     ## training loop
-    for i in range(AdamW_scheduler.last_epoch + 1, max_epochs):
+    for _ in range(AdamW_scheduler.last_epoch + 1, max_epochs):
 
         # get the learning group
         learning_rate = AdamW.param_groups[0]["lr"]
@@ -970,28 +969,27 @@ def _get_nn_layers(
         [description]
     """
 
-    layer = layer
     model = ANImodel.optimized_neural_network
 
     if elements == "CHON":
         logger.info("Using `CHON` elements.")
         weight_layers, bias_layers = _get_nn_layers_CHON(
-            nr_of_nn, ANImodel, weight_decay, layer, model
+            weight_decay, layer, model
         )
     elif elements == "CN":
         logger.info("Using `CN` elements.")
         weight_layers, bias_layers = _get_nn_layers_CN(
-            nr_of_nn, ANImodel, weight_decay, layer, model
+            weight_decay, layer, model
         )
     elif elements == "H":
         logger.info("Using `H` elements.")
         weight_layers, bias_layers = _get_nn_layers_H(
-            nr_of_nn, ANImodel, weight_decay, layer, model
+            weight_decay, layer, model
         )
     elif elements == "C":
         logger.info("Using `C` elements.")
         weight_layers, bias_layers = _get_nn_layers_C(
-            nr_of_nn, ANImodel, weight_decay, layer, model
+            weight_decay, layer, model
         )
     else:
         raise RuntimeError(
@@ -1015,12 +1013,12 @@ def _get_nn_layers(
 
 
 def _get_nn_layers_C(
-    nr_of_nn: int, ANImodel: ANI, weight_decay: float, layer: int, model
+    weight_decay: float, layer: int, model
 ) -> Tuple[list, list]:
     weight_layers = []
     bias_layers = []
 
-    for nn in model[:nr_of_nn]:
+    for nn in model:
         weight_layers.extend(
             [
                 {"params": [nn.C[layer].weight], "weight_decay": weight_decay},
@@ -1035,12 +1033,12 @@ def _get_nn_layers_C(
 
 
 def _get_nn_layers_H(
-    nr_of_nn: int, ANImodel: ANI, weight_decay: float, layer: int, model
+    weight_decay: float, layer: int, model
 ) -> Tuple[list, list]:
     weight_layers = []
     bias_layers = []
 
-    for nn in model[:nr_of_nn]:
+    for nn in model:
         weight_layers.extend(
             [
                 {"params": [nn.H[layer].weight], "weight_decay": weight_decay},
@@ -1055,12 +1053,12 @@ def _get_nn_layers_H(
 
 
 def _get_nn_layers_CN(
-    nr_of_nn: int, ANImodel: ANI, weight_decay: float, layer: int, model
+    weight_decay: float, layer: int, model
 ) -> Tuple[list, list]:
     weight_layers = []
     bias_layers = []
 
-    for nn in model[:nr_of_nn]:
+    for nn in model:
         weight_layers.extend(
             [
                 {"params": [nn.C[layer].weight], "weight_decay": weight_decay},
@@ -1077,12 +1075,12 @@ def _get_nn_layers_CN(
 
 
 def _get_nn_layers_CHON(
-    nr_of_nn: int, ANImodel: ANI, weight_decay: float, layer: int, model
+    weight_decay: float, layer: int, model
 ) -> Tuple[list, list]:
     weight_layers = []
     bias_layers = []
 
-    for nn in model[:nr_of_nn]:
+    for nn in model:
         weight_layers.extend(
             [
                 {"params": [nn.C[layer].weight], "weight_decay": weight_decay},
@@ -1374,6 +1372,8 @@ def setup_FEC(
 
     # save FEC
     if save_pickled_FEC:
+        logger.critical(f"Saving pickled FEC to {fec_pickle}")
+        print(f"Saving pickled FEC to {fec_pickle}")
         dump(fec, fec_pickle)
 
     return fec
