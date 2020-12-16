@@ -5,7 +5,6 @@ Unit and regression test for the neutromeratio package.
 # Import package, test suite, and other packages as needed
 import neutromeratio
 import pytest
-import sys
 import os
 import pickle
 import torch
@@ -13,12 +12,11 @@ from simtk import unit
 import numpy as np
 import mdtraj as md
 from neutromeratio.constants import device
-import torchani
 from openmmtools.utils import is_quantity_close
 import pandas as pd
 from rdkit import Chem
-import pytest_benchmark
 from neutromeratio.constants import device
+from neutromeratio.utils import _get_traj
 
 
 def test_restraint():
@@ -26,11 +24,8 @@ def test_restraint():
     from ..analysis import setup_alchemical_system_and_energy_function
     from ..ani import AlchemicalANI1ccx
 
-    with open("data/test_data/exp_results.pickle", "rb") as f:
-        exp_results = pickle.load(f)
-
     name = "molDWRow_298"
-    energy_function, tautomer, flipped = setup_alchemical_system_and_energy_function(
+    _, tautomer, _ = setup_alchemical_system_and_energy_function(
         name=name, env="vacuum", ANImodel=AlchemicalANI1ccx
     )
 
@@ -201,10 +196,6 @@ def test_restraint_with_AlchemicalANI1ccx_for_batches_in_vacuum():
     from ..ani import AlchemicalANI1ccx
     from ..analysis import setup_alchemical_system_and_energy_function
 
-    # read in exp_results.pickle
-    with open("data/test_data/exp_results.pickle", "rb") as f:
-        exp_results = pickle.load(f)
-
     # generate smiles
     name = "molDWRow_298"
     energy_function, tautomer, flipped = setup_alchemical_system_and_energy_function(
@@ -216,7 +207,7 @@ def test_restraint_with_AlchemicalANI1ccx_for_batches_in_vacuum():
         "data/test_data/vacuum/molDWRow_298/molDWRow_298_lambda_0.0000_in_vacuum.dcd"
     )
     top_path = "data/test_data/vacuum/molDWRow_298/molDWRow_298.pdb"
-    traj, top = _get_traj(traj_path, top_path, None)
+    traj, _ = _get_traj(traj_path, top_path, None)
     x0 = [x.xyz[0] for x in traj[:10]] * unit.nanometer
 
     energy = energy_function.calculate_energy(x0, lambda_value=0.0)
@@ -243,10 +234,6 @@ def test_COM_restraint_with_AlchemicalANI1ccx_for_batches_in_droplet():
     from ..ani import AlchemicalANI2x
     from ..analysis import setup_alchemical_system_and_energy_function
 
-    # read in exp_results.pickle
-    with open("data/test_data/exp_results.pickle", "rb") as f:
-        exp_results = pickle.load(f)
-
     # generate smiles
     name = "molDWRow_298"
     energy_function, tautomer, flipped = setup_alchemical_system_and_energy_function(
@@ -262,7 +249,7 @@ def test_COM_restraint_with_AlchemicalANI1ccx_for_batches_in_droplet():
         "data/test_data/droplet/molDWRow_298/molDWRow_298_lambda_0.0000_in_droplet.dcd"
     )
     top_path = "data/test_data/droplet/molDWRow_298/molDWRow_298_in_droplet.pdb"
-    traj, top = _get_traj(traj_path, top_path, None)
+    traj, _ = _get_traj(traj_path, top_path, None)
     x0 = [x.xyz[0] for x in traj[:10]] * unit.nanometer
 
     coordinates = torch.tensor(
@@ -311,13 +298,13 @@ def test_COM_restraint_with_AlchemicalANI1ccx_for_batches_in_droplet():
 )
 def test_droplet_bottom_restraint_with_AlchemicalANI1ccx_for_batches():
     import numpy as np
-    from ..constants import kT, kJ_mol_to_kT
+    from ..constants import kJ_mol_to_kT
     from ..ani import AlchemicalANI2x
     from ..analysis import setup_alchemical_system_and_energy_function
     from ..restraints import CenterFlatBottomRestraint
 
     name = "molDWRow_298"
-    energy_function, tautomer, flipped = setup_alchemical_system_and_energy_function(
+    energy_function, _, _ = setup_alchemical_system_and_energy_function(
         name=name,
         env="droplet",
         ANImodel=AlchemicalANI2x,
@@ -330,7 +317,7 @@ def test_droplet_bottom_restraint_with_AlchemicalANI1ccx_for_batches():
         "data/test_data/droplet/molDWRow_298/molDWRow_298_lambda_0.0000_in_droplet.dcd"
     )
     top_path = "data/test_data/droplet/molDWRow_298/molDWRow_298_in_droplet.pdb"
-    traj, top = _get_traj(traj_path, top_path, None)
+    traj, _ = _get_traj(traj_path, top_path, None)
     x0 = [x.xyz[0] for x in traj[:10]] * unit.nanometer
 
     coordinates = torch.tensor(
@@ -395,13 +382,9 @@ def test_restraint_with_AlchemicalANI1ccx_for_batches_in_droplet():
     from ..ani import AlchemicalANI2x
     from ..analysis import setup_alchemical_system_and_energy_function
 
-    # read in exp_results.pickle
-    with open("data/test_data/exp_results.pickle", "rb") as f:
-        exp_results = pickle.load(f)
-
     # generate smiles
     name = "molDWRow_298"
-    energy_function, tautomer, flipped = setup_alchemical_system_and_energy_function(
+    energy_function, _, _ = setup_alchemical_system_and_energy_function(
         name=name,
         env="droplet",
         ANImodel=AlchemicalANI2x,

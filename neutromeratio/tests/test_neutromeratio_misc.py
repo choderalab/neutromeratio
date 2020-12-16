@@ -13,34 +13,8 @@ from simtk import unit
 import numpy as np
 import mdtraj as md
 from neutromeratio.constants import device
-import torchani
 from openmmtools.utils import is_quantity_close
-import pandas as pd
-from rdkit import Chem
-import pytest_benchmark
 from neutromeratio.constants import device
-
-
-def _get_traj(traj_path, top_path, remove_idx=None):
-    top = md.load(top_path).topology
-    traj = md.load(traj_path, top=top)
-    atoms = [a for a in range(top.n_atoms)]
-    if remove_idx:
-        print(atoms)
-        atoms.remove(remove_idx)
-        print(atoms)
-        traj = traj.atom_slice(atoms)
-    return traj, top
-
-
-def _remove_files(name, max_epochs=1):
-    try:
-        os.remove(f"{name}.pt")
-    except FileNotFoundError:
-        pass
-    for i in range(1, max_epochs):
-        os.remove(f"{name}_{i}.pt")
-    os.remove(f"{name}_best.pt")
 
 
 def test_equ():
