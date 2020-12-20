@@ -24,9 +24,9 @@ idx = int(sys.argv[1])
 base_path = str(sys.argv[2])
 env = str(sys.argv[3])
 potential_name = str(sys.argv[4])
+max_snapshots_per_window = int(sys.argv[5])
 if env == "droplet":
-    diameter = int(sys.argv[5])
-max_snapshots_per_window = 300
+    diameter = int(sys.argv[6])
 #######################
 #######################
 
@@ -38,6 +38,7 @@ name = names[idx - 1]
 print(f"Analysing samples for tautomer pair: {name}")
 print(f"Saving results in: {base_path}")
 print(f"Using potential: {potential_name}")
+print(f"Using {max_snapshots_per_window} snapshots/lambda")
 
 if potential_name == "ANI1ccx":
     AlchemicalANI = AlchemicalANI1ccx
