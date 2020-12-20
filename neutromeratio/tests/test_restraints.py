@@ -176,7 +176,7 @@ def test_restraint_with_AlchemicalANI1ccx():
         "data/test_data/vacuum/molDWRow_298/molDWRow_298_lambda_0.0000_in_vacuum.dcd"
     )
     top_path = "data/test_data/vacuum/molDWRow_298/molDWRow_298.pdb"
-    traj, top = _get_traj(traj_path, top_path, None)
+    traj, _ = _get_traj(traj_path, top_path)
     x0 = [x.xyz[0] for x in traj[0]] * unit.nanometer
 
     energy = energy_function.calculate_energy(x0, lambda_value=0.0)
@@ -207,7 +207,7 @@ def test_restraint_with_AlchemicalANI1ccx_for_batches_in_vacuum():
         "data/test_data/vacuum/molDWRow_298/molDWRow_298_lambda_0.0000_in_vacuum.dcd"
     )
     top_path = "data/test_data/vacuum/molDWRow_298/molDWRow_298.pdb"
-    traj, _ = _get_traj(traj_path, top_path, None)
+    traj, _ = _get_traj(traj_path, top_path)
     x0 = [x.xyz[0] for x in traj[:10]] * unit.nanometer
 
     energy = energy_function.calculate_energy(x0, lambda_value=0.0)
@@ -249,7 +249,7 @@ def test_COM_restraint_with_AlchemicalANI1ccx_for_batches_in_droplet():
         "data/test_data/droplet/molDWRow_298/molDWRow_298_lambda_0.0000_in_droplet.dcd"
     )
     top_path = "data/test_data/droplet/molDWRow_298/molDWRow_298_in_droplet.pdb"
-    traj, _ = _get_traj(traj_path, top_path, None)
+    traj, _ = _get_traj(traj_path, top_path)
     x0 = [x.xyz[0] for x in traj[:10]] * unit.nanometer
 
     coordinates = torch.tensor(
@@ -317,7 +317,7 @@ def test_droplet_bottom_restraint_with_AlchemicalANI1ccx_for_batches():
         "data/test_data/droplet/molDWRow_298/molDWRow_298_lambda_0.0000_in_droplet.dcd"
     )
     top_path = "data/test_data/droplet/molDWRow_298/molDWRow_298_in_droplet.pdb"
-    traj, _ = _get_traj(traj_path, top_path, None)
+    traj, _ = _get_traj(traj_path, top_path)
     x0 = [x.xyz[0] for x in traj[:10]] * unit.nanometer
 
     coordinates = torch.tensor(
@@ -397,7 +397,7 @@ def test_restraint_with_AlchemicalANI1ccx_for_batches_in_droplet():
         "data/test_data/droplet/molDWRow_298/molDWRow_298_lambda_0.0000_in_droplet.dcd"
     )
     top_path = "data/test_data/droplet/molDWRow_298/molDWRow_298_in_droplet.pdb"
-    traj, top = _get_traj(traj_path, top_path, None)
+    traj, _ = _get_traj(traj_path, top_path)
     x0 = [x.xyz[0] for x in traj[:10]] * unit.nanometer
 
     energy = energy_function.calculate_energy(x0, lambda_value=0.0)

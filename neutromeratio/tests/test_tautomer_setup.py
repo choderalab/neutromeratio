@@ -10,27 +10,9 @@ import os
 import pickle
 import torch
 from simtk import unit
-import numpy as np
-import mdtraj as md
 from neutromeratio.constants import device
-import torchani
 from openmmtools.utils import is_quantity_close
-import pandas as pd
 from rdkit import Chem
-import pytest_benchmark
-from neutromeratio.constants import device
-
-
-def _get_traj(traj_path, top_path, remove_idx=None):
-    top = md.load(top_path).topology
-    traj = md.load(traj_path, top=top)
-    atoms = [a for a in range(top.n_atoms)]
-    if remove_idx:
-        print(atoms)
-        atoms.remove(remove_idx)
-        print(atoms)
-        traj = traj.atom_slice(atoms)
-    return traj, top
 
 
 def _remove_files(name, max_epochs=1):
@@ -418,8 +400,12 @@ def test_setup_tautomer_system_in_droplet():
 def test_query_names():
     from ..utils import find_idx
 
-    print(find_idx(query_name="molDWRow_109"))
-    print(find_idx(query_name="molDWRow_996"))
+    f = find_idx(query_name="molDWRow_954")
+    print(f)
+
+    assert len(f[0]) == 11
+    assert f[0][0] == 3686
+    assert f[-1] == 336
 
 
 @pytest.mark.skipif(

@@ -5,32 +5,14 @@ Unit and regression test for the neutromeratio package.
 # Import package, test suite, and other packages as needed
 import neutromeratio
 import pytest
-import sys
-import os
 import pickle
 import torch
 from simtk import unit
-import numpy as np
-import mdtraj as md
 from neutromeratio.constants import device
+from neutromeratio.utils import _get_traj
 import torchani
 from openmmtools.utils import is_quantity_close
-import pandas as pd
-from rdkit import Chem
-import pytest_benchmark
 from neutromeratio.constants import device
-
-
-def _get_traj(traj_path, top_path, remove_idx=None):
-    top = md.load(top_path).topology
-    traj = md.load(traj_path, top=top)
-    atoms = [a for a in range(top.n_atoms)]
-    if remove_idx:
-        print(atoms)
-        atoms.remove(remove_idx)
-        print(atoms)
-        traj = traj.atom_slice(atoms)
-    return traj, top
 
 
 def test_tochani_neutromeratio_sync():
@@ -112,7 +94,7 @@ def test_neutromeratio_energy_calculations_with_ANI_in_vacuum():
         "data/test_data/vacuum/molDWRow_298/molDWRow_298_lambda_0.0000_in_vacuum.dcd"
     )
     top_path = "data/test_data/vacuum/molDWRow_298/molDWRow_298.pdb"
-    traj, top = _get_traj(traj_path, top_path, tautomer.hybrid_hydrogen_idx_at_lambda_0)
+    traj, _ = _get_traj(traj_path, top_path, [tautomer.hybrid_hydrogen_idx_at_lambda_0])
     coordinates = [x.xyz[0] for x in traj[:10]] * unit.nanometer
 
     # test energies with neutromeratio ANI objects
@@ -168,7 +150,7 @@ def test_neutromeratio_energy_calculations_with_AlchemicalANI1ccx():
         "data/test_data/vacuum/molDWRow_298/molDWRow_298_lambda_0.0000_in_vacuum.dcd"
     )
     top_path = "data/test_data/vacuum/molDWRow_298/molDWRow_298.pdb"
-    traj, top = _get_traj(traj_path, top_path, None)
+    traj, _ = _get_traj(traj_path, top_path)
 
     x0 = [x.xyz[0] for x in traj[:10]] * unit.nanometer
 
@@ -190,8 +172,6 @@ def test_neutromeratio_energy_calculations_with_AlchemicalANI1ccx():
         * unit.kilojoule_per_mole,
     ):
         assert is_quantity_close(e1, e2, rtol=1e-2)
-
-
 
 
 def test_neutromeratio_energy_calculations_with_ANI_in_droplet():
@@ -221,7 +201,7 @@ def test_neutromeratio_energy_calculations_with_ANI_in_droplet():
     )
     top_path = "data/test_data/droplet/molDWRow_298/molDWRow_298_in_droplet.pdb"
     # _get_traj remove the dummy atom
-    traj, top = _get_traj(traj_path, top_path, tautomer.hybrid_hydrogen_idx_at_lambda_0)
+    traj, _ = _get_traj(traj_path, top_path, [tautomer.hybrid_hydrogen_idx_at_lambda_0])
     # overwrite the coordinates that rdkit generated with the first frame in the traj
     torch.set_num_threads(1)
     coordinates = [x.xyz[0] for x in traj[:10]] * unit.nanometer

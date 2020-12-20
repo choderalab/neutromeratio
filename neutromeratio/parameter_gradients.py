@@ -1301,8 +1301,8 @@ def setup_FEC(
     # load FEC pickle file
     if load_pickled_FEC:
         if os.path.exists(fec_pickle):
-            fec = load(fec_pickle)
             print(f"{fec_pickle} loading ...")
+            fec = load(fec_pickle)
             if (
                 fec.include_restraint_energy_contribution
                 != include_restraint_energy_contribution

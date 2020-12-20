@@ -5,20 +5,14 @@ Unit and regression test for the neutromeratio package.
 # Import package, test suite, and other packages as needed
 import neutromeratio
 import pytest
-import sys
 import os
-import pickle
 import torch
 from simtk import unit
 import numpy as np
-import mdtraj as md
 from neutromeratio.constants import device
-import torchani
-from openmmtools.utils import is_quantity_close
-import pandas as pd
-from rdkit import Chem
 import pytest_benchmark
 from neutromeratio.constants import device
+from neutromeratio.utils import _get_traj
 
 
 @pytest.mark.skipif(
@@ -131,7 +125,7 @@ def test_timing_for_single_energy_calculation_with_AlchemicalANI_10_snapshots_ba
         "data/test_data/droplet/molDWRow_298/molDWRow_298_lambda_0.0000_in_droplet.dcd"
     )
     top_path = "data/test_data/droplet/molDWRow_298/molDWRow_298_in_droplet.pdb"
-    traj, top = _get_traj(traj_path, top_path, None)
+    traj, _ = _get_traj(traj_path, top_path)
     coordinates = [x.xyz[0] for x in traj[:10]] * unit.nanometer
 
     def wrap1():
@@ -187,7 +181,7 @@ def test_timing_for_single_energy_calculation_with_AlchemicalANI_1_snapshot_batc
         "data/test_data/droplet/molDWRow_298/molDWRow_298_lambda_0.0000_in_droplet.dcd"
     )
     top_path = "data/test_data/droplet/molDWRow_298/molDWRow_298_in_droplet.pdb"
-    traj, top = _get_traj(traj_path, top_path, None)
+    traj, top = _get_traj(traj_path, top_path)
     coordinates = [x.xyz[0] for x in traj[:10]] * unit.nanometer
 
     def wrap1():
@@ -228,7 +222,7 @@ def test_timing_for_single_energy_calculation_with_AlchemicalANI_20_snapshot_bat
         "data/test_data/droplet/molDWRow_298/molDWRow_298_lambda_0.0000_in_droplet.dcd"
     )
     top_path = "data/test_data/droplet/molDWRow_298/molDWRow_298_in_droplet.pdb"
-    traj, top = _get_traj(traj_path, top_path, None)
+    traj, top = _get_traj(traj_path, top_path)
     coordinates = [x.xyz[0] for x in traj[:20]] * unit.nanometer
 
     def wrap1():
@@ -268,7 +262,7 @@ def test_timing_for_single_energy_calculation_with_AlchemicalANI_100_snapshot_ba
         "data/test_data/droplet/molDWRow_298/molDWRow_298_lambda_0.0000_in_droplet.dcd"
     )
     top_path = "data/test_data/droplet/molDWRow_298/molDWRow_298_in_droplet.pdb"
-    traj, top = _get_traj(traj_path, top_path, None)
+    traj, top = _get_traj(traj_path, top_path)
     coordinates = [x.xyz[0] for x in traj[:100]] * unit.nanometer
 
     def wrap1():
@@ -309,7 +303,7 @@ def test_timing_for_single_energy_calculation_with_AlchemicalANI_200_snapshot_ba
         "data/test_data/droplet/molDWRow_298/molDWRow_298_lambda_0.0000_in_droplet.dcd"
     )
     top_path = "data/test_data/droplet/molDWRow_298/molDWRow_298_in_droplet.pdb"
-    traj, top = _get_traj(traj_path, top_path, None)
+    traj, top = _get_traj(traj_path, top_path)
     coordinates = [x.xyz[0] for x in traj[:200]] * unit.nanometer
 
     def wrap1():
@@ -350,7 +344,7 @@ def test_timing_for_single_energy_calculation_with_AlchemicalANI_500_snapshot_ba
         "data/test_data/droplet/molDWRow_298/molDWRow_298_lambda_0.0000_in_droplet.dcd"
     )
     top_path = "data/test_data/droplet/molDWRow_298/molDWRow_298_in_droplet.pdb"
-    traj, top = _get_traj(traj_path, top_path, None)
+    traj, top = _get_traj(traj_path, top_path)
     coordinates = [x.xyz[0] for x in traj[:500]] * unit.nanometer
 
     def wrap1():
@@ -391,7 +385,7 @@ def test_timing_for_single_energy_calculation_with_AlchemicalANI_1100_snapshot_b
         "data/test_data/droplet/molDWRow_298/molDWRow_298_lambda_0.0000_in_droplet.dcd"
     )
     top_path = "data/test_data/droplet/molDWRow_298/molDWRow_298_in_droplet.pdb"
-    traj, top = _get_traj(traj_path, top_path, None)
+    traj, top = _get_traj(traj_path, top_path)
     coordinates = [x.xyz[0] for x in traj[:1100]] * unit.nanometer
 
     def wrap1():
@@ -432,7 +426,8 @@ def test_timing_for_single_energy_calculation_with_AlchemicalANI_1100_snapshot_b
         "data/test_data/droplet/molDWRow_298/molDWRow_298_lambda_0.0000_in_droplet.dcd"
     )
     top_path = "data/test_data/droplet/molDWRow_298/molDWRow_298_in_droplet.pdb"
-    traj, top = _get_traj(traj_path, top_path, None)
+    traj, _ = _get_traj(traj_path, top_path)
+
     coordinates = [x.xyz[0] for x in traj[:1100]] * unit.nanometer
 
     def wrap1():
@@ -473,7 +468,8 @@ def test_timing_for_single_energy_calculation_with_AlchemicalANI_1100_snapshot_b
         "data/test_data/droplet/molDWRow_298/molDWRow_298_lambda_0.0000_in_droplet.dcd"
     )
     top_path = "data/test_data/droplet/molDWRow_298/molDWRow_298_in_droplet.pdb"
-    traj, top = _get_traj(traj_path, top_path, None)
+    traj, _ = _get_traj(traj_path, top_path)
+
     coordinates = [x.xyz[0] for x in traj[:1100]] * unit.nanometer
 
     def wrap1():
@@ -512,7 +508,8 @@ def test_timing_for_single_energy_calculation_with_AlchemicalANI_20_snapshot_seq
         "data/test_data/droplet/molDWRow_298/molDWRow_298_lambda_0.0000_in_droplet.dcd"
     )
     top_path = "data/test_data/droplet/molDWRow_298/molDWRow_298_in_droplet.pdb"
-    traj, top = _get_traj(traj_path, top_path, None)
+    traj, _ = _get_traj(traj_path, top_path)
+
     coordinates = [x.xyz[0] for x in traj[:20]] * unit.nanometer
 
     def wrap1():
@@ -556,7 +553,8 @@ def test_timing_for_single_energy_calculation_with_AlchemicalANI_100_snapshot_se
         "data/test_data/droplet/molDWRow_298/molDWRow_298_lambda_0.0000_in_droplet.dcd"
     )
     top_path = "data/test_data/droplet/molDWRow_298/molDWRow_298_in_droplet.pdb"
-    traj, top = _get_traj(traj_path, top_path, None)
+    traj, _ = _get_traj(traj_path, top_path)
+
     coordinates = [x.xyz[0] for x in traj[:100]] * unit.nanometer
 
     def wrap1():
@@ -600,7 +598,8 @@ def test_timing_for_single_energy_calculation_with_AlchemicalANI_200_snapshot_se
         "data/test_data/droplet/molDWRow_298/molDWRow_298_lambda_0.0000_in_droplet.dcd"
     )
     top_path = "data/test_data/droplet/molDWRow_298/molDWRow_298_in_droplet.pdb"
-    traj, top = _get_traj(traj_path, top_path, None)
+    traj, _ = _get_traj(traj_path, top_path)
+
     coordinates = [x.xyz[0] for x in traj[:200]] * unit.nanometer
 
     def wrap1():

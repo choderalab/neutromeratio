@@ -1,12 +1,12 @@
-import torch
 import logging
 import os
 import random
-from typing import List, Tuple, Any, Union
+from typing import Any, List, Tuple, Union
 
 import mdtraj as md
 import nglview
 import numpy as np
+import torch
 from rdkit import Chem
 from rdkit.Chem import AllChem
 from simtk import unit
@@ -30,7 +30,7 @@ def find_idx(query_name: str) -> list:
             list_of_lambdas.append(lamb)
             list_of_idx.append(idx)
             idx += 1
-        protocol[name] = (list_of_idx, list_of_lambdas, mol_idx+1)
+        protocol[name] = (list_of_idx, list_of_lambdas, mol_idx + 1)
     return protocol[query_name]
 
 
@@ -51,7 +51,7 @@ def write_pdb(mol: Chem.Mol, filepath: str, confId: int = -1) -> str:
     return Chem.MolToPDBBlock(mol)
 
 
-def flag_unspec_stereo(smiles: str):
+def flag_unspec_stereo(smiles: str) -> bool:
     m = Chem.MolFromSmiles(smiles)
     m = Chem.AddHs(m)
 
@@ -84,14 +84,14 @@ def decide_unspec_stereo(smiles: str) -> str:
     return Chem.MolToSmiles(m)
 
 
-def _get_traj(traj_path, top_path, remove_idx=None):
+def _get_traj(traj_path, top_path, remove_idx=[]):
     top = md.load(top_path).topology
     traj = md.load(traj_path, top=top)
     atoms = [a for a in range(top.n_atoms)]
     if remove_idx:
-        print(atoms)
-        atoms.remove(remove_idx)
-        print(atoms)
+        for idx in remove_idx:
+            atoms.remove(idx)
+        print("Atoms that are not removed: {atoms}")
         traj = traj.atom_slice(atoms)
     return traj, top
 
