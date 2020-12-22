@@ -483,7 +483,7 @@ def chunks(lst, n):
 
 
 def _split_names_in_training_validation_test_set(
-    names_list: list,
+    names_list: list, test_size: float = 0.2
 ) -> Tuple[list, list, list]:
     """
     _split_names_in_training_validation_test_set Splits a list in 3 chunks representing training, validation and test set.
@@ -502,7 +502,11 @@ def _split_names_in_training_validation_test_set(
     """
     from sklearn.model_selection import train_test_split
 
-    names_training_validating, names_test = train_test_split(names_list, test_size=0.2)
+    assert test_size > 0.0 and test_size < 1.0
+
+    names_training_validating, names_test = train_test_split(
+        names_list, test_size=test_size
+    )
     print(
         f"Len of training/validation set: {len(names_training_validating)}/{len(names_list)}"
     )
@@ -539,6 +543,7 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
     lr_AdamW: float = 1e-3,
     lr_SGD: float = 1e-3,
     weight_decay: float = 0.000001,
+    test_size: float = 0.2,
 ) -> Tuple[list, float]:
 
     """
@@ -571,6 +576,9 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
             learning rate of SGD minimizer, by default = 1e-3
         weight_decay : float, opt
             by default = 1e-6
+        test_size : float, opt
+            defines the (training+validation):(test) split, as well as the training:validation split,
+            by default = 0.2
     Raises:
         RuntimeError: [description]
 
@@ -614,7 +622,9 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
             names_training,
             names_validating,
             names_test,
-        ) = _split_names_in_training_validation_test_set(names_list)
+        ) = _split_names_in_training_validation_test_set(
+            names_list, test_size=test_size
+        )
 
     # save the split for this particular training/validation/test split
     split = {}
@@ -973,24 +983,16 @@ def _get_nn_layers(
 
     if elements == "CHON":
         logger.info("Using `CHON` elements.")
-        weight_layers, bias_layers = _get_nn_layers_CHON(
-            weight_decay, layer, model
-        )
+        weight_layers, bias_layers = _get_nn_layers_CHON(weight_decay, layer, model)
     elif elements == "CN":
         logger.info("Using `CN` elements.")
-        weight_layers, bias_layers = _get_nn_layers_CN(
-            weight_decay, layer, model
-        )
+        weight_layers, bias_layers = _get_nn_layers_CN(weight_decay, layer, model)
     elif elements == "H":
         logger.info("Using `H` elements.")
-        weight_layers, bias_layers = _get_nn_layers_H(
-            weight_decay, layer, model
-        )
+        weight_layers, bias_layers = _get_nn_layers_H(weight_decay, layer, model)
     elif elements == "C":
         logger.info("Using `C` elements.")
-        weight_layers, bias_layers = _get_nn_layers_C(
-            weight_decay, layer, model
-        )
+        weight_layers, bias_layers = _get_nn_layers_C(weight_decay, layer, model)
     else:
         raise RuntimeError(
             "Only `CHON`, `H`, `C` or `CN` as elements allowed. Aborting."
@@ -1012,9 +1014,7 @@ def _get_nn_layers(
     return (AdamW, AdamW_scheduler, SGD, SGD_scheduler)
 
 
-def _get_nn_layers_C(
-    weight_decay: float, layer: int, model
-) -> Tuple[list, list]:
+def _get_nn_layers_C(weight_decay: float, layer: int, model) -> Tuple[list, list]:
     weight_layers = []
     bias_layers = []
 
@@ -1032,9 +1032,7 @@ def _get_nn_layers_C(
     return (weight_layers, bias_layers)
 
 
-def _get_nn_layers_H(
-    weight_decay: float, layer: int, model
-) -> Tuple[list, list]:
+def _get_nn_layers_H(weight_decay: float, layer: int, model) -> Tuple[list, list]:
     weight_layers = []
     bias_layers = []
 
@@ -1052,9 +1050,7 @@ def _get_nn_layers_H(
     return (weight_layers, bias_layers)
 
 
-def _get_nn_layers_CN(
-    weight_decay: float, layer: int, model
-) -> Tuple[list, list]:
+def _get_nn_layers_CN(weight_decay: float, layer: int, model) -> Tuple[list, list]:
     weight_layers = []
     bias_layers = []
 
@@ -1074,9 +1070,7 @@ def _get_nn_layers_CN(
     return (weight_layers, bias_layers)
 
 
-def _get_nn_layers_CHON(
-    weight_decay: float, layer: int, model
-) -> Tuple[list, list]:
+def _get_nn_layers_CHON(weight_decay: float, layer: int, model) -> Tuple[list, list]:
     weight_layers = []
     bias_layers = []
 
@@ -1183,7 +1177,7 @@ def setup_and_perform_parameter_retraining(
     rmse_validation = []
 
     # calculate the rmse on the current parameters for the validation set
-    rmse_validation_set, dG_calc_validation = calculate_rmse_between_exp_and_calc(
+    rmse_validation_set, _ = calculate_rmse_between_exp_and_calc(
         names_validating,
         model=ANImodel,
         data_path=data_path,
