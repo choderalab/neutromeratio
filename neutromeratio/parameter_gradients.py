@@ -483,7 +483,7 @@ def chunks(lst, n):
 
 
 def _split_names_in_training_validation_test_set(
-    names_list: list, test_size: float = 0.2
+    names_list: list, test_size: float = 0.2, validation_size: float = 0.2
 ) -> Tuple[list, list, list]:
     """
     _split_names_in_training_validation_test_set Splits a list in 3 chunks representing training, validation and test set.
@@ -500,27 +500,23 @@ def _split_names_in_training_validation_test_set(
     Tuple[list, list, list]
         [description]
     """
-    from sklearn.model_selection import train_test_split
+    import pandas as pd
+    import numpy as np
 
     assert test_size > 0.0 and test_size < 1.0
 
-    names_training_validating, names_test = train_test_split(
-        names_list, test_size=test_size
-    )
-    print(
-        f"Len of training/validation set: {len(names_training_validating)}/{len(names_list)}"
+    training_set_size = 1 - test_size - validation_size
+    training_validation_set_size = 1 - test_size
+
+    df = pd.DataFrame(names_list)
+    training_set, validation_set, test_set = np.split(
+        df.sample(frac=1),
+        [int(training_set_size * len(df)), int(training_validation_set_size * len(df))],
     )
 
-    names_training, names_validating = train_test_split(
-        names_training_validating, test_size=0.2
-    )
-    print(
-        f"Len of training set: {len(names_training)}/{len(names_training_validating)}"
-    )
-    print(
-        f"Len of validating set: {len(names_validating)}/{len(names_training_validating)}"
-    )
-    print(f"Len of test set: {len(names_test)}/{len(names_list)}")
+    names_training = training_set[0].tolist()
+    names_validating = validation_set[0].tolist()
+    names_test = test_set[0].tolist()
 
     return names_training, names_validating, names_test
 
@@ -544,6 +540,7 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
     lr_SGD: float = 1e-3,
     weight_decay: float = 0.000001,
     test_size: float = 0.2,
+    validation_size: float = 0.2,
 ) -> Tuple[list, float]:
 
     """
@@ -577,8 +574,12 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
         weight_decay : float, opt
             by default = 1e-6
         test_size : float, opt
-            defines the (training+validation):(test) split, as well as the training:validation split,
+            defines the training:validation:test split
             by default = 0.2
+        validation_size : float, opt
+            defines the training:validation:test split
+            by default = 0.2
+
     Raises:
         RuntimeError: [description]
 
@@ -623,7 +624,7 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
             names_validating,
             names_test,
         ) = _split_names_in_training_validation_test_set(
-            names_list, test_size=test_size
+            names_list, test_size=test_size, validation_size=validation_size
         )
 
     # save the split for this particular training/validation/test split
@@ -786,6 +787,8 @@ def _perform_training(
         # get the learning group
         learning_rate = AdamW.param_groups[0]["lr"]
         if learning_rate < early_stopping_learning_rate:
+            print("Learning rate is lower than early_stopping_learning_reate!")
+            print("Stopping!")
             break
 
         # checkpoint -- if best parameters on validation set save parameters
@@ -1005,11 +1008,11 @@ def _get_nn_layers(
     SGD = torch.optim.SGD(bias_layers, lr=lr_SGD)
 
     AdamW_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        AdamW, factor=0.5, patience=2, threshold=0.2
-    )
+        AdamW
+    )  # using defailt values
     SGD_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        SGD, factor=0.5, patience=2, threshold=0.2
-    )
+        SGD
+    )  # using defailt values from https://pytorch.org/docs/stable/optim.html#torch.optim.lr_scheduler.ReduceLROnPlateau
 
     return (AdamW, AdamW_scheduler, SGD, SGD_scheduler)
 
