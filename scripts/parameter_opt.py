@@ -1,5 +1,4 @@
 import neutromeratio
-import pickle
 import sys
 import torch
 
@@ -35,7 +34,7 @@ else:
     torch.set_num_threads(4)
     bulk_energy_calculation = True
 
-max_epochs = 50
+max_epochs = 100
 
 (
     rmse_validation,
@@ -54,7 +53,9 @@ max_epochs = 50
     max_epochs=max_epochs,
     diameter=diameter,
     load_pickled_FEC=True,
-    lr_AdamW=1e-3,
-    lr_SGD=1e-3,
-    weight_decay=0.000001,
+    lr_AdamW=1e-4,
+    lr_SGD=1e-4,
+    weight_decay=1e-06,
+    test_size=0.2,
+    validation_size=0.2,
 )
