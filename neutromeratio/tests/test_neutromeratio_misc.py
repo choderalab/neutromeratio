@@ -557,7 +557,7 @@ def test_postprocessing_vacuum():
                 assert np.isclose(
                     fec._end_state_free_energy_difference[0], e2, rtol=1e-3
                 )
-            assert np.isclose(rmse.item(), 5.1878913627689895)
+            assert np.isclose(rmse.item(), 6.115326307713618)
 
         elif idx == 3:
             for fec, e2 in zip(
@@ -566,7 +566,7 @@ def test_postprocessing_vacuum():
                 assert np.isclose(
                     fec._end_state_free_energy_difference[0], e2, rtol=1e-3
                 )
-            assert np.isclose(rmse.item(), 5.1878913627689895)
+            assert np.isclose(rmse.item(), 6.115326307713618)
 
         del model
     del fec_list
