@@ -407,6 +407,52 @@ def test_query_names():
     assert f[0][0] == 3686
     assert f[-1] == 336
 
+    l = []
+    for n in [
+        "molDWRow_1366",
+        "molDWRow_1367",
+        "molDWRow_1368",
+        "molDWRow_1370",
+        "molDWRow_1377",
+        "molDWRow_1378",
+        "molDWRow_1379",
+        "molDWRow_1380",
+        "molDWRow_1652",
+        "molDWRow_1653",
+        "molDWRow_1654",
+        "molDWRow_1655",
+        "molDWRow_1656",
+        "molDWRow_1657",
+        "molDWRow_1658",
+        "molDWRow_1659",
+        "molDWRow_575",
+        "molDWRow_578",
+        "molDWRow_579",
+        "molDWRow_58",
+        "molDWRow_583",
+        "molDWRow_584",
+        "molDWRow_59",
+        "molDWRow_590",
+        "molDWRow_591",
+        "molDWRow_592",
+        "molDWRow_593",
+        "molDWRow_594",
+        "molDWRow_595",
+        "molDWRow_596",
+        "molDWRow_597",
+        "molDWRow_598",
+        "molDWRow_599",
+        "molDWRow_600",
+    ]:
+        l.append(find_idx(query_name=n)[-1])
+
+    assert l == [93, 94, 95, 96, 97, 98, 99, 100, 193, 194, 195, 196, 197, 198, 199, 200, 283, 284, 285, 286, 287, 288, 289, 290, 291, 292, 293, 294, 295, 296, 297, 298, 299, 300]
+
+    f = find_idx(query_name="molDWRow_575")
+    print(f)
+
+
+
 
 @pytest.mark.skipif(
     os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."

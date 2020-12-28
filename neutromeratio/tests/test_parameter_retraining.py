@@ -12,8 +12,8 @@ from simtk import unit
 import numpy as np
 import mdtraj as md
 from neutromeratio.constants import device
-from openmmtools.utils import is_quantity_close
 from neutromeratio.constants import device
+import pandas as pd
 
 
 def _get_params(model, layer: int) -> Tuple[list, list]:
@@ -51,6 +51,110 @@ def _remove_files(name, max_epochs=1):
     os.remove(f"{name}_best.pt")
 
 
+def test_splitting_function():
+    # test that splitting function works as inteded to generate test/training/validation set
+    from ..parameter_gradients import _split_names_in_training_validation_test_set
+
+    # initialize set with 100 elements
+    s = [i for i in range(100)]
+
+    # perform 60:20:20 split for training:validation:test set
+    (
+        training_set,
+        validation_set,
+        test_set,
+    ) = _split_names_in_training_validation_test_set(s, 0.2, 0.2)
+
+    assert len(training_set) == 60
+    assert len(validation_set) == 20
+    assert len(test_set) == 20
+
+    everything = training_set + validation_set + test_set
+    # make sure that everything has no duplicates
+    assert len(set(everything)) == len(everything)
+
+    # perform 80:10:10 split for training:validation:test set
+    (
+        training_set,
+        validation_set,
+        test_set,
+    ) = _split_names_in_training_validation_test_set(s, 0.1, 0.1)
+
+    assert len(training_set) == 80
+    assert len(validation_set) == 10
+    assert len(test_set) == 10
+
+    everything = training_set + validation_set + test_set
+    # make sure that everything has no duplicates
+    assert len(set(everything)) == len(everything)
+
+    # perform 80:10:10 split for training:validation:test set
+    (
+        training_set,
+        validation_set,
+        test_set,
+    ) = _split_names_in_training_validation_test_set(s, 0.6, 0.2)
+
+    assert len(training_set) == 20
+    assert len(validation_set) == 20
+    assert len(test_set) == 60
+
+    everything = training_set + validation_set + test_set
+    # make sure that everything has no duplicates
+    assert len(set(everything)) == len(everything)
+
+
+def test_splitting_on_names():
+    from ..constants import _get_names
+    from ..parameter_gradients import _split_names_in_training_validation_test_set
+
+    # test 80:20:20 split
+    test_size = 0.2
+    validation_size = 0.2
+    # split in training/validation/test set
+    # get names of molecules we want to optimize
+    names_list = _get_names()
+    (
+        names_training,
+        names_validating,
+        names_test,
+    ) = _split_names_in_training_validation_test_set(
+        names_list, test_size=test_size, validation_size=validation_size
+    )
+
+    # save the split for this particular training/validation/test split
+    split = {}
+    for name, which_set in zip(
+        names_training + names_validating + names_test,
+        ["training"] * len(names_training)
+        + ["validating"] * len(names_validating)
+        + ["testing"] * len(names_test),
+    ):
+        split[name] = which_set
+
+    assert len(names_training) == 212
+    assert len(names_validating) == 71
+    assert len(names_test) == 71
+
+    # test 20:20:80 split
+    test_size = 0.6
+    validation_size = 0.2
+    # split in training/validation/test set
+    # get names of molecules we want to optimize
+    names_list = _get_names()
+    (
+        names_training,
+        names_validating,
+        names_test,
+    ) = _split_names_in_training_validation_test_set(
+        names_list, test_size=test_size, validation_size=validation_size
+    )
+
+    assert len(names_training) == 70
+    assert len(names_validating) == 71
+    assert len(names_test) == 213
+
+
 @pytest.mark.skipif(
     os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
 )
@@ -59,10 +163,8 @@ def test_postprocessing_droplet():
         get_perturbed_free_energy_difference,
         get_experimental_values,
     )
-    from ..constants import kT, device, exclude_set_ANI, mols_with_charge
     from ..parameter_gradients import setup_FEC
-    from glob import glob
-    from ..ani import AlchemicalANI1ccx, AlchemicalANI1x, AlchemicalANI2x
+    from ..ani import AlchemicalANI1ccx, AlchemicalANI1x
 
     for idx, model in enumerate([AlchemicalANI1ccx, AlchemicalANI1x]):
         print(model.name)
@@ -88,19 +190,16 @@ def test_postprocessing_droplet():
             )
             for name in names
         ]
+        # get calc free energy
+        f = torch.stack([get_perturbed_free_energy_difference(fec) for fec in fec_list])
+        # get exp free energy
+        e = torch.stack([get_experimental_values(name) for name in names])
 
         if idx == 0:
             print(fec_list)
             assert len(fec_list) == 1
-            rmse = torch.sqrt(
-                torch.mean(
-                    (
-                        get_perturbed_free_energy_difference(fec_list)
-                        - get_experimental_values(names)
-                    )
-                    ** 2
-                )
-            )
+
+            rmse = torch.sqrt(torch.mean((f - e) ** 2))
             assert np.isclose(
                 fec_list[0]._end_state_free_energy_difference[0].item(),
                 -1.664279359190441,
@@ -111,15 +210,7 @@ def test_postprocessing_droplet():
         elif idx == 1:
             print(fec_list)
             assert len(fec_list) == 1
-            rmse = torch.sqrt(
-                torch.mean(
-                    (
-                        get_perturbed_free_energy_difference(fec_list)
-                        - get_experimental_values(names)
-                    )
-                    ** 2
-                )
-            )
+            rmse = torch.sqrt(torch.mean((f - e) ** 2))
             assert np.isclose(
                 fec_list[0]._end_state_free_energy_difference[0].item(),
                 -13.013144575760862,
@@ -146,19 +237,15 @@ def test_postprocessing_droplet():
             )
             for name in names
         ]
+        # get calc free energy
+        f = torch.stack([get_perturbed_free_energy_difference(fec) for fec in fec_list])
+        # get exp free energy
+        e = torch.stack([get_experimental_values(name) for name in names])
 
         if idx == 0:
             print(fec_list)
             assert len(fec_list) == 1
-            rmse = torch.sqrt(
-                torch.mean(
-                    (
-                        get_perturbed_free_energy_difference(fec_list)
-                        - get_experimental_values(names)
-                    )
-                    ** 2
-                )
-            )
+            rmse = torch.sqrt(torch.mean((f - e) ** 2))
             assert np.isclose(
                 fec_list[0]._end_state_free_energy_difference[0].item(),
                 -1.664279359190441,
@@ -169,15 +256,7 @@ def test_postprocessing_droplet():
         elif idx == 1:
             print(fec_list)
             assert len(fec_list) == 1
-            rmse = torch.sqrt(
-                torch.mean(
-                    (
-                        get_perturbed_free_energy_difference(fec_list)
-                        - get_experimental_values(names)
-                    )
-                    ** 2
-                )
-            )
+            rmse = torch.sqrt(torch.mean((f - e) ** 2))
             assert np.isclose(
                 fec_list[0]._end_state_free_energy_difference[0].item(),
                 -13.013144575760862,
@@ -206,18 +285,15 @@ def test_postprocessing_droplet():
             for name in names
         ]
 
+        # get calc free energy
+        f = torch.stack([get_perturbed_free_energy_difference(fec) for fec in fec_list])
+        # get exp free energy
+        e = torch.stack([get_experimental_values(name) for name in names])
+
         if idx == 0:
             print(fec_list)
             assert len(fec_list) == 1
-            rmse = torch.sqrt(
-                torch.mean(
-                    (
-                        get_perturbed_free_energy_difference(fec_list)
-                        - get_experimental_values(names)
-                    )
-                    ** 2
-                )
-            )
+            rmse = torch.sqrt(torch.mean((f - e) ** 2))
             assert np.isclose(
                 fec_list[0]._end_state_free_energy_difference[0].item(),
                 -1.664279359190441,
@@ -228,15 +304,7 @@ def test_postprocessing_droplet():
         elif idx == 1:
             print(fec_list)
             assert len(fec_list) == 1
-            rmse = torch.sqrt(
-                torch.mean(
-                    (
-                        get_perturbed_free_energy_difference(fec_list)
-                        - get_experimental_values(names)
-                    )
-                    ** 2
-                )
-            )
+            rmse = torch.sqrt(torch.mean((f - e) ** 2))
             assert np.isclose(
                 fec_list[0]._end_state_free_energy_difference[0].item(),
                 -13.013144575760862,
@@ -264,18 +332,15 @@ def test_postprocessing_droplet():
             for name in names
         ]
 
+        # get calc free energy
+        f = torch.stack([get_perturbed_free_energy_difference(fec) for fec in fec_list])
+        # get exp free energy
+        e = torch.stack([get_experimental_values(name) for name in names])
+
         if idx == 0:
             print(fec_list)
             assert len(fec_list) == 1
-            rmse = torch.sqrt(
-                torch.mean(
-                    (
-                        get_perturbed_free_energy_difference(fec_list)
-                        - get_experimental_values(names)
-                    )
-                    ** 2
-                )
-            )
+            rmse = torch.sqrt(torch.mean((f - e) ** 2))
             assert np.isclose(
                 fec_list[0]._end_state_free_energy_difference[0].item(),
                 -1.664279359190441,
@@ -286,15 +351,7 @@ def test_postprocessing_droplet():
         elif idx == 1:
             print(fec_list)
             assert len(fec_list) == 1
-            rmse = torch.sqrt(
-                torch.mean(
-                    (
-                        get_perturbed_free_energy_difference(fec_list)
-                        - get_experimental_values(names)
-                    )
-                    ** 2
-                )
-            )
+            rmse = torch.sqrt(torch.mean((f - e) ** 2))
             assert np.isclose(
                 fec_list[0]._end_state_free_energy_difference[0].item(),
                 -13.013144575760862,
@@ -492,11 +549,75 @@ def test_tweak_parameters_and_class_nn_CompartimentedAlchemicalANI2x():
 @pytest.mark.skipif(
     os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
 )
-def test_tweak_parameters_vacuum_multiple_tautomer():
+def test_retrain_parameters_vacuum_batch_size_AlchemicalANI1ccx():
     from ..parameter_gradients import (
         setup_and_perform_parameter_retraining_with_test_set_split,
     )
-    import os
+    from ..ani import AlchemicalANI1ccx
+
+    names = ["molDWRow_298", "SAMPLmol2", "SAMPLmol4"]
+    max_epochs = 4
+    model = AlchemicalANI1ccx
+    model_name = "AlchemicalANI1ccx"
+
+    # calculate with batch_size=1
+    model._reset_parameters()
+    (rmse_val, rmse_test) = setup_and_perform_parameter_retraining_with_test_set_split(
+        env="vacuum",
+        checkpoint_filename=f"{model_name}_vacuum.pt",
+        names=names,
+        ANImodel=model,
+        batch_size=1,
+        data_path="./data/test_data/vacuum",
+        max_snapshots_per_window=50,
+        nr_of_nn=8,
+        bulk_energy_calculation=True,
+        max_epochs=max_epochs,
+        load_checkpoint=False,
+        load_pickled_FEC=False,
+    )
+
+    print(rmse_val)
+    try:
+        assert np.isclose(rmse_val[-1], rmse_test)
+        assert np.isclose(rmse_val[0], 5.3938140869140625, rtol=1e-3)
+        assert np.isclose(rmse_val[-1], 1.824, rtol=1e-3)
+    finally:
+        _remove_files(model_name + "_vacuum", max_epochs)
+
+    # calculate with batch_size=3
+    model._reset_parameters()
+    (rmse_val, rmse_test) = setup_and_perform_parameter_retraining_with_test_set_split(
+        env="vacuum",
+        checkpoint_filename=f"{model_name}_vacuum.pt",
+        names=names,
+        ANImodel=model,
+        batch_size=3,
+        data_path="./data/test_data/vacuum",
+        max_snapshots_per_window=50,
+        nr_of_nn=8,
+        bulk_energy_calculation=True,
+        max_epochs=max_epochs,
+        load_checkpoint=False,
+        load_pickled_FEC=False,
+    )
+
+    print(rmse_val)
+    try:
+        assert np.isclose(rmse_val[-1], rmse_test)
+        assert np.isclose(rmse_val[0], 5.393814086, rtol=1e-3)
+        assert np.isclose(rmse_val[-1], 2.09907078, rtol=1e-3)
+    finally:
+        _remove_files(model_name + "_vacuum", max_epochs)
+
+
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
+def test_retrain_parameters_vacuum_batch_size():
+    from ..parameter_gradients import (
+        setup_and_perform_parameter_retraining_with_test_set_split,
+    )
     from ..ani import AlchemicalANI1ccx, AlchemicalANI1x, AlchemicalANI2x
 
     # calculate with batch_size=3
@@ -518,7 +639,7 @@ def test_tweak_parameters_vacuum_multiple_tautomer():
             checkpoint_filename=f"{model_name}_vacuum.pt",
             names=names,
             ANImodel=model,
-            batch_size=3,
+            batch_size=1,
             data_path="./data/test_data/vacuum",
             max_snapshots_per_window=50,
             nr_of_nn=8,
