@@ -12,15 +12,10 @@ from glob import glob
 from .ani import ANI_force_and_energy, ANI
 from neutromeratio.constants import (
     _get_names,
-    hartree_to_kJ_mol,
     device,
-    platform,
     kT,
-    exclude_set_ANI,
-    mols_with_charge,
-    multiple_stereobonds,
 )
-import torchani, torch
+import torch
 import os
 import neutromeratio
 import mdtraj as md
@@ -305,7 +300,7 @@ def torchify(x):
     return torch.tensor(x, dtype=torch.double, requires_grad=True, device=device)
 
 
-def get_perturbed_free_energy_difference(fec_list: list) -> torch.Tensor:
+def get_perturbed_free_energy_difference(fec: FreeEnergyCalculator) -> torch.Tensor:
     """
     Gets a list of fec instances and returns a torch.tensor with
     the computed free energy differences.
@@ -316,18 +311,15 @@ def get_perturbed_free_energy_difference(fec_list: list) -> torch.Tensor:
     Returns:
         torch.tensor -- calculated free energy in kT
     """
-    calc = []
+    if fec.flipped:
+        deltaF = fec._compute_free_energy_difference() * -1.0
+    else:
+        deltaF = fec._compute_free_energy_difference()
 
-    for idx, fec in enumerate(fec_list):
-        if fec.flipped:
-            deltaF = fec._compute_free_energy_difference() * -1.0
-        else:
-            deltaF = fec._compute_free_energy_difference()
-        calc.append(deltaF)
-    return torch.stack([e for e in calc])
+    return deltaF
 
 
-def get_unperturbed_free_energy_difference(fec_list: list):
+def get_unperturbed_free_energy_difference(fec: FreeEnergyCalculator):
     """
     Gets a list of fec instances and returns a torch.tensor with
     the computed free energy differences.
@@ -338,18 +330,16 @@ def get_unperturbed_free_energy_difference(fec_list: list):
     Returns:
         torch.tensor -- calculated free energy in kT
     """
-    calc = []
 
-    for idx, fec in enumerate(fec_list):
-        if fec.flipped:
-            deltaF = fec._end_state_free_energy_difference[0] * -1.0
-        else:
-            deltaF = fec._end_state_free_energy_difference[0]
-        calc.append(deltaF)
-    return torch.stack([torchify(e) for e in calc])
+    if fec.flipped:
+        deltaF = fec._end_state_free_energy_difference[0] * -1.0
+    else:
+        deltaF = fec._end_state_free_energy_difference[0]
+
+    return torchify(deltaF)
 
 
-def get_experimental_values(names: list) -> torch.Tensor:
+def get_experimental_values(name: str) -> torch.Tensor:
     """
     Returns the experimental free energy differen in solution for the tautomer pair
 
@@ -359,13 +349,10 @@ def get_experimental_values(names: list) -> torch.Tensor:
     from neutromeratio.analysis import _get_exp_results
 
     exp_results = _get_exp_results()
-    exp = []
 
-    for idx, name in enumerate(names):
-        e_in_kT = (exp_results[name]["energy"] * unit.kilocalorie_per_mole) / kT
-        exp.append(e_in_kT)
-    logger.debug(exp)
-    return torchify(exp)
+    e_in_kT = (exp_results[name]["energy"] * unit.kilocalorie_per_mole) / kT
+    logger.debug(e_in_kT)
+    return torchify(e_in_kT)
 
 
 def calculate_rmse_between_exp_and_calc(
@@ -427,32 +414,26 @@ def calculate_rmse_between_exp_and_calc(
     it = tqdm(names)
 
     for name in it:
-        fec_list = [
-            setup_FEC(
-                name=name,
-                ANImodel=model,
-                env=env,
-                bulk_energy_calculation=bulk_energy_calculation,
-                data_path=data_path,
-                max_snapshots_per_window=max_snapshots_per_window,
-                diameter=diameter,
-                load_pickled_FEC=load_pickled_FEC,
-                include_restraint_energy_contribution=include_restraint_energy_contribution,
-            )
-        ]
+        fec = setup_FEC(
+            name=name,
+            ANImodel=model,
+            env=env,
+            bulk_energy_calculation=bulk_energy_calculation,
+            data_path=data_path,
+            max_snapshots_per_window=max_snapshots_per_window,
+            diameter=diameter,
+            load_pickled_FEC=load_pickled_FEC,
+            include_restraint_energy_contribution=include_restraint_energy_contribution,
+        )
 
         # append calculated values
         if perturbed_free_energy:
-            e_calc.append(
-                get_perturbed_free_energy_difference(fec_list)[
-                    0
-                ].item()  # NOTE: This is a valid assumption since we are iteration with batchsize=1
-            )
+            e_calc.append(get_perturbed_free_energy_difference(fec).item())
         else:
-            e_calc.append(get_unperturbed_free_energy_difference(fec_list)[0].item())
+            e_calc.append(get_unperturbed_free_energy_difference(fec).item())
 
         # append experimental values
-        e_exp.append(get_experimental_values([name])[0].item())
+        e_exp.append(get_experimental_values(name).item())
         current_rmse = calculate_rmse(
             torch.tensor(e_calc, device=device), torch.tensor(e_exp, device=device)
         ).item()
@@ -517,6 +498,10 @@ def _split_names_in_training_validation_test_set(
     names_training = training_set[0].tolist()
     names_validating = validation_set[0].tolist()
     names_test = test_set[0].tolist()
+
+    assert len(names_training) + len(names_validating) + len(names_test) == len(
+        names_list
+    )
 
     return names_training, names_validating, names_test
 
@@ -895,14 +880,20 @@ def _tweak_parameters(
 
     logger.info("_tweak_parameters called ...")
     # iterate over batches of molecules
+    # some points to where the rational comes from:
+    # https://discuss.pytorch.org/t/why-do-we-need-to-set-the-gradients-manually-to-zero-in-pytorch/4903/20
     it = tqdm(chunks(names_training, batch_size))
+    instance_idx = 0
 
-    for idx, names in enumerate(it):
+    for batch_idx, names in enumerate(it):
+        # count tautomer pairs
+        instance_idx += 1
+        # reset gradient
+        AdamW.zero_grad()
+        SGD.zero_grad()
 
-        # define setup_FEC function
-        # get mbar instances in a list
-        fec_list = [
-            setup_FEC(
+        for name in names:
+            fec = setup_FEC(
                 name=name,
                 ANImodel=ANImodel,
                 env=env,
@@ -913,25 +904,31 @@ def _tweak_parameters(
                 load_pickled_FEC=load_pickled_FEC,
                 include_restraint_energy_contribution=False,
             )
-            for name in names
-        ]
 
-        # calculate the free energies
-        calc_free_energy_difference = get_perturbed_free_energy_difference(fec_list)
-        # obtain the experimental free energies
-        exp_free_energy_difference = get_experimental_values(names)
-        # calculate the loss as MSE
-        loss = calculate_mse(calc_free_energy_difference, exp_free_energy_difference)
-        it.set_description(f"Batch {idx} -- MSE: {loss.item()}")
+            loss = _loss_function(fec, name)
+            # gradient is calculated
+            loss.backward()
+            # graph is cleared here
+            it.set_description(
+                f"Instance {instance_idx} -- Batch {batch_idx+1} -- MSE: {loss.item()}"
+            )
 
         # optimization steps
-        AdamW.zero_grad()
-        SGD.zero_grad()
-        loss.backward()
         AdamW.step()
         SGD.step()
 
-        del calc_free_energy_difference
+
+
+def _loss_function(fec: FreeEnergyCalculator, name: str):
+
+    # calculate the free energies
+    calc_free_energy_difference = get_perturbed_free_energy_difference(fec)
+    # obtain the experimental free energies
+    exp_free_energy_difference = get_experimental_values(name)
+    # calculate the loss as MSE
+    loss = calculate_mse(calc_free_energy_difference, exp_free_energy_difference)
+
+    return loss
 
 
 def _load_checkpoint(
