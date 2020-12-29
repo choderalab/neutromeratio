@@ -226,22 +226,22 @@ class FreeEnergyCalculator:
         self.coordinates = coordinates
 
     @property
-    def free_energy_differences(self):
+    def free_energy_differences(self) -> np.ndarray:
         """matrix of free energy differences"""
         return self.mbar.getFreeEnergyDifferences(return_dict=True)["Delta_f"]
 
     @property
-    def free_energy_difference_uncertainties(self):
+    def free_energy_difference_uncertainties(self) -> np.ndarray:
         """matrix of asymptotic uncertainty-estimates accompanying free energy differences"""
         return self.mbar.getFreeEnergyDifferences(return_dict=True)["dDelta_f"]
 
     @property
-    def _end_state_free_energy_difference(self):
+    def _end_state_free_energy_difference(self) -> np.ndarray:
         """DeltaF[lambda=1 --> lambda=0]"""
         results = self.mbar.getFreeEnergyDifferences(return_dict=True)
         return results["Delta_f"][0, -1], results["dDelta_f"][0, -1]
 
-    def _compute_perturbed_free_energies(self, u_ln):
+    def _compute_perturbed_free_energies(self, u_ln) -> torch.Tensor:
         """compute perturbed free energies at new thermodynamic states l"""
         assert type(u_ln) == torch.Tensor
 
@@ -264,7 +264,7 @@ class FreeEnergyCalculator:
         B = -u_ln - log_denominator_n
         return -torch.logsumexp(B, dim=1)
 
-    def _form_u_ln(self):
+    def _form_u_ln(self, original_neural_network: bool = False) -> torch.Tensor:
 
         # bring list of unit'd coordinates in [N][K][3] * unit shape
         coordinates = self.coordinates
@@ -273,7 +273,7 @@ class FreeEnergyCalculator:
         u_0 = self.ani_model.calculate_energy(
             coordinates,
             lambda_value=0.0,
-            original_neural_network=False,
+            original_neural_network=original_neural_network,
             requires_grad_wrt_coordinates=False,
             include_restraint_energy_contribution=self.include_restraint_energy_contribution,
         ).energy_tensor
@@ -282,7 +282,7 @@ class FreeEnergyCalculator:
         u_1 = self.ani_model.calculate_energy(
             coordinates,
             lambda_value=1.0,
-            original_neural_network=False,
+            original_neural_network=original_neural_network,
             requires_grad_wrt_coordinates=False,
             include_restraint_energy_contribution=self.include_restraint_energy_contribution,
         ).energy_tensor
@@ -290,10 +290,23 @@ class FreeEnergyCalculator:
         u_ln = torch.stack([u_0, u_1])
         return u_ln
 
-    def _compute_free_energy_difference(self):
+    def _compute_free_energy_difference(self) -> torch.Tensor:
         u_ln = self._form_u_ln()
         f_k = self._compute_perturbed_free_energies(u_ln)
         return f_k[1] - f_k[0]
+
+    def get_u_ln_for_rho_and_rho_star(self) -> Tuple[(torch.Tensor, torch.Tensor)]:
+        u_ln_rho = self._form_u_ln()
+        u_ln_rho_star = self._form_u_ln(original_neural_network=True)
+        return u_ln_rho, u_ln_rho_star
+
+    def rmse_between_potentials_for_snapshots(self) -> torch.Tensor:
+        u_ln_rho, u_ln_rho_star = self.get_u_ln_for_rho_and_rho_star()
+        return calculate_rmse(u_ln_rho, u_ln_rho_star)
+
+    def mae_between_potentials_for_snapshots(self) -> torch.Tensor:
+        u_ln_rho, u_ln_rho_star = self.get_u_ln_for_rho_and_rho_star()
+        return calculate_mae(u_ln_rho, u_ln_rho_star)
 
 
 def torchify(x):
@@ -447,6 +460,11 @@ def calculate_rmse_between_exp_and_calc(
     return current_rmse, e_calc
 
 
+def calculate_mae(t1: torch.Tensor, t2: torch.Tensor) -> torch.Tensor:
+    assert t1.size() == t2.size()
+    return torch.mean(abs(t1 - t2))
+
+
 def calculate_mse(t1: torch.Tensor, t2: torch.Tensor) -> torch.Tensor:
     assert t1.size() == t2.size()
     return torch.mean((t1 - t2) ** 2)
@@ -526,6 +544,7 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
     weight_decay: float = 0.000001,
     test_size: float = 0.2,
     validation_size: float = 0.2,
+    include_snapshot_penalty: bool = False,
 ) -> Tuple[list, float]:
 
     """
@@ -661,6 +680,7 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
         lr_AdamW=lr_AdamW,
         lr_SGD=lr_SGD,
         weight_decay=weight_decay,
+        include_snapshot_penalty=include_snapshot_penalty,
     )
 
     # final rmsd calculation on test set
@@ -729,9 +749,10 @@ def _perform_training(
     lr_AdamW: float,
     lr_SGD: float,
     weight_decay: float,
+    include_snapshot_penalty: bool,
 ) -> list:
 
-    early_stopping_learning_rate = 1.0e-5
+    early_stopping_learning_rate = 1.0e-8
     AdamW, AdamW_scheduler, SGD, SGD_scheduler = _get_nn_layers(
         nr_of_nn,
         ANImodel,
@@ -773,6 +794,7 @@ def _perform_training(
 
         # get the learning group
         learning_rate = AdamW.param_groups[0]["lr"]
+        logger.info(f"Learning rate of current epoche: {learning_rate}")
         if learning_rate < early_stopping_learning_rate:
             print("Learning rate is lower than early_stopping_learning_reate!")
             print("Stopping!")
@@ -795,16 +817,18 @@ def _perform_training(
             AdamW=AdamW,
             SGD=SGD,
             env=env,
+            epoch=AdamW_scheduler.last_epoch,
             bulk_energy_calculation=bulk_energy_calculation,
             diameter=diameter,
             batch_size=batch_size,
             data_path=data_path,
             max_snapshots_per_window=max_snapshots_per_window,
             load_pickled_FEC=load_pickled_FEC,
+            include_snapshot_penalty=include_snapshot_penalty,
         )
 
         # calculate the new free energies on the validation set with optimized parameters
-        current_rmse, dG_calc_validation = calculate_rmse_between_exp_and_calc(
+        current_rmse, _ = calculate_rmse_between_exp_and_calc(
             names_validating,
             model=ANImodel,
             diameter=diameter,
@@ -844,6 +868,7 @@ def _tweak_parameters(
     ANImodel: ANI,
     AdamW,
     SGD,
+    epoch: int,
     env: str,
     diameter: int,
     bulk_energy_calculation: bool,
@@ -851,6 +876,7 @@ def _tweak_parameters(
     data_path: str,
     max_snapshots_per_window: int,
     load_pickled_FEC: bool,
+    include_snapshot_penalty: bool,
 ):
     """
     _tweak_parameters
@@ -909,9 +935,9 @@ def _tweak_parameters(
                 include_restraint_energy_contribution=False,
             )
 
-            loss = _loss_function(fec, name)
+            loss = _loss_function(fec, name, include_snapshot_penalty)
             it.set_description(
-                f"Instance {instance_idx} -- Batch {batch_idx+1} -- tautomer {name} -- MSE: {loss.item()}"
+                f"E:{epoch};B:{batch_idx+1},;I:{instance_idx} -- tautomer {name} -- MSE: {loss.item()}"
             )
             # gradient is calculated
             loss.backward()
@@ -922,7 +948,11 @@ def _tweak_parameters(
         SGD.step()
 
 
-def _loss_function(fec: FreeEnergyCalculator, name: str):
+def _loss_function(
+    fec: FreeEnergyCalculator,
+    name: str,
+    include_snapshot_penalty: bool = False,
+) -> torch.Tensor:
 
     # calculate the free energies
     calc_free_energy_difference = get_perturbed_free_energy_difference(fec)
@@ -930,6 +960,12 @@ def _loss_function(fec: FreeEnergyCalculator, name: str):
     exp_free_energy_difference = get_experimental_values(name)
     # calculate the loss as MSE
     loss = calculate_mse(calc_free_energy_difference, exp_free_energy_difference)
+
+    if include_snapshot_penalty:
+        snapshot_penalty = fec.mae_between_potentials_for_snapshots()
+        print(f"Snapshot penalty: {snapshot_penalty.item()}")
+        logger.info(f"Snapshot penalty: {snapshot_penalty.item()}")
+        loss += 0.5 * snapshot_penalty
 
     return loss
 
@@ -1105,6 +1141,7 @@ def setup_and_perform_parameter_retraining(
     max_snapshots_per_window: int,
     names_training: list,
     names_validating: list,
+    include_snapshot_penalty: bool,
     diameter: int = -1,
     batch_size: int = 1,
     data_path: str = "../data/",
@@ -1217,6 +1254,7 @@ def setup_and_perform_parameter_retraining(
         lr_AdamW=lr_AdamW,
         lr_SGD=lr_SGD,
         weight_decay=weight_decay,
+        include_snapshot_penalty=include_snapshot_penalty,
     )
 
     return rmse_validation
