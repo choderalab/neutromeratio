@@ -17,11 +17,9 @@ from neutromeratio.utils import _get_traj
 
 def test_neutromeratio_energy_calculations_with_AlchemicalANI2x_in_vacuum():
 
-    from ..tautomers import Tautomer
     from ..constants import kT
     from ..analysis import setup_alchemical_system_and_energy_function
-    import numpy as np
-    from ..ani import AlchemicalANI2x, ANI1ccx, ANI2x, AlchemicalANI1ccx
+    from ..ani import AlchemicalANI2x
 
     # vacuum system
     name = "molDWRow_298"
@@ -95,10 +93,8 @@ def test_neutromeratio_energy_calculations_with_AlchemicalANI2x_in_vacuum():
 
 def test_break_up_AlchemicalANI2x_energies():
 
-    from ..tautomers import Tautomer
     from ..constants import kT
     from ..analysis import setup_alchemical_system_and_energy_function
-    import numpy as np
     from ..ani import AlchemicalANI2x, CompartimentedAlchemicalANI2x
 
     # vacuum system
@@ -115,7 +111,7 @@ def test_break_up_AlchemicalANI2x_energies():
     traj, _ = _get_traj(traj_path, top_path)
     coordinates = [x.xyz[0] for x in traj[:10]] * unit.nanometer
 
-    energy_function, tautomer, flipped = setup_alchemical_system_and_energy_function(
+    energy_function, _, _ = setup_alchemical_system_and_energy_function(
         name=name, ANImodel=AlchemicalANI2x, env="vacuum"
     )
 
@@ -133,7 +129,7 @@ def test_break_up_AlchemicalANI2x_energies():
         (-907243.8987177598 * unit.kilojoule_per_mole),
         rtol=1e-5,
     )
-    energy_function, tautomer, flipped = setup_alchemical_system_and_energy_function(
+    energy_function, _, _ = setup_alchemical_system_and_energy_function(
         name=name, ANImodel=CompartimentedAlchemicalANI2x, env="vacuum"
     )
 
@@ -163,10 +159,8 @@ def test_break_up_AlchemicalANI2x_energies():
 
 def test_break_up_AlchemicalANI2x_timings():
 
-    from ..tautomers import Tautomer
     from ..constants import kT
     from ..analysis import setup_alchemical_system_and_energy_function
-    import numpy as np
     from ..ani import AlchemicalANI2x, CompartimentedAlchemicalANI2x
 
     # vacuum system
@@ -210,21 +204,15 @@ def test_break_up_AlchemicalANI2x_timings():
 
 
 def test_neutromeratio_energy_calculations_with_AlchemicalANI1ccx_in_vacuum():
-    from ..tautomers import Tautomer
-    import numpy as np
     from ..constants import kT
     from ..analysis import setup_alchemical_system_and_energy_function
     from ..ani import AlchemicalANI1ccx, ANI1ccx
-
-    # read in exp_results.pickle
-    with open("data/test_data/exp_results.pickle", "rb") as f:
-        exp_results = pickle.load(f)
 
     ######################################################################
     # vacuum
     ######################################################################
     name = "molDWRow_298"
-    energy_function, tautomer, flipped = setup_alchemical_system_and_energy_function(
+    energy_function, tautomer, _ = setup_alchemical_system_and_energy_function(
         name=name, env="vacuum", ANImodel=AlchemicalANI1ccx
     )
     # read in pregenerated traj
@@ -293,9 +281,6 @@ def test_neutromeratio_energy_calculations_with_AlchemicalANI1ccx_in_vacuum():
     os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
 )
 def test_neutromeratio_energy_calculations_with_AlchemicalANI1ccx_in_droplet():
-    from ..tautomers import Tautomer
-    import numpy as np
-    from ..constants import kT
     from ..analysis import setup_alchemical_system_and_energy_function
     from ..ani import AlchemicalANI1ccx, ANI1ccx
 

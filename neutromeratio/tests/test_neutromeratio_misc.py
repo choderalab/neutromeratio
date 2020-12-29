@@ -337,14 +337,14 @@ def test_calculate_rmse_between_exp_and_calc():
     exp_results = pickle.load(open("data/test_data/exp_results.pickle", "rb"))
 
     env = "vacuum"
-    exp_values = get_experimental_values(names)
+    exp_values = [get_experimental_values(name) for name in names]
 
     rmse_list = []
     for model in [AlchemicalANI1ccx, AlchemicalANI2x, AlchemicalANI1x]:
         print(model.name)
 
         model._reset_parameters()
-        rmse, e_calc = calculate_rmse_between_exp_and_calc(
+        rmse, _ = calculate_rmse_between_exp_and_calc(
             names,
             model=model,
             data_path=f"./data/test_data/{env}",
@@ -360,13 +360,13 @@ def test_calculate_rmse_between_exp_and_calc():
         rmse_list.append(rmse)
         model._reset_parameters()
         del model
-    print(exp_values.tolist())
+    print(exp_values)
     print(rmse_list)
     for e1, e2 in zip(
-        exp_values.tolist(),
+        exp_values,
         [1.8994317488369707, -10.232118388886946, -3.858011851547537],
     ):
-        assert np.isclose(e1, e2)
+        assert np.isclose(e1.item(), e2)
 
     for e1, e2 in zip(
         rmse_list, [5.662402153015137, 5.6707963943481445, 4.7712321281433105]
@@ -389,7 +389,7 @@ def test_calculate_rmse_between_exp_and_calc_droplet():
     names = ["molDWRow_298"]
     exp_results = pickle.load(open("data/test_data/exp_results.pickle", "rb"))
     env = "droplet"
-    exp_values = get_experimental_values(names)
+    exp_values = [get_experimental_values(name) for name in names]
     diameter = 10
     assert np.isclose(exp_values[0].item(), 1.8994317488369707)
     assert np.isclose(
@@ -475,98 +475,3 @@ def test_experimental_values():
     names = _get_names()
     n_list = torch.stack([get_experimental_values(name) for name in names])
     assert len(n_list) == len(names)
-
-
-@pytest.mark.skipif(
-    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
-)
-def test_postprocessing_vacuum():
-    from ..parameter_gradients import (
-        get_perturbed_free_energy_difference,
-        get_experimental_values,
-    )
-    from ..parameter_gradients import setup_FEC
-    from ..ani import (
-        AlchemicalANI1ccx,
-        AlchemicalANI1x,
-        AlchemicalANI2x,
-        CompartimentedAlchemicalANI2x,
-    )
-    import numpy as np
-
-    env = "vacuum"
-    names = ["molDWRow_298", "SAMPLmol2", "SAMPLmol4"]
-
-    for idx, model in enumerate(
-        [
-            AlchemicalANI1ccx,
-            AlchemicalANI1x,
-            AlchemicalANI2x,
-            CompartimentedAlchemicalANI2x,
-        ]
-    ):
-
-        model._reset_parameters()
-        print(model.name)
-        fec_list = [
-            setup_FEC(
-                name,
-                ANImodel=model,
-                env=env,
-                data_path="data/test_data/vacuum",
-                bulk_energy_calculation=True,
-                max_snapshots_per_window=80,
-                load_pickled_FEC=False,
-                include_restraint_energy_contribution=True,
-                save_pickled_FEC=False,
-            )
-            for name in names
-        ]
-
-        # get calc free energy
-        f = torch.stack([get_perturbed_free_energy_difference(fec) for fec in fec_list])
-        # get exp free energy
-        e = torch.stack([get_experimental_values(name) for name in names])
-        assert len(f) == 3
-
-        rmse = torch.sqrt(torch.mean((f - e) ** 2))
-        print([e._end_state_free_energy_difference[0] for e in fec_list])
-
-        if idx == 0:
-            for fec, e2 in zip(
-                fec_list, [-1.2104192392489894, -5.31605397264069, 4.055934972298076]
-            ):
-                assert np.isclose(
-                    fec._end_state_free_energy_difference[0], e2, rtol=1e-3
-                )
-            assert np.isclose(rmse.item(), 5.393606768321977)
-
-        elif idx == 1:
-            for fec, e2 in zip(
-                fec_list, [-10.201508376053313, -9.919852168528479, 0.6758425107641388]
-            ):
-                assert np.isclose(
-                    fec._end_state_free_energy_difference[0], e2, rtol=1e-3
-                )
-            assert np.isclose(rmse.item(), 5.464364003709803)
-
-        elif idx == 2:
-            for fec, e2 in zip(
-                fec_list, [-8.715161329082854, -9.287343875860726, 4.194619951649713]
-            ):
-                assert np.isclose(
-                    fec._end_state_free_energy_difference[0], e2, rtol=1e-3
-                )
-            assert np.isclose(rmse.item(), 6.115326307713618)
-
-        elif idx == 3:
-            for fec, e2 in zip(
-                fec_list, [-7.6805827500672805, -9.655550628208003, 2.996804928927007]
-            ):
-                assert np.isclose(
-                    fec._end_state_free_energy_difference[0], e2, rtol=1e-3
-                )
-            assert np.isclose(rmse.item(), 6.115326307713618)
-
-        del model
-    del fec_list

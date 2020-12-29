@@ -573,6 +573,8 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
     """
     import datetime
 
+    logger.info(f"Batch size: {batch_size}")
+
     # initialize an empty ANI model to set default parameters
     _ = ANImodel([0, 0])
     ct = datetime.datetime.now()
@@ -886,13 +888,15 @@ def _tweak_parameters(
     instance_idx = 0
 
     for batch_idx, names in enumerate(it):
-        # count tautomer pairs
-        instance_idx += 1
         # reset gradient
         AdamW.zero_grad()
         SGD.zero_grad()
+        logger.info(names)
 
         for name in names:
+            # count tautomer pairs
+            logger.info(name)
+            instance_idx += 1
             fec = setup_FEC(
                 name=name,
                 ANImodel=ANImodel,
@@ -906,17 +910,16 @@ def _tweak_parameters(
             )
 
             loss = _loss_function(fec, name)
+            it.set_description(
+                f"Instance {instance_idx} -- Batch {batch_idx+1} -- tautomer {name} -- MSE: {loss.item()}"
+            )
             # gradient is calculated
             loss.backward()
             # graph is cleared here
-            it.set_description(
-                f"Instance {instance_idx} -- Batch {batch_idx+1} -- MSE: {loss.item()}"
-            )
 
         # optimization steps
         AdamW.step()
         SGD.step()
-
 
 
 def _loss_function(fec: FreeEnergyCalculator, name: str):

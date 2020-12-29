@@ -816,7 +816,6 @@ def test_loading_saving_mbar_object_CompartimentedAlchemicalANI2x():
     from ..ani import CompartimentedAlchemicalANI2x
 
     CompartimentedAlchemicalANI2x._reset_parameters()
-    model_name = "CompartimentedAlchemicalANI2x"
     name = "molDWRow_298"
     model_instance = CompartimentedAlchemicalANI2x([0, 0])
     AdamW, AdamW_scheduler, SGD, SGD_scheduler = _get_nn_layers(
@@ -839,7 +838,7 @@ def test_loading_saving_mbar_object_CompartimentedAlchemicalANI2x():
         save_pickled_FEC=True,
     )
     assert np.isclose(
-        18.348107633661936, get_perturbed_free_energy_difference([fec]).tolist()[0]
+        18.348107633661936, get_perturbed_free_energy_difference(fec).tolist()[0]
     )
 
     # load checkpoint parameter file and override optimized parameters
@@ -857,7 +856,7 @@ def test_loading_saving_mbar_object_CompartimentedAlchemicalANI2x():
     # get new free energy
     assert np.isclose(
         3.2730393726044866,
-        get_perturbed_free_energy_difference([fec]).tolist()[0],  # -1.3759686627878307
+        get_perturbed_free_energy_difference(fec).tolist()[0],  # -1.3759686627878307
     )
     del fec
 
@@ -876,7 +875,7 @@ def test_loading_saving_mbar_object_CompartimentedAlchemicalANI2x():
     )
 
     assert np.isclose(
-        3.2730393726044866, get_perturbed_free_energy_difference([fec]).tolist()[0]
+        3.2730393726044866, get_perturbed_free_energy_difference(fec).tolist()[0]
     )
 
     pickled_model = fec.ani_model.model
@@ -888,7 +887,7 @@ def test_loading_saving_mbar_object_CompartimentedAlchemicalANI2x():
 
 
 def test_io_checkpoints():
-    from ..parameter_gradients import _save_checkpoint, _load_checkpoint, _get_nn_layers
+    from ..parameter_gradients import _load_checkpoint, _get_nn_layers
     from ..ani import (
         AlchemicalANI1ccx,
         AlchemicalANI1x,

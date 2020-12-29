@@ -12,8 +12,21 @@ from simtk import unit
 import numpy as np
 import mdtraj as md
 from neutromeratio.constants import device
-from neutromeratio.constants import device
 import pandas as pd
+from neutromeratio.parameter_gradients import chunks
+
+
+def test_chunks():
+    s = [v for v in range(100)]
+    # get 10x10 elements
+    it = chunks(s, 10)
+
+    elements = next(it)
+    len(elements) == 10
+
+    it = chunks(s, 3)
+    elements = next(it)
+    len(elements) == 3
 
 
 def _get_params(model, layer: int) -> Tuple[list, list]:
@@ -153,6 +166,101 @@ def test_splitting_on_names():
     assert len(names_training) == 70
     assert len(names_validating) == 71
     assert len(names_test) == 213
+
+
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
+def test_postprocessing_vacuum():
+    from ..parameter_gradients import (
+        get_perturbed_free_energy_difference,
+        get_experimental_values,
+    )
+    from ..parameter_gradients import setup_FEC
+    from ..ani import (
+        AlchemicalANI1ccx,
+        AlchemicalANI1x,
+        AlchemicalANI2x,
+        CompartimentedAlchemicalANI2x,
+    )
+    import numpy as np
+
+    env = "vacuum"
+    names = ["molDWRow_298", "SAMPLmol2", "SAMPLmol4"]
+
+    for idx, model in enumerate(
+        [
+            AlchemicalANI1ccx,
+            AlchemicalANI1x,
+            AlchemicalANI2x,
+            CompartimentedAlchemicalANI2x,
+        ]
+    ):
+
+        model._reset_parameters()
+        print(model.name)
+        fec_list = [
+            setup_FEC(
+                name,
+                ANImodel=model,
+                env=env,
+                data_path="data/test_data/vacuum",
+                bulk_energy_calculation=True,
+                max_snapshots_per_window=80,
+                load_pickled_FEC=False,
+                include_restraint_energy_contribution=True,
+                save_pickled_FEC=False,
+            )
+            for name in names
+        ]
+
+        # get calc free energy
+        f = torch.stack([get_perturbed_free_energy_difference(fec) for fec in fec_list])
+        # get exp free energy
+        e = torch.stack([get_experimental_values(name) for name in names])
+        assert len(f) == 3
+
+        rmse = torch.sqrt(torch.mean((f - e) ** 2))
+        print([e._end_state_free_energy_difference[0] for e in fec_list])
+
+        if idx == 0:
+            for fec, e2 in zip(
+                fec_list, [-1.2104192392489894, -5.31605397264069, 4.055934972298076]
+            ):
+                assert np.isclose(
+                    fec._end_state_free_energy_difference[0], e2, rtol=1e-3
+                )
+            assert np.isclose(rmse.item(), 5.393606768321977)
+
+        elif idx == 1:
+            for fec, e2 in zip(
+                fec_list, [-10.201508376053313, -9.919852168528479, 0.6758425107641388]
+            ):
+                assert np.isclose(
+                    fec._end_state_free_energy_difference[0], e2, rtol=1e-3
+                )
+            assert np.isclose(rmse.item(), 5.464364003709803)
+
+        elif idx == 2:
+            for fec, e2 in zip(
+                fec_list, [-8.715161329082854, -9.287343875860726, 4.194619951649713]
+            ):
+                assert np.isclose(
+                    fec._end_state_free_energy_difference[0], e2, rtol=1e-3
+                )
+            assert np.isclose(rmse.item(), 6.115326307713618)
+
+        elif idx == 3:
+            for fec, e2 in zip(
+                fec_list, [-7.6805827500672805, -9.655550628208003, 2.996804928927007]
+            ):
+                assert np.isclose(
+                    fec._end_state_free_energy_difference[0], e2, rtol=1e-3
+                )
+            assert np.isclose(rmse.item(), 6.115326307713618)
+
+        del model
+    del fec_list
 
 
 @pytest.mark.skipif(
@@ -366,6 +474,51 @@ def test_postprocessing_droplet():
     del fec_list
 
 
+def test_snapshot_energy_loss_with_CompartimentedAlchemicalANI2x():
+    # test the setup mbar function with different models, environments and potentials
+    from ..parameter_gradients import (
+        setup_FEC,
+        get_perturbed_free_energy_difference,
+    )
+    from ..ani import CompartimentedAlchemicalANI2x
+
+    CompartimentedAlchemicalANI2x._reset_parameters()
+    name = "molDWRow_298"
+    model_instance = CompartimentedAlchemicalANI2x([0, 0])
+
+    # vacuum
+    fec = setup_FEC(
+        name,
+        env="vacuum",
+        diameter=10,
+        data_path="data/test_data/vacuum",
+        ANImodel=CompartimentedAlchemicalANI2x,
+        bulk_energy_calculation=True,
+        max_snapshots_per_window=100,
+        load_pickled_FEC=True,
+        include_restraint_energy_contribution=False,
+        save_pickled_FEC=True,
+    )
+    assert np.isclose(7.981540, get_perturbed_free_energy_difference(fec).item())
+
+    assert np.isclose(fec.rmse_between_potentials_for_snapshots().item(), 0.0)
+
+    # load parameters
+    model_instance.load_nn_parameters(f"data/test_data/AlchemicalANI2x_3.pt")
+
+    assert np.isclose(
+        -11.25832, get_perturbed_free_energy_difference(fec).item(), rtol=1e-3
+    )
+    assert np.isclose(
+        fec.rmse_between_potentials_for_snapshots().item(),
+        31.581332998622738,
+        rtol=1e-3,
+    )
+    
+    print(fec.mae_between_potentials_for_snapshots().item())
+    assert False
+
+
 @pytest.mark.skipif(
     os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
 )
@@ -549,7 +702,7 @@ def test_tweak_parameters_and_class_nn_CompartimentedAlchemicalANI2x():
 @pytest.mark.skipif(
     os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
 )
-def test_retrain_parameters_vacuum_batch_size_AlchemicalANI1ccx():
+def test_retrain_parameters_vacuum_batch_size():
     from ..parameter_gradients import (
         setup_and_perform_parameter_retraining_with_test_set_split,
     )
@@ -561,13 +714,14 @@ def test_retrain_parameters_vacuum_batch_size_AlchemicalANI1ccx():
     model_name = "AlchemicalANI1ccx"
 
     # calculate with batch_size=1
+    batch_size = 1
     model._reset_parameters()
     (rmse_val, rmse_test) = setup_and_perform_parameter_retraining_with_test_set_split(
         env="vacuum",
         checkpoint_filename=f"{model_name}_vacuum.pt",
         names=names,
         ANImodel=model,
-        batch_size=1,
+        batch_size=batch_size,
         data_path="./data/test_data/vacuum",
         max_snapshots_per_window=50,
         nr_of_nn=8,
@@ -586,13 +740,14 @@ def test_retrain_parameters_vacuum_batch_size_AlchemicalANI1ccx():
         _remove_files(model_name + "_vacuum", max_epochs)
 
     # calculate with batch_size=3
+    batch_size = 3
     model._reset_parameters()
     (rmse_val, rmse_test) = setup_and_perform_parameter_retraining_with_test_set_split(
         env="vacuum",
         checkpoint_filename=f"{model_name}_vacuum.pt",
         names=names,
         ANImodel=model,
-        batch_size=3,
+        batch_size=batch_size,
         data_path="./data/test_data/vacuum",
         max_snapshots_per_window=50,
         nr_of_nn=8,
@@ -610,19 +765,73 @@ def test_retrain_parameters_vacuum_batch_size_AlchemicalANI1ccx():
     finally:
         _remove_files(model_name + "_vacuum", max_epochs)
 
+    # calculate with batch_size=4
+    model._reset_parameters()
+    batch_size = 4
+    (rmse_val, rmse_test) = setup_and_perform_parameter_retraining_with_test_set_split(
+        env="vacuum",
+        checkpoint_filename=f"{model_name}_vacuum.pt",
+        names=names,
+        ANImodel=model,
+        batch_size=batch_size,
+        data_path="./data/test_data/vacuum",
+        max_snapshots_per_window=50,
+        nr_of_nn=8,
+        bulk_energy_calculation=True,
+        max_epochs=max_epochs,
+        load_checkpoint=False,
+        load_pickled_FEC=False,
+    )
+
+    print(rmse_val)
+    try:
+        assert np.isclose(rmse_val[-1], rmse_test)
+        assert np.isclose(rmse_val[0], 5.393814086, rtol=1e-3)
+        assert np.isclose(rmse_val[-1], 2.09907078, rtol=1e-3)
+    finally:
+        _remove_files(model_name + "_vacuum", max_epochs)
+
+    # calculate with batch_size=2
+    batch_size = 2
+    model._reset_parameters()
+    (rmse_val, rmse_test) = setup_and_perform_parameter_retraining_with_test_set_split(
+        env="vacuum",
+        checkpoint_filename=f"{model_name}_vacuum.pt",
+        names=names,
+        ANImodel=model,
+        batch_size=batch_size,
+        data_path="./data/test_data/vacuum",
+        max_snapshots_per_window=50,
+        nr_of_nn=8,
+        bulk_energy_calculation=True,
+        max_epochs=max_epochs,
+        load_checkpoint=False,
+        load_pickled_FEC=False,
+    )
+
+    print(rmse_val)
+    try:
+        assert np.isclose(rmse_val[-1], rmse_test)
+        assert np.isclose(rmse_val[0], 5.393814086, rtol=1e-3)
+        assert np.isclose(rmse_val[-1], 2.858044, rtol=1e-3)
+    finally:
+        _remove_files(model_name + "_vacuum", max_epochs)
+
 
 @pytest.mark.skipif(
     os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
 )
-def test_retrain_parameters_vacuum_batch_size():
+def test_retrain_parameters_vacuum_batch_size_all_potentials():
     from ..parameter_gradients import (
         setup_and_perform_parameter_retraining_with_test_set_split,
     )
     from ..ani import AlchemicalANI1ccx, AlchemicalANI1x, AlchemicalANI2x
 
-    # calculate with batch_size=3
+    # calculate with batch_size=1
     names = ["molDWRow_298", "SAMPLmol2", "SAMPLmol4"]
     max_epochs = 4
+    # calculate with batch_size=1
+    batch_size = 1
     for idx, (model, model_name) in enumerate(
         zip(
             [AlchemicalANI1ccx, AlchemicalANI2x, AlchemicalANI1x],
@@ -639,7 +848,64 @@ def test_retrain_parameters_vacuum_batch_size():
             checkpoint_filename=f"{model_name}_vacuum.pt",
             names=names,
             ANImodel=model,
-            batch_size=1,
+            batch_size=batch_size,
+            data_path="./data/test_data/vacuum",
+            max_snapshots_per_window=50,
+            nr_of_nn=8,
+            bulk_energy_calculation=True,
+            max_epochs=max_epochs,
+            load_checkpoint=False,
+            load_pickled_FEC=False,
+        )
+
+        if idx == 0:
+            print(rmse_val)
+            try:
+                assert np.isclose(rmse_val[-1], rmse_test)
+                assert np.isclose(rmse_val[0], 5.3938140869140625)
+                assert np.isclose(rmse_val[-1], 2.098975658416748)
+            finally:
+                _remove_files(model_name + "_vacuum", max_epochs)
+
+        if idx == 1:
+            print(rmse_val)
+            try:
+
+                assert np.isclose(rmse_val[-1], rmse_test)
+                assert np.isclose(rmse_val[0], 5.187891006469727)
+                assert np.isclose(rmse_val[-1], 2.672308921813965)
+            finally:
+                _remove_files(model_name + "_vacuum", max_epochs)
+
+        if idx == 2:
+            print(rmse_val)
+            try:
+                assert np.isclose(rmse_val[-1], rmse_test)
+                assert np.isclose(rmse_val[0], 4.582426071166992)
+                assert np.isclose(rmse_val[-1], 2.2336010932922363)
+            finally:
+                _remove_files(model_name + "_vacuum", max_epochs)
+        model._reset_parameters()
+
+    # calculate with batch_size=3
+    batch_size = 3
+    for idx, (model, model_name) in enumerate(
+        zip(
+            [AlchemicalANI1ccx, AlchemicalANI2x, AlchemicalANI1x],
+            ["AlchemicalANI1ccx", "AlchemicalANI2x", "AlchemicalANI1x"],
+        )
+    ):
+
+        model._reset_parameters()
+        (
+            rmse_val,
+            rmse_test,
+        ) = setup_and_perform_parameter_retraining_with_test_set_split(
+            env="vacuum",
+            checkpoint_filename=f"{model_name}_vacuum.pt",
+            names=names,
+            ANImodel=model,
+            batch_size=batch_size,
             data_path="./data/test_data/vacuum",
             max_snapshots_per_window=50,
             nr_of_nn=8,
@@ -762,6 +1028,104 @@ def test_tweak_parameters_vacuum_single_tautomer_AlchemicalANI2x():
         del model
 
 
+def test_retrain_parameters_CompartimentedAlchemicalANI2x_for_100_epochs():
+    from ..parameter_gradients import (
+        setup_and_perform_parameter_retraining_with_test_set_split,
+    )
+    from ..ani import CompartimentedAlchemicalANI2x
+
+    # without pickled tautomer object
+    names = ["molDWRow_298"]
+    max_epochs = 100
+    for model, model_name in zip(
+        [CompartimentedAlchemicalANI2x],
+        ["CompartimentedAlchemicalANI2x"],
+    ):
+        model._reset_parameters()
+
+        (
+            rmse_val,
+            rmse_test,
+        ) = setup_and_perform_parameter_retraining_with_test_set_split(
+            env="vacuum",
+            checkpoint_filename=f"{model_name}_vacuum.pt",
+            names=names,
+            ANImodel=model,
+            batch_size=1,
+            data_path="./data/test_data/vacuum",
+            max_snapshots_per_window=150,
+            nr_of_nn=8,
+            bulk_energy_calculation=True,
+            max_epochs=max_epochs,
+            load_checkpoint=False,
+            load_pickled_FEC=True,
+            lr_AdamW=1e-5,
+            lr_SGD=1e-5,
+            include_snapshot_penalty=False,
+        )
+
+        print(rmse_val)
+        try:
+            assert np.isclose(rmse_val[-1], rmse_test)
+            assert np.isclose(rmse_val[0], 5.7811503410339355)
+            assert np.isclose(rmse_val[-1], 0.4411153793334961) # NOTE: This is not zero!
+        finally:
+            _remove_files(model_name + "_vacuum", max_epochs)
+
+        model._reset_parameters()
+        del model
+
+
+
+
+def test_retrain_parameters_CompartimentedAlchemicalANI2x_extended_loss():
+    from ..parameter_gradients import (
+        setup_and_perform_parameter_retraining_with_test_set_split,
+    )
+    from ..ani import CompartimentedAlchemicalANI2x
+
+    # without pickled tautomer object
+    names = ["molDWRow_298"]
+    max_epochs = 100
+    for model, model_name in zip(
+        [CompartimentedAlchemicalANI2x],
+        ["CompartimentedAlchemicalANI2x"],
+    ):
+        model._reset_parameters()
+
+        (
+            rmse_val,
+            rmse_test,
+        ) = setup_and_perform_parameter_retraining_with_test_set_split(
+            env="vacuum",
+            checkpoint_filename=f"{model_name}_vacuum.pt",
+            names=names,
+            ANImodel=model,
+            batch_size=1,
+            data_path="./data/test_data/vacuum",
+            max_snapshots_per_window=150,
+            nr_of_nn=8,
+            bulk_energy_calculation=True,
+            max_epochs=max_epochs,
+            load_checkpoint=False,
+            load_pickled_FEC=True,
+            lr_AdamW=1e-5,
+            lr_SGD=1e-5,
+            include_snapshot_penalty=True,
+        )
+
+        print(rmse_val)
+        try:
+            assert np.isclose(rmse_val[-1], rmse_test)
+            assert np.isclose(rmse_val[0], 5.7811503410339355)
+            assert np.isclose(rmse_val[-1], 0.4411153793334961) # NOTE: This is not zero!
+        finally:
+            _remove_files(model_name + "_vacuum", max_epochs)
+
+        model._reset_parameters()
+        del model
+
+
 @pytest.mark.skipif(
     os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
 )
@@ -804,8 +1168,7 @@ def test_tweak_parameters_vacuum_single_tautomer_CompartimentedAlchemicalANI2x()
             assert np.isclose(rmse_val[0], 5.7811503410339355)
             assert np.isclose(rmse_val[-1], 2.1603381633758545)
         finally:
-            pass
-            # _remove_files(model_name + "_vacuum", max_epochs)
+            r_emove_files(model_name + "_vacuum", max_epochs)
 
         model._reset_parameters()
         del model
