@@ -293,11 +293,35 @@ class FreeEnergyCalculator:
     def _compute_free_energy_difference(self) -> torch.Tensor:
         u_ln = self._form_u_ln()
         f_k = self._compute_perturbed_free_energies(u_ln)
+        # keep u_ln in memory
+        self.u_ln_rho_star_wrt_parameters = u_ln
         return f_k[1] - f_k[0]
 
     def get_u_ln_for_rho_and_rho_star(self) -> Tuple[(torch.Tensor, torch.Tensor)]:
-        u_ln_rho = self._form_u_ln()
-        u_ln_rho_star = self._form_u_ln(original_neural_network=True)
+        u_ln_rho = torch.stack(
+            [
+                torch.tensor(
+                    self.mbar.u_kn[0],  # lambda=0
+                    dtype=torch.double,
+                    requires_grad=False,
+                    device=device,
+                ),
+                torch.tensor(
+                    self.mbar.u_kn[-1],  # lambda=1
+                    dtype=torch.double,
+                    requires_grad=False,
+                    device=device,
+                ),
+            ]
+        )
+
+        if torch.is_tensor(self.u_ln_rho_star_wrt_parameters):
+            u_ln_rho_star = self.u_ln_rho_star_wrt_parameters
+        else:
+            logger.critical(
+                "u_ln_rho_star is not set. Calculating. This might point to a problem!"
+            )
+            u_ln_rho_star = self._form_u_ln()
         return u_ln_rho, u_ln_rho_star
 
     def rmse_between_potentials_for_snapshots(self) -> torch.Tensor:
@@ -533,7 +557,6 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
     batch_size: int = 10,
     elements: str = "CHON",
     data_path: str = "../data/",
-    nr_of_nn: int = 8,
     max_epochs: int = 10,
     bulk_energy_calculation: bool = True,
     load_checkpoint: bool = True,
@@ -608,8 +631,6 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
             logger.info(f"{key}: {value}")
             f.write(f"{key}: {value}\n")
 
-    assert int(nr_of_nn) <= 8 and int(nr_of_nn) >= 1
-
     if env == "droplet" and diameter == -1:
         raise RuntimeError(f"Did you forget to pass the 'diamter' argument? Aborting.")
 
@@ -669,7 +690,6 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
         diameter=diameter,
         batch_size=batch_size,
         data_path=data_path,
-        nr_of_nn=nr_of_nn,
         max_epochs=max_epochs,
         elements=elements,
         load_checkpoint=load_checkpoint,
@@ -731,7 +751,6 @@ def _save_checkpoint(
 
 def _perform_training(
     ANImodel: ANI,
-    nr_of_nn: int,
     names_training: list,
     names_validating: list,
     checkpoint_filename: str,
@@ -754,7 +773,6 @@ def _perform_training(
 
     early_stopping_learning_rate = 1.0e-8
     AdamW, AdamW_scheduler, SGD, SGD_scheduler = _get_nn_layers(
-        nr_of_nn,
         ANImodel,
         elements=elements,
         lr_AdamW=lr_AdamW,
@@ -811,7 +829,7 @@ def _perform_training(
         SGD_scheduler.step(rmse_validation[-1])
 
         # perform the parameter optimization and importance weighting
-        _tweak_parameters(
+        snapshot_penalty_through_training = _tweak_parameters(
             names_training=names_training,
             ANImodel=ANImodel,
             AdamW=AdamW,
@@ -877,7 +895,7 @@ def _tweak_parameters(
     max_snapshots_per_window: int,
     load_pickled_FEC: bool,
     include_snapshot_penalty: bool,
-):
+) -> list:
     """
     _tweak_parameters
 
@@ -912,6 +930,7 @@ def _tweak_parameters(
     # https://discuss.pytorch.org/t/why-do-we-need-to-set-the-gradients-manually-to-zero-in-pytorch/4903/20
     it = tqdm(chunks(names_training, batch_size))
     instance_idx = 0
+    snapshot_penalty_through_training = []
 
     for batch_idx, names in enumerate(it):
         # reset gradient
@@ -935,7 +954,7 @@ def _tweak_parameters(
                 include_restraint_energy_contribution=False,
             )
 
-            loss = _loss_function(fec, name, include_snapshot_penalty)
+            loss, snapshot_penalty = _loss_function(fec, name, include_snapshot_penalty)
             it.set_description(
                 f"E:{epoch};B:{batch_idx+1},;I:{instance_idx} -- tautomer {name} -- MSE: {loss.item()}"
             )
@@ -943,17 +962,25 @@ def _tweak_parameters(
             loss.backward()
             # graph is cleared here
 
+            #
+            snapshot_penalty_through_training.append(snapshot_penalty)
+            if include_snapshot_penalty:
+                del fec.u_ln_rho_star_wrt_parameters
+
         # optimization steps
         AdamW.step()
         SGD.step()
+
+    return snapshot_penalty_through_training
 
 
 def _loss_function(
     fec: FreeEnergyCalculator,
     name: str,
     include_snapshot_penalty: bool = False,
-) -> torch.Tensor:
+) -> Tuple[torch.Tensor, torch.Tensor]:
 
+    snapshot_penalty = torch.tensor([0.0])
     # calculate the free energies
     calc_free_energy_difference = get_perturbed_free_energy_difference(fec)
     # obtain the experimental free energies
@@ -965,9 +992,9 @@ def _loss_function(
         snapshot_penalty = fec.mae_between_potentials_for_snapshots()
         print(f"Snapshot penalty: {snapshot_penalty.item()}")
         logger.info(f"Snapshot penalty: {snapshot_penalty.item()}")
-        loss += 0.5 * snapshot_penalty
+        loss += 0.8 * snapshot_penalty
 
-    return loss
+    return loss, snapshot_penalty.item()
 
 
 def _load_checkpoint(
@@ -987,7 +1014,6 @@ def _load_checkpoint(
 
 
 def _get_nn_layers(
-    nr_of_nn: int,
     ANImodel: ANI,
     elements: str,
     lr_AdamW: float = 1e-3,
@@ -1145,7 +1171,6 @@ def setup_and_perform_parameter_retraining(
     diameter: int = -1,
     batch_size: int = 1,
     data_path: str = "../data/",
-    nr_of_nn: int = 8,
     max_epochs: int = 10,
     elements: str = "CHON",
     load_checkpoint: bool = True,
@@ -1198,7 +1223,6 @@ def setup_and_perform_parameter_retraining(
     """
 
     assert int(batch_size) <= 10 and int(batch_size) >= 1
-    assert int(nr_of_nn) <= 8 and int(nr_of_nn) >= 1
 
     logger.info("setup_and_perform_parameter_retraining called ...")
     local_variables = locals()
@@ -1236,7 +1260,6 @@ def setup_and_perform_parameter_retraining(
     ### main training loop
     rmse_validation = _perform_training(
         ANImodel=ANImodel,
-        nr_of_nn=nr_of_nn,
         names_training=names_training,
         names_validating=names_validating,
         rmse_validation=rmse_validation,
