@@ -514,9 +514,10 @@ def test_snapshot_energy_loss_with_CompartimentedAlchemicalANI2x():
         31.581332998622738,
         rtol=1e-3,
     )
-    
-    print(fec.mae_between_potentials_for_snapshots().item())
-    assert False
+
+    assert np.isclose(
+        fec.mae_between_potentials_for_snapshots().item(), 30.506691846410845
+    )
 
 
 @pytest.mark.skipif(
@@ -567,7 +568,6 @@ def test_tweak_parameters_and_class_nn_AlchemicalANI():
             max_snapshots_per_window=50,
             batch_size=1,
             data_path="./data/test_data/vacuum",
-            nr_of_nn=8,
             load_checkpoint=False,
             max_epochs=max_epochs,
             load_pickled_FEC=False,
@@ -643,12 +643,12 @@ def test_tweak_parameters_and_class_nn_CompartimentedAlchemicalANI2x():
         env="vacuum",
         checkpoint_filename=f"{model_name}_vacuum.pt",
         names_training=names,
+        include_snapshot_penalty=False,
         names_validating=names,
         ANImodel=model,
         max_snapshots_per_window=10,
         batch_size=1,
         data_path="./data/test_data/vacuum",
-        nr_of_nn=8,
         load_checkpoint=False,
         max_epochs=max_epochs,
         load_pickled_FEC=True,
@@ -724,7 +724,6 @@ def test_retrain_parameters_vacuum_batch_size():
         batch_size=batch_size,
         data_path="./data/test_data/vacuum",
         max_snapshots_per_window=50,
-        nr_of_nn=8,
         bulk_energy_calculation=True,
         max_epochs=max_epochs,
         load_checkpoint=False,
@@ -750,7 +749,6 @@ def test_retrain_parameters_vacuum_batch_size():
         batch_size=batch_size,
         data_path="./data/test_data/vacuum",
         max_snapshots_per_window=50,
-        nr_of_nn=8,
         bulk_energy_calculation=True,
         max_epochs=max_epochs,
         load_checkpoint=False,
@@ -776,7 +774,6 @@ def test_retrain_parameters_vacuum_batch_size():
         batch_size=batch_size,
         data_path="./data/test_data/vacuum",
         max_snapshots_per_window=50,
-        nr_of_nn=8,
         bulk_energy_calculation=True,
         max_epochs=max_epochs,
         load_checkpoint=False,
@@ -802,7 +799,6 @@ def test_retrain_parameters_vacuum_batch_size():
         batch_size=batch_size,
         data_path="./data/test_data/vacuum",
         max_snapshots_per_window=50,
-        nr_of_nn=8,
         bulk_energy_calculation=True,
         max_epochs=max_epochs,
         load_checkpoint=False,
@@ -851,7 +847,6 @@ def test_retrain_parameters_vacuum_batch_size_all_potentials():
             batch_size=batch_size,
             data_path="./data/test_data/vacuum",
             max_snapshots_per_window=50,
-            nr_of_nn=8,
             bulk_energy_calculation=True,
             max_epochs=max_epochs,
             load_checkpoint=False,
@@ -908,7 +903,6 @@ def test_retrain_parameters_vacuum_batch_size_all_potentials():
             batch_size=batch_size,
             data_path="./data/test_data/vacuum",
             max_snapshots_per_window=50,
-            nr_of_nn=8,
             bulk_energy_calculation=True,
             max_epochs=max_epochs,
             load_checkpoint=False,
@@ -975,7 +969,6 @@ def test_tweak_parameters_vacuum_single_tautomer_AlchemicalANI2x():
             batch_size=1,
             data_path="./data/test_data/vacuum",
             max_snapshots_per_window=50,
-            nr_of_nn=8,
             bulk_energy_calculation=True,
             max_epochs=max_epochs,
             load_checkpoint=False,
@@ -1009,7 +1002,6 @@ def test_tweak_parameters_vacuum_single_tautomer_AlchemicalANI2x():
             batch_size=1,
             data_path="./data/test_data/vacuum",
             max_snapshots_per_window=50,
-            nr_of_nn=8,
             bulk_energy_calculation=True,
             max_epochs=max_epochs,
             load_checkpoint=False,
@@ -1054,7 +1046,6 @@ def test_retrain_parameters_CompartimentedAlchemicalANI2x_for_100_epochs():
             batch_size=1,
             data_path="./data/test_data/vacuum",
             max_snapshots_per_window=150,
-            nr_of_nn=8,
             bulk_energy_calculation=True,
             max_epochs=max_epochs,
             load_checkpoint=False,
@@ -1068,7 +1059,9 @@ def test_retrain_parameters_CompartimentedAlchemicalANI2x_for_100_epochs():
         try:
             assert np.isclose(rmse_val[-1], rmse_test)
             assert np.isclose(rmse_val[0], 5.7811503410339355)
-            assert np.isclose(rmse_val[-1], 0.4411153793334961) # NOTE: This is not zero!
+            assert np.isclose(
+                rmse_val[-1], 0.4411153793334961
+            )  # NOTE: This is not zero!
         finally:
             _remove_files(model_name + "_vacuum", max_epochs)
 
@@ -1076,9 +1069,7 @@ def test_retrain_parameters_CompartimentedAlchemicalANI2x_for_100_epochs():
         del model
 
 
-
-
-def test_retrain_parameters_CompartimentedAlchemicalANI2x_extended_loss():
+def test_retrain_parameters_CompartimentedAlchemicalANI2x_extended_loss_50_epochs_single_tautomer():
     from ..parameter_gradients import (
         setup_and_perform_parameter_retraining_with_test_set_split,
     )
@@ -1086,7 +1077,7 @@ def test_retrain_parameters_CompartimentedAlchemicalANI2x_extended_loss():
 
     # without pickled tautomer object
     names = ["molDWRow_298"]
-    max_epochs = 100
+    max_epochs = 50
     for model, model_name in zip(
         [CompartimentedAlchemicalANI2x],
         ["CompartimentedAlchemicalANI2x"],
@@ -1104,7 +1095,6 @@ def test_retrain_parameters_CompartimentedAlchemicalANI2x_extended_loss():
             batch_size=1,
             data_path="./data/test_data/vacuum",
             max_snapshots_per_window=150,
-            nr_of_nn=8,
             bulk_energy_calculation=True,
             max_epochs=max_epochs,
             load_checkpoint=False,
@@ -1118,7 +1108,58 @@ def test_retrain_parameters_CompartimentedAlchemicalANI2x_extended_loss():
         try:
             assert np.isclose(rmse_val[-1], rmse_test)
             assert np.isclose(rmse_val[0], 5.7811503410339355)
-            assert np.isclose(rmse_val[-1], 0.4411153793334961) # NOTE: This is not zero!
+            assert np.isclose(
+                rmse_val[-1], 0.4411153793334961
+            )  # NOTE: This is not zero!
+        finally:
+            _remove_files(model_name + "_vacuum", max_epochs)
+
+        model._reset_parameters()
+        del model
+
+
+def test_retrain_parameters_CompartimentedAlchemicalANI2x_extended_loss_50_epochs_three_tautomers():
+    from ..parameter_gradients import (
+        setup_and_perform_parameter_retraining_with_test_set_split,
+    )
+    from ..ani import CompartimentedAlchemicalANI2x
+
+    # without pickled tautomer object
+    names = ["molDWRow_298", "SAMPLmol2", "SAMPLmol4"]
+    max_epochs = 5
+    for model, model_name in zip(
+        [CompartimentedAlchemicalANI2x],
+        ["CompartimentedAlchemicalANI2x"],
+    ):
+        model._reset_parameters()
+
+        (
+            rmse_val,
+            rmse_test,
+        ) = setup_and_perform_parameter_retraining_with_test_set_split(
+            env="vacuum",
+            checkpoint_filename=f"{model_name}_vacuum.pt",
+            names=names,
+            ANImodel=model,
+            batch_size=3,
+            data_path="./data/test_data/vacuum",
+            max_snapshots_per_window=150,
+            bulk_energy_calculation=True,
+            max_epochs=max_epochs,
+            load_checkpoint=False,
+            load_pickled_FEC=True,
+            lr_AdamW=1e-6,
+            lr_SGD=1e-6,
+            include_snapshot_penalty=False,
+        )
+
+        print(rmse_val)
+        try:
+            assert np.isclose(rmse_val[-1], rmse_test)
+            assert np.isclose(rmse_val[0], 5.7811503410339355)
+            assert np.isclose(
+                rmse_val[-1], 0.4411153793334961
+            )  # NOTE: This is not zero!
         finally:
             _remove_files(model_name + "_vacuum", max_epochs)
 
@@ -1155,7 +1196,6 @@ def test_tweak_parameters_vacuum_single_tautomer_CompartimentedAlchemicalANI2x()
             batch_size=1,
             data_path="./data/test_data/vacuum",
             max_snapshots_per_window=50,
-            nr_of_nn=8,
             bulk_energy_calculation=True,
             max_epochs=max_epochs,
             load_checkpoint=False,
@@ -1203,7 +1243,6 @@ def test_tweak_parameters_vacuum_single_tautomer_CompartimentedAlchemicalANI2x_l
             batch_size=1,
             data_path="./data/test_data/vacuum",
             max_snapshots_per_window=50,
-            nr_of_nn=8,
             bulk_energy_calculation=True,
             max_epochs=max_epochs,
             load_checkpoint=False,
@@ -1254,7 +1293,6 @@ def test_tweak_parameters_droplet_with_AlchemicalANI():
             max_snapshots_per_window=10,
             checkpoint_filename=f"{model_name}_droplet.pt",
             data_path=f"./data/test_data/{env}",
-            nr_of_nn=8,
             max_epochs=max_epochs,
             diameter=diameter,
             load_checkpoint=False,
@@ -1319,7 +1357,6 @@ def test_tweak_parameters_droplet_with_CompartimentedAlchemicalANI():
         max_snapshots_per_window=10,
         checkpoint_filename=f"{model_name}_droplet.pt",
         data_path=f"./data/test_data/{env}",
-        nr_of_nn=8,
         max_epochs=max_epochs,
         diameter=diameter,
         load_checkpoint=False,
@@ -1365,7 +1402,6 @@ def test_tweak_parameters_droplet_with_CompartimentedAlchemicalANI_load_FEC():
         max_snapshots_per_window=10,
         checkpoint_filename=f"{model_name}_droplet.pt",
         data_path=f"./data/test_data/{env}",
-        nr_of_nn=8,
         max_epochs=max_epochs,
         diameter=diameter,
         load_checkpoint=False,
@@ -1397,7 +1433,6 @@ def test_tweak_parameters_droplet_with_CompartimentedAlchemicalANI_load_FEC():
         max_snapshots_per_window=10,
         checkpoint_filename=f"{model_name}_droplet.pt",
         data_path=f"./data/test_data/{env}",
-        nr_of_nn=8,
         max_epochs=max_epochs,
         diameter=diameter,
         load_checkpoint=False,
@@ -1432,7 +1467,6 @@ def test_tweak_parameters_droplet_with_CompartimentedAlchemicalANI_load_FEC():
         max_snapshots_per_window=10,
         checkpoint_filename=f"{model_name}_droplet.pt",
         data_path=f"./data/test_data/{env}",
-        nr_of_nn=8,
         max_epochs=max_epochs,
         diameter=diameter,
         load_checkpoint=False,
@@ -1479,7 +1513,6 @@ def test_tweak_parameters_droplet_with_AlchemicalANI2x():
         max_snapshots_per_window=10,
         checkpoint_filename=f"{model_name}_droplet.pt",
         data_path=f"./data/test_data/{env}",
-        nr_of_nn=8,
         max_epochs=max_epochs,
         diameter=diameter,
         load_checkpoint=False,
@@ -1635,7 +1668,6 @@ def test_parameter_gradient_opt_script():
             max_snapshots_per_window=max_snapshots_per_window,
             checkpoint_filename=f"parameters_{model_name}_{env}.pt",
             data_path=data_path,
-            nr_of_nn=8,
             bulk_energy_calculation=bulk_energy_calculation,
             elements=elements,
             max_epochs=5,

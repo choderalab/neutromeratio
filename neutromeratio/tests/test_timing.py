@@ -3,7 +3,6 @@ Unit and regression test for the neutromeratio package.
 """
 
 # Import package, test suite, and other packages as needed
-import neutromeratio
 import pytest
 import os
 import torch
@@ -26,7 +25,7 @@ def test_timing_for_perturebed_free_energy_u_ln(benchmark):
 
     model = AlchemicalANI2x
     max_snapshots_per_window = 100
-    names = ["molDWRow_298"]
+    name = "molDWRow_298"
     env = "droplet"
     diameter = 10
     model._reset_parameters()
@@ -37,13 +36,14 @@ def test_timing_for_perturebed_free_energy_u_ln(benchmark):
     # precalcualte mbar
     fec = setup_FEC(
         name,
-        env="droplet",
-        diameter=10,
+        env=env,
+        diameter=diameter,
         data_path="data/test_data/droplet",
         ANImodel=model,
         bulk_energy_calculation=True,  # doesn't matter, since we are loading the reuslts from disk
         max_snapshots_per_window=max_snapshots_per_window,
         load_pickled_FEC=True,
+        include_restraint_energy_contribution=False,
     )
 
     def wrap():
@@ -60,13 +60,12 @@ def test_timing_for_perturebed_free_energy_u_ln(benchmark):
 def test_timing_for_perturebed_free_energy_u_ln_and_perturbed_free_energy(benchmark):
     from ..parameter_gradients import get_perturbed_free_energy_difference, setup_FEC
     from ..ani import AlchemicalANI2x
-    import os
 
     model = AlchemicalANI2x
     model._reset_parameters()
 
     max_snapshots_per_window = 100
-    names = ["molDWRow_298"]
+    name = "molDWRow_298"
     env = "droplet"
     diameter = 10
     m = model([0, 0])
@@ -76,17 +75,18 @@ def test_timing_for_perturebed_free_energy_u_ln_and_perturbed_free_energy(benchm
     # precalcualte mbar
     fec = setup_FEC(
         name,
-        env="droplet",
-        diameter=10,
+        env=env,
+        diameter=diameter,
         data_path="data/test_data/droplet",
         ANImodel=model,
         bulk_energy_calculation=True,  # doesn't matter, since we are loading the reuslts from disk
         max_snapshots_per_window=max_snapshots_per_window,
         load_pickled_FEC=True,
+        include_restraint_energy_contribution=False,
     )
 
     def wrap():
-        get_perturbed_free_energy_difference([fec])
+        get_perturbed_free_energy_difference(fec)
 
     benchmark.pedantic(wrap, rounds=1, iterations=3)
     del fec
@@ -104,17 +104,15 @@ def test_timing_for_single_energy_calculation_with_AlchemicalANI_10_snapshots_ba
 
     # NOTE: Sometimes this test fails? something wrong with molDWRow_68?
     from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
-    import random, shutil
     from ..constants import _get_names
     from simtk import unit
 
     torch.set_num_threads(1)
 
-    names = _get_names()
     lambda_value = 0.1
     name = "molDWRow_298"
 
-    (energy_function, tautomer, flipped,) = setup_alchemical_system_and_energy_function(
+    (energy_function, _, _,) = setup_alchemical_system_and_energy_function(
         name=name,
         env="droplet",
         ANImodel=AlchemicalANI2x,
@@ -159,18 +157,12 @@ def test_timing_for_single_energy_calculation_with_AlchemicalANI_1_snapshot_batc
     benchmark,
 ):
     from ..analysis import setup_alchemical_system_and_energy_function
-    from ..ani import AlchemicalANI1ccx, AlchemicalANI2x
+    from ..ani import AlchemicalANI2x
 
-    # NOTE: Sometimes this test fails? something wrong with molDWRow_68?
-    from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
-    import random, shutil
-    from ..constants import _get_names
-
-    names = _get_names()
     lambda_value = 0.1
     name = "molDWRow_298"
 
-    (energy_function, tautomer, flipped,) = setup_alchemical_system_and_energy_function(
+    (energy_function, _, _,) = setup_alchemical_system_and_energy_function(
         name=name,
         env="droplet",
         ANImodel=AlchemicalANI2x,
@@ -200,18 +192,12 @@ def test_timing_for_single_energy_calculation_with_AlchemicalANI_20_snapshot_bat
     benchmark,
 ):
     from ..analysis import setup_alchemical_system_and_energy_function
-    from ..ani import AlchemicalANI1ccx, AlchemicalANI2x
+    from ..ani import AlchemicalANI2x
 
-    # NOTE: Sometimes this test fails? something wrong with molDWRow_68?
-    from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
-    import random, shutil
-    from ..constants import _get_names
-
-    names = _get_names()
     lambda_value = 0.1
     name = "molDWRow_298"
 
-    (energy_function, tautomer, flipped,) = setup_alchemical_system_and_energy_function(
+    (energy_function, _, _,) = setup_alchemical_system_and_energy_function(
         name=name,
         env="droplet",
         ANImodel=AlchemicalANI2x,
@@ -239,14 +225,8 @@ def test_timing_for_single_energy_calculation_with_AlchemicalANI_100_snapshot_ba
     benchmark,
 ):
     from ..analysis import setup_alchemical_system_and_energy_function
-    from ..ani import AlchemicalANI1ccx, AlchemicalANI2x
+    from ..ani import AlchemicalANI2x
 
-    # NOTE: Sometimes this test fails? something wrong with molDWRow_68?
-    from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
-    import random, shutil
-    from ..constants import _get_names
-
-    names = _get_names()
     lambda_value = 0.1
     name = "molDWRow_298"
     torch.set_num_threads(1)
@@ -279,16 +259,10 @@ def test_timing_for_single_energy_calculation_with_AlchemicalANI_200_snapshot_ba
     benchmark,
 ):
     from ..analysis import setup_alchemical_system_and_energy_function
-    from ..ani import AlchemicalANI1ccx, AlchemicalANI2x
-
-    # NOTE: Sometimes this test fails? something wrong with molDWRow_68?
-    from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
-    import random, shutil
-    from ..constants import _get_names
+    from ..ani import AlchemicalANI2x
 
     torch.set_num_threads(1)
 
-    names = _get_names()
     lambda_value = 0.1
     name = "molDWRow_298"
 
@@ -320,16 +294,10 @@ def test_timing_for_single_energy_calculation_with_AlchemicalANI_500_snapshot_ba
     benchmark,
 ):
     from ..analysis import setup_alchemical_system_and_energy_function
-    from ..ani import AlchemicalANI1ccx, AlchemicalANI2x
-
-    # NOTE: Sometimes this test fails? something wrong with molDWRow_68?
-    from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
-    import random, shutil
-    from ..constants import _get_names
+    from ..ani import AlchemicalANI2x
 
     torch.set_num_threads(1)
 
-    names = _get_names()
     lambda_value = 0.1
     name = "molDWRow_298"
 
@@ -361,16 +329,9 @@ def test_timing_for_single_energy_calculation_with_AlchemicalANI_1100_snapshot_b
     benchmark,
 ):
     from ..analysis import setup_alchemical_system_and_energy_function
-    from ..ani import AlchemicalANI1ccx, AlchemicalANI2x
-
-    # NOTE: Sometimes this test fails? something wrong with molDWRow_68?
-    from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
-    import random, shutil
-    from ..constants import _get_names
 
     torch.set_num_threads(1)
 
-    names = _get_names()
     lambda_value = 0.1
     name = "molDWRow_298"
 
@@ -402,16 +363,10 @@ def test_timing_for_single_energy_calculation_with_AlchemicalANI_1100_snapshot_b
     benchmark,
 ):
     from ..analysis import setup_alchemical_system_and_energy_function
-    from ..ani import AlchemicalANI1ccx, AlchemicalANI2x
-
-    # NOTE: Sometimes this test fails? something wrong with molDWRow_68?
-    from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
-    import random, shutil
-    from ..constants import _get_names
+    from ..ani import AlchemicalANI2x
 
     torch.set_num_threads(4)
 
-    names = _get_names()
     lambda_value = 0.0
     name = "molDWRow_298"
 
@@ -444,16 +399,10 @@ def test_timing_for_single_energy_calculation_with_AlchemicalANI_1100_snapshot_b
     benchmark,
 ):
     from ..analysis import setup_alchemical_system_and_energy_function
-    from ..ani import AlchemicalANI1ccx, AlchemicalANI2x
-
-    # NOTE: Sometimes this test fails? something wrong with molDWRow_68?
-    from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
-    import random, shutil
-    from ..constants import _get_names
+    from ..ani import AlchemicalANI2x
 
     torch.set_num_threads(4)
 
-    names = _get_names()
     lambda_value = 1.0
     name = "molDWRow_298"
 
@@ -486,14 +435,8 @@ def test_timing_for_single_energy_calculation_with_AlchemicalANI_20_snapshot_seq
     benchmark,
 ):
     from ..analysis import setup_alchemical_system_and_energy_function
-    from ..ani import AlchemicalANI1ccx, AlchemicalANI2x
+    from ..ani import AlchemicalANI2x
 
-    # NOTE: Sometimes this test fails? something wrong with molDWRow_68?
-    from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
-    import random, shutil
-    from ..constants import _get_names
-
-    names = _get_names()
     lambda_value = 0.1
     name = "molDWRow_298"
 
@@ -529,16 +472,10 @@ def test_timing_for_single_energy_calculation_with_AlchemicalANI_100_snapshot_se
     benchmark,
 ):
     from ..analysis import setup_alchemical_system_and_energy_function
-    from ..ani import AlchemicalANI1ccx, AlchemicalANI2x
-
-    # NOTE: Sometimes this test fails? something wrong with molDWRow_68?
-    from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
-    import random, shutil
-    from ..constants import _get_names
+    from ..ani import AlchemicalANI2x
 
     torch.set_num_threads(4)
 
-    names = _get_names()
     lambda_value = 0.1
     name = "molDWRow_298"
 
@@ -574,16 +511,10 @@ def test_timing_for_single_energy_calculation_with_AlchemicalANI_200_snapshot_se
     benchmark,
 ):
     from ..analysis import setup_alchemical_system_and_energy_function
-    from ..ani import AlchemicalANI1ccx, AlchemicalANI2x
-
-    # NOTE: Sometimes this test fails? something wrong with molDWRow_68?
-    from ..constants import exclude_set_ANI, mols_with_charge, multiple_stereobonds
-    import random, shutil
-    from ..constants import _get_names
+    from ..ani import AlchemicalANI2x
 
     torch.set_num_threads(4)
 
-    names = _get_names()
     lambda_value = 0.1
     name = "molDWRow_298"
 
@@ -650,13 +581,13 @@ def test_timing_main_training_loop_without_pickled_tautomer_object(benchmark):
             batch_size=1,
             max_snapshots_per_window=max_snapshots_per_window,
             data_path=f"./data/test_data/{env}",
-            nr_of_nn=8,
             max_epochs=max_epochs,
             diameter=diameter,
             checkpoint_filename=f"AlchemicalANI2x_droplet.pt",
             load_checkpoint=False,
             bulk_energy_calculation=False,
             load_pickled_FEC=False,
+            include_snapshot_penalty=False,
         )
         print(rmse_val)
 
@@ -702,13 +633,13 @@ def test_timing_main_training_loop_with_pickled_tautomer_object(benchmark):
             batch_size=1,
             max_snapshots_per_window=max_snapshots_per_window,
             data_path=f"./data/test_data/{env}",
-            nr_of_nn=8,
             max_epochs=max_epochs,
             diameter=diameter,
             checkpoint_filename=f"AlchemicalANI2x_droplet.pt",
             load_checkpoint=False,
             bulk_energy_calculation=False,
             load_pickled_FEC=True,
+            include_snapshot_penalty=False,
         )
         print(rmse_val)
 

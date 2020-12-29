@@ -735,7 +735,7 @@ def test_loading_saving_mbar_object_AlchemicalANI2x():
     name = "molDWRow_298"
     model_instance = AlchemicalANI2x([0, 0])
     AdamW, AdamW_scheduler, SGD, SGD_scheduler = _get_nn_layers(
-        nr_of_nn=8, ANImodel=model_instance, elements="CHON"
+        ANImodel=model_instance, elements="CHON"
     )
     # initial parameters
     params1 = list(model_instance.optimized_neural_network.parameters())[6][0].tolist()
@@ -819,7 +819,7 @@ def test_loading_saving_mbar_object_CompartimentedAlchemicalANI2x():
     name = "molDWRow_298"
     model_instance = CompartimentedAlchemicalANI2x([0, 0])
     AdamW, AdamW_scheduler, SGD, SGD_scheduler = _get_nn_layers(
-        nr_of_nn=8, ANImodel=model_instance, elements="CHON"
+        ANImodel=model_instance, elements="CHON"
     )
     # initial parameters
     params1 = list(model_instance.optimized_neural_network.parameters())[6][0].tolist()
@@ -917,7 +917,7 @@ def test_io_checkpoints():
         print(model_name)
         model_instance = model([0, 0])
         AdamW, AdamW_scheduler, SGD, SGD_scheduler = _get_nn_layers(
-            8, model_instance, elements="CHON"
+            model_instance, elements="CHON"
         )
         # initial parameters
         params1 = list(model.optimized_neural_network.parameters())[6][0].tolist()
@@ -945,7 +945,6 @@ def test_io_checkpoints():
 
 
 def test_load_parameters():
-    from ..parameter_gradients import _save_checkpoint, _load_checkpoint, _get_nn_layers
     from ..ani import (
         AlchemicalANI1ccx,
         AlchemicalANI1x,
