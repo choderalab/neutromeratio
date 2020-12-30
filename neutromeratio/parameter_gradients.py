@@ -1437,9 +1437,9 @@ def setup_FEC(
 
     # save FEC
     if save_pickled_FEC:
-        logger.critical(f"Saving pickled FEC to {fec_pickle}")
-        print(f"Saving pickled FEC to {fec_pickle}")
-        dump(fec, fec_pickle)
+        logger.critical(f"Saving pickled FEC to {fec_pickle}.gz")
+        print(f"Saving pickled FEC to {fec_pickle}.gz")
+        dump(fec, f"{fec_pickle}.gz")
 
     return fec
 
