@@ -230,7 +230,7 @@ def test_postprocessing_vacuum():
                 assert np.isclose(
                     fec._end_state_free_energy_difference[0], e2, rtol=1e-3
                 )
-            assert np.isclose(rmse.item(), 5.393606768321977)
+            assert np.isclose(rmse.item(), 5.393606768321977, rtol=1e-3)
 
         elif idx == 1:
             for fec, e2 in zip(
@@ -239,7 +239,7 @@ def test_postprocessing_vacuum():
                 assert np.isclose(
                     fec._end_state_free_energy_difference[0], e2, rtol=1e-3
                 )
-            assert np.isclose(rmse.item(), 5.464364003709803)
+            assert np.isclose(rmse.item(), 5.464364003709803, rtol=1e-3)
 
         elif idx == 2:
             for fec, e2 in zip(
@@ -248,16 +248,16 @@ def test_postprocessing_vacuum():
                 assert np.isclose(
                     fec._end_state_free_energy_difference[0], e2, rtol=1e-3
                 )
-            assert np.isclose(rmse.item(), 6.115326307713618)
+            assert np.isclose(rmse.item(), 6.115326307713618, rtol=1e-3)
 
         elif idx == 3:
             for fec, e2 in zip(
-                fec_list, [-7.6805827500672805, -9.655550628208003, 2.996804928927007]
+                fec_list, [-8.715161329082854, -9.287343875860726, 4.194619951649713]
             ):
                 assert np.isclose(
                     fec._end_state_free_energy_difference[0], e2, rtol=1e-3
                 )
-            assert np.isclose(rmse.item(), 6.115326307713618)
+            assert np.isclose(rmse.item(), 6.115326307713618, rtol=1e-3)
 
         del model
     del fec_list
@@ -499,7 +499,9 @@ def test_snapshot_energy_loss_with_CompartimentedAlchemicalANI2x():
         include_restraint_energy_contribution=False,
         save_pickled_FEC=True,
     )
-    assert np.isclose(7.981540, get_perturbed_free_energy_difference(fec).item())
+    assert np.isclose(
+        7.981540, get_perturbed_free_energy_difference(fec).item(), rtol=1e-3
+    )
 
     assert np.isclose(fec.rmse_between_potentials_for_snapshots().item(), 0.0)
 
@@ -571,6 +573,7 @@ def test_tweak_parameters_and_class_nn_AlchemicalANI():
             load_checkpoint=False,
             max_epochs=max_epochs,
             load_pickled_FEC=False,
+            include_snapshot_penalty=False,
         )
 
         _remove_files(f"{model_name}_vacuum", max_epochs)
@@ -732,7 +735,7 @@ def test_retrain_parameters_vacuum_batch_size():
 
     print(rmse_val)
     try:
-        assert np.isclose(rmse_val[-1], rmse_test)
+        assert np.isclose(rmse_val[-1], rmse_test, rtol=1e-3)
         assert np.isclose(rmse_val[0], 5.3938140869140625, rtol=1e-3)
         assert np.isclose(rmse_val[-1], 1.824, rtol=1e-3)
     finally:
@@ -757,7 +760,7 @@ def test_retrain_parameters_vacuum_batch_size():
 
     print(rmse_val)
     try:
-        assert np.isclose(rmse_val[-1], rmse_test)
+        assert np.isclose(rmse_val[-1], rmse_test, rtol=1e-3)
         assert np.isclose(rmse_val[0], 5.393814086, rtol=1e-3)
         assert np.isclose(rmse_val[-1], 2.09907078, rtol=1e-3)
     finally:
@@ -782,7 +785,7 @@ def test_retrain_parameters_vacuum_batch_size():
 
     print(rmse_val)
     try:
-        assert np.isclose(rmse_val[-1], rmse_test)
+        assert np.isclose(rmse_val[-1], rmse_test, rtol=1e-3)
         assert np.isclose(rmse_val[0], 5.393814086, rtol=1e-3)
         assert np.isclose(rmse_val[-1], 2.09907078, rtol=1e-3)
     finally:
@@ -807,7 +810,7 @@ def test_retrain_parameters_vacuum_batch_size():
 
     print(rmse_val)
     try:
-        assert np.isclose(rmse_val[-1], rmse_test)
+        assert np.isclose(rmse_val[-1], rmse_test, rtol=1e-3)
         assert np.isclose(rmse_val[0], 5.393814086, rtol=1e-3)
         assert np.isclose(rmse_val[-1], 2.858044, rtol=1e-3)
     finally:
@@ -856,9 +859,9 @@ def test_retrain_parameters_vacuum_batch_size_all_potentials():
         if idx == 0:
             print(rmse_val)
             try:
-                assert np.isclose(rmse_val[-1], rmse_test)
-                assert np.isclose(rmse_val[0], 5.3938140869140625)
-                assert np.isclose(rmse_val[-1], 2.098975658416748)
+                assert np.isclose(rmse_val[-1], rmse_test, rtol=1e-3)
+                assert np.isclose(rmse_val[0], 5.3938140869140625, rtol=1e-3)
+                assert np.isclose(rmse_val[-1], 2.098975658416748, rtol=1e-3)
             finally:
                 _remove_files(model_name + "_vacuum", max_epochs)
 
@@ -866,18 +869,18 @@ def test_retrain_parameters_vacuum_batch_size_all_potentials():
             print(rmse_val)
             try:
 
-                assert np.isclose(rmse_val[-1], rmse_test)
-                assert np.isclose(rmse_val[0], 5.187891006469727)
-                assert np.isclose(rmse_val[-1], 2.672308921813965)
+                assert np.isclose(rmse_val[-1], rmse_test, rtol=1e-3)
+                assert np.isclose(rmse_val[0], 5.187891006469727, rtol=1e-3)
+                assert np.isclose(rmse_val[-1], 2.672308921813965, rtol=1e-3)
             finally:
                 _remove_files(model_name + "_vacuum", max_epochs)
 
         if idx == 2:
             print(rmse_val)
             try:
-                assert np.isclose(rmse_val[-1], rmse_test)
-                assert np.isclose(rmse_val[0], 4.582426071166992)
-                assert np.isclose(rmse_val[-1], 2.2336010932922363)
+                assert np.isclose(rmse_val[-1], rmse_test, rtol=1e-3)
+                assert np.isclose(rmse_val[0], 4.582426071166992, rtol=1e-3)
+                assert np.isclose(rmse_val[-1], 2.2336010932922363, rtol=1e-3)
             finally:
                 _remove_files(model_name + "_vacuum", max_epochs)
         model._reset_parameters()
@@ -912,9 +915,9 @@ def test_retrain_parameters_vacuum_batch_size_all_potentials():
         if idx == 0:
             print(rmse_val)
             try:
-                assert np.isclose(rmse_val[-1], rmse_test)
-                assert np.isclose(rmse_val[0], 5.3938140869140625)
-                assert np.isclose(rmse_val[-1], 2.098975658416748)
+                assert np.isclose(rmse_val[-1], rmse_test, rtol=1e-3)
+                assert np.isclose(rmse_val[0], 5.3938140869140625, rtol=1e-3)
+                assert np.isclose(rmse_val[-1], 2.098975658416748, rtol=1e-3)
             finally:
                 _remove_files(model_name + "_vacuum", max_epochs)
 
@@ -922,18 +925,18 @@ def test_retrain_parameters_vacuum_batch_size_all_potentials():
             print(rmse_val)
             try:
 
-                assert np.isclose(rmse_val[-1], rmse_test)
-                assert np.isclose(rmse_val[0], 5.187891006469727)
-                assert np.isclose(rmse_val[-1], 2.672308921813965)
+                assert np.isclose(rmse_val[-1], rmse_test, rtol=1e-3)
+                assert np.isclose(rmse_val[0], 5.187891006469727, rtol=1e-3)
+                assert np.isclose(rmse_val[-1], 2.672308921813965, rtol=1e-3)
             finally:
                 _remove_files(model_name + "_vacuum", max_epochs)
 
         if idx == 2:
             print(rmse_val)
             try:
-                assert np.isclose(rmse_val[-1], rmse_test)
-                assert np.isclose(rmse_val[0], 4.582426071166992)
-                assert np.isclose(rmse_val[-1], 2.2336010932922363)
+                assert np.isclose(rmse_val[-1], rmse_test, rtol=1e-3)
+                assert np.isclose(rmse_val[0], 4.582426071166992, rtol=1e-3)
+                assert np.isclose(rmse_val[-1], 2.2336010932922363, rtol=1e-3)
             finally:
                 _remove_files(model_name + "_vacuum", max_epochs)
         model._reset_parameters()
@@ -976,9 +979,9 @@ def test_tweak_parameters_vacuum_single_tautomer_AlchemicalANI2x():
 
         print(rmse_val)
         try:
-            assert np.isclose(rmse_val[-1], rmse_test)
-            assert np.isclose(rmse_val[0], 5.7811503410339355)
-            assert np.isclose(rmse_val[-1], 2.1603381633758545)
+            assert np.isclose(rmse_val[-1], rmse_test, rtol=1e-3)
+            assert np.isclose(rmse_val[0], 5.7811503410339355, rtol=1e-3)
+            assert np.isclose(rmse_val[-1], 2.1603381633758545, rtol=1e-3)
         finally:
             _remove_files(model_name + "_vacuum", max_epochs)
 
@@ -1010,9 +1013,9 @@ def test_tweak_parameters_vacuum_single_tautomer_AlchemicalANI2x():
 
         print(rmse_val)
         try:
-            assert np.isclose(rmse_val[-1], rmse_test)
-            assert np.isclose(rmse_val[0], 5.7811503410339355)
-            assert np.isclose(rmse_val[-1], 2.1603381633758545)
+            assert np.isclose(rmse_val[-1], rmse_test, rtol=1e-3)
+            assert np.isclose(rmse_val[0], 5.7811503410339355, rtol=1e-3)
+            assert np.isclose(rmse_val[-1], 2.1603381633758545, rtol=1e-3)
         finally:
             _remove_files(model_name + "_vacuum", max_epochs)
 
@@ -1057,10 +1060,10 @@ def test_retrain_parameters_CompartimentedAlchemicalANI2x_for_100_epochs():
 
         print(rmse_val)
         try:
-            assert np.isclose(rmse_val[-1], rmse_test)
-            assert np.isclose(rmse_val[0], 5.7811503410339355)
+            assert np.isclose(rmse_val[-1], rmse_test, rtol=1e-3)
+            assert np.isclose(rmse_val[0], 5.7811503410339355, rtol=1e-3)
             assert np.isclose(
-                rmse_val[-1], 0.4411153793334961
+                rmse_val[-1], 0.4411153793334961, rtol=1e-3
             )  # NOTE: This is not zero!
         finally:
             _remove_files(model_name + "_vacuum", max_epochs)
@@ -1106,10 +1109,10 @@ def test_retrain_parameters_CompartimentedAlchemicalANI2x_extended_loss_50_epoch
 
         print(rmse_val)
         try:
-            assert np.isclose(rmse_val[-1], rmse_test)
-            assert np.isclose(rmse_val[0], 5.7811503410339355)
+            assert np.isclose(rmse_val[-1], rmse_test, rtol=1e-3)
+            assert np.isclose(rmse_val[0], 5.7811503410339355, rtol=1e-3)
             assert np.isclose(
-                rmse_val[-1], 0.4411153793334961
+                rmse_val[-1], 0.4411153793334961, rtol=1e-3
             )  # NOTE: This is not zero!
         finally:
             _remove_files(model_name + "_vacuum", max_epochs)
@@ -1155,10 +1158,10 @@ def test_retrain_parameters_CompartimentedAlchemicalANI2x_extended_loss_50_epoch
 
         print(rmse_val)
         try:
-            assert np.isclose(rmse_val[-1], rmse_test)
-            assert np.isclose(rmse_val[0], 5.7811503410339355)
+            assert np.isclose(rmse_val[-1], rmse_test, rtol=1e-3)
+            assert np.isclose(rmse_val[0], 5.7811503410339355, rtol=1e-3)
             assert np.isclose(
-                rmse_val[-1], 0.4411153793334961
+                rmse_val[-1], 0.4411153793334961, rtol=1e-3
             )  # NOTE: This is not zero!
         finally:
             _remove_files(model_name + "_vacuum", max_epochs)
@@ -1204,11 +1207,11 @@ def test_tweak_parameters_vacuum_single_tautomer_CompartimentedAlchemicalANI2x()
 
         print(rmse_val)
         try:
-            assert np.isclose(rmse_val[-1], rmse_test)
-            assert np.isclose(rmse_val[0], 5.7811503410339355)
-            assert np.isclose(rmse_val[-1], 2.1603381633758545)
+            assert np.isclose(rmse_val[-1], rmse_test, rtol=1e-3)
+            assert np.isclose(rmse_val[0], 5.7811503410339355, rtol=1e-3)
+            assert np.isclose(rmse_val[-1], 2.1603381633758545, rtol=1e-3)
         finally:
-            r_emove_files(model_name + "_vacuum", max_epochs)
+            _remove_files(model_name + "_vacuum", max_epochs)
 
         model._reset_parameters()
         del model
