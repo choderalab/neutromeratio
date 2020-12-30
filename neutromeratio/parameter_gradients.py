@@ -953,7 +953,7 @@ def _tweak_parameters(
                 include_restraint_energy_contribution=False,
             )
 
-            loss, snapshot_penalty = _loss_function(fec, name, include_snapshot_penalty)
+            loss, _ = _loss_function(fec, name, include_snapshot_penalty)
             # gradient is calculated
             loss.backward()
             # graph is cleared here
@@ -963,8 +963,6 @@ def _tweak_parameters(
 
             if include_snapshot_penalty:
                 del fec.u_ln_rho_star_wrt_parameters
-                with open(f"per_snapshot_mae_epoch_{epoch}.csv", "a+") as f:
-                    f.write(f"{name}, {snapshot_penalty}\n")
 
         # optimization steps
         AdamW.step()
@@ -987,7 +985,7 @@ def _loss_function(
 
     if include_snapshot_penalty:
         snapshot_penalty = fec.mae_between_potentials_for_snapshots()
-        print(f"Snapshot penalty: {snapshot_penalty.item()}")
+        #print(f"Snapshot penalty: {snapshot_penalty.item()}")
         logger.info(f"Snapshot penalty: {snapshot_penalty.item()}")
         loss += 0.8 * snapshot_penalty
 
