@@ -829,7 +829,7 @@ def _perform_training(
         SGD_scheduler.step(rmse_validation[-1])
 
         # perform the parameter optimization and importance weighting
-        snapshot_penalty_through_training = _tweak_parameters(
+        _tweak_parameters(
             names_training=names_training,
             ANImodel=ANImodel,
             AdamW=AdamW,
@@ -895,7 +895,7 @@ def _tweak_parameters(
     max_snapshots_per_window: int,
     load_pickled_FEC: bool,
     include_snapshot_penalty: bool,
-) -> list:
+):
     """
     _tweak_parameters
 
@@ -962,16 +962,14 @@ def _tweak_parameters(
             loss.backward()
             # graph is cleared here
 
-            #
-            snapshot_penalty_through_training.append(snapshot_penalty)
             if include_snapshot_penalty:
                 del fec.u_ln_rho_star_wrt_parameters
+                with open(f"per_snapshot_mae_epoch_{epoch}.csv", "a+") as f:
+                    f.write(f"{name}, {snapshot_penalty}\n")
 
         # optimization steps
         AdamW.step()
         SGD.step()
-
-    return snapshot_penalty_through_training
 
 
 def _loss_function(
