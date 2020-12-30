@@ -319,7 +319,7 @@ class FreeEnergyCalculator:
             u_ln_rho_star = self.u_ln_rho_star_wrt_parameters
         else:
             logger.critical(
-                "u_ln_rho_star is not set. Calculating. This might point to a problem!"
+                "u_ln_rho_star is not set. Calculating. This __might__ indicate a problem!"
             )
             u_ln_rho_star = self._form_u_ln()
         return u_ln_rho, u_ln_rho_star
@@ -930,7 +930,6 @@ def _tweak_parameters(
     # https://discuss.pytorch.org/t/why-do-we-need-to-set-the-gradients-manually-to-zero-in-pytorch/4903/20
     it = tqdm(chunks(names_training, batch_size))
     instance_idx = 0
-    snapshot_penalty_through_training = []
 
     for batch_idx, names in enumerate(it):
         # reset gradient
@@ -955,12 +954,12 @@ def _tweak_parameters(
             )
 
             loss, snapshot_penalty = _loss_function(fec, name, include_snapshot_penalty)
-            it.set_description(
-                f"E:{epoch};B:{batch_idx+1},;I:{instance_idx} -- tautomer {name} -- MSE: {loss.item()}"
-            )
             # gradient is calculated
             loss.backward()
             # graph is cleared here
+            it.set_description(
+                f"E:{epoch};B:{batch_idx+1},;I:{instance_idx} -- tautomer {name} -- MSE: {loss.item()}"
+            )
 
             if include_snapshot_penalty:
                 del fec.u_ln_rho_star_wrt_parameters
@@ -1352,13 +1351,13 @@ def setup_FEC(
     if not os.path.exists(data_path):
         raise RuntimeError(f"{data_path} does not exist!")
 
-    fec_pickle = f"{data_path}/{name}/{name}_FEC_{max_snapshots_per_window}_for_{ANImodel.name}_restraint_{include_restraint_energy_contribution}.gz"
+    fec_pickle = f"{data_path}/{name}/{name}_FEC_{max_snapshots_per_window}_for_{ANImodel.name}_restraint_{include_restraint_energy_contribution}"
 
     # load FEC pickle file
     if load_pickled_FEC:
-        if os.path.exists(fec_pickle):
-            print(f"{fec_pickle} loading ...")
-            fec = load(fec_pickle)
+        logger.info(f"{fec_pickle}[.gz|.pickle] loading ...")
+        if os.path.exists(f"{fec_pickle}.gz"):
+            fec = load(f"{fec_pickle}.gz")
             if (
                 fec.include_restraint_energy_contribution
                 != include_restraint_energy_contribution
@@ -1368,9 +1367,19 @@ def setup_FEC(
                 )
             # NOTE: early exit
             return fec
+        elif os.path.exists(f"{fec_pickle}.pickle"):
+            fec = pickle.load(open(f"{fec_pickle}.pickle", "rb"))
+            if (
+                fec.include_restraint_energy_contribution
+                != include_restraint_energy_contribution
+            ):
+                raise RuntimeError(
+                    f"Attempted to load FEC with include_restraint_energy_contribution: {fec.include_restraint_energy_contribution}, but asked for include_restraint_energy_contribution: {include_restraint_energy_contribution}"
+                )
+
         else:
-            print(f"Tried to load {fec_pickle} but failed!")
-            logger.critical(f"Tried to load {fec_pickle} but failed!")
+            print(f"Tried to load {fec_pickle}[.gz|.pickle] but failed!")
+            logger.critical(f"Tried to load {fec_pickle}[.gz|.pickle] but failed!")
 
     # setup alchecmial system and energy function
     energy_function, tautomer, flipped = setup_alchemical_system_and_energy_function(

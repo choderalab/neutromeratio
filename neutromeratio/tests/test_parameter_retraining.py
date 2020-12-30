@@ -730,7 +730,7 @@ def test_retrain_parameters_vacuum_batch_size():
         bulk_energy_calculation=True,
         max_epochs=max_epochs,
         load_checkpoint=False,
-        load_pickled_FEC=False,
+        load_pickled_FEC=True,
     )
 
     print(rmse_val)
@@ -755,7 +755,7 @@ def test_retrain_parameters_vacuum_batch_size():
         bulk_energy_calculation=True,
         max_epochs=max_epochs,
         load_checkpoint=False,
-        load_pickled_FEC=False,
+        load_pickled_FEC=True,
     )
 
     print(rmse_val)
@@ -780,7 +780,7 @@ def test_retrain_parameters_vacuum_batch_size():
         bulk_energy_calculation=True,
         max_epochs=max_epochs,
         load_checkpoint=False,
-        load_pickled_FEC=False,
+        load_pickled_FEC=True,
     )
 
     print(rmse_val)
@@ -805,7 +805,7 @@ def test_retrain_parameters_vacuum_batch_size():
         bulk_energy_calculation=True,
         max_epochs=max_epochs,
         load_checkpoint=False,
-        load_pickled_FEC=False,
+        load_pickled_FEC=True,
     )
 
     print(rmse_val)
@@ -853,7 +853,7 @@ def test_retrain_parameters_vacuum_batch_size_all_potentials():
             bulk_energy_calculation=True,
             max_epochs=max_epochs,
             load_checkpoint=False,
-            load_pickled_FEC=False,
+            load_pickled_FEC=True,
         )
 
         if idx == 0:
@@ -909,7 +909,7 @@ def test_retrain_parameters_vacuum_batch_size_all_potentials():
             bulk_energy_calculation=True,
             max_epochs=max_epochs,
             load_checkpoint=False,
-            load_pickled_FEC=False,
+            load_pickled_FEC=True,
         )
 
         if idx == 0:
