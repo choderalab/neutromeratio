@@ -110,11 +110,12 @@ else:
 fec.ani_model.model.load_nn_parameters(args.checkpoint_file)
 
 # calculate perturbed free energy
-DeltaF_ji = get_perturbed_free_energy_difference([fec])[0].item()
-
+DeltaF_ji = get_perturbed_free_energy_difference(fec)[0].item()
+# get MAE for snapshot deviation
+snapshot_penalty = fec.mae_between_potentials_for_snapshots()
 
 with open(
     f"{checkpoint_file_base}_rfe_results_in_kT_{max_snapshots_per_window}_snapshots.csv",
     "a+",
 ) as f:
-    f.write(f"{name}, {which_set_does_it_belong_to}, {DeltaF_ji}\n")
+    f.write(f"{name}, {which_set_does_it_belong_to}, {DeltaF_ji}, {snapshot_penalty}\n")
