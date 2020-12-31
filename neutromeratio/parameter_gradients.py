@@ -985,7 +985,7 @@ def _loss_function(
 
     if include_snapshot_penalty:
         snapshot_penalty = fec.mae_between_potentials_for_snapshots()
-        #print(f"Snapshot penalty: {snapshot_penalty.item()}")
+        # print(f"Snapshot penalty: {snapshot_penalty.item()}")
         logger.info(f"Snapshot penalty: {snapshot_penalty.item()}")
         loss += 0.8 * snapshot_penalty
 
@@ -1217,7 +1217,7 @@ def setup_and_perform_parameter_retraining(
         list : rmse on validation set
     """
 
-    assert int(batch_size) <= 10 and int(batch_size) >= 1
+    assert int(batch_size) >= 1
 
     logger.info("setup_and_perform_parameter_retraining called ...")
     local_variables = locals()
@@ -1339,6 +1339,19 @@ def setup_FEC(
         lam = l[-3]
         return float(lam)
 
+    def _check_and_return_fec(
+        fec, include_restraint_energy_contribution: bool
+    ) -> FreeEnergyCalculator:
+        if (
+            fec.include_restraint_energy_contribution
+            != include_restraint_energy_contribution
+        ):
+            raise RuntimeError(
+                f"Attempted to load FEC with include_restraint_energy_contribution: {fec.include_restraint_energy_contribution}, but asked for include_restraint_energy_contribution: {include_restraint_energy_contribution}"
+            )
+        # NOTE: early exit
+        return fec
+
     if not (env == "vacuum" or env == "droplet"):
         raise RuntimeError("Only keyword vacuum or droplet are allowed as environment.")
     if env == "droplet" and diameter == -1:
@@ -1353,31 +1366,19 @@ def setup_FEC(
 
     # load FEC pickle file
     if load_pickled_FEC:
-        logger.info(f"{fec_pickle}[.gz|.pickle] loading ...")
+        logger.info(f"{fec_pickle}[.gz|.pickle|''] loading ...")
         if os.path.exists(f"{fec_pickle}.gz"):
             fec = load(f"{fec_pickle}.gz")
-            if (
-                fec.include_restraint_energy_contribution
-                != include_restraint_energy_contribution
-            ):
-                raise RuntimeError(
-                    f"Attempted to load FEC with include_restraint_energy_contribution: {fec.include_restraint_energy_contribution}, but asked for include_restraint_energy_contribution: {include_restraint_energy_contribution}"
-                )
-            # NOTE: early exit
-            return fec
+            return _check_and_return_fec(fec, include_restraint_energy_contribution)
         elif os.path.exists(f"{fec_pickle}.pickle"):
             fec = pickle.load(open(f"{fec_pickle}.pickle", "rb"))
-            if (
-                fec.include_restraint_energy_contribution
-                != include_restraint_energy_contribution
-            ):
-                raise RuntimeError(
-                    f"Attempted to load FEC with include_restraint_energy_contribution: {fec.include_restraint_energy_contribution}, but asked for include_restraint_energy_contribution: {include_restraint_energy_contribution}"
-                )
-
+            return _check_and_return_fec(fec, include_restraint_energy_contribution)
+        elif os.path.exists(f"{fec_pickle}"):
+            fec = pickle.load(open(f"{fec_pickle}", "rb"))
+            return _check_and_return_fec(fec, include_restraint_energy_contribution)
         else:
-            print(f"Tried to load {fec_pickle}[.gz|.pickle] but failed!")
-            logger.critical(f"Tried to load {fec_pickle}[.gz|.pickle] but failed!")
+            print(f"Tried to load {fec_pickle}[.gz|.pickle|''] but failed!")
+            logger.critical(f"Tried to load {fec_pickle}[.gz|.pickle|''] but failed!")
 
     # setup alchecmial system and energy function
     energy_function, tautomer, flipped = setup_alchemical_system_and_energy_function(
