@@ -812,7 +812,7 @@ def test_retrain_parameters_vacuum_batch_size():
     try:
         assert np.isclose(rmse_val[-1], rmse_test, rtol=1e-3)
         assert np.isclose(rmse_val[0], 5.393814086, rtol=1e-3)
-        assert np.isclose(rmse_val[-1], 2.858044, rtol=1e-3)
+        assert np.isclose(rmse_val[-1], 2.858044385, rtol=1e-3)
     finally:
         _remove_files(model_name + "_vacuum", max_epochs)
 
@@ -861,7 +861,7 @@ def test_retrain_parameters_vacuum_batch_size_all_potentials():
             try:
                 assert np.isclose(rmse_val[-1], rmse_test, rtol=1e-3)
                 assert np.isclose(rmse_val[0], 5.3938140869140625, rtol=1e-3)
-                assert np.isclose(rmse_val[-1], 2.098975658416748, rtol=1e-3)
+                assert np.isclose(rmse_val[-1], 1.8240348100662231, rtol=1e-3)
             finally:
                 _remove_files(model_name + "_vacuum", max_epochs)
 
@@ -871,7 +871,7 @@ def test_retrain_parameters_vacuum_batch_size_all_potentials():
 
                 assert np.isclose(rmse_val[-1], rmse_test, rtol=1e-3)
                 assert np.isclose(rmse_val[0], 5.187891006469727, rtol=1e-3)
-                assert np.isclose(rmse_val[-1], 2.672308921813965, rtol=1e-3)
+                assert np.isclose(rmse_val[-1], 3.470416307449341, rtol=1e-3)
             finally:
                 _remove_files(model_name + "_vacuum", max_epochs)
 
@@ -880,7 +880,7 @@ def test_retrain_parameters_vacuum_batch_size_all_potentials():
             try:
                 assert np.isclose(rmse_val[-1], rmse_test, rtol=1e-3)
                 assert np.isclose(rmse_val[0], 4.582426071166992, rtol=1e-3)
-                assert np.isclose(rmse_val[-1], 2.2336010932922363, rtol=1e-3)
+                assert np.isclose(rmse_val[-1], 2.3228771686553955, rtol=1e-3)
             finally:
                 _remove_files(model_name + "_vacuum", max_epochs)
         model._reset_parameters()
@@ -1061,7 +1061,7 @@ def test_retrain_parameters_CompartimentedAlchemicalANI2x_for_100_epochs():
         print(rmse_val)
         try:
             assert np.isclose(rmse_val[-1], rmse_test, rtol=1e-3)
-            assert np.isclose(rmse_val[0], 5.7811503410339355, rtol=1e-3)
+            assert np.isclose(rmse_val[0], 6.82616662979126, rtol=1e-3)
             assert np.isclose(
                 rmse_val[-1], 0.4411153793334961, rtol=1e-3
             )  # NOTE: This is not zero!
@@ -1110,7 +1110,7 @@ def test_retrain_parameters_CompartimentedAlchemicalANI2x_extended_loss_50_epoch
         print(rmse_val)
         try:
             assert np.isclose(rmse_val[-1], rmse_test, rtol=1e-3)
-            assert np.isclose(rmse_val[0], 5.7811503410339355, rtol=1e-3)
+            assert np.isclose(rmse_val[0], 6.82616662979126, rtol=1e-3)
             assert np.isclose(
                 rmse_val[-1], 0.4411153793334961, rtol=1e-3
             )  # NOTE: This is not zero!
@@ -1129,7 +1129,7 @@ def test_retrain_parameters_CompartimentedAlchemicalANI2x_extended_loss_50_epoch
 
     # without pickled tautomer object
     names = ["molDWRow_298", "SAMPLmol2", "SAMPLmol4"]
-    max_epochs = 5
+    max_epochs = 50
     for model, model_name in zip(
         [CompartimentedAlchemicalANI2x],
         ["CompartimentedAlchemicalANI2x"],
@@ -1151,15 +1151,15 @@ def test_retrain_parameters_CompartimentedAlchemicalANI2x_extended_loss_50_epoch
             max_epochs=max_epochs,
             load_checkpoint=False,
             load_pickled_FEC=True,
-            lr_AdamW=1e-6,
-            lr_SGD=1e-6,
+            lr_AdamW=1e-5,
+            lr_SGD=1e-5,
             include_snapshot_penalty=False,
         )
 
         print(rmse_val)
         try:
             assert np.isclose(rmse_val[-1], rmse_test, rtol=1e-3)
-            assert np.isclose(rmse_val[0], 5.7811503410339355, rtol=1e-3)
+            assert np.isclose(rmse_val[0], 6.126287937164307, rtol=1e-3)
             assert np.isclose(
                 rmse_val[-1], 0.4411153793334961, rtol=1e-3
             )  # NOTE: This is not zero!
