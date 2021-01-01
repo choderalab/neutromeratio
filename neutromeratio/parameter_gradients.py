@@ -858,7 +858,7 @@ def _perform_training(
         )
 
         rmse_validation.append(current_rmse)
-        
+
         # if appropriate update LR on plateau
         AdamW_scheduler.step(rmse_validation[-1])
         SGD_scheduler.step(rmse_validation[-1])
@@ -938,7 +938,7 @@ def _tweak_parameters(
         AdamW.zero_grad()
         SGD.zero_grad()
         logger.debug(names)
-
+        snapshot_penalty_ = []
         for name in names:
             # count tautomer pairs
             instance_idx += 1
@@ -955,11 +955,12 @@ def _tweak_parameters(
             )
 
             loss, snapshot_penalty = _loss_function(fec, name, include_snapshot_penalty)
+            snapshot_penalty_.append(snapshot_penalty)
             # gradient is calculated
             loss.backward()
             # graph is cleared here
             it.set_description(
-                f"E:{epoch};B:{batch_idx+1};I:{instance_idx};SP:{snapshot_penalty} -- tautomer {name} -- MSE: {loss.item()}"
+                f"E:{epoch};B:{batch_idx+1};I:{instance_idx};SP:{torch.tensor(snapshot_penalty_).mean()} -- tautomer {name} -- MSE: {loss.item()}"
             )
 
             if include_snapshot_penalty:
@@ -987,7 +988,7 @@ def _loss_function(
     if include_snapshot_penalty:
         snapshot_penalty = fec.mae_between_potentials_for_snapshots()
         logger.debug(f"Snapshot penalty: {snapshot_penalty.item()}")
-        loss += 0.1 * (snapshot_penalty ** 2)
+        loss += 0.5 * (snapshot_penalty ** 2)
 
     return loss, snapshot_penalty.item()
 
@@ -1065,10 +1066,10 @@ def _get_nn_layers(
     SGD = torch.optim.SGD(bias_layers, lr=lr_SGD)
 
     AdamW_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        AdamW, "min"
+        AdamW, "min", patience=2, verbose=True
     )  # using defailt values
     SGD_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        SGD, "min"
+        SGD, "min", patience=2, verbose=True
     )  # using defailt values from https://pytorch.org/docs/stable/optim.html#torch.optim.lr_scheduler.ReduceLROnPlateau
 
     return (AdamW, AdamW_scheduler, SGD, SGD_scheduler)
