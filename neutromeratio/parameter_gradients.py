@@ -564,7 +564,7 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
     load_pickled_FEC: bool = True,
     lr_AdamW: float = 1e-3,
     lr_SGD: float = 1e-3,
-    weight_decay: float = 0.000001,
+    weight_decay: float = 1e-2,
     test_size: float = 0.2,
     validation_size: float = 0.2,
     include_snapshot_penalty: bool = False,
@@ -812,9 +812,11 @@ def _perform_training(
 
         # get the learning group
         learning_rate = AdamW.param_groups[0]["lr"]
-        logger.info(f"Learning rate of current epoche: {learning_rate}")
+        logger.debug(f"Learning rate for AdamW for current epoche: {learning_rate}")
         if learning_rate < early_stopping_learning_rate:
-            print("Learning rate is lower than early_stopping_learning_reate!")
+            print(
+                "Learning rate for AdamW is lower than early_stopping_learning_reate!"
+            )
             print("Stopping!")
             break
 
@@ -823,10 +825,6 @@ def _perform_training(
             torch.save(
                 ANImodel.optimized_neural_network.state_dict(), best_model_checkpoint
             )
-
-        # define the stepsize
-        AdamW_scheduler.step(rmse_validation[-1])
-        SGD_scheduler.step(rmse_validation[-1])
 
         # perform the parameter optimization and importance weighting
         _tweak_parameters(
@@ -860,6 +858,10 @@ def _perform_training(
         )
 
         rmse_validation.append(current_rmse)
+        
+        # if appropriate update LR on plateau
+        AdamW_scheduler.step(rmse_validation[-1])
+        SGD_scheduler.step(rmse_validation[-1])
 
         print(
             f"RMSE on validation set: {rmse_validation[-1]} at epoch {AdamW_scheduler.last_epoch}"
@@ -924,7 +926,7 @@ def _tweak_parameters(
 
     """
 
-    logger.info("_tweak_parameters called ...")
+    logger.debug("_tweak_parameters called ...")
     # iterate over batches of molecules
     # some points to where the rational comes from:
     # https://discuss.pytorch.org/t/why-do-we-need-to-set-the-gradients-manually-to-zero-in-pytorch/4903/20
@@ -935,7 +937,7 @@ def _tweak_parameters(
         # reset gradient
         AdamW.zero_grad()
         SGD.zero_grad()
-        logger.info(names)
+        logger.debug(names)
 
         for name in names:
             # count tautomer pairs
@@ -952,12 +954,12 @@ def _tweak_parameters(
                 include_restraint_energy_contribution=False,
             )
 
-            loss, _ = _loss_function(fec, name, include_snapshot_penalty)
+            loss, snapshot_penalty = _loss_function(fec, name, include_snapshot_penalty)
             # gradient is calculated
             loss.backward()
             # graph is cleared here
             it.set_description(
-                f"E:{epoch};B:{batch_idx+1},;I:{instance_idx} -- tautomer {name} -- MSE: {loss.item()}"
+                f"E:{epoch};B:{batch_idx+1};I:{instance_idx};SP:{snapshot_penalty} -- tautomer {name} -- MSE: {loss.item()}"
             )
 
             if include_snapshot_penalty:
@@ -985,7 +987,7 @@ def _loss_function(
     if include_snapshot_penalty:
         snapshot_penalty = fec.mae_between_potentials_for_snapshots()
         logger.debug(f"Snapshot penalty: {snapshot_penalty.item()}")
-        loss += 0.2 * snapshot_penalty
+        loss += 0.05 * (snapshot_penalty ** 2)
 
     return loss, snapshot_penalty.item()
 
@@ -1063,10 +1065,10 @@ def _get_nn_layers(
     SGD = torch.optim.SGD(bias_layers, lr=lr_SGD)
 
     AdamW_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        AdamW
+        AdamW, "min"
     )  # using defailt values
     SGD_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        SGD
+        SGD, "min"
     )  # using defailt values from https://pytorch.org/docs/stable/optim.html#torch.optim.lr_scheduler.ReduceLROnPlateau
 
     return (AdamW, AdamW_scheduler, SGD, SGD_scheduler)
