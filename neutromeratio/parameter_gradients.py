@@ -987,7 +987,7 @@ def _loss_function(
     if include_snapshot_penalty:
         snapshot_penalty = fec.mae_between_potentials_for_snapshots()
         logger.debug(f"Snapshot penalty: {snapshot_penalty.item()}")
-        loss += 0.05 * (snapshot_penalty ** 2)
+        loss += 0.1 * (snapshot_penalty ** 2)
 
     return loss, snapshot_penalty.item()
 
