@@ -939,7 +939,6 @@ def _tweak_parameters(
 
         for name in names:
             # count tautomer pairs
-            logger.info(name)
             instance_idx += 1
             fec = setup_FEC(
                 name=name,
@@ -985,9 +984,8 @@ def _loss_function(
 
     if include_snapshot_penalty:
         snapshot_penalty = fec.mae_between_potentials_for_snapshots()
-        # print(f"Snapshot penalty: {snapshot_penalty.item()}")
-        logger.info(f"Snapshot penalty: {snapshot_penalty.item()}")
-        loss += 0.8 * snapshot_penalty
+        logger.debug(f"Snapshot penalty: {snapshot_penalty.item()}")
+        loss += 0.2 * snapshot_penalty
 
     return loss, snapshot_penalty.item()
 
@@ -1366,7 +1364,7 @@ def setup_FEC(
 
     # load FEC pickle file
     if load_pickled_FEC:
-        logger.info(f"{fec_pickle}[.gz|.pickle|''] loading ...")
+        logger.debug(f"{fec_pickle}[.gz|.pickle|''] loading ...")
         if os.path.exists(f"{fec_pickle}.gz"):
             fec = load(f"{fec_pickle}.gz")
             return _check_and_return_fec(fec, include_restraint_energy_contribution)
