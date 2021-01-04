@@ -21,7 +21,7 @@ this.NUM_PROC = 1
 
 
 def initialize_NUM_PROC(n_proc):
-    if this.NUM_PROC == 0:
+    if this.NUM_PROC == 1:
         # also in local function scope. no scope specifier like global is needed
         this.NUM_PROC = n_proc
     else:
