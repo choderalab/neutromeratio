@@ -20,6 +20,7 @@ import mdtraj as md
 from typing import Tuple
 import pickle
 import torch.multiprocessing as mp
+import timeit
 
 logger = logging.getLogger(__name__)
 
@@ -456,25 +457,30 @@ def calculate_rmse_between_exp_and_calc(
     it = tqdm(chunks(names, neutromeratio.constants.NUM_PROC))
     for name_list in it:
         print(neutromeratio.constants.NUM_PROC)
-        with mp.Pool(processes=len(name_list)) as pool:
-            prop_list = [
-                {
-                    "name": name,
-                    "ANImodel": model,
-                    "env": env,
-                    "bulk_energy_calculation": bulk_energy_calculation,
-                    "data_path": data_path,
-                    "max_snapshots_per_window": max_snapshots_per_window,
-                    "diameter": diameter,
-                    "load_pickled_FEC": load_pickled_FEC,
-                    "include_restraint_energy_contribution": include_restraint_energy_contribution,
-                }
-                for name in name_list
-            ]
+        prop_list = [
+            {
+                "name": name,
+                "ANImodel": model,
+                "env": env,
+                "bulk_energy_calculation": bulk_energy_calculation,
+                "data_path": data_path,
+                "max_snapshots_per_window": max_snapshots_per_window,
+                "diameter": diameter,
+                "load_pickled_FEC": load_pickled_FEC,
+                "include_restraint_energy_contribution": include_restraint_energy_contribution,
+            }
+            for name in name_list
+        ]
 
-            FEC_list = pool.map(_setup_FEC, prop_list)
-            pool.close()
-            pool.terminate()
+        # only one CPU is specified, mp is not needed
+        if neutromeratio.constants.NUM_PROC == 1:
+            FEC_list = map(_setup_FEC, prop_list)
+        # reading in parallel
+        else:
+            with mp.Pool(processes=len(name_list)) as pool:
+                FEC_list = pool.map(_setup_FEC, prop_list)
+                pool.close()
+                pool.terminate()
 
         for fec in FEC_list:
             # append calculated values
@@ -954,21 +960,25 @@ def _tweak_parameters(
 
         # divide in chunks to read in parallel
         for name_list in chunks(names, neutromeratio.constants.NUM_PROC):
+            prop_list = [
+                {
+                    "name": name,
+                    "ANImodel": ANImodel,
+                    "env": env,
+                    "bulk_energy_calculation": bulk_energy_calculation,
+                    "data_path": data_path,
+                    "max_snapshots_per_window": max_snapshots_per_window,
+                    "diameter": diameter,
+                    "load_pickled_FEC": load_pickled_FEC,
+                    "include_restraint_energy_contribution": False,  # NOTE: beware the default value here
+                }
+                for name in name_list
+            ]
+
+            if neutromeratio.constants.NUM_PROC == 1:
+                FEC_list = map(_setup_FEC, prop_list)
+
             with mp.Pool(processes=len(name_list)) as pool:
-                prop_list = [
-                    {
-                        "name": name,
-                        "ANImodel": ANImodel,
-                        "env": env,
-                        "bulk_energy_calculation": bulk_energy_calculation,
-                        "data_path": data_path,
-                        "max_snapshots_per_window": max_snapshots_per_window,
-                        "diameter": diameter,
-                        "load_pickled_FEC": load_pickled_FEC,
-                        "include_restraint_energy_contribution": False,  # NOTE: beware the default value here
-                    }
-                    for name in name_list
-                ]
 
                 FEC_list = pool.map(_setup_FEC, prop_list)
                 pool.close()
@@ -1360,6 +1370,8 @@ def setup_FEC(
     from neutromeratio.analysis import setup_alchemical_system_and_energy_function
     import os
     from compress_pickle import dump, load
+
+    ANImodel([0, 0])
 
     def parse_lambda_from_dcd_filename(dcd_filename) -> float:
         """parse the dcd filename"""

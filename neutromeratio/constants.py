@@ -17,7 +17,9 @@ torch.set_num_threads(num_threads)
 
 this = sys.modules[__name__]
 # we can explicitly make assignments on it
-this.NUM_PROC = 0
+this.NUM_PROC = 1
+
+
 def initialize_NUM_PROC(n_proc):
     if this.NUM_PROC == 0:
         # also in local function scope. no scope specifier like global is needed
