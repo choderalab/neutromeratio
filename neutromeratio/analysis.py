@@ -530,7 +530,13 @@ def setup_alchemical_system_and_energy_function(
         tautomer.hybrid_hydrogen_idx_at_lambda_0,
     ]
 
-    model = ANImodel(alchemical_atoms=alchemical_atoms).to(device)
+    if ANImodel.name == "CompartimentedAlchemicalANI2x":
+        model = ANImodel(alchemical_atoms=alchemical_atoms, training=True).to(device)
+    else:
+        model = ANImodel(alchemical_atoms=alchemical_atoms).to(device)
+        logger.critical(
+            "CompartimentedAlchemicalANI2x is called NOT in training mode! This will take forever."
+        )
     # if specified, load nn parameters for modified potential!
     if checkpoint_file:
         logger.warning("Loading nn parameters ...")
