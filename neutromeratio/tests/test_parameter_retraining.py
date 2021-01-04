@@ -59,7 +59,7 @@ def _remove_files(name, max_epochs=1):
         os.remove(f"{name}.pt")
     except FileNotFoundError:
         pass
-    for i in range(1, max_epochs):
+    for i in range(0, max_epochs):
         os.remove(f"{name}_{i}.pt")
     os.remove(f"{name}_best.pt")
 
@@ -705,11 +705,59 @@ def test_tweak_parameters_and_class_nn_CompartimentedAlchemicalANI2x():
 @pytest.mark.skipif(
     os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
 )
+def test_retrain_parameters_vacuum_variable_batch_size_and_n_proc():
+    from ..parameter_gradients import (
+        setup_and_perform_parameter_retraining_with_test_set_split,
+    )
+    from ..ani import AlchemicalANI1ccx
+
+    from ..constants import initialize_NUM_PROC
+
+    initialize_NUM_PROC(1)
+
+    names = ["molDWRow_298", "SAMPLmol2", "SAMPLmol4"]
+    max_epochs = 4
+    model = AlchemicalANI1ccx
+    model_name = "AlchemicalANI1ccx"
+
+    # calculate with batch_size=1
+    batch_size = 3
+    model._reset_parameters()
+    (rmse_val, rmse_test) = setup_and_perform_parameter_retraining_with_test_set_split(
+        env="vacuum",
+        checkpoint_filename=f"{model_name}_vacuum.pt",
+        names=names,
+        ANImodel=model,
+        batch_size=batch_size,
+        data_path="./data/test_data/vacuum",
+        max_snapshots_per_window=50,
+        bulk_energy_calculation=True,
+        max_epochs=max_epochs,
+        load_checkpoint=False,
+        load_pickled_FEC=True,
+    )
+
+    print(rmse_val)
+    try:
+        assert np.isclose(rmse_val[-1], rmse_test, rtol=1e-3)
+        assert np.isclose(rmse_val[0], 5.3938140869140625, rtol=1e-3)
+        assert np.isclose(rmse_val[-1], 2.09907078, rtol=1e-3)
+    finally:
+        _remove_files(model_name + "_vacuum", max_epochs)
+
+
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
 def test_retrain_parameters_vacuum_batch_size():
     from ..parameter_gradients import (
         setup_and_perform_parameter_retraining_with_test_set_split,
     )
     from ..ani import AlchemicalANI1ccx
+
+    from ..constants import initialize_NUM_PROC
+
+    initialize_NUM_PROC(1)
 
     names = ["molDWRow_298", "SAMPLmol2", "SAMPLmol4"]
     max_epochs = 4

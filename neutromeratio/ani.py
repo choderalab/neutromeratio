@@ -443,7 +443,6 @@ class AlchemicalANI_Mixin:
         """
 
         species, coordinates, lam, original_parameters = species_coordinates_lamb
-        species_coordinates = (species, coordinates)
 
         if original_parameters:
             logger.debug("Using original neural network parameters.")

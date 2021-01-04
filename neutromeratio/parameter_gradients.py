@@ -7,20 +7,19 @@ import numpy as np
 from pymbar import MBAR
 from pymbar.timeseries import detectEquilibration
 from simtk import unit
+from torch.types import Number
 from tqdm import tqdm
 from glob import glob
 from .ani import ANI_force_and_energy, ANI
-from neutromeratio.constants import (
-    _get_names,
-    device,
-    kT,
-)
+from neutromeratio.constants import _get_names, device, kT
+import neutromeratio.constants
 import torch
 import os
 import neutromeratio
 import mdtraj as md
 from typing import Tuple
 import pickle
+import torch.multiprocessing as mp
 
 logger = logging.getLogger(__name__)
 
@@ -392,6 +391,12 @@ def get_experimental_values(name: str) -> torch.Tensor:
     return torchify(e_in_kT)
 
 
+def _setup_FEC(prop: dict):
+    f = setup_FEC(**prop)
+    f.name = prop["name"]
+    return f
+
+
 def calculate_rmse_between_exp_and_calc(
     names: list,
     model: ANI,
@@ -403,7 +408,7 @@ def calculate_rmse_between_exp_and_calc(
     diameter: int = -1,
     load_pickled_FEC: bool = False,
     include_restraint_energy_contribution: bool = False,
-) -> Tuple[float, list]:
+) -> Tuple[Number, list]:
 
     """
     calculate_rmse_between_exp_and_calc Returns the RMSE between calculated and experimental free energy differences as float
@@ -441,45 +446,54 @@ def calculate_rmse_between_exp_and_calc(
     RuntimeError
         is raised if diameter is not specified for a droplet system
     """
-
     if env == "droplet" and diameter == -1:
         raise RuntimeError(
             f"Something went wrong. Diameter is set for {diameter}. Aborting."
         )
 
     e_calc, e_exp = [], []
-    it = tqdm(names)
+    current_rmse = -1.0
+    it = tqdm(chunks(names, neutromeratio.constants.NUM_PROC))
+    for name_list in it:
+        print(neutromeratio.constants.NUM_PROC)
+        with mp.Pool(processes=neutromeratio.constants.NUM_PROC) as pool:
+            prop_list = [
+                {
+                    "name": name,
+                    "ANImodel": model,
+                    "env": env,
+                    "bulk_energy_calculation": bulk_energy_calculation,
+                    "data_path": data_path,
+                    "max_snapshots_per_window": max_snapshots_per_window,
+                    "diameter": diameter,
+                    "load_pickled_FEC": load_pickled_FEC,
+                    "include_restraint_energy_contribution": include_restraint_energy_contribution,
+                }
+                for name in name_list
+            ]
 
-    for name in it:
-        fec = setup_FEC(
-            name=name,
-            ANImodel=model,
-            env=env,
-            bulk_energy_calculation=bulk_energy_calculation,
-            data_path=data_path,
-            max_snapshots_per_window=max_snapshots_per_window,
-            diameter=diameter,
-            load_pickled_FEC=load_pickled_FEC,
-            include_restraint_energy_contribution=include_restraint_energy_contribution,
-        )
+            FEC_list = pool.map(_setup_FEC, prop_list)
+            pool.close()
+            pool.terminate()
 
-        # append calculated values
-        if perturbed_free_energy:
-            e_calc.append(get_perturbed_free_energy_difference(fec).item())
-        else:
-            e_calc.append(get_unperturbed_free_energy_difference(fec).item())
+        for fec in FEC_list:
+            # append calculated values
+            if perturbed_free_energy:
+                e_calc.append(get_perturbed_free_energy_difference(fec).item())
+            else:
+                e_calc.append(get_unperturbed_free_energy_difference(fec).item())
 
-        # append experimental values
-        e_exp.append(get_experimental_values(name).item())
-        current_rmse = calculate_rmse(
-            torch.tensor(e_calc, device=device), torch.tensor(e_exp, device=device)
-        ).item()
+            # append experimental values
+            e_exp.append(get_experimental_values(fec.name).item())
+            current_rmse = calculate_rmse(
+                torch.tensor(e_calc, device=device), torch.tensor(e_exp, device=device)
+            ).item()
 
-        it.set_description(f"RMSE: {current_rmse}")
+            it.set_description(f"RMSE: {current_rmse}")
 
-        if current_rmse > 50:
-            logger.critical(f"RMSE above 50 with {current_rmse}: {name}")
-            logger.critical(names)
+            if current_rmse > 50:
+                logger.critical(f"RMSE above 50 with {current_rmse}: {fec.name}")
+                logger.critical(names)
 
     return current_rmse, e_calc
 
@@ -568,7 +582,7 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
     test_size: float = 0.2,
     validation_size: float = 0.2,
     include_snapshot_penalty: bool = False,
-) -> Tuple[list, float]:
+) -> Tuple[list, Number]:
 
     """
     Calculates the free energy of a staged free energy simulation,
@@ -843,29 +857,26 @@ def _perform_training(
             include_snapshot_penalty=include_snapshot_penalty,
         )
 
-        # calculate the new free energies on the validation set with optimized parameters
-        current_rmse, _ = calculate_rmse_between_exp_and_calc(
-            names_validating,
-            model=ANImodel,
-            diameter=diameter,
-            data_path=data_path,
-            bulk_energy_calculation=bulk_energy_calculation,
-            env=env,
-            max_snapshots_per_window=max_snapshots_per_window,
-            perturbed_free_energy=True,
-            load_pickled_FEC=load_pickled_FEC,
-            include_restraint_energy_contribution=False,
-        )
+        with torch.no_grad():
+            # calculate the new free energies on the validation set with optimized parameters
+            current_rmse, _ = calculate_rmse_between_exp_and_calc(
+                names_validating,
+                model=ANImodel,
+                diameter=diameter,
+                data_path=data_path,
+                bulk_energy_calculation=bulk_energy_calculation,
+                env=env,
+                max_snapshots_per_window=max_snapshots_per_window,
+                perturbed_free_energy=True,
+                load_pickled_FEC=load_pickled_FEC,
+                include_restraint_energy_contribution=False,
+            )
 
-        rmse_validation.append(current_rmse)
+            rmse_validation.append(current_rmse)
 
         # if appropriate update LR on plateau
         AdamW_scheduler.step(rmse_validation[-1])
         SGD_scheduler.step(rmse_validation[-1])
-
-        print(
-            f"RMSE on validation set: {rmse_validation[-1]} at epoch {AdamW_scheduler.last_epoch}"
-        )
 
         _save_checkpoint(
             ANImodel,
@@ -876,9 +887,9 @@ def _perform_training(
             f"{base}_{AdamW_scheduler.last_epoch}.pt",
         )
 
-    # _save_checkpoint(
-    #     ANImodel, AdamW, AdamW_scheduler, SGD, SGD_scheduler, checkpoint_filename
-    # )
+        print(
+            f"RMSE on validation set: {rmse_validation[-1]} at epoch {AdamW_scheduler.last_epoch}"
+        )
 
     return rmse_validation
 
@@ -933,38 +944,55 @@ def _tweak_parameters(
     it = tqdm(chunks(names_training, batch_size))
     instance_idx = 0
 
+    # divid in batches
     for batch_idx, names in enumerate(it):
         # reset gradient
         AdamW.zero_grad()
         SGD.zero_grad()
         logger.debug(names)
         snapshot_penalty_ = []
-        for name in names:
-            # count tautomer pairs
-            instance_idx += 1
-            fec = setup_FEC(
-                name=name,
-                ANImodel=ANImodel,
-                env=env,
-                data_path=data_path,
-                bulk_energy_calculation=bulk_energy_calculation,
-                max_snapshots_per_window=max_snapshots_per_window,
-                diameter=diameter,
-                load_pickled_FEC=load_pickled_FEC,
-                include_restraint_energy_contribution=False,
-            )
+        
+        
+        # divide in chunks to read in parallel
+        for name_list in chunks(names, neutromeratio.constants.NUM_PROC):
+            with mp.Pool(processes=neutromeratio.constants.NUM_PROC) as pool:
+                prop_list = [
+                    {
+                        "name": name,
+                        "ANImodel": ANImodel,
+                        "env": env,
+                        "bulk_energy_calculation": bulk_energy_calculation,
+                        "data_path": data_path,
+                        "max_snapshots_per_window": max_snapshots_per_window,
+                        "diameter": diameter,
+                        "load_pickled_FEC": load_pickled_FEC,
+                        "include_restraint_energy_contribution": False,  # NOTE: beware the default value here
+                    }
+                    for name in name_list
+                ]
 
-            loss, snapshot_penalty = _loss_function(fec, name, include_snapshot_penalty)
-            snapshot_penalty_.append(snapshot_penalty)
-            # gradient is calculated
-            loss.backward()
-            # graph is cleared here
-            it.set_description(
-                f"E:{epoch};B:{batch_idx+1};I:{instance_idx};SP:{torch.tensor(snapshot_penalty_).mean()} -- tautomer {name} -- MSE: {loss.item()}"
-            )
+                FEC_list = pool.map(_setup_FEC, prop_list)
+                pool.close()
+                pool.terminate()
 
-            if include_snapshot_penalty:
-                del fec.u_ln_rho_star_wrt_parameters
+            # process chunks
+            for fec in FEC_list:
+                # count tautomer pairs
+                instance_idx += 1
+
+                loss, snapshot_penalty = _loss_function(
+                    fec, fec.name, include_snapshot_penalty
+                )
+                snapshot_penalty_.append(snapshot_penalty)
+                # gradient is calculated
+                loss.backward()
+                # graph is cleared here
+                it.set_description(
+                    f"E:{epoch};B:{batch_idx+1};I:{instance_idx};SP:{torch.tensor(snapshot_penalty_).mean()} -- tautomer {fec.name} -- MSE: {loss.item()}"
+                )
+
+                if include_snapshot_penalty:
+                    del fec.u_ln_rho_star_wrt_parameters
 
         # optimization steps
         AdamW.step()
@@ -975,7 +1003,7 @@ def _loss_function(
     fec: FreeEnergyCalculator,
     name: str,
     include_snapshot_penalty: bool = False,
-) -> Tuple[torch.Tensor, torch.Tensor]:
+) -> Tuple[torch.Tensor, Number]:
 
     snapshot_penalty = torch.tensor([0.0])
     # calculate the free energies
