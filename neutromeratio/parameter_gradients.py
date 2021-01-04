@@ -17,10 +17,10 @@ import torch
 import os
 import neutromeratio
 import mdtraj as md
-from typing import Tuple
+from typing import List, Tuple
 import pickle
 import torch.multiprocessing as mp
-import timeit
+from torch.multiprocessing import get_context
 
 logger = logging.getLogger(__name__)
 
@@ -398,6 +398,14 @@ def _setup_FEC(prop: dict):
     return f
 
 
+def _mp(n_proc: int, prop_list: list) -> List[FreeEnergyCalculator]:
+    with get_context("spawn").Pool(processes=n_proc) as pool:
+        FEC_list = pool.map(_setup_FEC, prop_list)
+        pool.close()
+        pool.terminate()
+        return FEC_list
+
+
 def calculate_rmse_between_exp_and_calc(
     names: list,
     model: ANI,
@@ -472,14 +480,11 @@ def calculate_rmse_between_exp_and_calc(
         ]
 
         # only one CPU is specified, mp is not needed
-        if neutromeratio.constants.NUM_PROC == 1:
+        if len(name_list) == 1:
             FEC_list = map(_setup_FEC, prop_list)
         # reading in parallel
         else:
-            with mp.Pool(processes=len(name_list)) as pool:
-                FEC_list = pool.map(_setup_FEC, prop_list)
-                pool.close()
-                pool.terminate()
+            FEC_list = _mp(len(name_list), prop_list)
 
         for fec in FEC_list:
             # append calculated values
@@ -490,15 +495,15 @@ def calculate_rmse_between_exp_and_calc(
 
             # append experimental values
             e_exp.append(get_experimental_values(fec.name).item())
-            current_rmse = calculate_rmse(
-                torch.tensor(e_calc, device=device), torch.tensor(e_exp, device=device)
-            ).item()
 
+        current_rmse = calculate_rmse(
+            torch.tensor(e_calc, device=device), torch.tensor(e_exp, device=device)
+        ).item()
 
-            if current_rmse > 50:
-                logger.critical(f"RMSE above 50 with {current_rmse}: {fec.name}")
-                logger.critical(names)
-        
+        if current_rmse > 50:
+            logger.critical(f"RMSE above 50 with {current_rmse}: {fec.name}")
+            logger.critical(names)
+
         it.set_description(f"RMSE: {current_rmse}")
 
     return current_rmse, e_calc
@@ -975,14 +980,12 @@ def _tweak_parameters(
                 for name in name_list
             ]
 
-            if neutromeratio.constants.NUM_PROC == 1:
+            # only one CPU is specified, mp is not needed
+            if len(name_list) == 1:
                 FEC_list = map(_setup_FEC, prop_list)
-
-            with mp.Pool(processes=len(name_list)) as pool:
-
-                FEC_list = pool.map(_setup_FEC, prop_list)
-                pool.close()
-                pool.terminate()
+            # reading in parallel
+            else:
+                FEC_list = _mp(len(name_list), prop_list)
 
             # process chunks
             for fec in FEC_list:
@@ -999,7 +1002,7 @@ def _tweak_parameters(
 
                 if include_snapshot_penalty:
                     del fec.u_ln_rho_star_wrt_parameters
-            
+
         it.set_description(
             f"E:{epoch};B:{batch_idx+1};I:{instance_idx};SP:{torch.tensor(snapshot_penalty_).mean()} -- MSE: {loss.item()}"
         )
