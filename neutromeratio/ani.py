@@ -2,7 +2,6 @@ import copy
 import logging
 import os
 import random
-from collections import namedtuple
 from typing import NamedTuple, Optional, Tuple
 
 import matplotlib.pyplot as plt
@@ -20,7 +19,6 @@ from torchani.nn import ANIModel, SpeciesEnergies
 from .constants import (
     device,
     eV_to_kJ_mol,
-    hartree_to_kJ_mol,
     hartree_to_kT,
     kT,
     kT_to_kJ_mol,
@@ -979,6 +977,7 @@ class CompartimentedAlchemicalANI2x(AlchemicalANI_Mixin, ANI2x):
         alchemical_atoms: list,
         periodic_table_index: bool = False,
         split_at: int = 6,
+        training: bool = False,
     ):
         """Scale the indirect contributions of alchemical atoms to the energy sum by
         linearly interpolating, for other atom i, between the energy E_i^0 it would compute
@@ -997,7 +996,8 @@ class CompartimentedAlchemicalANI2x(AlchemicalANI_Mixin, ANI2x):
         self.neural_networks = None
         assert self.neural_networks == None
         self.precalculation: dict = {}
-        self.split_at = split_at
+        self.split_at: int = split_at
+        self.training: bool = training
         self.ANIFirstPart, _ = self.break_into_two_stages(
             self.optimized_neural_network, split_at=self.split_at
         )  # only keep the first part since this is always the same
@@ -1012,10 +1012,16 @@ class CompartimentedAlchemicalANI2x(AlchemicalANI_Mixin, ANI2x):
         coordinate_hash = hash(tuple(mod_coordinates[0].flatten().tolist()))
 
         if coordinate_hash in self.precalculation:
-            species_y = self.precalculation[coordinate_hash]
+            species, y = self.precalculation[coordinate_hash]
         else:
-            species_y = self.ANIFirstPart.forward(species_coordinates)
-            self.precalculation[coordinate_hash] = species_y
+            species, y = self.ANIFirstPart.forward(species_coordinates)
+            self.precalculation[coordinate_hash] = (species, y)
+
+        if self.training:
+            # detach so we don't compute expensive gradients w.r.t. y
+            species_y = SpeciesEnergies(species, y.detach())
+        else:
+            species_y = SpeciesEnergies(species, y)
 
         return ANILastPart.forward(species_y)
 
