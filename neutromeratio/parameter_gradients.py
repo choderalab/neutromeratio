@@ -456,7 +456,6 @@ def calculate_rmse_between_exp_and_calc(
     current_rmse = -1.0
     it = tqdm(chunks(names, neutromeratio.constants.NUM_PROC))
     for name_list in it:
-        print(neutromeratio.constants.NUM_PROC)
         prop_list = [
             {
                 "name": name,
@@ -495,11 +494,12 @@ def calculate_rmse_between_exp_and_calc(
                 torch.tensor(e_calc, device=device), torch.tensor(e_exp, device=device)
             ).item()
 
-            it.set_description(f"RMSE: {current_rmse}")
 
             if current_rmse > 50:
                 logger.critical(f"RMSE above 50 with {current_rmse}: {fec.name}")
                 logger.critical(names)
+        
+        it.set_description(f"RMSE: {current_rmse}")
 
     return current_rmse, e_calc
 
@@ -996,12 +996,13 @@ def _tweak_parameters(
                 # gradient is calculated
                 loss.backward()
                 # graph is cleared here
-                it.set_description(
-                    f"E:{epoch};B:{batch_idx+1};I:{instance_idx};SP:{torch.tensor(snapshot_penalty_).mean()} -- tautomer {fec.name} -- MSE: {loss.item()}"
-                )
 
                 if include_snapshot_penalty:
                     del fec.u_ln_rho_star_wrt_parameters
+            
+        it.set_description(
+            f"E:{epoch};B:{batch_idx+1};I:{instance_idx};SP:{torch.tensor(snapshot_penalty_).mean()} -- MSE: {loss.item()}"
+        )
 
         # optimization steps
         AdamW.step()
