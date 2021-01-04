@@ -456,7 +456,7 @@ def calculate_rmse_between_exp_and_calc(
     it = tqdm(chunks(names, neutromeratio.constants.NUM_PROC))
     for name_list in it:
         print(neutromeratio.constants.NUM_PROC)
-        with mp.Pool(processes=neutromeratio.constants.NUM_PROC) as pool:
+        with mp.Pool(processes=len(name_list)) as pool:
             prop_list = [
                 {
                     "name": name,
@@ -951,11 +951,10 @@ def _tweak_parameters(
         SGD.zero_grad()
         logger.debug(names)
         snapshot_penalty_ = []
-        
-        
+
         # divide in chunks to read in parallel
         for name_list in chunks(names, neutromeratio.constants.NUM_PROC):
-            with mp.Pool(processes=neutromeratio.constants.NUM_PROC) as pool:
+            with mp.Pool(processes=len(name_list)) as pool:
                 prop_list = [
                     {
                         "name": name,
