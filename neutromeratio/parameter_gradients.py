@@ -21,6 +21,8 @@ from typing import List, Tuple
 import pickle
 import torch.multiprocessing as mp
 from torch.multiprocessing import get_context
+from neutromeratio.analysis import setup_alchemical_system_and_energy_function
+from compress_pickle import compress_dump, compress_load
 
 logger = logging.getLogger(__name__)
 
@@ -393,17 +395,28 @@ def get_experimental_values(name: str) -> torch.Tensor:
 
 
 def _setup_FEC(prop: dict):
+    print(f'from subprocess: {prop["name"]}')
     f = setup_FEC(**prop)
     f.name = prop["name"]
     return f
 
 
+def init():
+    """This function is called when new processes start."""
+    print(f"Initializing process {os.getpid()}")
+    # Uncomment the following to see pool process log messages with spawn
+    logging.basicConfig(level=logging.INFO)
+
+
 def _mp(n_proc: int, prop_list: list) -> List[FreeEnergyCalculator]:
-    with get_context("spawn").Pool(processes=n_proc) as pool:
+
+    for prop in prop_list:
+        print(f'From mapping function: {prop["name"]}')
+
+    with get_context("spawn").Pool(processes=n_proc, initializer=init) as pool:
         FEC_list = pool.map(_setup_FEC, prop_list)
-        pool.close()
-        pool.terminate()
-        return FEC_list
+
+    return FEC_list
 
 
 def calculate_rmse_between_exp_and_calc(
@@ -1371,11 +1384,7 @@ def setup_FEC(
         [description]
     """
 
-    from neutromeratio.analysis import setup_alchemical_system_and_energy_function
-    import os
-    from compress_pickle import dump, load
-
-    ANImodel([0, 0])
+    _ = ANImodel([0, 0])
 
     def parse_lambda_from_dcd_filename(dcd_filename) -> float:
         """parse the dcd filename"""
@@ -1412,7 +1421,7 @@ def setup_FEC(
     if load_pickled_FEC:
         logger.debug(f"{fec_pickle}[.gz|.pickle|''] loading ...")
         if os.path.exists(f"{fec_pickle}.gz"):
-            fec = load(f"{fec_pickle}.gz")
+            fec = compress_load(f"{fec_pickle}.gz")
             return _check_and_return_fec(fec, include_restraint_energy_contribution)
         elif os.path.exists(f"{fec_pickle}.pickle"):
             fec = pickle.load(open(f"{fec_pickle}.pickle", "rb"))
@@ -1451,7 +1460,7 @@ def setup_FEC(
         lam = parse_lambda_from_dcd_filename(dcd_filename)
         lambdas.append(lam)
         traj = md.load_dcd(dcd_filename, top=top)
-        logger.debug(f"Nr of frames in trajectory: {len(traj)}")
+        # logger.debug(f"Nr of frames in trajectory: {len(traj)}")
         md_trajs.append(traj)
         f = open(
             f"{data_path}/{name}/{name}_lambda_{lam:0.4f}_energy_in_{env}.csv", "r"
@@ -1480,9 +1489,9 @@ def setup_FEC(
 
     # save FEC
     if save_pickled_FEC:
-        logger.critical(f"Saving pickled FEC to {fec_pickle}.gz")
+        # logger.critical(f"Saving pickled FEC to {fec_pickle}.gz")
         print(f"Saving pickled FEC to {fec_pickle}.gz")
-        dump(fec, f"{fec_pickle}.gz")
+        compress_dump(fec, f"{fec_pickle}.gz")
 
     return fec
 
