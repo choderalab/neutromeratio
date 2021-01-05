@@ -1227,7 +1227,7 @@ def test_retrain_mp_mp3_epoch20():
         del model
 
 
-def test_retrain_mp_mp3_epoch50():
+def test_retrain_mp_mp3_epoch100():
     from ..parameter_gradients import (
         setup_and_perform_parameter_retraining_with_test_set_split,
     )
@@ -1238,7 +1238,7 @@ def test_retrain_mp_mp3_epoch50():
 
     # without pickled tautomer object
     names = ["molDWRow_298", "SAMPLmol2", "SAMPLmol4"]
-    max_epochs = 50
+    max_epochs = 100
     for model, model_name in zip(
         [CompartimentedAlchemicalANI2x],
         ["CompartimentedAlchemicalANI2x"],
@@ -1270,7 +1270,7 @@ def test_retrain_mp_mp3_epoch50():
             assert np.isclose(rmse_val[-1], rmse_test, rtol=1e-3)
             assert np.isclose(rmse_val[0], 5.187891006469727, rtol=1e-3)
             assert np.isclose(
-                rmse_val[-1], 4.2210774421691895, rtol=1e-3
+                rmse_val[-1], 2.192486047744751, rtol=1e-3
             )  # NOTE: This is not zero!
         finally:
             _remove_files(model_name + "_vacuum", max_epochs)

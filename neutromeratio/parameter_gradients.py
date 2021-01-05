@@ -22,6 +22,7 @@ import torch.multiprocessing as mp
 from torch.multiprocessing import get_context
 from compress_pickle import dump as compress_dump
 from compress_pickle import load as compress_load
+import time, signal, traceback
 
 logger = logging.getLogger(__name__)
 
@@ -393,10 +394,47 @@ def get_experimental_values(name: str) -> torch.Tensor:
     return torchify(e_in_kT)
 
 
+class JobTimeoutException(Exception):
+    def __init__(self, jobstack=[]):
+        super(JobTimeoutException, self).__init__()
+        self.jobstack = jobstack
+
+
+# http://stackoverflow.com/questions/8616630/time-out-decorator-on-a-multprocessing-function
+def timeout(timeout):
+    """
+    Return a decorator that raises a JobTimeoutException exception
+    after timeout seconds, if the decorated function did not return.
+    """
+
+    def decorate(f):
+        def timeout_handler(signum, frame):
+            raise JobTimeoutException(traceback.format_stack())
+
+        def new_f(*args, **kwargs):
+            old_handler = signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(timeout)
+
+            result = f(*args, **kwargs)  # f() always returns, in this scheme
+
+            signal.signal(signal.SIGALRM, old_handler)  # Old signal handler is restored
+            signal.alarm(0)  # Alarm removed
+            return result
+
+        new_f.__name__ = f.__name__
+        return new_f
+
+    return decorate
+
+
+@timeout(300)
 def _setup_FEC(prop: dict):
-    print(f'from subprocess: {prop["name"]}')
+    start_time = time.time()
+    logger.info(f"PID {os.getpid()} starting task {prop['name']}")
     f = _load_FEC(**prop)
-    f.name = prop["name"]
+    end_time = time.time()
+    logger.info(f"PID {os.getpid()} ending task {prop['name']}")
+    logger.info(f"Time: {start_time - end_time}")
     return f
 
 
@@ -413,7 +451,7 @@ def _mp(n_proc: int, prop_list: list) -> List[FreeEnergyCalculator]:
         print(f'From mapping function: {prop["name"]}')
 
     with get_context("spawn").Pool(processes=n_proc, initializer=init) as pool:
-        FEC_list = pool.map(_setup_FEC, prop_list)
+        FEC_list = pool.imap_unordered(_setup_FEC, prop_list)
 
     return FEC_list
 
@@ -494,7 +532,13 @@ def calculate_rmse_between_exp_and_calc(
             FEC_list = map(_setup_FEC, prop_list)
         # reading in parallel
         else:
-            FEC_list = _mp(len(name_list), prop_list)
+            try:
+                FEC_list = _mp(len(name_list), prop_list)
+            except JobTimeoutException as timeout_ex:
+                logger.warning("Job timed out %s", timeout_ex)
+                logger.warning("Stack trace:\n%s", "".join(timeout_ex.jobstack))
+                logger.warning("Skipping calculations for: {name_list}")
+                continue
 
         for fec in FEC_list:
             # append calculated values
@@ -992,8 +1036,13 @@ def _tweak_parameters(
             if len(name_list) == 1:
                 FEC_list = map(_setup_FEC, prop_list)
             # reading in parallel
-            else:
+            try:
                 FEC_list = _mp(len(name_list), prop_list)
+            except JobTimeoutException as timeout_ex:
+                logger.warning("Job timed out %s", timeout_ex)
+                logger.warning("Stack trace:\n%s", "".join(timeout_ex.jobstack))
+                logger.warning("Skipping calculations for: {name_list}")
+                continue
 
             # process chunks
             for fec in FEC_list:
