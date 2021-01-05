@@ -1071,6 +1071,257 @@ def test_tweak_parameters_vacuum_single_tautomer_AlchemicalANI2x():
         del model
 
 
+def test_retrain_mp_mp1():
+    from ..parameter_gradients import (
+        setup_and_perform_parameter_retraining_with_test_set_split,
+    )
+    from ..ani import CompartimentedAlchemicalANI2x
+    from neutromeratio.constants import initialize_NUM_PROC
+
+    initialize_NUM_PROC(2)
+
+    # without pickled tautomer object
+    names = ["molDWRow_298", "SAMPLmol2", "SAMPLmol4"]
+    max_epochs = 20
+    for model, model_name in zip(
+        [CompartimentedAlchemicalANI2x],
+        ["CompartimentedAlchemicalANI2x"],
+    ):
+        model._reset_parameters()
+
+        (
+            rmse_val,
+            rmse_test,
+        ) = setup_and_perform_parameter_retraining_with_test_set_split(
+            env="vacuum",
+            checkpoint_filename=f"{model_name}_vacuum.pt",
+            names=names,
+            ANImodel=model,
+            batch_size=3,
+            data_path="./data/test_data/vacuum",
+            max_snapshots_per_window=50,
+            bulk_energy_calculation=True,
+            max_epochs=max_epochs,
+            load_checkpoint=False,
+            load_pickled_FEC=True,
+            lr_AdamW=1e-5,
+            lr_SGD=1e-5,
+            include_snapshot_penalty=False,
+        )
+
+        print(rmse_val)
+        try:
+            assert np.isclose(rmse_val[-1], rmse_test, rtol=1e-3)
+            assert np.isclose(rmse_val[0], 5.187891006469727, rtol=1e-3)
+            assert np.isclose(
+                rmse_val[-1], 4.2210774421691895, rtol=1e-3
+            )  # NOTE: This is not zero!
+        finally:
+            _remove_files(model_name + "_vacuum", max_epochs)
+
+        model._reset_parameters()
+        del model
+
+
+def test_retrain_mp_mp2():
+    from ..parameter_gradients import (
+        setup_and_perform_parameter_retraining_with_test_set_split,
+    )
+    from ..ani import CompartimentedAlchemicalANI2x
+    from neutromeratio.constants import initialize_NUM_PROC
+
+    initialize_NUM_PROC(2)
+
+    # without pickled tautomer object
+    names = ["molDWRow_298", "SAMPLmol2", "SAMPLmol4"]
+    max_epochs = 20
+    for model, model_name in zip(
+        [CompartimentedAlchemicalANI2x],
+        ["CompartimentedAlchemicalANI2x"],
+    ):
+        model._reset_parameters()
+
+        (
+            rmse_val,
+            rmse_test,
+        ) = setup_and_perform_parameter_retraining_with_test_set_split(
+            env="vacuum",
+            checkpoint_filename=f"{model_name}_vacuum.pt",
+            names=names,
+            ANImodel=model,
+            batch_size=3,
+            data_path="./data/test_data/vacuum",
+            max_snapshots_per_window=50,
+            bulk_energy_calculation=True,
+            max_epochs=max_epochs,
+            load_checkpoint=False,
+            load_pickled_FEC=True,
+            lr_AdamW=1e-5,
+            lr_SGD=1e-5,
+            include_snapshot_penalty=False,
+        )
+
+        print(rmse_val)
+        try:
+            assert np.isclose(rmse_val[-1], rmse_test, rtol=1e-3)
+            assert np.isclose(rmse_val[0], 5.187891006469727, rtol=1e-3)
+            assert np.isclose(
+                rmse_val[-1], 4.2210774421691895, rtol=1e-3
+            )  # NOTE: This is not zero!
+        finally:
+            _remove_files(model_name + "_vacuum", max_epochs)
+
+        model._reset_parameters()
+        del model
+
+
+def test_retrain_mp_mp3_epoch20():
+    from ..parameter_gradients import (
+        setup_and_perform_parameter_retraining_with_test_set_split,
+    )
+    from ..ani import CompartimentedAlchemicalANI2x
+    from neutromeratio.constants import initialize_NUM_PROC
+
+    initialize_NUM_PROC(3)
+
+    # without pickled tautomer object
+    names = ["molDWRow_298", "SAMPLmol2", "SAMPLmol4"]
+    max_epochs = 20
+    for model, model_name in zip(
+        [CompartimentedAlchemicalANI2x],
+        ["CompartimentedAlchemicalANI2x"],
+    ):
+        model._reset_parameters()
+
+        (
+            rmse_val,
+            rmse_test,
+        ) = setup_and_perform_parameter_retraining_with_test_set_split(
+            env="vacuum",
+            checkpoint_filename=f"{model_name}_vacuum.pt",
+            names=names,
+            ANImodel=model,
+            batch_size=3,
+            data_path="./data/test_data/vacuum",
+            max_snapshots_per_window=50,
+            bulk_energy_calculation=True,
+            max_epochs=max_epochs,
+            load_checkpoint=False,
+            load_pickled_FEC=True,
+            lr_AdamW=1e-5,
+            lr_SGD=1e-5,
+            include_snapshot_penalty=False,
+        )
+
+        print(rmse_val)
+        try:
+            assert np.isclose(rmse_val[-1], rmse_test, rtol=1e-3)
+            assert np.isclose(rmse_val[0], 5.187891006469727, rtol=1e-3)
+            assert np.isclose(
+                rmse_val[-1], 4.2210774421691895, rtol=1e-3
+            )  # NOTE: This is not zero!
+        finally:
+            _remove_files(model_name + "_vacuum", max_epochs)
+
+        model._reset_parameters()
+        del model
+
+
+def test_retrain_mp_mp3_epoch50():
+    from ..parameter_gradients import (
+        setup_and_perform_parameter_retraining_with_test_set_split,
+    )
+    from ..ani import CompartimentedAlchemicalANI2x
+    from neutromeratio.constants import initialize_NUM_PROC
+
+    initialize_NUM_PROC(3)
+
+    # without pickled tautomer object
+    names = ["molDWRow_298", "SAMPLmol2", "SAMPLmol4"]
+    max_epochs = 50
+    for model, model_name in zip(
+        [CompartimentedAlchemicalANI2x],
+        ["CompartimentedAlchemicalANI2x"],
+    ):
+        model._reset_parameters()
+
+        (
+            rmse_val,
+            rmse_test,
+        ) = setup_and_perform_parameter_retraining_with_test_set_split(
+            env="vacuum",
+            checkpoint_filename=f"{model_name}_vacuum.pt",
+            names=names,
+            ANImodel=model,
+            batch_size=3,
+            data_path="./data/test_data/vacuum",
+            max_snapshots_per_window=50,
+            bulk_energy_calculation=True,
+            max_epochs=max_epochs,
+            load_checkpoint=False,
+            load_pickled_FEC=True,
+            lr_AdamW=1e-5,
+            lr_SGD=1e-5,
+            include_snapshot_penalty=False,
+        )
+
+        print(rmse_val)
+        try:
+            assert np.isclose(rmse_val[-1], rmse_test, rtol=1e-3)
+            assert np.isclose(rmse_val[0], 5.187891006469727, rtol=1e-3)
+            assert np.isclose(
+                rmse_val[-1], 4.2210774421691895, rtol=1e-3
+            )  # NOTE: This is not zero!
+        finally:
+            _remove_files(model_name + "_vacuum", max_epochs)
+
+        model._reset_parameters()
+        del model
+
+
+def test_timing():
+    from ..ani import CompartimentedAlchemicalANI2x
+    from ..parameter_gradients import (
+        get_unperturbed_free_energy_difference,
+        get_perturbed_free_energy_difference,
+    )
+    from neutromeratio.parameter_gradients import setup_FEC, calculate_mse
+    import time
+
+    name = "molDWRow_298"  # , "SAMPLmol2", "SAMPLmol4"]
+    model = CompartimentedAlchemicalANI2x
+    env = "vacuum"
+    fec = setup_FEC(
+        name,
+        ANImodel=model,
+        env=env,
+        bulk_energy_calculation=True,
+        data_path="./data/test_data/vacuum",
+        max_snapshots_per_window=150,
+        load_pickled_FEC=True,
+        include_restraint_energy_contribution=False,
+        save_pickled_FEC=False,
+    )
+
+    start = time.time()
+    f = get_perturbed_free_energy_difference(fec)
+    end = time.time()
+    print(end - start)
+
+    start = time.time()
+    g = get_unperturbed_free_energy_difference(fec)
+    end = time.time()
+    print(end - start)
+
+    r = calculate_mse(f, f)
+    print(r)
+
+    start = time.time()
+    r.backward()
+    end = time.time()
+    print(f"Time: {end - start}")
+
+
 def test_retrain_parameters_CompartimentedAlchemicalANI2x_for_100_epochs():
     from ..parameter_gradients import (
         setup_and_perform_parameter_retraining_with_test_set_split,

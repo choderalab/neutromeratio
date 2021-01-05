@@ -12,7 +12,6 @@ from tqdm import tqdm
 from glob import glob
 from .ani import ANI_force_and_energy, ANI
 from neutromeratio.constants import _get_names, device, kT
-import neutromeratio.constants
 import torch
 import os
 import neutromeratio
@@ -21,8 +20,8 @@ from typing import List, Tuple
 import pickle
 import torch.multiprocessing as mp
 from torch.multiprocessing import get_context
-from neutromeratio.analysis import setup_alchemical_system_and_energy_function
-from compress_pickle import compress_dump, compress_load
+from compress_pickle import dump as compress_dump
+from compress_pickle import load as compress_load
 
 logger = logging.getLogger(__name__)
 
@@ -396,7 +395,7 @@ def get_experimental_values(name: str) -> torch.Tensor:
 
 def _setup_FEC(prop: dict):
     print(f'from subprocess: {prop["name"]}')
-    f = setup_FEC(**prop)
+    f = _load_FEC(**prop)
     f.name = prop["name"]
     return f
 
@@ -480,13 +479,11 @@ def calculate_rmse_between_exp_and_calc(
         prop_list = [
             {
                 "name": name,
-                "ANImodel": model,
+                "model_name": "CompartimentedAlchemicalANI2x",
                 "env": env,
-                "bulk_energy_calculation": bulk_energy_calculation,
                 "data_path": data_path,
                 "max_snapshots_per_window": max_snapshots_per_window,
                 "diameter": diameter,
-                "load_pickled_FEC": load_pickled_FEC,
                 "include_restraint_energy_contribution": include_restraint_energy_contribution,
             }
             for name in name_list
@@ -981,14 +978,12 @@ def _tweak_parameters(
             prop_list = [
                 {
                     "name": name,
-                    "ANImodel": ANImodel,
+                    "model_name": "CompartimentedAlchemicalANI2x",
                     "env": env,
-                    "bulk_energy_calculation": bulk_energy_calculation,
                     "data_path": data_path,
                     "max_snapshots_per_window": max_snapshots_per_window,
                     "diameter": diameter,
-                    "load_pickled_FEC": load_pickled_FEC,
-                    "include_restraint_energy_contribution": False,  # NOTE: beware the default value here
+                    "include_restraint_energy_contribution": False,
                 }
                 for name in name_list
             ]
@@ -1333,6 +1328,77 @@ def setup_and_perform_parameter_retraining(
     return rmse_validation
 
 
+def _load_FEC(
+    name: str,
+    env: str,
+    model_name: str,
+    max_snapshots_per_window: int,
+    include_restraint_energy_contribution: bool,
+    data_path: str = "../data/",
+    diameter: int = -1,
+) -> FreeEnergyCalculator:
+
+    """
+    Load the FreeEnergyCalculator object
+
+    Parameters
+    -------
+    name : str
+        Name of the system
+    model_name: str
+        Name of the ANI model
+    max_snapshots_per_window : int
+        snapshots/lambda to use
+    env : bool
+        environment is either `vacuum` or `droplet`
+    include_restraint_energy_contribution: bool
+        include the restraint contributions in the potential energy function
+    Returns
+    -------
+    FreeEnergyCalculator
+
+    """
+
+    def _check_and_return_fec(
+        fec, include_restraint_energy_contribution: bool
+    ) -> FreeEnergyCalculator:
+        if (
+            fec.include_restraint_energy_contribution
+            != include_restraint_energy_contribution
+        ):
+            raise RuntimeError(
+                f"Attempted to load FEC with include_restraint_energy_contribution: {fec.include_restraint_energy_contribution}, but asked for include_restraint_energy_contribution: {include_restraint_energy_contribution}"
+            )
+        # NOTE: early exit
+        return fec
+
+    if not (env == "vacuum" or env == "droplet"):
+        raise RuntimeError("Only keyword vacuum or droplet are allowed as environment.")
+    if env == "droplet" and diameter == -1:
+        raise RuntimeError("Something went wrong.")
+
+    data_path = os.path.abspath(data_path)
+    # check if data_path exists
+    if not os.path.exists(data_path):
+        raise RuntimeError(f"{data_path} does not exist!")
+
+    fec_pickle = f"{data_path}/{name}/{name}_FEC_{max_snapshots_per_window}_for_{model_name}_restraint_{include_restraint_energy_contribution}"
+
+    # load FEC pickle file
+    if os.path.exists(f"{fec_pickle}.gz"):
+        fec = compress_load(f"{fec_pickle}.gz")
+        return _check_and_return_fec(fec, include_restraint_energy_contribution)
+    elif os.path.exists(f"{fec_pickle}.pickle"):
+        fec = pickle.load(open(f"{fec_pickle}.pickle", "rb"))
+        return _check_and_return_fec(fec, include_restraint_energy_contribution)
+    elif os.path.exists(f"{fec_pickle}"):
+        fec = pickle.load(open(f"{fec_pickle}", "rb"))
+        return _check_and_return_fec(fec, include_restraint_energy_contribution)
+    else:
+        print(f"Tried to load {fec_pickle}[.gz|.pickle|''] but failed!")
+        raise RuntimeError(f"Tried to load {fec_pickle}[.gz|.pickle|''] but failed!")
+
+
 def setup_FEC(
     name: str,
     max_snapshots_per_window: int,
@@ -1434,7 +1500,11 @@ def setup_FEC(
             logger.critical(f"Tried to load {fec_pickle}[.gz|.pickle|''] but failed!")
 
     # setup alchecmial system and energy function
-    energy_function, tautomer, flipped = setup_alchemical_system_and_energy_function(
+    (
+        energy_function,
+        tautomer,
+        flipped,
+    ) = neutormeratio.analysis.setup_alchemical_system_and_energy_function(
         name=name,
         ANImodel=ANImodel,
         checkpoint_file=checkpoint_file,
