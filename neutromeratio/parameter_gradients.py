@@ -1,9 +1,9 @@
 # TODO: gradient of MBAR_estimated free energy difference w.r.t. model parameters
 
 import logging
-import functools
 
 import torch
+from torch.multiprocessing import TimeoutError
 import numpy as np
 from pymbar import MBAR
 from pymbar.timeseries import detectEquilibration
@@ -397,7 +397,13 @@ def get_experimental_values(name: str) -> torch.Tensor:
 
 class JobTimeoutException(Exception):
     def __init__(self, jobstack=[]):
-        super(JobTimeoutException, self).__init__()
+        super().__init__()
+        self.jobstack = jobstack
+
+
+class JobTransferException(Exception):
+    def __init__(self, jobstack=[]):
+        super().__init__()
         self.jobstack = jobstack
 
 
@@ -423,15 +429,21 @@ def _mp(n_proc: int, prop_list: list) -> List[FreeEnergyCalculator]:
     for prop in prop_list:
         print(f'From mapping function: {prop["name"]}')
 
-    with get_context("spawn").Pool(processes=n_proc, initializer=init) as pool:
+    with get_context("forkserver").Pool(processes=n_proc, initializer=init) as pool:
         pool_result = pool.map_async(_setup_FEC, prop_list)
         pool_result.wait(timeout=300)
         try:
             FEC_list = pool_result.get(timeout=1)
         except TimeoutError:
+            print("failing gracefully ...")
             pool.terminate()
             pool.join()  # wrap up current tasks
             raise JobTimeoutException(traceback.format_stack())
+        except AssertionError:
+            print("failing gracefully ...")
+            pool.terminate()
+            pool.join()  # wrap up current tasks
+            raise JobTransferException(traceback.format_stack())
 
         pool.close()  # no more tasks
         pool.join()  # wrap up current tasks
@@ -515,13 +527,19 @@ def calculate_rmse_between_exp_and_calc(
             FEC_list = map(_setup_FEC, prop_list)
         # reading in parallel
         else:
-            try:
-                FEC_list = _mp(len(name_list), prop_list)
-            except JobTimeoutException as timeout_ex:
-                logger.warning("Job timed out %s", timeout_ex)
-                logger.warning("Stack trace:\n%s", "".join(timeout_ex.jobstack))
-                logger.warning("Skipping calculations for: {name_list}")
-                continue
+            success = False
+            while success == False:
+                try:
+                    FEC_list = _mp(len(name_list), prop_list)
+                    success = True
+                except JobTimeoutException as timeout_ex:
+                    logger.warning("Job timed out %s", timeout_ex)
+                    logger.warning("Stack trace:\n%s", "".join(timeout_ex.jobstack))
+                    logger.warning(f"Retraining calculations for: {name_list}")
+                except JobTransferException as assert_ex:
+                    logger.warning("Data transfer failed %s", assert_ex)
+                    logger.warning("Stack trace:\n%s", "".join(assert_ex.jobstack))
+                    logger.warning(f"Retraining calculations for: {name_list}")
 
         for fec in FEC_list:
             # append calculated values
@@ -1019,13 +1037,19 @@ def _tweak_parameters(
             if len(name_list) == 1:
                 FEC_list = map(_setup_FEC, prop_list)
             # reading in parallel
-            try:
-                FEC_list = _mp(len(name_list), prop_list)
-            except JobTimeoutException as timeout_ex:
-                logger.warning("Job timed out %s", timeout_ex)
-                logger.warning("Stack trace:\n%s", "".join(timeout_ex.jobstack))
-                logger.warning("Skipping calculations for: {name_list}")
-                continue
+            success = False
+            while success == False:
+                try:
+                    FEC_list = _mp(len(name_list), prop_list)
+                    success = True
+                except JobTimeoutException as timeout_ex:
+                    logger.warning("Job timed out %s", timeout_ex)
+                    logger.warning("Stack trace:\n%s", "".join(timeout_ex.jobstack))
+                    logger.warning(f"Retraining calculations for: {name_list}")
+                except JobTransferException as assert_ex:
+                    logger.warning("Data transfer failed %s", assert_ex)
+                    logger.warning("Stack trace:\n%s", "".join(assert_ex.jobstack))
+                    logger.warning(f"Retraining calculations for: {name_list}")
 
             # process chunks
             for fec in FEC_list:

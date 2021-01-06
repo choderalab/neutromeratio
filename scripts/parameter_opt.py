@@ -2,11 +2,14 @@ import neutromeratio
 import sys
 import torch
 from neutromeratio.constants import initialize_NUM_PROC
-
-initialize_NUM_PROC(4)
+from neutromeratio.parameter_gradients import (
+    setup_and_perform_parameter_retraining_with_test_set_split,
+)
 
 
 def run():
+    initialize_NUM_PROC(4)
+
     assert len(sys.argv) == 10
     env = sys.argv[1]
     elements = sys.argv[2]
@@ -53,7 +56,7 @@ def run():
     (
         rmse_validation,
         rmse_test,
-    ) = neutromeratio.parameter_gradients.setup_and_perform_parameter_retraining_with_test_set_split(
+    ) = setup_and_perform_parameter_retraining_with_test_set_split(
         env=env,
         ANImodel=model,
         batch_size=batch_size,
@@ -71,6 +74,7 @@ def run():
         weight_decay=1e-06,
         test_size=test_size,
         validation_size=validation_size,
+        include_snapshot_penalty=False,
     )
 
 
