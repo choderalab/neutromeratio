@@ -1,6 +1,7 @@
 # TODO: gradient of MBAR_estimated free energy difference w.r.t. model parameters
 
 import logging
+import functools
 
 import torch
 import numpy as np
@@ -400,34 +401,6 @@ class JobTimeoutException(Exception):
         self.jobstack = jobstack
 
 
-# http://stackoverflow.com/questions/8616630/time-out-decorator-on-a-multprocessing-function
-def timeout(timeout):
-    """
-    Return a decorator that raises a JobTimeoutException exception
-    after timeout seconds, if the decorated function did not return.
-    """
-
-    def decorate(f):
-        def timeout_handler(signum, frame):
-            raise JobTimeoutException(traceback.format_stack())
-
-        def new_f(*args, **kwargs):
-            old_handler = signal.signal(signal.SIGALRM, timeout_handler)
-            signal.alarm(timeout)
-
-            result = f(*args, **kwargs)  # f() always returns, in this scheme
-
-            signal.signal(signal.SIGALRM, old_handler)  # Old signal handler is restored
-            signal.alarm(0)  # Alarm removed
-            return result
-
-        new_f.__name__ = f.__name__
-        return new_f
-
-    return decorate
-
-
-@timeout(300)
 def _setup_FEC(prop: dict):
     start_time = time.time()
     logger.info(f"PID {os.getpid()} starting task {prop['name']}")
@@ -451,7 +424,17 @@ def _mp(n_proc: int, prop_list: list) -> List[FreeEnergyCalculator]:
         print(f'From mapping function: {prop["name"]}')
 
     with get_context("spawn").Pool(processes=n_proc, initializer=init) as pool:
-        FEC_list = pool.imap_unordered(_setup_FEC, prop_list)
+        pool_result = pool.map_async(_setup_FEC, prop_list)
+        pool_result.wait(timeout=300)
+        try:
+            FEC_list = pool_result.get(timeout=1)
+        except TimeoutError:
+            pool.terminate()
+            pool.join()  # wrap up current tasks
+            raise JobTimeoutException(traceback.format_stack())
+
+        pool.close()  # no more tasks
+        pool.join()  # wrap up current tasks
 
     return FEC_list
 
@@ -1419,6 +1402,7 @@ def _load_FEC(
                 f"Attempted to load FEC with include_restraint_energy_contribution: {fec.include_restraint_energy_contribution}, but asked for include_restraint_energy_contribution: {include_restraint_energy_contribution}"
             )
         # NOTE: early exit
+        fec.name = name
         return fec
 
     if not (env == "vacuum" or env == "droplet"):
