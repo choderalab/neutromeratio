@@ -409,11 +409,11 @@ class JobTransferException(Exception):
 
 def _setup_FEC(prop: dict):
     start_time = time.time()
-    logger.info(f"PID {os.getpid()} starting task {prop['name']}")
+    logger.debug(f"PID {os.getpid()} starting task {prop['name']}")
     f = _load_FEC(**prop)
     end_time = time.time()
-    logger.info(f"PID {os.getpid()} ending task {prop['name']}")
-    logger.info(f"Time: {start_time - end_time}")
+    logger.debug(f"PID {os.getpid()} ending task {prop['name']}")
+    logger.debug(f"Time: {start_time - end_time}")
     return f
 
 
@@ -426,27 +426,19 @@ def init():
 
 def _mp(n_proc: int, prop_list: list) -> List[FreeEnergyCalculator]:
 
-    for prop in prop_list:
-        print(f'From mapping function: {prop["name"]}')
-
     with get_context("forkserver").Pool(processes=n_proc, initializer=init) as pool:
         pool_result = pool.map_async(_setup_FEC, prop_list)
-        pool_result.wait(timeout=300)
+        pool_result.wait(timeout=220)  # should take around 120s
         try:
             FEC_list = pool_result.get(timeout=1)
-        except TimeoutError:
-            print("failing gracefully ...")
-            pool.terminate()
-            pool.join()  # wrap up current tasks
-            raise JobTimeoutException(traceback.format_stack())
-        except AssertionError:
-            print("failing gracefully ...")
-            pool.terminate()
-            pool.join()  # wrap up current tasks
-            raise JobTransferException(traceback.format_stack())
+            pool.close()  # no more tasks
+            pool.join(timeout=10)  # wrap up current tasks
 
-        pool.close()  # no more tasks
-        pool.join()  # wrap up current tasks
+        except Exception:
+            print("failing gracefully ...")
+            pool.terminate()  # otherwise shared memory is not released
+            pool.join(timeout=10)  # wrap up current tasks
+            raise
 
     return FEC_list
 
@@ -522,24 +514,36 @@ def calculate_rmse_between_exp_and_calc(
             for name in name_list
         ]
 
-        # only one CPU is specified, mp is not needed
-        if len(name_list) == 1:
-            FEC_list = map(_setup_FEC, prop_list)
-        # reading in parallel
+        if load_pickled_FEC:
+            # only one CPU is specified, mp is not needed
+            if len(name_list) == 1:
+                FEC_list = map(_setup_FEC, prop_list)
+            # reading in parallel
+            else:
+                success = False
+                while success == False:
+                    try:
+                        FEC_list = _mp(len(name_list), prop_list)
+                        success = True
+                    except Exception as timeout_ex:
+                        logger.warning("Job timed out %s", timeout_ex)
+                        logger.warning(f"Repeating calculations for: {name_list}")
+                        # run without mp support
+                        FEC_list = map(_setup_FEC, prop_list)
+                        success = True
+
         else:
-            success = False
-            while success == False:
-                try:
-                    FEC_list = _mp(len(name_list), prop_list)
-                    success = True
-                except JobTimeoutException as timeout_ex:
-                    logger.warning("Job timed out %s", timeout_ex)
-                    logger.warning("Stack trace:\n%s", "".join(timeout_ex.jobstack))
-                    logger.warning(f"Retraining calculations for: {name_list}")
-                except JobTransferException as assert_ex:
-                    logger.warning("Data transfer failed %s", assert_ex)
-                    logger.warning("Stack trace:\n%s", "".join(assert_ex.jobstack))
-                    logger.warning(f"Retraining calculations for: {name_list}")
+            if neutromeratio.constants.NUM_PROC != 1 or len(prop_list) != 1:
+                raise RuntimeError("Setting up FEC only works on a single CPU.")
+            prop = prop_list[0]
+            del prop["model_name"]
+            fec = setup_FEC(
+                **prop,
+                bulk_energy_calculation=bulk_energy_calculation,
+                ANImodel=model,
+                load_pickled_FEC=False,
+            )
+            FEC_list = [fec]
 
         for fec in FEC_list:
             # append calculated values
@@ -551,6 +555,7 @@ def calculate_rmse_between_exp_and_calc(
             # append experimental values
             e_exp.append(get_experimental_values(fec.name).item())
 
+        del FEC_list
         current_rmse = calculate_rmse(
             torch.tensor(e_calc, device=device), torch.tensor(e_exp, device=device)
         ).item()
@@ -909,17 +914,14 @@ def _perform_training(
         # perform the parameter optimization and importance weighting
         _tweak_parameters(
             names_training=names_training,
-            ANImodel=ANImodel,
             AdamW=AdamW,
             SGD=SGD,
             env=env,
-            epoch=AdamW_scheduler.last_epoch,
-            bulk_energy_calculation=bulk_energy_calculation,
+            epoch=AdamW_scheduler.last_epoch + 1,
             diameter=diameter,
             batch_size=batch_size,
             data_path=data_path,
             max_snapshots_per_window=max_snapshots_per_window,
-            load_pickled_FEC=load_pickled_FEC,
             include_snapshot_penalty=include_snapshot_penalty,
         )
 
@@ -962,17 +964,14 @@ def _perform_training(
 
 def _tweak_parameters(
     names_training: list,
-    ANImodel: ANI,
     AdamW,
     SGD,
     epoch: int,
     env: str,
     diameter: int,
-    bulk_energy_calculation: bool,
     batch_size: int,
     data_path: str,
     max_snapshots_per_window: int,
-    load_pickled_FEC: bool,
     include_snapshot_penalty: bool,
 ):
     """
@@ -1037,19 +1036,17 @@ def _tweak_parameters(
             if len(name_list) == 1:
                 FEC_list = map(_setup_FEC, prop_list)
             # reading in parallel
-            success = False
-            while success == False:
-                try:
-                    FEC_list = _mp(len(name_list), prop_list)
-                    success = True
-                except JobTimeoutException as timeout_ex:
-                    logger.warning("Job timed out %s", timeout_ex)
-                    logger.warning("Stack trace:\n%s", "".join(timeout_ex.jobstack))
-                    logger.warning(f"Retraining calculations for: {name_list}")
-                except JobTransferException as assert_ex:
-                    logger.warning("Data transfer failed %s", assert_ex)
-                    logger.warning("Stack trace:\n%s", "".join(assert_ex.jobstack))
-                    logger.warning(f"Retraining calculations for: {name_list}")
+            else:
+                success = False
+                while success == False:
+                    try:
+                        FEC_list = _mp(len(name_list), prop_list)
+                        success = True
+                    except Exception as timeout_ex:
+                        logger.warning("Job timed out %s", timeout_ex)
+                        logger.warning(f"Repeating calculations for: {name_list}")
+                        FEC_list = map(_setup_FEC, prop_list)
+                        success = True
 
             # process chunks
             for fec in FEC_list:
@@ -1060,12 +1057,17 @@ def _tweak_parameters(
                     fec, fec.name, include_snapshot_penalty
                 )
                 snapshot_penalty_.append(snapshot_penalty)
-                # gradient is calculated
+                # The loss needs to be scaled, because the mean should be taken across the whole
+                # dataset, which requires the loss to be divided by the number of batches.
+                loss = loss / batch_size
+                # gradient is calculated and accumulated
                 loss.backward()
                 # graph is cleared here
 
                 if include_snapshot_penalty:
                     del fec.u_ln_rho_star_wrt_parameters
+
+            del FEC_list
 
         it.set_description(
             f"E:{epoch};B:{batch_idx+1};I:{instance_idx};SP:{torch.tensor(snapshot_penalty_).mean()} -- MSE: {loss.item()}"
@@ -1171,10 +1173,10 @@ def _get_nn_layers(
     SGD = torch.optim.SGD(bias_layers, lr=lr_SGD)
 
     AdamW_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        AdamW, "min", patience=2, verbose=True
+        AdamW, "min", verbose=True, threshold=1e-5, patience=5, cooldown=5
     )  # using defailt values
     SGD_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        SGD, "min", patience=2, verbose=True
+        SGD, "min", verbose=True, threshold=1e-5, patience=5, cooldown=5
     )  # using defailt values from https://pytorch.org/docs/stable/optim.html#torch.optim.lr_scheduler.ReduceLROnPlateau
 
     return (AdamW, AdamW_scheduler, SGD, SGD_scheduler)
@@ -1545,12 +1547,15 @@ def setup_FEC(
         logger.debug(f"{fec_pickle}[.gz|.pickle|''] loading ...")
         if os.path.exists(f"{fec_pickle}.gz"):
             fec = compress_load(f"{fec_pickle}.gz")
+            fec.name = name
             return _check_and_return_fec(fec, include_restraint_energy_contribution)
         elif os.path.exists(f"{fec_pickle}.pickle"):
             fec = pickle.load(open(f"{fec_pickle}.pickle", "rb"))
+            fec.name = name
             return _check_and_return_fec(fec, include_restraint_energy_contribution)
         elif os.path.exists(f"{fec_pickle}"):
             fec = pickle.load(open(f"{fec_pickle}", "rb"))
+            fec.name = name
             return _check_and_return_fec(fec, include_restraint_energy_contribution)
         else:
             print(f"Tried to load {fec_pickle}[.gz|.pickle|''] but failed!")
@@ -1561,7 +1566,7 @@ def setup_FEC(
         energy_function,
         tautomer,
         flipped,
-    ) = neutormeratio.analysis.setup_alchemical_system_and_energy_function(
+    ) = neutromeratio.analysis.setup_alchemical_system_and_energy_function(
         name=name,
         ANImodel=ANImodel,
         checkpoint_file=checkpoint_file,
@@ -1613,6 +1618,7 @@ def setup_FEC(
     )
 
     fec.flipped = flipped
+    fec.name = name
 
     # save FEC
     if save_pickled_FEC:
