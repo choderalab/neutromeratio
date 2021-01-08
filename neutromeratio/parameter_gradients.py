@@ -419,7 +419,7 @@ def _setup_FEC(prop: dict):
 
 def init():
     """This function is called when new processes start."""
-    print(f"Initializing process {os.getpid()}")
+    logger.debug(f"Initializing process {os.getpid()}")
     # Uncomment the following to see pool process log messages with spawn
     logging.basicConfig(level=logging.INFO)
 
@@ -428,16 +428,21 @@ def _mp(n_proc: int, prop_list: list) -> List[FreeEnergyCalculator]:
 
     with get_context("forkserver").Pool(processes=n_proc, initializer=init) as pool:
         pool_result = pool.map_async(_setup_FEC, prop_list)
-        pool_result.wait(timeout=220)  # should take around 120s
+        pool_result.wait(timeout=400)  # should take around 120s
         try:
-            FEC_list = pool_result.get(timeout=1)
-            pool.close()  # no more tasks
-            pool.join(timeout=10)  # wrap up current tasks
+            if pool_result.ready():
+                FEC_list = pool_result.get(timeout=10)
+                pool.close()  # no more tasks
+                pool.join()  # wrap up current tasks
+            else:
+                pool.terminate()  # otherwise shared memory is not released
+                pool.join()  # wrap up current tasks
+                raise RuntimeError("Took too long ...")
 
         except Exception:
             print("failing gracefully ...")
             pool.terminate()  # otherwise shared memory is not released
-            pool.join(timeout=10)  # wrap up current tasks
+            pool.join()  # wrap up current tasks
             raise
 
     return FEC_list
@@ -514,6 +519,7 @@ def calculate_rmse_between_exp_and_calc(
             for name in name_list
         ]
 
+        # loading FEC from disk
         if load_pickled_FEC:
             # only one CPU is specified, mp is not needed
             if len(name_list) == 1:
@@ -1015,7 +1021,6 @@ def _tweak_parameters(
         AdamW.zero_grad()
         SGD.zero_grad()
         logger.debug(names)
-        snapshot_penalty_ = []
 
         # divide in chunks to read in parallel
         for name_list in chunks(names, neutromeratio.constants.NUM_PROC):
@@ -1056,9 +1061,12 @@ def _tweak_parameters(
                 loss, snapshot_penalty = _loss_function(
                     fec, fec.name, include_snapshot_penalty
                 )
-                snapshot_penalty_.append(snapshot_penalty)
-                # The loss needs to be scaled, because the mean should be taken across the whole
-                # dataset, which requires the loss to be divided by the number of batches.
+
+                it.set_description(
+                    f"E:{epoch};B:{batch_idx+1};I:{instance_idx};SP:{snapshot_penalty} -- MSE: {loss.item()}"
+                )
+                print(f"Instance: {instance_idx} : {loss.item()}")
+                # The loss needs to be scaled, because the mean should be taken across the batch
                 loss = loss / batch_size
                 # gradient is calculated and accumulated
                 loss.backward()
@@ -1068,10 +1076,6 @@ def _tweak_parameters(
                     del fec.u_ln_rho_star_wrt_parameters
 
             del FEC_list
-
-        it.set_description(
-            f"E:{epoch};B:{batch_idx+1};I:{instance_idx};SP:{torch.tensor(snapshot_penalty_).mean()} -- MSE: {loss.item()}"
-        )
 
         # optimization steps
         AdamW.step()
@@ -1095,7 +1099,7 @@ def _loss_function(
     if include_snapshot_penalty:
         snapshot_penalty = fec.mae_between_potentials_for_snapshots()
         logger.debug(f"Snapshot penalty: {snapshot_penalty.item()}")
-        loss += 0.5 * (snapshot_penalty ** 2)
+        loss += 2 * (snapshot_penalty ** 2)
 
     return loss, snapshot_penalty.item()
 
