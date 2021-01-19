@@ -2,24 +2,15 @@
 # and writes out the result in the training directory
 
 import torch
-import neutromeratio
-from simtk import unit
-import numpy as np
 import pickle
-import sys
 import torch
 from neutromeratio.parameter_gradients import (
     setup_FEC,
     get_perturbed_free_energy_difference,
 )
 from neutromeratio.constants import (
-    kT,
-    device,
-    exclude_set_ANI,
-    mols_with_charge,
     _get_names,
 )
-from glob import glob
 from neutromeratio.ani import CompartimentedAlchemicalANI2x, AlchemicalANI1ccx
 import argparse
 
@@ -110,7 +101,7 @@ else:
 fec.ani_model.model.load_nn_parameters(args.checkpoint_file)
 
 # calculate perturbed free energy
-DeltaF_ji = get_perturbed_free_energy_difference(fec)[0].item()
+DeltaF_ji = get_perturbed_free_energy_difference(fec).item()
 # get MAE for snapshot deviation
 snapshot_penalty = fec.mae_between_potentials_for_snapshots()
 

@@ -1,9 +1,8 @@
 # TODO: gradient of MBAR_estimated free energy difference w.r.t. model parameters
 
 import logging
-
+import random
 import torch
-from torch.multiprocessing import TimeoutError
 import numpy as np
 from pymbar import MBAR
 from pymbar.timeseries import detectEquilibration
@@ -23,7 +22,7 @@ import torch.multiprocessing as mp
 from torch.multiprocessing import get_context
 from compress_pickle import dump as compress_dump
 from compress_pickle import load as compress_load
-import time, signal, traceback
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -920,6 +919,8 @@ def _perform_training(
                 ANImodel.optimized_neural_network.state_dict(), best_model_checkpoint
             )
 
+        # shuffle training set
+        random.shuffle(names_training)
         # perform the parameter optimization and importance weighting
         _tweak_parameters(
             names_training=names_training,
