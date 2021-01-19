@@ -615,91 +615,93 @@ def test_tweak_parameters_and_class_nn_AlchemicalANI():
         model._reset_parameters()
 
 
-def test_tweak_parameters_and_class_nn_CompartimentedAlchemicalANI2x():
+def test_tweak_parameters_and_class_nn_CompartimentedAlchemicalANI():
     # the tweaked parameters are stored as class variables
     # this can lead to some tricky situations.
     # It also means that whenever any optimization is performed,
     # every new instance of the class has the new parameters
     from ..parameter_gradients import setup_and_perform_parameter_retraining
-    from ..ani import CompartimentedAlchemicalANI2x
+    from ..ani import CompartimentedAlchemicalANI2x, CompartimentedAlchemicalANI1ccx
 
-    model, model_name = (CompartimentedAlchemicalANI2x, "CompartimentedAlchemicalANI2x")
-    model._reset_parameters()
+    for model, model_name in [
+        (CompartimentedAlchemicalANI2x, "CompartimentedAlchemicalANI2x"),
+        (CompartimentedAlchemicalANI1ccx, "CompartimentedAlchemicalANI1ccx"),
+    ]:
+        model._reset_parameters()
+        print(model_name)
+        names = ["molDWRow_298"]
+        max_epochs = 3
+        layer = -1
+        model_instance = model([0, 0])
+        # save parameters at the beginning
 
-    names = ["molDWRow_298"]
-    max_epochs = 3
-    layer = -1
-    model_instance = model([0, 0])
-    # save parameters at the beginning
+        optimized_neural_network_parameters_before_training = _get_params(
+            model_instance.optimized_neural_network, layer
+        )
+        original_neural_network_parameters_before_training = _get_params(
+            model_instance.original_neural_network, layer
+        )
+        assert (
+            optimized_neural_network_parameters_before_training
+            == original_neural_network_parameters_before_training
+        )
+        _ = setup_and_perform_parameter_retraining(
+            env="vacuum",
+            checkpoint_filename=f"{model_name}_vacuum.pt",
+            names_training=names,
+            include_snapshot_penalty=False,
+            names_validating=names,
+            ANImodel=model,
+            max_snapshots_per_window=10,
+            batch_size=1,
+            data_path="./data/test_data/vacuum",
+            load_checkpoint=False,
+            max_epochs=max_epochs,
+        )
 
-    optimized_neural_network_parameters_before_training = _get_params(
-        model_instance.optimized_neural_network, layer
-    )
-    original_neural_network_parameters_before_training = _get_params(
-        model_instance.original_neural_network, layer
-    )
-    assert (
-        optimized_neural_network_parameters_before_training
-        == original_neural_network_parameters_before_training
-    )
-    _ = setup_and_perform_parameter_retraining(
-        env="vacuum",
-        checkpoint_filename=f"{model_name}_vacuum.pt",
-        names_training=names,
-        include_snapshot_penalty=False,
-        names_validating=names,
-        ANImodel=model,
-        max_snapshots_per_window=10,
-        batch_size=1,
-        data_path="./data/test_data/vacuum",
-        load_checkpoint=False,
-        max_epochs=max_epochs,
-        load_pickled_FEC=True,
-    )
+        _remove_files(f"{model_name}_vacuum", max_epochs)
+        # get optimized parameters
+        optimized_neural_network_after_retraining = _get_params(
+            model_instance.optimized_neural_network, layer
+        )
+        original_neural_network_after_retraining = _get_params(
+            model_instance.original_neural_network, layer
+        )
 
-    _remove_files(f"{model_name}_vacuum", max_epochs)
-    # get optimized parameters
-    optimized_neural_network_after_retraining = _get_params(
-        model_instance.optimized_neural_network, layer
-    )
-    original_neural_network_after_retraining = _get_params(
-        model_instance.original_neural_network, layer
-    )
+        # make sure that somethign happend while tweaking
+        assert (
+            optimized_neural_network_parameters_before_training
+            != optimized_neural_network_after_retraining
+        )
 
-    # make sure that somethign happend while tweaking
-    assert (
-        optimized_neural_network_parameters_before_training
-        != optimized_neural_network_after_retraining
-    )
+        assert (
+            original_neural_network_parameters_before_training
+            == original_neural_network_after_retraining
+        )
 
-    assert (
-        original_neural_network_parameters_before_training
-        == original_neural_network_after_retraining
-    )
+        new_model_instance = model([0, 0])
 
-    new_model_instance = model([0, 0])
+        new_optimized_neural_network_parameters_before_training = _get_params(
+            new_model_instance.optimized_neural_network, layer
+        )
+        new_original_neural_network_parameters_before_training = _get_params(
+            new_model_instance.original_neural_network, layer
+        )
 
-    new_optimized_neural_network_parameters_before_training = _get_params(
-        new_model_instance.optimized_neural_network, layer
-    )
-    new_original_neural_network_parameters_before_training = _get_params(
-        new_model_instance.original_neural_network, layer
-    )
-
-    # original parameters stay the same
-    assert (
-        new_original_neural_network_parameters_before_training
-        == original_neural_network_parameters_before_training
-    )
-    assert (
-        original_neural_network_after_retraining
-        == new_original_neural_network_parameters_before_training
-    )
-    # new optimized parameters before retraining are the same as opt after retraining
-    assert (
-        new_optimized_neural_network_parameters_before_training
-        == optimized_neural_network_after_retraining
-    )
+        # original parameters stay the same
+        assert (
+            new_original_neural_network_parameters_before_training
+            == original_neural_network_parameters_before_training
+        )
+        assert (
+            original_neural_network_after_retraining
+            == new_original_neural_network_parameters_before_training
+        )
+        # new optimized parameters before retraining are the same as opt after retraining
+        assert (
+            new_optimized_neural_network_parameters_before_training
+            == optimized_neural_network_after_retraining
+        )
 
 
 @pytest.mark.skipif(
@@ -1069,6 +1071,60 @@ def test_tweak_parameters_vacuum_single_tautomer_AlchemicalANI2x():
 
         model._reset_parameters()
         del model
+
+
+def test_retrain_energy_penalty():
+    from ..parameter_gradients import (
+        setup_and_perform_parameter_retraining_with_test_set_split,
+    )
+    from ..ani import CompartimentedAlchemicalANI2x
+    from neutromeratio.constants import initialize_NUM_PROC
+
+    initialize_NUM_PROC(1)
+
+    # without pickled tautomer object
+    names = ["molDWRow_298", "SAMPLmol2", "SAMPLmol4"]
+    max_epochs = 20
+    for model, model_name in zip(
+        [CompartimentedAlchemicalANI2x],
+        ["CompartimentedAlchemicalANI2x"],
+    ):
+        model._reset_parameters()
+
+        (
+            rmse_val,
+            rmse_test,
+        ) = setup_and_perform_parameter_retraining_with_test_set_split(
+            env="vacuum",
+            checkpoint_filename=f"{model_name}_vacuum.pt",
+            names=names,
+            ANImodel=model,
+            batch_size=3,
+            data_path="./data/test_data/vacuum",
+            max_snapshots_per_window=50,
+            bulk_energy_calculation=True,
+            burn_in=5,
+            max_epochs=max_epochs,
+            load_checkpoint=False,
+            load_pickled_FEC=True,
+            lr_AdamW=1e-5,
+            lr_SGD=1e-5,
+            include_snapshot_penalty=True,
+        )
+
+        print(rmse_val)
+        try:
+            assert np.isclose(rmse_val[-1], rmse_test, rtol=1e-3)
+            assert np.isclose(rmse_val[0], 5.187891006469727, rtol=1e-3)
+            assert np.isclose(
+                rmse_val[-1], 4.2210774421691895, rtol=1e-3
+            )  # NOTE: This is not zero!
+        finally:
+            _remove_files(model_name + "_vacuum", max_epochs)
+
+        model._reset_parameters()
+        del model
+        assert False
 
 
 def test_retrain_mp_mp1():

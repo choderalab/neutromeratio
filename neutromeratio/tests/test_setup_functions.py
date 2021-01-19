@@ -126,9 +126,38 @@ def test_setup_FEC():
         AlchemicalANI1x,
         AlchemicalANI1ccx,
         CompartimentedAlchemicalANI2x,
+        CompartimentedAlchemicalANI1ccx,
     )
 
     name = "molDWRow_298"
+
+    # CompartimentedAlchemicalANI1ccx
+    fec = setup_FEC(
+        name,
+        env="vacuum",
+        data_path="data/test_data/vacuum",
+        ANImodel=CompartimentedAlchemicalANI1ccx,
+        bulk_energy_calculation=True,
+        max_snapshots_per_window=20,
+        load_pickled_FEC=False,
+        include_restraint_energy_contribution=False,
+        save_pickled_FEC=True,
+    )
+    assert np.isclose(-3.2194226425566055, fec._end_state_free_energy_difference[0])
+
+    # CompartimentedAlchemicalANI1ccx
+    fec = setup_FEC(
+        name,
+        env="vacuum",
+        data_path="data/test_data/vacuum",
+        ANImodel=CompartimentedAlchemicalANI1ccx,
+        bulk_energy_calculation=True,
+        max_snapshots_per_window=10,
+        load_pickled_FEC=False,
+        include_restraint_energy_contribution=False,
+        save_pickled_FEC=True,
+    )
+    assert np.isclose(-1.785018035085307, fec._end_state_free_energy_difference[0])
 
     # vacuum
     fec = setup_FEC(
@@ -140,7 +169,7 @@ def test_setup_FEC():
         max_snapshots_per_window=20,
         load_pickled_FEC=False,
         include_restraint_energy_contribution=True,
-        save_pickled_FEC=False,
+        save_pickled_FEC=True,
     )
     assert np.isclose(-3.2194223855155357, fec._end_state_free_energy_difference[0])
 
@@ -172,6 +201,7 @@ def test_setup_FEC():
     )
     assert np.isclose(-11.554636171428106, fec._end_state_free_energy_difference[0])
 
+    # AlchemicalANI1x
     fec = setup_FEC(
         name,
         env="vacuum",

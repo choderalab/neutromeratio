@@ -451,12 +451,10 @@ def calculate_rmse_between_exp_and_calc(
     names: list,
     model: ANI,
     data_path: str,
-    bulk_energy_calculation: bool,
     env: str,
     max_snapshots_per_window: int,
     perturbed_free_energy: bool = True,
     diameter: int = -1,
-    load_pickled_FEC: bool = False,
     include_restraint_energy_contribution: bool = False,
 ) -> Tuple[Number, list]:
 
@@ -508,7 +506,7 @@ def calculate_rmse_between_exp_and_calc(
         prop_list = [
             {
                 "name": name,
-                "model_name": "CompartimentedAlchemicalANI2x",
+                "model_name": model.name,
                 "env": env,
                 "data_path": data_path,
                 "max_snapshots_per_window": max_snapshots_per_window,
@@ -519,36 +517,22 @@ def calculate_rmse_between_exp_and_calc(
         ]
 
         # loading FEC from disk
-        if load_pickled_FEC:
-            # only one CPU is specified, mp is not needed
-            if len(name_list) == 1:
-                FEC_list = map(_setup_FEC, prop_list)
-            # reading in parallel
-            else:
-                success = False
-                while success == False:
-                    try:
-                        FEC_list = _mp(len(name_list), prop_list)
-                        success = True
-                    except Exception as timeout_ex:
-                        logger.warning("Job timed out %s", timeout_ex)
-                        logger.warning(f"Repeating calculations for: {name_list}")
-                        # run without mp support
-                        FEC_list = map(_setup_FEC, prop_list)
-                        success = True
-
+        # only one CPU is specified, mp is not needed
+        if len(name_list) == 1:
+            FEC_list = map(_setup_FEC, prop_list)
+        # reading in parallel
         else:
-            if neutromeratio.constants.NUM_PROC != 1 or len(prop_list) != 1:
-                raise RuntimeError("Setting up FEC only works on a single CPU.")
-            prop = prop_list[0]
-            del prop["model_name"]
-            fec = setup_FEC(
-                **prop,
-                bulk_energy_calculation=bulk_energy_calculation,
-                ANImodel=model,
-                load_pickled_FEC=False,
-            )
-            FEC_list = [fec]
+            success = False
+            while success == False:
+                try:
+                    FEC_list = _mp(len(name_list), prop_list)
+                    success = True
+                except Exception as timeout_ex:
+                    logger.warning("Job timed out %s", timeout_ex)
+                    logger.warning(f"Repeating calculations for: {name_list}")
+                    # run without mp support
+                    FEC_list = map(_setup_FEC, prop_list)
+                    success = True
 
         for fec in FEC_list:
             # append calculated values
@@ -762,10 +746,8 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
         names=names_test,
         diameter=diameter,
         data_path=data_path,
-        bulk_energy_calculation=bulk_energy_calculation,
         env=env,
         max_snapshots_per_window=max_snapshots_per_window,
-        load_pickled_FEC=load_pickled_FEC,
         include_restraint_energy_contribution=False,
         perturbed_free_energy=False,  # NOTE: always unperturbed
     )
@@ -801,10 +783,8 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
         names=names_test,
         diameter=diameter,
         data_path=data_path,
-        bulk_energy_calculation=bulk_energy_calculation,
         env=env,
         max_snapshots_per_window=max_snapshots_per_window,
-        load_pickled_FEC=load_pickled_FEC,
         include_restraint_energy_contribution=False,
     )
     print(f"RMSE on test set AFTER optimization: {rmse_test}")
@@ -848,7 +828,6 @@ def _perform_training(
     checkpoint_filename: str,
     max_epochs: int,
     elements: str,
-    bulk_energy_calculation: bool,
     env: str,
     diameter: int,
     batch_size: int,
@@ -857,7 +836,6 @@ def _perform_training(
     max_snapshots_per_window: int,
     load_checkpoint: bool,
     rmse_validation: list,
-    load_pickled_FEC: bool,
     lr_AdamW: float,
     lr_SGD: float,
     weight_decay: float,
@@ -929,6 +907,7 @@ def _perform_training(
             env=env,
             epoch=AdamW_scheduler.last_epoch + 1,
             diameter=diameter,
+            model_name=ANImodel.name,
             batch_size=batch_size,
             data_path=data_path,
             burn_in=burn_in,
@@ -943,11 +922,9 @@ def _perform_training(
                 model=ANImodel,
                 diameter=diameter,
                 data_path=data_path,
-                bulk_energy_calculation=bulk_energy_calculation,
                 env=env,
                 max_snapshots_per_window=max_snapshots_per_window,
                 perturbed_free_energy=True,
-                load_pickled_FEC=load_pickled_FEC,
                 include_restraint_energy_contribution=False,
             )
 
@@ -979,6 +956,7 @@ def _tweak_parameters(
     SGD,
     epoch: int,
     env: str,
+    model_name: str,
     diameter: int,
     batch_size: int,
     data_path: str,
@@ -1003,8 +981,6 @@ def _tweak_parameters(
         either 'droplet' or vacuum
     diameter : int
         diameter of droplet or -1
-    bulk_energy_calculation : bool
-        controls if the energy calculation should be performed in bluk (parallel) or sequential
     batch_size : int
         the number of molecules used to calculate the loss
     data_path : str
@@ -1034,7 +1010,7 @@ def _tweak_parameters(
             prop_list = [
                 {
                     "name": name,
-                    "model_name": "CompartimentedAlchemicalANI2x",
+                    "model_name": model_name,
                     "env": env,
                     "data_path": data_path,
                     "max_snapshots_per_window": max_snapshots_per_window,
@@ -1308,8 +1284,6 @@ def setup_and_perform_parameter_retraining(
     elements: str = "CHON",
     load_checkpoint: bool = True,
     burn_in: int = 0,
-    bulk_energy_calculation: bool = True,
-    load_pickled_FEC: bool = True,
     lr_AdamW: float = 1e-3,
     lr_SGD: float = 1e-3,
     weight_decay: float = 0.000001,
@@ -1363,10 +1337,9 @@ def setup_and_perform_parameter_retraining(
     for key, value in local_variables.items():
         logger.info(f"{key}: {value}")
 
-    if load_pickled_FEC:
-        _ = ANImodel(
-            [0, 0]
-        )  # NOTE: The model needs a single initialized instance to work with pickled tautomer objects
+    _ = ANImodel(
+        [0, 0]
+    )  # NOTE: The model needs a single initialized instance to work with pickled tautomer objects
 
     if env == "droplet" and diameter == -1:
         raise RuntimeError(f"Did you forget to pass the 'diamter' argument? Aborting.")
@@ -1379,12 +1352,10 @@ def setup_and_perform_parameter_retraining(
         names_validating,
         model=ANImodel,
         data_path=data_path,
-        bulk_energy_calculation=bulk_energy_calculation,
         env=env,
         max_snapshots_per_window=max_snapshots_per_window,
         diameter=diameter,
         perturbed_free_energy=False,
-        load_pickled_FEC=load_pickled_FEC,
         include_restraint_energy_contribution=False,
     )
 
@@ -1402,13 +1373,11 @@ def setup_and_perform_parameter_retraining(
         elements=elements,
         env=env,
         burn_in=burn_in,
-        bulk_energy_calculation=bulk_energy_calculation,
         diameter=diameter,
         batch_size=batch_size,
         data_path=data_path,
         load_checkpoint=load_checkpoint,
         max_snapshots_per_window=max_snapshots_per_window,
-        load_pickled_FEC=load_pickled_FEC,
         lr_AdamW=lr_AdamW,
         lr_SGD=lr_SGD,
         weight_decay=weight_decay,

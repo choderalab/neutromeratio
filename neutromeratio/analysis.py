@@ -22,7 +22,7 @@ from neutromeratio.ani import (
     ANI,
     AlchemicalANI1ccx,
     AlchemicalANI1x,
-    AlchemicalANI2x,
+    AlchemicalANI2x, CompartimentedAlchemicalANI1ccx,
     CompartimentedAlchemicalANI2x,
     ANI_force_and_energy,
 )
@@ -468,6 +468,7 @@ def setup_alchemical_system_and_energy_function(
                 AlchemicalANI1ccx,
                 AlchemicalANI1x,
                 CompartimentedAlchemicalANI2x,
+                CompartimentedAlchemicalANI1ccx,
             ),
         )
     ):

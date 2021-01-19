@@ -253,7 +253,6 @@ def test_max_nr_of_snapshots():
     from ..ani import AlchemicalANI1ccx, AlchemicalANI1x, AlchemicalANI2x
 
     names = ["molDWRow_298", "SAMPLmol2", "SAMPLmol4"]
-    exp_results = pickle.load(open("data/test_data/exp_results.pickle", "rb"))
 
     env = "vacuum"
 
@@ -443,6 +442,9 @@ def test_calculate_rmse():
 
     rmse = calculate_rmse(torch.tensor([1.0, 2.0]), torch.tensor([4.0, 2.0]))
     assert np.isclose(rmse, 2.1213)
+
+    rmse = calculate_rmse(torch.tensor([0.1, 0.2]), torch.tensor([0.12, 0.24]))
+    assert np.isclose(rmse, 0.0316)
 
 
 def test_bootstrap_tautomer_exp_predict_results():
