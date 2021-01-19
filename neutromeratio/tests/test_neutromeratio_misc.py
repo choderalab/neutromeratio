@@ -250,24 +250,42 @@ def test_thinning():
 )
 def test_max_nr_of_snapshots():
     from ..parameter_gradients import calculate_rmse_between_exp_and_calc
-    from ..ani import AlchemicalANI1ccx, AlchemicalANI1x, AlchemicalANI2x
+    from ..ani import AlchemicalANI1ccx
 
     names = ["molDWRow_298", "SAMPLmol2", "SAMPLmol4"]
-
+    l_rmse = []
     env = "vacuum"
 
-    model = AlchemicalANI1ccx
+    for model in [AlchemicalANI1ccx]:
+        model([0, 0])
 
-    for nr_of_snapshots in [20, 80, 120, 150]:
-        rmse = calculate_rmse_between_exp_and_calc(
-            names,
-            model=model,
-            data_path=f"./data/test_data/{env}",
-            env=env,
-            bulk_energy_calculation=True,
-            max_snapshots_per_window=nr_of_snapshots,
-        )
-    del model
+        for nr_of_snapshots in [20, 80, 120, 150]:
+            rmse = calculate_rmse_between_exp_and_calc(
+                names,
+                model=model,
+                data_path=f"./data/test_data/{env}",
+                env=env,
+                max_snapshots_per_window=nr_of_snapshots,
+            )
+            l_rmse.append(rmse)
+        del model
+
+    print(l_rmse)
+    assert l_rmse == [
+        (5.745586395263672, [3.219421508256698, -3.984754521510265, 3.775032043152413]),
+        (
+            5.393607139587402,
+            [1.2104192737678794, -5.316053509708738, 4.0559353503118505],
+        ),
+        (
+            5.6913323402404785,
+            [0.6301678213061068, -5.464017066061666, 4.675917867000249],
+        ),
+        (
+            5.574014663696289,
+            [1.1649843159209015, -5.0964898153872005, 4.284151701496853],
+        ),
+    ]
 
 
 def test_unperturbed_perturbed_free_energy():
@@ -341,6 +359,7 @@ def test_calculate_rmse_between_exp_and_calc():
     rmse_list = []
     for model in [AlchemicalANI1ccx, AlchemicalANI2x, AlchemicalANI1x]:
         print(model.name)
+        model([0, 0])
 
         model._reset_parameters()
         rmse, _ = calculate_rmse_between_exp_and_calc(
@@ -349,7 +368,6 @@ def test_calculate_rmse_between_exp_and_calc():
             data_path=f"./data/test_data/{env}",
             env=env,
             perturbed_free_energy=True,
-            bulk_energy_calculation=True,
             max_snapshots_per_window=100,
         )
         assert np.isclose(
@@ -399,13 +417,13 @@ def test_calculate_rmse_between_exp_and_calc_droplet():
     for model in [AlchemicalANI1ccx, AlchemicalANI2x, AlchemicalANI1x]:
         model._reset_parameters()
         print(model.name)
+        model([0, 0])
 
         rmse, _ = calculate_rmse_between_exp_and_calc(
             names=names,
             data_path=f"./data/test_data/{env}",
             model=model,
             env=env,
-            bulk_energy_calculation=True,
             max_snapshots_per_window=10,
             diameter=diameter,
             perturbed_free_energy=False,
@@ -444,7 +462,7 @@ def test_calculate_rmse():
     assert np.isclose(rmse, 2.1213)
 
     rmse = calculate_rmse(torch.tensor([0.1, 0.2]), torch.tensor([0.12, 0.24]))
-    assert np.isclose(rmse, 0.0316)
+    assert np.isclose(rmse, 0.0316, rtol=1e-3)
 
 
 def test_bootstrap_tautomer_exp_predict_results():
