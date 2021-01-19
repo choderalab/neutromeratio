@@ -653,6 +653,7 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
     load_checkpoint: bool = True,
     names: list = [],
     load_pickled_FEC: bool = True,
+    burn_in: int = 0,
     lr_AdamW: float = 1e-3,
     lr_SGD: float = 1e-3,
     weight_decay: float = 1e-2,
@@ -783,6 +784,7 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
         data_path=data_path,
         max_epochs=max_epochs,
         elements=elements,
+        burn_in=burn_in,
         load_checkpoint=load_checkpoint,
         bulk_energy_calculation=bulk_energy_calculation,
         names_training=names_training,
@@ -851,6 +853,7 @@ def _perform_training(
     env: str,
     diameter: int,
     batch_size: int,
+    burn_in: int,
     data_path: str,
     max_snapshots_per_window: int,
     load_checkpoint: bool,
@@ -927,6 +930,7 @@ def _perform_training(
             diameter=diameter,
             batch_size=batch_size,
             data_path=data_path,
+            burn_in=burn_in,
             max_snapshots_per_window=max_snapshots_per_window,
             include_snapshot_penalty=include_snapshot_penalty,
         )
@@ -978,6 +982,7 @@ def _tweak_parameters(
     batch_size: int,
     data_path: str,
     max_snapshots_per_window: int,
+    burn_in: int,
     include_snapshot_penalty: bool,
 ):
     """
@@ -1003,6 +1008,7 @@ def _tweak_parameters(
         the number of molecules used to calculate the loss
     data_path : str
         the location where the trajectories are saved
+    burn_in : int
     max_snapshots_per_window : int
         the number of snapshots per lambda state to consider
 
@@ -1059,7 +1065,10 @@ def _tweak_parameters(
                 instance_idx += 1
 
                 loss, snapshot_penalty = _loss_function(
-                    fec, fec.name, include_snapshot_penalty
+                    fec,
+                    epoch=epoch,
+                    burn_in=burn_in,
+                    include_snapshot_penalty=include_snapshot_penalty,
                 )
 
                 it.set_description(
@@ -1084,22 +1093,38 @@ def _tweak_parameters(
 
 def _loss_function(
     fec: FreeEnergyCalculator,
-    name: str,
+    epoch: int,
+    burn_in: int = 0,
     include_snapshot_penalty: bool = False,
 ) -> Tuple[torch.Tensor, Number]:
 
+    """
+     The the loss function governing the parameter retraining
+
+    Returns
+    -------
+    [type]
+        [description]
+    """
     snapshot_penalty = torch.tensor([0.0])
     # calculate the free energies
     calc_free_energy_difference = get_perturbed_free_energy_difference(fec)
     # obtain the experimental free energies
-    exp_free_energy_difference = get_experimental_values(name)
+    exp_free_energy_difference = get_experimental_values(fec.name)
     # calculate the loss as MSE
     loss = calculate_mse(calc_free_energy_difference, exp_free_energy_difference)
 
     if include_snapshot_penalty:
+        epoch_ = torch.tensor(epoch, dtype=torch.double)
+        burn_in_ = torch.tensor(burn_in, dtype=torch.double)
+        f = (torch.max(epoch_ - burn_in_, torch.tensor(0)) / 200) ** 2
+
         snapshot_penalty = fec.mae_between_potentials_for_snapshots()
         logger.debug(f"Snapshot penalty: {snapshot_penalty.item()}")
-        loss += 2 * (snapshot_penalty ** 2)
+        logger.debug(f)
+        logger.debug(snapshot_penalty)
+        logger.debug(f * snapshot_penalty)
+        loss += f * snapshot_penalty
 
     return loss, snapshot_penalty.item()
 
@@ -1281,6 +1306,7 @@ def setup_and_perform_parameter_retraining(
     max_epochs: int = 10,
     elements: str = "CHON",
     load_checkpoint: bool = True,
+    burn_in: int = 0,
     bulk_energy_calculation: bool = True,
     load_pickled_FEC: bool = True,
     lr_AdamW: float = 1e-3,
@@ -1374,6 +1400,7 @@ def setup_and_perform_parameter_retraining(
         max_epochs=max_epochs,
         elements=elements,
         env=env,
+        burn_in=burn_in,
         bulk_energy_calculation=bulk_energy_calculation,
         diameter=diameter,
         batch_size=batch_size,
