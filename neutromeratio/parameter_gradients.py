@@ -640,7 +640,7 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
     weight_decay: float = 1e-2,
     test_size: float = 0.2,
     validation_size: float = 0.2,
-    include_snapshot_penalty: bool = False,
+    snapshot_penalty_f: int = 0,
 ) -> Tuple[list, Number]:
 
     """
@@ -770,7 +770,7 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
         lr_AdamW=lr_AdamW,
         lr_SGD=lr_SGD,
         weight_decay=weight_decay,
-        include_snapshot_penalty=include_snapshot_penalty,
+        snapshot_penalty_f=snapshot_penalty_f,
     )
 
     # final rmsd calculation on test set
@@ -835,7 +835,7 @@ def _perform_training(
     lr_AdamW: float,
     lr_SGD: float,
     weight_decay: float,
-    include_snapshot_penalty: bool,
+    snapshot_penalty_f: int,
 ) -> list:
 
     early_stopping_learning_rate = 1.0e-8
@@ -908,7 +908,7 @@ def _perform_training(
             data_path=data_path,
             burn_in=burn_in,
             max_snapshots_per_window=max_snapshots_per_window,
-            include_snapshot_penalty=include_snapshot_penalty,
+            snapshot_penalty_f=snapshot_penalty_f,
         )
 
         with torch.no_grad():
@@ -958,7 +958,7 @@ def _tweak_parameters(
     data_path: str,
     max_snapshots_per_window: int,
     burn_in: int,
-    include_snapshot_penalty: bool,
+    snapshot_penalty_f: int,
 ):
     """
     _tweak_parameters
@@ -982,6 +982,7 @@ def _tweak_parameters(
     data_path : str
         the location where the trajectories are saved
     burn_in : int
+    snapshot_penalty_f : int
     max_snapshots_per_window : int
         the number of snapshots per lambda state to consider
 
@@ -1041,7 +1042,7 @@ def _tweak_parameters(
                     fec,
                     epoch=epoch,
                     burn_in=burn_in,
-                    include_snapshot_penalty=include_snapshot_penalty,
+                    snapshot_penalty_f=snapshot_penalty_f,
                 )
 
                 it.set_description(
@@ -1068,7 +1069,7 @@ def _loss_function(
     fec: FreeEnergyCalculator,
     epoch: int,
     burn_in: int = 0,
-    include_snapshot_penalty: bool = False,
+    snapshot_penalty_f: int = 0,
 ) -> Tuple[torch.Tensor, Number]:
 
     """
@@ -1087,10 +1088,26 @@ def _loss_function(
     # calculate the loss as MSE
     loss = calculate_mse(calc_free_energy_difference, exp_free_energy_difference)
 
-    if include_snapshot_penalty:
+    if snapshot_penalty_f != 0:
         epoch_ = torch.tensor(epoch, dtype=torch.double)
         burn_in_ = torch.tensor(burn_in, dtype=torch.double)
-        f = torch.max(epoch_ - burn_in_, torch.tensor(0)) / 1000
+        if snapshot_penalty_f == 1:
+            f = torch.min(
+                (torch.max(epoch_ - burn_in_, torch.tensor(0)) / 100) ** 2,
+                torch.tensor(1.0),
+            )
+        elif snapshot_penalty_f == 2:
+            f = torch.min(
+                (torch.max(epoch_ - burn_in_, torch.tensor(0)) / 100),
+                torch.tensor(1.0),
+            )
+        elif snapshot_penalty_f == 3:
+            f = torch.min(
+                (torch.max(epoch_ - burn_in_, torch.tensor(0)) / 20) ** 2,
+                torch.tensor(1.0),
+            )
+        else:
+            raise RuntimeError()
 
         snapshot_penalty = fec.mae_between_potentials_for_snapshots()
         logger.debug(f"Snapshot penalty: {snapshot_penalty.item()}")
@@ -1272,7 +1289,7 @@ def setup_and_perform_parameter_retraining(
     max_snapshots_per_window: int,
     names_training: list,
     names_validating: list,
-    include_snapshot_penalty: bool,
+    snapshot_penalty_f: int,
     diameter: int = -1,
     batch_size: int = 1,
     data_path: str = "../data/",
@@ -1377,7 +1394,7 @@ def setup_and_perform_parameter_retraining(
         lr_AdamW=lr_AdamW,
         lr_SGD=lr_SGD,
         weight_decay=weight_decay,
-        include_snapshot_penalty=include_snapshot_penalty,
+        snapshot_penalty_f=snapshot_penalty_f,
     )
 
     return rmse_validation
