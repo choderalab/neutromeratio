@@ -1047,7 +1047,7 @@ def _tweak_parameters(
                 it.set_description(
                     f"E:{epoch};B:{batch_idx+1};I:{instance_idx};SP:{snapshot_penalty} -- MSE: {loss.item()}"
                 )
-                print(f"Instance: {instance_idx} : {loss.item()}")
+                logger.debug(f"Instance: {instance_idx} : {loss.item()}")
                 # The loss needs to be scaled, because the mean should be taken across the batch
                 loss = loss / batch_size
                 # gradient is calculated and accumulated
@@ -1090,7 +1090,7 @@ def _loss_function(
     if include_snapshot_penalty:
         epoch_ = torch.tensor(epoch, dtype=torch.double)
         burn_in_ = torch.tensor(burn_in, dtype=torch.double)
-        f = (torch.max(epoch_ - burn_in_, torch.tensor(0)) / 200) ** 2
+        f = torch.max(epoch_ - burn_in_, torch.tensor(0)) / 1000
 
         snapshot_penalty = fec.mae_between_potentials_for_snapshots()
         logger.debug(f"Snapshot penalty: {snapshot_penalty.item()}")
