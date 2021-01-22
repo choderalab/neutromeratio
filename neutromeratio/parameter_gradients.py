@@ -1055,7 +1055,7 @@ def _tweak_parameters(
                 loss.backward()
                 # graph is cleared here
 
-                if include_snapshot_penalty:
+                if snapshot_penalty_f != 0:
                     del fec.u_ln_rho_star_wrt_parameters
 
             del FEC_list
@@ -1106,6 +1106,17 @@ def _loss_function(
                 (torch.max(epoch_ - burn_in_, torch.tensor(0)) / 20) ** 2,
                 torch.tensor(1.0),
             )
+        elif snapshot_penalty_f == 4:
+            f = torch.min(
+                (torch.max(epoch_ - burn_in_, torch.tensor(0)) / 40) ** 2,
+                torch.tensor(2.0),
+            )
+        elif snapshot_penalty_f == 5:
+            f = torch.min(
+                (torch.max(epoch_ - burn_in_, torch.tensor(0)) / 20) ** 2,
+                torch.tensor(5.0),
+            )
+
         else:
             raise RuntimeError()
 

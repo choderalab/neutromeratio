@@ -578,7 +578,7 @@ def test_tweak_parameters_and_class_nn_AlchemicalANI():
             data_path="./data/test_data/vacuum",
             load_checkpoint=False,
             max_epochs=max_epochs,
-            include_snapshot_penalty=False,
+            snapshot_penalty_f=0,
         )
 
         _remove_files(f"{model_name}_vacuum", max_epochs)
@@ -654,7 +654,7 @@ def test_tweak_parameters_and_class_nn_CompartimentedAlchemicalANI():
             env="vacuum",
             checkpoint_filename=f"{model_name}_vacuum.pt",
             names_training=names,
-            include_snapshot_penalty=False,
+            snapshot_penalty_f=0,
             names_validating=names,
             ANImodel=model,
             max_snapshots_per_window=10,
@@ -907,7 +907,7 @@ def test_retrain_parameters_vacuum_batch_size_all_potentials():
             try:
                 assert np.isclose(rmse_val[-1], rmse_test, rtol=1e-3)
                 assert np.isclose(rmse_val[0], 5.3938140869140625, rtol=1e-3)
-                #assert np.isclose(rmse_val[-1], 1.8240348100662231, rtol=1e-3)
+                # assert np.isclose(rmse_val[-1], 1.8240348100662231, rtol=1e-3)
             finally:
                 _remove_files(model_name + "_vacuum", max_epochs)
 
@@ -917,7 +917,7 @@ def test_retrain_parameters_vacuum_batch_size_all_potentials():
 
                 assert np.isclose(rmse_val[-1], rmse_test, rtol=1e-3)
                 assert np.isclose(rmse_val[0], 5.187891006469727, rtol=1e-3)
-                #assert np.isclose(rmse_val[-1], 3.470416307449341, rtol=1e-3)
+                # assert np.isclose(rmse_val[-1], 3.470416307449341, rtol=1e-3)
             finally:
                 _remove_files(model_name + "_vacuum", max_epochs)
 
@@ -926,7 +926,7 @@ def test_retrain_parameters_vacuum_batch_size_all_potentials():
             try:
                 assert np.isclose(rmse_val[-1], rmse_test, rtol=1e-3)
                 assert np.isclose(rmse_val[0], 4.582426071166992, rtol=1e-3)
-                #assert np.isclose(rmse_val[-1], 2.3228771686553955, rtol=1e-3)
+                # assert np.isclose(rmse_val[-1], 2.3228771686553955, rtol=1e-3)
             finally:
                 _remove_files(model_name + "_vacuum", max_epochs)
         model._reset_parameters()
@@ -1098,7 +1098,7 @@ def test_retrain_energy_penalty():
             load_checkpoint=False,
             lr_AdamW=1e-5,
             lr_SGD=1e-5,
-            include_snapshot_penalty=True,
+            snapshot_penalty_f=1,
         )
 
         print(rmse_val)
@@ -1148,7 +1148,7 @@ def test_retrain_mp_mp1():
             load_checkpoint=False,
             lr_AdamW=1e-5,
             lr_SGD=1e-5,
-            include_snapshot_penalty=False,
+            snapshot_penalty_f=0,
         )
 
         print(rmse_val)
@@ -1198,7 +1198,6 @@ def test_retrain_mp_mp2():
             load_checkpoint=False,
             lr_AdamW=1e-5,
             lr_SGD=1e-5,
-            include_snapshot_penalty=False,
         )
 
         print(rmse_val)
@@ -1248,7 +1247,6 @@ def test_retrain_mp_mp3_epoch20():
             load_checkpoint=False,
             lr_AdamW=1e-5,
             lr_SGD=1e-5,
-            include_snapshot_penalty=False,
         )
 
         print(rmse_val)
@@ -1298,7 +1296,6 @@ def test_retrain_mp_mp3_epoch100():
             load_checkpoint=False,
             lr_AdamW=1e-5,
             lr_SGD=1e-5,
-            include_snapshot_penalty=False,
         )
 
         print(rmse_val)
@@ -1388,7 +1385,6 @@ def test_retrain_parameters_CompartimentedAlchemicalANI2x_for_100_epochs():
             load_checkpoint=False,
             lr_AdamW=1e-5,
             lr_SGD=1e-5,
-            include_snapshot_penalty=False,
         )
 
         print(rmse_val)
@@ -1435,7 +1431,6 @@ def test_retrain_parameters_CompartimentedAlchemicalANI2x_extended_loss_50_epoch
             load_checkpoint=False,
             lr_AdamW=1e-5,
             lr_SGD=1e-5,
-            include_snapshot_penalty=True,
         )
 
         print(rmse_val)
@@ -1478,13 +1473,10 @@ def test_retrain_parameters_CompartimentedAlchemicalANI2x_extended_loss_50_epoch
             batch_size=3,
             data_path="./data/test_data/vacuum",
             max_snapshots_per_window=150,
-            bulk_energy_calculation=True,
             max_epochs=max_epochs,
             load_checkpoint=False,
-            load_pickled_FEC=True,
             lr_AdamW=1e-5,
             lr_SGD=1e-5,
-            include_snapshot_penalty=False,
         )
 
         print(rmse_val)
