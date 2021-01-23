@@ -648,7 +648,7 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
     weight_decay: float = 1e-2,
     test_size: float = 0.2,
     validation_size: float = 0.2,
-    snapshot_penalty_f: NamedTuple = PenaltyFunction(0, 0, 0, 0, False),
+    snapshot_penalty_f: PenaltyFunction = PenaltyFunction(0, 0, 0, 0, False),
 ) -> Tuple[list, Number]:
 
     """
@@ -844,7 +844,7 @@ def _perform_training(
     lr_AdamW: float,
     lr_SGD: float,
     weight_decay: float,
-    snapshot_penalty_f: NamedTuple,
+    snapshot_penalty_f: PenaltyFunction,
 ) -> list:
 
     early_stopping_learning_rate = 1.0e-8
@@ -965,7 +965,7 @@ def _tweak_parameters(
     batch_size: int,
     data_path: str,
     max_snapshots_per_window: int,
-    snapshot_penalty_f: NamedTuple,
+    snapshot_penalty_f: PenaltyFunction,
 ):
     """
     _tweak_parameters
@@ -1070,7 +1070,7 @@ def _tweak_parameters(
         SGD.step()
 
 
-def _scale_factor(snapshot_penalty_f: NamedTuple, epoch: int) -> torch.Tensor:
+def _scale_factor(snapshot_penalty_f: PenaltyFunction, epoch: int) -> torch.Tensor:
 
     """
      Returning the scaling factor for the MAE dE(rho, rho*)
@@ -1106,7 +1106,7 @@ def _scale_factor(snapshot_penalty_f: NamedTuple, epoch: int) -> torch.Tensor:
 def _loss_function(
     fec: FreeEnergyCalculator,
     epoch: int,
-    snapshot_penalty_f: NamedTuple,
+    snapshot_penalty_f: PenaltyFunction,
 ) -> Tuple[torch.Tensor, Number]:
 
     """
@@ -1306,7 +1306,7 @@ def setup_and_perform_parameter_retraining(
     max_snapshots_per_window: int,
     names_training: list,
     names_validating: list,
-    snapshot_penalty_f: NamedTuple,
+    snapshot_penalty_f: PenaltyFunction,
     diameter: int = -1,
     batch_size: int = 1,
     data_path: str = "../data/",
