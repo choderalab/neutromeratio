@@ -1,5 +1,6 @@
 # TODO: gradient of MBAR_estimated free energy difference w.r.t. model parameters
 
+from collections import namedtuple
 import logging
 import random
 import torch
@@ -16,9 +17,8 @@ import torch
 import os
 import neutromeratio
 import mdtraj as md
-from typing import List, Tuple
+from typing import List, Tuple, NamedTuple
 import pickle
-import torch.multiprocessing as mp
 from torch.multiprocessing import get_context
 from compress_pickle import dump as compress_dump
 from compress_pickle import load as compress_load
@@ -622,6 +622,15 @@ def _split_names_in_training_validation_test_set(
     return names_training, names_validating, names_test
 
 
+class PenaltyFunction(NamedTuple):
+
+    warm_up: int
+    exp: int
+    den: int
+    max_scale: float
+    active: bool
+
+
 def setup_and_perform_parameter_retraining_with_test_set_split(
     ANImodel: ANI,
     env: str,
@@ -634,13 +643,12 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
     max_epochs: int = 10,
     load_checkpoint: bool = True,
     names: list = [],
-    burn_in: int = 0,
     lr_AdamW: float = 1e-3,
     lr_SGD: float = 1e-3,
     weight_decay: float = 1e-2,
     test_size: float = 0.2,
     validation_size: float = 0.2,
-    snapshot_penalty_f: int = 0,
+    snapshot_penalty_f: NamedTuple = PenaltyFunction(0, 0, 0, 0, False),
 ) -> Tuple[list, Number]:
 
     """
@@ -687,6 +695,9 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
         [type]: [description]
     """
     import datetime
+
+    # snapshot_penalty must be set to either True or False
+    assert snapshot_penalty_f.active in [True, False]
 
     logger.info(f"Batch size: {batch_size}")
 
@@ -763,7 +774,6 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
         data_path=data_path,
         max_epochs=max_epochs,
         elements=elements,
-        burn_in=burn_in,
         load_checkpoint=load_checkpoint,
         names_training=names_training,
         names_validating=names_validating,
@@ -827,7 +837,6 @@ def _perform_training(
     env: str,
     diameter: int,
     batch_size: int,
-    burn_in: int,
     data_path: str,
     max_snapshots_per_window: int,
     load_checkpoint: bool,
@@ -835,7 +844,7 @@ def _perform_training(
     lr_AdamW: float,
     lr_SGD: float,
     weight_decay: float,
-    snapshot_penalty_f: int,
+    snapshot_penalty_f: NamedTuple,
 ) -> list:
 
     early_stopping_learning_rate = 1.0e-8
@@ -906,7 +915,6 @@ def _perform_training(
             model_name=ANImodel.name,
             batch_size=batch_size,
             data_path=data_path,
-            burn_in=burn_in,
             max_snapshots_per_window=max_snapshots_per_window,
             snapshot_penalty_f=snapshot_penalty_f,
         )
@@ -957,8 +965,7 @@ def _tweak_parameters(
     batch_size: int,
     data_path: str,
     max_snapshots_per_window: int,
-    burn_in: int,
-    snapshot_penalty_f: int,
+    snapshot_penalty_f: NamedTuple,
 ):
     """
     _tweak_parameters
@@ -981,8 +988,7 @@ def _tweak_parameters(
         the number of molecules used to calculate the loss
     data_path : str
         the location where the trajectories are saved
-    burn_in : int
-    snapshot_penalty_f : int
+    snapshot_penalty_f : dict
     max_snapshots_per_window : int
         the number of snapshots per lambda state to consider
 
@@ -1041,7 +1047,6 @@ def _tweak_parameters(
                 loss, snapshot_penalty = _loss_function(
                     fec,
                     epoch=epoch,
-                    burn_in=burn_in,
                     snapshot_penalty_f=snapshot_penalty_f,
                 )
 
@@ -1055,7 +1060,7 @@ def _tweak_parameters(
                 loss.backward()
                 # graph is cleared here
 
-                if snapshot_penalty_f != 0:
+                if snapshot_penalty_f.active:
                     del fec.u_ln_rho_star_wrt_parameters
 
             del FEC_list
@@ -1065,11 +1070,43 @@ def _tweak_parameters(
         SGD.step()
 
 
+def _scale_factor(snapshot_penalty_f: NamedTuple, epoch: int) -> torch.Tensor:
+
+    """
+     Returning the scaling factor for the MAE dE(rho, rho*)
+
+    Returns
+    -------
+    [type]
+        [description]
+    """
+
+    warm_up = snapshot_penalty_f.warm_up
+    exp = snapshot_penalty_f.exp
+    den = snapshot_penalty_f.den
+    max_scale = snapshot_penalty_f.max_scale
+
+    assert warm_up >= 0 and warm_up <= 200
+    assert exp >= 1 and exp <= 3
+    assert den >= 10 and den <= 200
+
+    warm_up_ = torch.tensor(warm_up, dtype=torch.double)
+    epoch_ = torch.tensor(epoch, dtype=torch.double)
+    den_ = torch.tensor(den, dtype=torch.double)
+    max_scale_ = torch.tensor(max_scale, dtype=torch.double)
+
+    f = torch.min(
+        (torch.max(epoch_ - warm_up_, torch.tensor(0)) / den_) ** exp,
+        max_scale_,
+    )
+
+    return f
+
+
 def _loss_function(
     fec: FreeEnergyCalculator,
     epoch: int,
-    burn_in: int = 0,
-    snapshot_penalty_f: int = 0,
+    snapshot_penalty_f: NamedTuple,
 ) -> Tuple[torch.Tensor, Number]:
 
     """
@@ -1088,43 +1125,12 @@ def _loss_function(
     # calculate the loss as MSE
     loss = calculate_mse(calc_free_energy_difference, exp_free_energy_difference)
 
-    if snapshot_penalty_f != 0:
-        epoch_ = torch.tensor(epoch, dtype=torch.double)
-        burn_in_ = torch.tensor(burn_in, dtype=torch.double)
-        if snapshot_penalty_f == 1:
-            f = torch.min(
-                (torch.max(epoch_ - burn_in_, torch.tensor(0)) / 100) ** 2,
-                torch.tensor(1.0),
-            )
-        elif snapshot_penalty_f == 2:
-            f = torch.min(
-                (torch.max(epoch_ - burn_in_, torch.tensor(0)) / 100),
-                torch.tensor(1.0),
-            )
-        elif snapshot_penalty_f == 3:
-            f = torch.min(
-                (torch.max(epoch_ - burn_in_, torch.tensor(0)) / 20) ** 2,
-                torch.tensor(1.0),
-            )
-        elif snapshot_penalty_f == 4:
-            f = torch.min(
-                (torch.max(epoch_ - burn_in_, torch.tensor(0)) / 40) ** 2,
-                torch.tensor(2.0),
-            )
-        elif snapshot_penalty_f == 5:
-            f = torch.min(
-                (torch.max(epoch_ - burn_in_, torch.tensor(0)) / 20) ** 2,
-                torch.tensor(5.0),
-            )
-
-        else:
-            raise RuntimeError()
-
+    if snapshot_penalty_f.active:
+        f = _scale_factor(snapshot_penalty_f, epoch)
         snapshot_penalty = fec.mae_between_potentials_for_snapshots()
         logger.debug(f"Snapshot penalty: {snapshot_penalty.item()}")
-        logger.debug(f)
-        logger.debug(snapshot_penalty)
-        logger.debug(f * snapshot_penalty)
+        logger.debug(f"Scaling factor: {f}")
+
         loss += f * snapshot_penalty
 
     return loss, snapshot_penalty.item()
@@ -1300,14 +1306,13 @@ def setup_and_perform_parameter_retraining(
     max_snapshots_per_window: int,
     names_training: list,
     names_validating: list,
-    snapshot_penalty_f: int,
+    snapshot_penalty_f: NamedTuple,
     diameter: int = -1,
     batch_size: int = 1,
     data_path: str = "../data/",
     max_epochs: int = 10,
     elements: str = "CHON",
     load_checkpoint: bool = True,
-    burn_in: int = 0,
     lr_AdamW: float = 1e-3,
     lr_SGD: float = 1e-3,
     weight_decay: float = 0.000001,
@@ -1396,7 +1401,6 @@ def setup_and_perform_parameter_retraining(
         max_epochs=max_epochs,
         elements=elements,
         env=env,
-        burn_in=burn_in,
         diameter=diameter,
         batch_size=batch_size,
         data_path=data_path,

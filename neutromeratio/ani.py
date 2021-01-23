@@ -216,8 +216,6 @@ class DecomposedForce(NamedTuple):
     force: unit'd
     energy: unit'd
     restraint_bias: unit'd (energy contribution of all restraints)
-    stddev: unit'd
-    ensemble_bias: unit'd
     """
 
     force: unit.Quantity

@@ -29,6 +29,40 @@ def test_chunks():
     len(elements) == 3
 
 
+def test_scaling_factor():
+    from ..parameter_gradients import _scale_factor, PenaltyFunction
+
+    # linear scaling
+    f = _scale_factor(PenaltyFunction(5, 1, 20, 2.0, True), 2)
+    assert f.item() == 0.0
+    f = _scale_factor(PenaltyFunction(5, 1, 20, 2.0, True), 5)
+    assert f.item() == 0.0
+    f = _scale_factor(PenaltyFunction(5, 1, 20, 2.0, True), 6)
+    assert f.item() == 0.05
+    f = _scale_factor(PenaltyFunction(5, 1, 20, 2.0, True), 10)
+    assert f.item() == 0.25
+    f = _scale_factor(PenaltyFunction(5, 1, 20, 2.0, True), 40)
+    assert f.item() == 1.75
+    f = _scale_factor(PenaltyFunction(5, 1, 20, 2.0, True), 100)
+    assert f.item() == 2.0
+
+    # exp scaling
+    f = _scale_factor(PenaltyFunction(5, 2, 20, 2.0, True), 2)
+    assert f.item() == 0.0
+    f = _scale_factor(PenaltyFunction(5, 2, 20, 2.0, True), 5)
+    assert f.item() == 0.0
+    f = _scale_factor(PenaltyFunction(5, 2, 20, 2.0, True), 6)
+    assert np.isclose(f.item(), 0.0025, rtol=1e-4)
+    f = _scale_factor(PenaltyFunction(5, 2, 20, 2.0, True), 10)
+    assert np.isclose(f.item(), 0.0625, rtol=1e-4)
+    f = _scale_factor(PenaltyFunction(5, 2, 20, 2.0, True), 20)
+    assert np.isclose(f.item(), 0.5625, rtol=1e-4)
+    f = _scale_factor(PenaltyFunction(5, 2, 20, 2.0, True), 30)
+    assert np.isclose(f.item(), 1.5625, rtol=1e-4)
+    f = _scale_factor(PenaltyFunction(5, 2, 20, 2.0, True), 40)
+    assert np.isclose(f.item(), 2.0, rtol=1e-4)
+
+
 def _get_params(model, layer: int) -> Tuple[list, list]:
     layer = -1
     weight_layers = []
@@ -578,7 +612,6 @@ def test_tweak_parameters_and_class_nn_AlchemicalANI():
             data_path="./data/test_data/vacuum",
             load_checkpoint=False,
             max_epochs=max_epochs,
-            snapshot_penalty_f=0,
         )
 
         _remove_files(f"{model_name}_vacuum", max_epochs)
@@ -654,7 +687,6 @@ def test_tweak_parameters_and_class_nn_CompartimentedAlchemicalANI():
             env="vacuum",
             checkpoint_filename=f"{model_name}_vacuum.pt",
             names_training=names,
-            snapshot_penalty_f=0,
             names_validating=names,
             ANImodel=model,
             max_snapshots_per_window=10,
@@ -1067,6 +1099,7 @@ def test_tweak_parameters_vacuum_single_tautomer_AlchemicalANI2x():
 def test_retrain_energy_penalty():
     from ..parameter_gradients import (
         setup_and_perform_parameter_retraining_with_test_set_split,
+        PenaltyFunction,
     )
     from ..ani import CompartimentedAlchemicalANI2x
     from neutromeratio.constants import initialize_NUM_PROC
@@ -1093,12 +1126,11 @@ def test_retrain_energy_penalty():
             batch_size=3,
             data_path="./data/test_data/vacuum",
             max_snapshots_per_window=50,
-            burn_in=5,
             max_epochs=max_epochs,
             load_checkpoint=False,
             lr_AdamW=1e-5,
             lr_SGD=1e-5,
-            snapshot_penalty_f=1,
+            snapshot_penalty_f=PenaltyFunction(5, 1, 20, 1.0, True),
         )
 
         print(rmse_val)
@@ -1148,7 +1180,6 @@ def test_retrain_mp_mp1():
             load_checkpoint=False,
             lr_AdamW=1e-5,
             lr_SGD=1e-5,
-            snapshot_penalty_f=0,
         )
 
         print(rmse_val)
