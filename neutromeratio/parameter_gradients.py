@@ -624,11 +624,15 @@ def _split_names_in_training_validation_test_set(
 
 class PenaltyFunction(NamedTuple):
 
-    warm_up: int
-    exp: int
-    den: int
-    max_scale: float
-    active: bool
+    dE_warm_up: int
+    dE_exp: int
+    dE_den: int
+    dE_max_scale: float
+    dE_active: bool
+
+    dG_exp: int = 1
+    dG_den: int = 1
+    dG_max_scale: float = 1.0
 
 
 def setup_and_perform_parameter_retraining_with_test_set_split(
@@ -697,7 +701,7 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
     import datetime
 
     # snapshot_penalty must be set to either True or False
-    assert snapshot_penalty_f.active in [True, False]
+    assert snapshot_penalty_f.dE_active in [True, False]
 
     logger.info(f"Batch size: {batch_size}")
 
@@ -1060,7 +1064,7 @@ def _tweak_parameters(
                 loss.backward()
                 # graph is cleared here
 
-                if snapshot_penalty_f.active:
+                if snapshot_penalty_f.dE_active:
                     del fec.u_ln_rho_star_wrt_parameters
 
             del FEC_list
@@ -1070,7 +1074,7 @@ def _tweak_parameters(
         SGD.step()
 
 
-def _scale_factor(snapshot_penalty_f: PenaltyFunction, epoch: int) -> torch.Tensor:
+def _scale_factor_dE(snapshot_penalty_f: PenaltyFunction, epoch: int) -> torch.Tensor:
 
     """
      Returning the scaling factor for the MAE dE(rho, rho*)
@@ -1081,10 +1085,10 @@ def _scale_factor(snapshot_penalty_f: PenaltyFunction, epoch: int) -> torch.Tens
         [description]
     """
 
-    warm_up = snapshot_penalty_f.warm_up
-    exp = snapshot_penalty_f.exp
-    den = snapshot_penalty_f.den
-    max_scale = snapshot_penalty_f.max_scale
+    warm_up = snapshot_penalty_f.dE_warm_up
+    exp = snapshot_penalty_f.dE_exp
+    den = snapshot_penalty_f.dE_den
+    max_scale = snapshot_penalty_f.dE_max_scale
 
     assert warm_up >= 0 and warm_up <= 200
     assert exp >= 1 and exp <= 3
@@ -1097,6 +1101,36 @@ def _scale_factor(snapshot_penalty_f: PenaltyFunction, epoch: int) -> torch.Tens
 
     f = torch.min(
         (torch.max(epoch_ - warm_up_, torch.tensor(0)) / den_) ** exp,
+        max_scale_,
+    )
+
+    return f
+
+
+def _scale_factor_dG(snapshot_penalty_f: PenaltyFunction, epoch: int) -> torch.Tensor:
+
+    """
+     Returning the scaling factor for the MSE dG
+
+    Returns
+    -------
+    [type]
+        [description]
+    """
+
+    exp = snapshot_penalty_f.dG_exp
+    den = snapshot_penalty_f.dG_den
+    max_scale = snapshot_penalty_f.dG_max_scale
+
+    assert exp >= 1 and exp <= 3
+    assert den >= 1 and den <= 200
+
+    epoch_ = torch.tensor(epoch, dtype=torch.double)
+    den_ = torch.tensor(den, dtype=torch.double)
+    max_scale_ = torch.tensor(max_scale, dtype=torch.double)
+
+    f = torch.min(
+        (epoch_ / den_) ** exp,
         max_scale_,
     )
 
@@ -1123,10 +1157,12 @@ def _loss_function(
     # obtain the experimental free energies
     exp_free_energy_difference = get_experimental_values(fec.name)
     # calculate the loss as MSE
-    loss = calculate_mse(calc_free_energy_difference, exp_free_energy_difference)
+    g = _scale_factor_dG(snapshot_penalty_f, epoch)
+    print(g)
+    loss = g * calculate_mse(calc_free_energy_difference, exp_free_energy_difference)
 
-    if snapshot_penalty_f.active:
-        f = _scale_factor(snapshot_penalty_f, epoch)
+    if snapshot_penalty_f.dE_active:
+        f = _scale_factor_dE(snapshot_penalty_f, epoch)
         snapshot_penalty = fec.mae_between_potentials_for_snapshots()
         logger.debug(f"Snapshot penalty: {snapshot_penalty.item()}")
         logger.debug(f"Scaling factor: {f}")

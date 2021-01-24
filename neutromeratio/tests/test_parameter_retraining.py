@@ -30,36 +30,36 @@ def test_chunks():
 
 
 def test_scaling_factor():
-    from ..parameter_gradients import _scale_factor, PenaltyFunction
+    from ..parameter_gradients import _scale_factor_dE, PenaltyFunction
 
     # linear scaling
-    f = _scale_factor(PenaltyFunction(5, 1, 20, 2.0, True), 2)
+    f = _scale_factor_dE(PenaltyFunction(5, 1, 20, 2.0, True), 2)
     assert f.item() == 0.0
-    f = _scale_factor(PenaltyFunction(5, 1, 20, 2.0, True), 5)
+    f = _scale_factor_dE(PenaltyFunction(5, 1, 20, 2.0, True), 5)
     assert f.item() == 0.0
-    f = _scale_factor(PenaltyFunction(5, 1, 20, 2.0, True), 6)
+    f = _scale_factor_dE(PenaltyFunction(5, 1, 20, 2.0, True), 6)
     assert f.item() == 0.05
-    f = _scale_factor(PenaltyFunction(5, 1, 20, 2.0, True), 10)
+    f = _scale_factor_dE(PenaltyFunction(5, 1, 20, 2.0, True), 10)
     assert f.item() == 0.25
-    f = _scale_factor(PenaltyFunction(5, 1, 20, 2.0, True), 40)
+    f = _scale_factor_dE(PenaltyFunction(5, 1, 20, 2.0, True), 40)
     assert f.item() == 1.75
-    f = _scale_factor(PenaltyFunction(5, 1, 20, 2.0, True), 100)
+    f = _scale_factor_dE(PenaltyFunction(5, 1, 20, 2.0, True), 100)
     assert f.item() == 2.0
 
     # exp scaling
-    f = _scale_factor(PenaltyFunction(5, 2, 20, 2.0, True), 2)
+    f = _scale_factor_dE(PenaltyFunction(5, 2, 20, 2.0, True), 2)
     assert f.item() == 0.0
-    f = _scale_factor(PenaltyFunction(5, 2, 20, 2.0, True), 5)
+    f = _scale_factor_dE(PenaltyFunction(5, 2, 20, 2.0, True), 5)
     assert f.item() == 0.0
-    f = _scale_factor(PenaltyFunction(5, 2, 20, 2.0, True), 6)
+    f = _scale_factor_dE(PenaltyFunction(5, 2, 20, 2.0, True), 6)
     assert np.isclose(f.item(), 0.0025, rtol=1e-4)
-    f = _scale_factor(PenaltyFunction(5, 2, 20, 2.0, True), 10)
+    f = _scale_factor_dE(PenaltyFunction(5, 2, 20, 2.0, True), 10)
     assert np.isclose(f.item(), 0.0625, rtol=1e-4)
-    f = _scale_factor(PenaltyFunction(5, 2, 20, 2.0, True), 20)
+    f = _scale_factor_dE(PenaltyFunction(5, 2, 20, 2.0, True), 20)
     assert np.isclose(f.item(), 0.5625, rtol=1e-4)
-    f = _scale_factor(PenaltyFunction(5, 2, 20, 2.0, True), 30)
+    f = _scale_factor_dE(PenaltyFunction(5, 2, 20, 2.0, True), 30)
     assert np.isclose(f.item(), 1.5625, rtol=1e-4)
-    f = _scale_factor(PenaltyFunction(5, 2, 20, 2.0, True), 40)
+    f = _scale_factor_dE(PenaltyFunction(5, 2, 20, 2.0, True), 40)
     assert np.isclose(f.item(), 2.0, rtol=1e-4)
 
 
