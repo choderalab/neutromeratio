@@ -1167,7 +1167,6 @@ def _loss_function(
     exp_free_energy_difference = get_experimental_values(fec.name)
     # calculate the loss as MSE
     g = _scale_factor_dG(snapshot_penalty_f, epoch)
-    print(g)
     loss = g * calculate_mse(calc_free_energy_difference, exp_free_energy_difference)
 
     if snapshot_penalty_f.dE_active:

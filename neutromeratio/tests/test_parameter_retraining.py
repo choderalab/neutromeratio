@@ -62,6 +62,15 @@ def test_scaling_factor():
     f = _scale_factor_dE(PenaltyFunction(5, 2, 20, 2.0, True), 40)
     assert np.isclose(f.item(), 2.0, rtol=1e-4)
 
+    f = _scale_factor_dE(
+        PenaltyFunction(5, 2, 20, 2.0, True, dE_offset=1.0, dG_offset=1.0), 40
+    )
+    assert np.isclose(f.item(), 3.0, rtol=1e-4)
+    f = _scale_factor_dE(
+        PenaltyFunction(5, 1, 20, 2.0, True, dE_offset=1.0, dG_offset=1.0), 100
+    )
+    assert f.item() == 3.0
+
 
 def _get_params(model, layer: int) -> Tuple[list, list]:
     layer = -1
@@ -1138,7 +1147,7 @@ def test_retrain_energy_penalty():
             assert np.isclose(rmse_val[-1], rmse_test, rtol=1e-3)
             assert np.isclose(rmse_val[0], 5.187891006469727, rtol=1e-3)
             assert np.isclose(
-                rmse_val[-1], 4.2210774421691895, rtol=1e-3
+                rmse_val[-1], 4.2210774421691895, rtol=1e-2
             )  # NOTE: This is not zero!
         finally:
             _remove_files(model_name + "_vacuum", max_epochs)
