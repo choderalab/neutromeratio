@@ -629,10 +629,12 @@ class PenaltyFunction(NamedTuple):
     dE_den: int
     dE_max_scale: float
     dE_active: bool
+    dE_offset: float = 0.0
 
     dG_exp: int = 1
     dG_den: int = 1
     dG_max_scale: float = 1.0
+    dG_offset: float = 0.0
 
 
 def setup_and_perform_parameter_retraining_with_test_set_split(
@@ -1085,21 +1087,26 @@ def _scale_factor_dE(snapshot_penalty_f: PenaltyFunction, epoch: int) -> torch.T
         [description]
     """
 
+    if not snapshot_penalty_f.dE_active:
+        return torch.tensor(0)
+
     warm_up = snapshot_penalty_f.dE_warm_up
     exp = snapshot_penalty_f.dE_exp
     den = snapshot_penalty_f.dE_den
     max_scale = snapshot_penalty_f.dE_max_scale
+    offset = snapshot_penalty_f.dE_offset
 
     assert warm_up >= 0 and warm_up <= 200
     assert exp >= 1 and exp <= 3
-    assert den >= 10 and den <= 200
+    assert den >= 0 and den <= 200
 
     warm_up_ = torch.tensor(warm_up, dtype=torch.double)
     epoch_ = torch.tensor(epoch, dtype=torch.double)
     den_ = torch.tensor(den, dtype=torch.double)
     max_scale_ = torch.tensor(max_scale, dtype=torch.double)
+    offset_ = torch.tensor(offset, dtype=torch.double)
 
-    f = torch.min(
+    f = offset_ + torch.min(
         (torch.max(epoch_ - warm_up_, torch.tensor(0)) / den_) ** exp,
         max_scale_,
     )
@@ -1121,15 +1128,17 @@ def _scale_factor_dG(snapshot_penalty_f: PenaltyFunction, epoch: int) -> torch.T
     exp = snapshot_penalty_f.dG_exp
     den = snapshot_penalty_f.dG_den
     max_scale = snapshot_penalty_f.dG_max_scale
+    offset = snapshot_penalty_f.dG_offset
 
     assert exp >= 1 and exp <= 3
-    assert den >= 1 and den <= 200
+    assert den >= 0 and den <= 200
 
     epoch_ = torch.tensor(epoch, dtype=torch.double)
     den_ = torch.tensor(den, dtype=torch.double)
     max_scale_ = torch.tensor(max_scale, dtype=torch.double)
+    offset_ = torch.tensor(offset, dtype=torch.double)
 
-    f = torch.min(
+    f = offset_ + torch.min(
         (epoch_ / den_) ** exp,
         max_scale_,
     )
