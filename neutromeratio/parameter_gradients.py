@@ -1279,7 +1279,7 @@ def _get_nn_layers(
 
     # ReduceLROnPlateau does not make too much sense for AdamW -- factor set to 1.0
     AdamW_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        AdamW, "min", verbose=True, threshold=1e-5, patience=5, cooldown=5, factor=1.0
+        AdamW, "min", verbose=True, threshold=1e-5, patience=100, cooldown=5, factor=0.5
     )  # using defailt values
     SGD_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         SGD, "min", verbose=True, threshold=1e-5, patience=5, cooldown=5, factor=0.5
