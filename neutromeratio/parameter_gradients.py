@@ -326,13 +326,38 @@ class FreeEnergyCalculator:
             u_ln_rho_star = self._form_u_ln()
         return u_ln_rho, u_ln_rho_star
 
-    def rmse_between_potentials_for_snapshots(self) -> torch.Tensor:
+    def rmse_between_potentials_for_snapshots(self, normalized=False) -> torch.Tensor:
         u_ln_rho, u_ln_rho_star = self.get_u_ln_for_rho_and_rho_star()
+        if normalized:
+            # if normalized the individual energies are divided by the number of atoms in the system
+            nr_of_atoms = len(self.ani_model.species[0])
+            u_ln_rho, u_ln_rho_star = (
+                (u_ln_rho / nr_of_atoms) * 10,
+                (u_ln_rho_star / nr_of_atoms) * 10,
+            )
         return calculate_rmse(u_ln_rho, u_ln_rho_star)
 
-    def mae_between_potentials_for_snapshots(self) -> torch.Tensor:
+    def mae_between_potentials_for_snapshots(self, normalized=False) -> torch.Tensor:
         u_ln_rho, u_ln_rho_star = self.get_u_ln_for_rho_and_rho_star()
+        if normalized:
+            # if normalized the individual energies are divided by the number of atoms in the system
+            nr_of_atoms = len(self.ani_model.species[0])
+            u_ln_rho, u_ln_rho_star = (
+                (u_ln_rho / nr_of_atoms) * 10,
+                (u_ln_rho_star / nr_of_atoms) * 10,
+            )
         return calculate_mae(u_ln_rho, u_ln_rho_star)
+
+    def mse_between_potentials_for_snapshots(self, normalized=False) -> torch.Tensor:
+        u_ln_rho, u_ln_rho_star = self.get_u_ln_for_rho_and_rho_star()
+        if normalized:
+            # if normalized the individual energies are divided by the number of atoms in the system
+            nr_of_atoms = len(self.ani_model.species[0])
+            u_ln_rho, u_ln_rho_star = (
+                (u_ln_rho / nr_of_atoms) * 10,
+                (u_ln_rho_star / nr_of_atoms) * 10,
+            )
+        return calculate_mse(u_ln_rho, u_ln_rho_star)
 
 
 def torchify(x):
@@ -1252,11 +1277,12 @@ def _get_nn_layers(
     # set up minimizer for bias
     SGD = torch.optim.SGD(bias_layers, lr=lr_SGD)
 
+    # ReduceLROnPlateau does not make too much sense for AdamW -- factor set to 1.0
     AdamW_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        AdamW, "min", verbose=True, threshold=1e-5, patience=5, cooldown=5
+        AdamW, "min", verbose=True, threshold=1e-5, patience=5, cooldown=5, factor=1.0
     )  # using defailt values
     SGD_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        SGD, "min", verbose=True, threshold=1e-5, patience=5, cooldown=5
+        SGD, "min", verbose=True, threshold=1e-5, patience=5, cooldown=5, factor=0.5
     )  # using defailt values from https://pytorch.org/docs/stable/optim.html#torch.optim.lr_scheduler.ReduceLROnPlateau
 
     return (AdamW, AdamW_scheduler, SGD, SGD_scheduler)

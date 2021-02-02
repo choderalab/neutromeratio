@@ -12,7 +12,6 @@ from simtk import unit
 import numpy as np
 import mdtraj as md
 from neutromeratio.constants import device
-import pandas as pd
 from neutromeratio.parameter_gradients import chunks
 
 
@@ -28,6 +27,44 @@ def test_chunks():
     elements = next(it)
     len(elements) == 3
 
+
+def test_u_ln():
+    from ..parameter_gradients import (
+        setup_FEC,
+    )
+    from ..ani import CompartimentedAlchemicalANI2x
+    from neutromeratio.constants import initialize_NUM_PROC
+
+    initialize_NUM_PROC(1)
+
+    # without pickled tautomer object
+    name = "SAMPLmol2"
+    model, model_name = CompartimentedAlchemicalANI2x, "CompartimentedAlchemicalANI2x"
+    model._reset_parameters()
+    model_instance = model([0, 0])
+    model_instance.load_nn_parameters(
+        parameter_path="data/test_data/AlchemicalANI2x_3.pt"
+    )
+    # vacuum
+    fec = setup_FEC(
+        name,
+        env="vacuum",
+        data_path="data/test_data/vacuum",
+        ANImodel=model,
+        bulk_energy_calculation=False,
+        max_snapshots_per_window=50,
+        load_pickled_FEC=True,
+        include_restraint_energy_contribution=False,
+    )
+    fec._compute_free_energy_difference()
+    f = fec.mae_between_potentials_for_snapshots()
+    print(f)
+    f = fec.mae_between_potentials_for_snapshots(normalized=True)
+    print(f)
+    f = fec.mse_between_potentials_for_snapshots()
+    print(f)
+    f = fec.mse_between_potentials_for_snapshots(normalized=True)
+    print(f)
 
 def test_scaling_factor():
     from ..parameter_gradients import _scale_factor_dE, PenaltyFunction
