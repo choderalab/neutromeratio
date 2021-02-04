@@ -57,14 +57,18 @@ def test_u_ln():
         include_restraint_energy_contribution=False,
     )
     fec._compute_free_energy_difference()
-    f = fec.mae_between_potentials_for_snapshots()
-    print(f)
-    f = fec.mae_between_potentials_for_snapshots(normalized=True)
-    print(f)
+    f_per_molecule = fec.mae_between_potentials_for_snapshots()
+    print(f_per_molecule)
+    f_per_atom = fec.mae_between_potentials_for_snapshots(normalized=True)
+    print(f_per_atom)
+    f_scaled_to_mol = (f_per_atom / 10) * len(fec.ani_model.species[0])
+    print(f_scaled_to_mol)
+    assert f_per_molecule == f_scaled_to_mol
     f = fec.mse_between_potentials_for_snapshots()
     print(f)
     f = fec.mse_between_potentials_for_snapshots(normalized=True)
     print(f)
+
 
 def test_scaling_factor():
     from ..parameter_gradients import _scale_factor_dE, PenaltyFunction

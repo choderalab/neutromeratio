@@ -343,8 +343,8 @@ class FreeEnergyCalculator:
             # if normalized the individual energies are divided by the number of atoms in the system
             nr_of_atoms = len(self.ani_model.species[0])
             u_ln_rho, u_ln_rho_star = (
-                (u_ln_rho / nr_of_atoms) * 10,
-                (u_ln_rho_star / nr_of_atoms) * 10,
+                (u_ln_rho / nr_of_atoms) * 100,
+                (u_ln_rho_star / nr_of_atoms) * 100,
             )
         return calculate_mae(u_ln_rho, u_ln_rho_star)
 
@@ -1196,7 +1196,7 @@ def _loss_function(
 
     if snapshot_penalty_f.dE_active:
         f = _scale_factor_dE(snapshot_penalty_f, epoch)
-        snapshot_penalty = fec.mae_between_potentials_for_snapshots()
+        snapshot_penalty = fec.mae_between_potentials_for_snapshots(normalized=True)
         logger.debug(f"Snapshot penalty: {snapshot_penalty.item()}")
         logger.debug(f"Scaling factor: {f}")
 
@@ -1277,7 +1277,7 @@ def _get_nn_layers(
     # set up minimizer for bias
     SGD = torch.optim.SGD(bias_layers, lr=lr_SGD)
 
-    # ReduceLROnPlateau does not make too much sense for AdamW -- factor set to 1.0
+    # ReduceLROnPlateau does not make too much sense for AdamW -- set patience to 100
     AdamW_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         AdamW, "min", verbose=True, threshold=1e-5, patience=100, cooldown=5, factor=0.5
     )  # using defailt values
