@@ -57,18 +57,17 @@ def test_u_ln():
         include_restraint_energy_contribution=False,
     )
     fec._compute_free_energy_difference()
-    f_per_molecule = fec.mae_between_potentials_for_snapshots()
-    print(f_per_molecule)
-    f_per_atom = fec.mae_between_potentials_for_snapshots(normalized=True)
-    print(f_per_atom)
-    f_scaled_to_mol = (f_per_atom / 10) * len(fec.ani_model.species[0])
-    print(f_scaled_to_mol)
-    assert f_per_molecule == f_scaled_to_mol
-    f = fec.mse_between_potentials_for_snapshots()
-    print(f)
-    f = fec.mse_between_potentials_for_snapshots(normalized=True)
-    print(f)
-
+    # compare to manually scaling
+    f_per_molecule = fec.mae_between_potentials_for_snapshots(env="vacuum")
+    f_per_atom = fec.mae_between_potentials_for_snapshots(normalized=True, env="vacuum")
+    f_scaled_to_mol = (f_per_atom / 100) * len(fec.ani_model.species[0])
+    assert np.isclose(f_per_molecule.item(), f_scaled_to_mol.item())
+    # for droplet
+    # compare to manually scaling
+    f_per_molecule = fec.mae_between_potentials_for_snapshots(env="droplet")
+    f_per_atom = fec.mae_between_potentials_for_snapshots(normalized=True, env="droplet")
+    f_scaled_to_mol = (f_per_atom / 400) * len(fec.ani_model.species[0])
+    assert np.isclose(f_per_molecule.item(), f_scaled_to_mol.item())
 
 def test_scaling_factor():
     from ..parameter_gradients import _scale_factor_dE, PenaltyFunction

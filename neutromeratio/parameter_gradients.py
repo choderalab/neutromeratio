@@ -326,36 +326,56 @@ class FreeEnergyCalculator:
             u_ln_rho_star = self._form_u_ln()
         return u_ln_rho, u_ln_rho_star
 
-    def rmse_between_potentials_for_snapshots(self, normalized=False) -> torch.Tensor:
+    def rmse_between_potentials_for_snapshots(
+        self, env: str, normalized=False
+    ) -> torch.Tensor:
         u_ln_rho, u_ln_rho_star = self.get_u_ln_for_rho_and_rho_star()
         if normalized:
             # if normalized the individual energies are divided by the number of atoms in the system
+            if env == "vacuum":
+                scale_with = 100
+            else:
+                scale_with = 400
+
             nr_of_atoms = len(self.ani_model.species[0])
             u_ln_rho, u_ln_rho_star = (
-                (u_ln_rho / nr_of_atoms) * 10,
-                (u_ln_rho_star / nr_of_atoms) * 10,
+                (u_ln_rho / nr_of_atoms) * scale_with,
+                (u_ln_rho_star / nr_of_atoms) * scale_with,
             )
         return calculate_rmse(u_ln_rho, u_ln_rho_star)
 
-    def mae_between_potentials_for_snapshots(self, normalized=False) -> torch.Tensor:
+    def mae_between_potentials_for_snapshots(
+        self, env: str, normalized=False
+    ) -> torch.Tensor:
         u_ln_rho, u_ln_rho_star = self.get_u_ln_for_rho_and_rho_star()
         if normalized:
             # if normalized the individual energies are divided by the number of atoms in the system
             nr_of_atoms = len(self.ani_model.species[0])
+            if env == "vacuum":
+                scale_with = 100
+            else:
+                scale_with = 400
             u_ln_rho, u_ln_rho_star = (
-                (u_ln_rho / nr_of_atoms) * 100,
-                (u_ln_rho_star / nr_of_atoms) * 100,
+                (u_ln_rho / nr_of_atoms) * scale_with,
+                (u_ln_rho_star / nr_of_atoms) * scale_with,
             )
         return calculate_mae(u_ln_rho, u_ln_rho_star)
 
-    def mse_between_potentials_for_snapshots(self, normalized=False) -> torch.Tensor:
+    def mse_between_potentials_for_snapshots(
+        self, env: str, normalized=False
+    ) -> torch.Tensor:
         u_ln_rho, u_ln_rho_star = self.get_u_ln_for_rho_and_rho_star()
         if normalized:
             # if normalized the individual energies are divided by the number of atoms in the system
             nr_of_atoms = len(self.ani_model.species[0])
+            if env == "vacuum":
+                scale_with = 100
+            else:
+                scale_with = 400
+
             u_ln_rho, u_ln_rho_star = (
-                (u_ln_rho / nr_of_atoms) * 10,
-                (u_ln_rho_star / nr_of_atoms) * 10,
+                (u_ln_rho / nr_of_atoms) * scale_with,
+                (u_ln_rho_star / nr_of_atoms) * scale_with,
             )
         return calculate_mse(u_ln_rho, u_ln_rho_star)
 
@@ -1076,9 +1096,7 @@ def _tweak_parameters(
                 instance_idx += 1
 
                 loss, snapshot_penalty = _loss_function(
-                    fec,
-                    epoch=epoch,
-                    snapshot_penalty_f=snapshot_penalty_f,
+                    fec, epoch=epoch, snapshot_penalty_f=snapshot_penalty_f, env=env
                 )
 
                 it.set_description(
@@ -1172,9 +1190,7 @@ def _scale_factor_dG(snapshot_penalty_f: PenaltyFunction, epoch: int) -> torch.T
 
 
 def _loss_function(
-    fec: FreeEnergyCalculator,
-    epoch: int,
-    snapshot_penalty_f: PenaltyFunction,
+    fec: FreeEnergyCalculator, epoch: int, snapshot_penalty_f: PenaltyFunction, env: str
 ) -> Tuple[torch.Tensor, Number]:
 
     """
@@ -1196,7 +1212,9 @@ def _loss_function(
 
     if snapshot_penalty_f.dE_active:
         f = _scale_factor_dE(snapshot_penalty_f, epoch)
-        snapshot_penalty = fec.mae_between_potentials_for_snapshots(normalized=True)
+        snapshot_penalty = fec.mae_between_potentials_for_snapshots(
+            normalized=True, env=env
+        )
         logger.debug(f"Snapshot penalty: {snapshot_penalty.item()}")
         logger.debug(f"Scaling factor: {f}")
 
