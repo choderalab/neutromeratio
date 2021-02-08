@@ -1295,12 +1295,12 @@ def _get_nn_layers(
     # set up minimizer for bias
     SGD = torch.optim.SGD(bias_layers, lr=lr_SGD)
 
-    # ReduceLROnPlateau does not make too much sense for AdamW -- set patience to 100
+    # ReduceLROnPlateau does not make too much sense for AdamW -- set patience to 20
     AdamW_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        AdamW, "min", verbose=True, threshold=1e-5, patience=100, cooldown=5, factor=0.5
+        AdamW, "min", verbose=True, threshold=1e-5, patience=20, cooldown=5, factor=0.1
     )  # using defailt values
     SGD_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        SGD, "min", verbose=True, threshold=1e-5, patience=5, cooldown=5, factor=0.5
+        SGD, "min", verbose=True, threshold=1e-5, patience=5, cooldown=5, factor=0.1
     )  # using defailt values from https://pytorch.org/docs/stable/optim.html#torch.optim.lr_scheduler.ReduceLROnPlateau
 
     return (AdamW, AdamW_scheduler, SGD, SGD_scheduler)
