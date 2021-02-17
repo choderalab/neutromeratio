@@ -585,9 +585,6 @@ def test_timing_main_training_loop_without_pickled_tautomer_object(benchmark):
             diameter=diameter,
             checkpoint_filename=f"AlchemicalANI2x_droplet.pt",
             load_checkpoint=False,
-            bulk_energy_calculation=False,
-            load_pickled_FEC=False,
-            include_snapshot_penalty=False,
         )
         print(rmse_val)
 

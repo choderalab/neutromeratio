@@ -65,9 +65,12 @@ def test_u_ln():
     # for droplet
     # compare to manually scaling
     f_per_molecule = fec.mae_between_potentials_for_snapshots(env="droplet")
-    f_per_atom = fec.mae_between_potentials_for_snapshots(normalized=True, env="droplet")
+    f_per_atom = fec.mae_between_potentials_for_snapshots(
+        normalized=True, env="droplet"
+    )
     f_scaled_to_mol = (f_per_atom / 400) * len(fec.ani_model.species[0])
     assert np.isclose(f_per_molecule.item(), f_scaled_to_mol.item())
+
 
 def test_scaling_factor():
     from ..parameter_gradients import _scale_factor_dE, PenaltyFunction
@@ -574,11 +577,12 @@ def test_snapshot_energy_loss_with_CompartimentedAlchemicalANI2x():
     CompartimentedAlchemicalANI2x._reset_parameters()
     name = "molDWRow_298"
     model_instance = CompartimentedAlchemicalANI2x([0, 0])
+    env = "vacuum"
 
     # vacuum
     fec = setup_FEC(
         name,
-        env="vacuum",
+        env=env,
         diameter=10,
         data_path="data/test_data/vacuum",
         ANImodel=CompartimentedAlchemicalANI2x,

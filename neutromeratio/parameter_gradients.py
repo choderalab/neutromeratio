@@ -327,16 +327,19 @@ class FreeEnergyCalculator:
         return u_ln_rho, u_ln_rho_star
 
     def rmse_between_potentials_for_snapshots(
-        self, env: str, normalized=False
+        self, env: str = "", normalized=False
     ) -> torch.Tensor:
         u_ln_rho, u_ln_rho_star = self.get_u_ln_for_rho_and_rho_star()
         if normalized:
             # if normalized the individual energies are divided by the number of atoms in the system
             if env == "vacuum":
                 scale_with = 100
-            else:
+            elif env == "droplet":
                 scale_with = 400
-
+            else:
+                raise RuntimeError(
+                    "If normalized, the environment needs to be specified"
+                )
             nr_of_atoms = len(self.ani_model.species[0])
             u_ln_rho, u_ln_rho_star = (
                 (u_ln_rho / nr_of_atoms) * scale_with,
@@ -345,7 +348,7 @@ class FreeEnergyCalculator:
         return calculate_rmse(u_ln_rho, u_ln_rho_star)
 
     def mae_between_potentials_for_snapshots(
-        self, env: str, normalized=False
+        self, env: str = "", normalized=False
     ) -> torch.Tensor:
         u_ln_rho, u_ln_rho_star = self.get_u_ln_for_rho_and_rho_star()
         if normalized:
@@ -353,8 +356,12 @@ class FreeEnergyCalculator:
             nr_of_atoms = len(self.ani_model.species[0])
             if env == "vacuum":
                 scale_with = 100
-            else:
+            elif env == "droplet":
                 scale_with = 400
+            else:
+                raise RuntimeError(
+                    "If normalized, the environment needs to be specified"
+                )
             u_ln_rho, u_ln_rho_star = (
                 (u_ln_rho / nr_of_atoms) * scale_with,
                 (u_ln_rho_star / nr_of_atoms) * scale_with,
@@ -362,7 +369,7 @@ class FreeEnergyCalculator:
         return calculate_mae(u_ln_rho, u_ln_rho_star)
 
     def mse_between_potentials_for_snapshots(
-        self, env: str, normalized=False
+        self, env: str = "", normalized=False
     ) -> torch.Tensor:
         u_ln_rho, u_ln_rho_star = self.get_u_ln_for_rho_and_rho_star()
         if normalized:
@@ -370,8 +377,12 @@ class FreeEnergyCalculator:
             nr_of_atoms = len(self.ani_model.species[0])
             if env == "vacuum":
                 scale_with = 100
-            else:
+            elif env == "droplet":
                 scale_with = 400
+            else:
+                raise RuntimeError(
+                    "If normalized, the environment needs to be specified"
+                )
 
             u_ln_rho, u_ln_rho_star = (
                 (u_ln_rho / nr_of_atoms) * scale_with,
