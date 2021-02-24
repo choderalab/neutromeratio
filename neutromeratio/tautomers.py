@@ -14,17 +14,19 @@ from pdbfixer import PDBFixer
 from rdkit import Chem, Geometry
 from rdkit.Chem import AllChem, rdFMCS
 from scipy.special import logsumexp
+
 from simtk import unit
 from simtk.openmm import Vec3
+from typing import List
 
-from .ani import ANI1_force_and_energy
+from .ani import ANI_force_and_energy
 from .constants import device, gas_constant, kT, platform, temperature
 from .mcmc import MC_Mover
 from .restraints import (
     AngleHarmonicRestraint,
     BondFlatBottomRestraint,
     CenterFlatBottomRestraint,
-    CenterOfMassRestraint,
+    CenterOfMassFlatBottomRestraint,
 )
 from .utils import write_pdb
 from .vis import display_mol
@@ -113,7 +115,7 @@ class Tautomer(object):
         )  # the heavy atom that accepts the hydrogen
 
         self.ligand_in_water_atoms: str = ""
-        self._ligand_in_water_coordinates: list = []
+        self._ligand_in_water_coordinates: List[unit.Quantity] = []
         self.ligand_in_water_topology: md.Topology = md.Topology()
 
         # restraints for the ligand system
@@ -179,9 +181,9 @@ class Tautomer(object):
         topology: md.Topology,
         coordinates: unit.quantity.Quantity,
         diameter: unit.quantity.Quantity = (30.0 * unit.angstrom),
-        restrain_hydrogen_bonds=True,
-        restrain_hydrogen_angles=False,
-        top_file=None,
+        restrain_hydrogen_bonds: bool = True,
+        restrain_hydrogen_angles: bool = False,
+        top_file: str = "",
     ) -> md.Trajectory:
         """
         Adding a droplet with a given diameter around a small molecule.
@@ -259,10 +261,8 @@ class Tautomer(object):
 
             for residue in structure.residues:
                 for atom in residue:
-
                     p1 = np.array([atom.xx, atom.xy, atom.xz])
                     p2 = center
-
                     squared_dist = np.sum((p1 - p2) ** 2, axis=0)
                     dist = np.sqrt(squared_dist)
                     if (
@@ -270,9 +270,14 @@ class Tautomer(object):
                     ):  # NOTE: distance must be greater than radius + 1 Angstrom
                         to_delete.append(residue)
 
+            # only delete water molecules
             for residue in list(set(to_delete)):
-                logging.debug("Remove: {}".format(residue))
-                structure.residues.remove(residue)
+                if residue.name == "HOH":
+                    logger.debug(f"Remove: {residue}")
+                    structure.residues.remove(residue)
+                else:
+                    logger.warning(f"Residue {residue} reaches outside the droplet")
+                    print(f"Residue {residue} reaches outside the droplet")
 
             structure.write_pdb(pdb_filepath)
 
@@ -316,7 +321,7 @@ class Tautomer(object):
         if restrain_hydrogen_bonds or restrain_hydrogen_angles:
             for residue in traj.topology.residues:
                 if residue.is_water:
-                    oxygen_idx = None
+                    oxygen_idx = -1
                     hydrogen_idxs = []
                     for atom in residue.atoms:
                         if str(atom.element.symbol) == "O":
@@ -373,7 +378,7 @@ class Tautomer(object):
     ):
 
         # add center of mass restraint
-        com_restraint = CenterOfMassRestraint(
+        com_restraint = CenterOfMassFlatBottomRestraint(
             sigma=sigma, point=point, atom_idx=atom_idx, atoms=atoms
         )
         self.com_restraints.append(com_restraint)
@@ -431,12 +436,11 @@ class Tautomer(object):
         assert coord_list.shape == (mol.GetNumConformers(), mol.GetNumAtoms(), 3)
         coord_list *= unit.angstrom
 
-        # generate bond list of heavy atoms to hydrogens
+        # generate bond list
         bond_list = []
         for b in mol.GetBonds():
             a1 = b.GetBeginAtom()
             a2 = b.GetEndAtom()
-            #           if a1.GetSymbol() == 'H' or a2.GetSymbol() == 'H':
             bond_list.append((a1.GetIdx(), a2.GetIdx()))
 
         # get mdtraj topology
@@ -533,7 +537,7 @@ class Tautomer(object):
                 logger.debug("Index of atom that moves: {}.".format(a.GetIdx()))
                 hydrogen_idx_that_moves = a.GetIdx()
 
-        # adding ligand restraints for heavy atom - hydrogen
+        # adding ligand restraints for all bonds
         for b in ligand_bonds:
             a1 = b[0]
             a2 = b[1]
@@ -605,7 +609,7 @@ class Tautomer(object):
         model = ANI1ccx()
         model = model.to(device)
 
-        energy_function = ANI1_force_and_energy(
+        energy_function = ANI_force_and_energy(
             model=model, atoms=hybrid_atoms, mol=None
         )
 
@@ -778,7 +782,7 @@ class Tautomer(object):
             model = ANI1ccx()
             model = model.to(device)
 
-            energy_function = ANI1_force_and_energy(
+            energy_function = ANI_force_and_energy(
                 model=model, atoms=ligand_atoms, mol=ase_mol
             )
 

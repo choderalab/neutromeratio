@@ -142,9 +142,11 @@ class BondRestraint(BaseDistanceRestraint):
             self.lower_bound = self.mean_bond_length - 0.4
 
         except KeyError:
-            self.mean_bond_length = 1.3
-            self.upper_bound = self.mean_bond_length + 0.3
-            self.lower_bound = self.mean_bond_length - 0.3
+            self.mean_bond_length = 1.4
+            self.upper_bound = (
+                self.mean_bond_length + 0.6
+            )  # staying on the safe side for some heteratomic mean bond lenght https://en.wikipedia.org/wiki/Bond_length#:~:text=The%20carbon%E2%80%93carbon%20(C%E2%80%93,in%20diamond%20is%20154%20pm.
+            self.lower_bound = self.mean_bond_length - 0.6
 
 
 class AngleHarmonicRestraint(BaseAngleRestraint):
@@ -248,19 +250,17 @@ class BondFlatBottomRestraint(BondRestraint):
         e_list = torch.tensor(
             [0.0] * nr_of_mols, dtype=torch.double, device=self.device
         )
-
         for idx in range(nr_of_mols):
-            distance = torch.norm(x[idx][self.atom_i_idx] - x[idx][self.atom_j_idx])
+            distance = torch.norm(
+                x[idx][self.atom_i_idx] - x[idx][self.atom_j_idx]
+            ).double()
             if distance <= self.lower_bound:
-                e = (self.k / 2) * (self.lower_bound - distance.double()) ** 2
+                e = (self.k / 2) * (self.lower_bound - distance) ** 2
             elif distance >= self.upper_bound:
-                e = (self.k / 2) * (distance.double() - self.upper_bound) ** 2
+                e = (self.k / 2) * (distance - self.upper_bound) ** 2
             else:
                 e = torch.tensor(0.0, dtype=torch.double, device=self.device)
             e_list[idx] += e
-            logger.debug(
-                "Flat bottom restraint_bias introduced: {:0.4f}".format(e.item())
-            )
 
         return e_list.to(device=self.device)
 
@@ -332,7 +332,9 @@ class CenterFlatBottomRestraint(PointAtomRestraint):
         super().__init__(sigma, point.value_in_unit(unit.angstrom), active_at)
 
         self.atom_idx = atom_idx
-        self.cutoff_radius = radius.value_in_unit(unit.angstrom)
+        self.cutoff_radius = (
+            radius.value_in_unit(unit.angstrom)
+        )  # slightly decrease radius
 
     def restraint(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -346,18 +348,24 @@ class CenterFlatBottomRestraint(PointAtomRestraint):
         """
         # x in angstrom
         assert type(x) == torch.Tensor
-        distance = torch.norm(x[0][self.atom_idx] - self.point)
-        if distance >= self.cutoff_radius:
-            e = (self.k / 2) * (distance.double() - self.cutoff_radius) ** 2
-        else:
-            e = torch.tensor(0.0, dtype=torch.double, device=self.device)
-        logger.debug(
-            "Flat center bottom restraint_bias introduced: {:0.4f}".format(e.item())
+        nr_of_mols = len(x)
+        e_list = torch.tensor(
+            [0.0] * nr_of_mols, dtype=torch.double, device=self.device
         )
-        return e.to(device=self.device)
+
+        # x in angstrom
+        for idx in range(nr_of_mols):
+            distance = torch.norm(x[idx][self.atom_idx] - self.point)
+            if distance >= self.cutoff_radius:
+                e = (self.k / 2) * (distance.double() - self.cutoff_radius) ** 2
+            else:
+                e = torch.tensor(0.0, dtype=torch.double, device=self.device)
+            e_list[idx] += e
+
+        return e_list.to(device=self.device)
 
 
-class CenterOfMassRestraint(PointAtomRestraint):
+class CenterOfMassFlatBottomRestraint(PointAtomRestraint):
     def __init__(
         self,
         sigma: unit.Quantity,
@@ -381,14 +389,16 @@ class CenterOfMassRestraint(PointAtomRestraint):
         assert type(sigma) == unit.Quantity
         assert type(point) == unit.Quantity
         super().__init__(sigma, point.value_in_unit(unit.angstrom), active_at)
-        self.atom_idx = atom_idx
-        logger.debug("Center Of Mass restraint added.")
+        cutoff_radius = 0.1 * unit.angstrom
+        self.cutoff_radius = cutoff_radius.value_in_unit(unit.angstrom)
+        # only look at heavy atoms
+        full_mass_list = [mass_dict_in_daltons[atoms[i]] for i in atom_idx]
+        heavy_atoms_idx = [i for i, x in enumerate(full_mass_list) if x != 1.0]
 
-        self.mass_list = []
-        for i in atom_idx:
-            self.mass_list.append(mass_dict_in_daltons[atoms[i]])
-        masses = np.array(self.mass_list)
-        scaled_masses = masses / masses.sum()
+        self.atom_idx = heavy_atoms_idx
+        self.mass_list = [heavy_atoms_idx[i] for i in heavy_atoms_idx]
+
+        scaled_masses = np.array(self.mass_list) / np.array(self.mass_list).sum()
         self.masses = torch.tensor(
             scaled_masses, dtype=torch.double, device=self.device, requires_grad=True
         )
@@ -399,7 +409,7 @@ class CenterOfMassRestraint(PointAtomRestraint):
         One assumption that we are making here is that the ligand is at the beginning of the
         atom str and coordinate file.
         """
-        ligand_x = x[0][
+        ligand_x = x[
             : len(self.mass_list)
         ].double()  # select only the ligand coordinates
         return torch.matmul(ligand_x.T, self.masses)
@@ -415,9 +425,21 @@ class CenterOfMassRestraint(PointAtomRestraint):
         e : torch.Tensor
         """
         # x in angstrom
-        assert type(x) == torch.Tensor
+        nr_of_mols = len(x)
+        e_list = torch.tensor(
+            [0.0] * nr_of_mols, dtype=torch.double, device=self.device
+        )
+        # x in angstrom
+        for idx in range(nr_of_mols):
 
-        com = self._calculate_center_of_mass(x)
-        com_distance_to_point = torch.norm(com - self.point)
-        e = (self.k / 2) * (com_distance_to_point.sum() ** 2)
-        return e.to(device=self.device)
+            com = self._calculate_center_of_mass(x[idx])
+            com_distance_to_point = torch.norm(com - self.point)
+            if com_distance_to_point >= self.cutoff_radius:
+                e = (self.k / 2) * (
+                    com_distance_to_point.double() - self.cutoff_radius
+                ) ** 2
+            else:
+                e = torch.tensor(0.0, dtype=torch.double, device=self.device)
+            e_list[idx] += e
+
+        return e_list.to(device=self.device)

@@ -32,8 +32,10 @@ dependencies:
   - psi4
   - seaborn
   - scikit-learn
-  - torchani=2.2
+  - torchani
   - pip:
       - lark-parser
       - six
       - codecov
+      - pytest-benchmark
+      - compress_pickle

@@ -9,7 +9,7 @@ from pymbar.timeseries import detectEquilibration
 from simtk import unit
 from tqdm import tqdm
 from glob import glob
-from .ani import ANI1_force_and_energy, ANI
+from .ani import ANI_force_and_energy, ANI
 from neutromeratio.constants import (
     _get_names,
     hartree_to_kJ_mol,
@@ -23,8 +23,9 @@ from neutromeratio.constants import (
 import torchani, torch
 import os
 import neutromeratio
-import pickle
 import mdtraj as md
+from typing import Tuple
+import pickle
 
 logger = logging.getLogger(__name__)
 
@@ -32,13 +33,13 @@ logger = logging.getLogger(__name__)
 class FreeEnergyCalculator:
     def __init__(
         self,
-        ani_model: ANI1_force_and_energy,
+        ani_model: ANI_force_and_energy,
         md_trajs: list,
         bulk_energy_calculation: bool,
         potential_energy_trajs: list,
         lambdas: list,
         max_snapshots_per_window: int = 200,
-        pickle_path: str = "",
+        include_restraint_energy_contribution: bool = True,
     ):
         """
         Uses mbar to calculate the free energy difference between trajectories.
@@ -52,151 +53,182 @@ class FreeEnergyCalculator:
             energy trace of trajectories
         lambdas : list
             all lambda states
+        include_restraint_energy_contribution : bool (default: True)
+            including restraint energy
+        """
+
+        K = len(lambdas)
+        assert len(md_trajs) == K
+        assert len(potential_energy_trajs) == K
+        assert include_restraint_energy_contribution in (False, True)
+
+        self.ani_model = ani_model
+        self.include_restraint_energy_contribution = (
+            include_restraint_energy_contribution
+        )
+        potential_energy_trajs = potential_energy_trajs  # for detecting equilibrium
+        self.lambdas = lambdas
+
+        coordinates, N_k = self.combine_snapshots(
+            md_trajs, potential_energy_trajs, max_snapshots_per_window
+        )
+        self.setup_mbar(coordinates, N_k, bulk_energy_calculation)
+
+    def combine_snapshots(
+        self,
+        md_trajs: list,
+        potential_energy_trajs: list,
+        max_snapshots_per_window: int,
+    ) -> Tuple[list, list]:
+        """
+        combine_snapshots Merges trajectories to a single list of snapshots
+
+        Parameters
+        ----------
+        md_trajs : list
+            list of mdtraj.Trajectory instances
+        potential_energy_trajs : list
+            list of potential energies for each snapshot
+        max_snapshots_per_window : int
+            maximum number of snapshots for each lambda state
+
+        Returns
+        -------
+        Tuple
+            merged snapshots, N_k
+
+        Raises
+        ------
+        RuntimeError
+            is raised if the number of snapshot per lambda is larger than max_snapshots_per_window
+        RuntimeError
+            is raised if the number of snapshot per lambda is smaller than max_snapshots_per_window * 0.6
+        """
+        ani_trajs = {}
+        for lam, traj, potential_energy in zip(
+            self.lambdas, md_trajs, potential_energy_trajs
+        ):
+            # detect equilibrium
+            equil, g = detectEquilibration(
+                np.array([e / kT for e in potential_energy])
+            )[:2]
+            # thinn snapshots and return max_snapshots_per_window confs
+            quarter_traj_limit = int(len(traj) / 4)
+            snapshots = traj[min(quarter_traj_limit, equil) :].xyz * unit.nanometer
+            further_thinning = max(int(len(snapshots) / max_snapshots_per_window), 1)
+            snapshots = snapshots[::further_thinning][:max_snapshots_per_window]
+            ani_trajs[lam] = snapshots
+            logger.info(len(snapshots))
+
+            # test that we have a lower number of snapshots than max_snapshots_per_window
+            if max_snapshots_per_window == -1:
+                logger.debug(f"There are {len(snapshots)} snapshots per lambda state")
+
+            if max_snapshots_per_window != -1 and (
+                len(snapshots) > max_snapshots_per_window
+            ):
+                raise RuntimeError(
+                    f"There are {len(snapshots)} snapshots per lambda state (max: {max_snapshots_per_window}). Aborting."
+                )
+
+            # test that we have not less than 60% of max_snapshots_per_window
+            if max_snapshots_per_window != -1 and len(snapshots) < (
+                int(max_snapshots_per_window * 0.6)
+            ):
+                raise RuntimeError(
+                    f"There are only {len(snapshots)} snapshots per lambda state. Aborting."
+                )
+            # test that we have not less than 40 snapshots
+            if len(snapshots) < 40:
+                logger.critical(
+                    f"There are only {len(snapshots)} snapshots per lambda state. Be careful."
+                )
+
+        snapshots = []
+        N_k = []
+        for lam in sorted(self.lambdas):
+            logger.debug(f"lamb: {lam}")
+            N_k.append(len(ani_trajs[lam]))
+            snapshots.extend(ani_trajs[lam])
+            logger.debug(f"Snapshots per lambda {lam}: {len(ani_trajs[lam])}")
+
+        if len(snapshots) < 300:
+            logger.critical(
+                f"Total number of snapshots is {len(snapshots)} -- is this enough?"
+            )
+
+        coordinates = [sample / unit.angstrom for sample in snapshots] * unit.angstrom
+        return coordinates, N_k
+
+    def setup_mbar(self, coordinates: list, N_k: list, bulk_energy_calculation: bool):
+
+        """
+        [summary]
         """
 
         def get_mix(lambda0, lambda1, lam=0.0):
             return (1 - lam) * lambda0 + lam * lambda1
 
-        K = len(lambdas)
-        assert len(md_trajs) == K
-        assert len(potential_energy_trajs) == K
-        self.ani_model = ani_model
-        self.potential_energy_trajs = (
-            potential_energy_trajs  # for detecting equilibrium
-        )
-        self.lambdas = lambdas
+        logger.debug(f"len(coordinates): {len(coordinates)}")
 
-        if pickle_path and os.path.isfile((pickle_path)):
-            logger.info(f"Loading MBAR results from: {pickle_path}")
-            p = pickle.load(open(pickle_path, "rb"))
-            self.mbar = p["MBAR"]
-            self.coordinates = p["coordinates"]
-
+        # end-point energies
+        if bulk_energy_calculation:
+            lambda0_e = self.ani_model.calculate_energy(
+                coordinates,
+                lambda_value=0.0,
+                original_neural_network=True,
+                requires_grad_wrt_coordinates=False,
+                requires_grad_wrt_parameters=False,
+                include_restraint_energy_contribution=self.include_restraint_energy_contribution,
+            ).energy
+            lambda1_e = self.ani_model.calculate_energy(
+                coordinates,
+                lambda_value=1.0,
+                original_neural_network=True,
+                requires_grad_wrt_coordinates=False,
+                requires_grad_wrt_parameters=False,
+                include_restraint_energy_contribution=self.include_restraint_energy_contribution,
+            ).energy
         else:
-            ani_trajs = {}
-            for lam, traj, potential_energy in zip(
-                self.lambdas, md_trajs, self.potential_energy_trajs
-            ):
-                # detect equilibrium
-                equil, g = detectEquilibration(
-                    np.array([e / kT for e in potential_energy])
-                )[:2]
-                # thinn snapshots and return max_snapshots_per_window confs
-                quarter_traj_limit = int(len(traj) / 4)
-                snapshots = traj[min(quarter_traj_limit, equil) :].xyz * unit.nanometer
-                further_thinning = max(
-                    int(len(snapshots) / max_snapshots_per_window), 1
-                )
-                snapshots = snapshots[::further_thinning][:max_snapshots_per_window]
-                ani_trajs[lam] = snapshots
-                logger.info(len(snapshots))
-
-                # test that we have a lower number of snapshots than max_snapshots_per_window
-                if max_snapshots_per_window == -1:
-                    logger.debug(
-                        f"There are {len(snapshots)} snapshots per lambda state"
-                    )
-
-                if max_snapshots_per_window != -1 and (
-                    len(snapshots) > max_snapshots_per_window
-                ):
-                    raise RuntimeError(
-                        f"There are {len(snapshots)} snapshots per lambda state (max: {max_snapshots_per_window}). Aborting."
-                    )
-
-                # test that we have not less than 60% of max_snapshots_per_window
-                if max_snapshots_per_window != -1 and len(snapshots) < (
-                    int(max_snapshots_per_window * 0.6)
-                ):
-                    raise RuntimeError(
-                        f"There are only {len(snapshots)} snapshots per lambda state. Aborting."
-                    )
-                # test that we have not less than 40 snapshots
-                if len(snapshots) < 40:
-                    logger.critical(
-                        f"There are only {len(snapshots)} snapshots per lambda state. Be careful."
-                    )
-
-            snapshots = []
-            N_k = []
-            for lam in sorted(self.lambdas):
-                logger.debug(f"lamb: {lam}")
-                N_k.append(len(ani_trajs[lam]))
-                snapshots.extend(ani_trajs[lam])
-                logger.debug(f"Snapshots per lambda {lam}: {len(ani_trajs[lam])}")
-
-            if len(snapshots) < 300:
-                logger.critical(
-                    f"Total number of snapshots is {len(snapshots)} -- is this enough?"
-                )
-
-            coordinates = [
-                sample / unit.angstrom for sample in snapshots
-            ] * unit.angstrom
-
-            logger.debug(f"len(coordinates): {len(coordinates)}")
-
-            # end-point energies
-            if bulk_energy_calculation:
-                lambda0_e = self.ani_model.calculate_energy(
-                    coordinates,
+            lambda0_e = []
+            lambda1_e = []
+            for coord in coordinates:
+                # getting coord from [N][3] to [1][N][3]
+                coord = np.array([coord / unit.angstrom]) * unit.angstrom
+                e0 = self.ani_model.calculate_energy(
+                    coord,
                     lambda_value=0.0,
                     original_neural_network=True,
                     requires_grad_wrt_coordinates=False,
                     requires_grad_wrt_parameters=False,
+                    include_restraint_energy_contribution=self.include_restraint_energy_contribution,
                 ).energy
-                lambda1_e = self.ani_model.calculate_energy(
-                    coordinates,
+                lambda0_e.append(e0[0] / kT)
+                e1 = self.ani_model.calculate_energy(
+                    coord,
                     lambda_value=1.0,
                     original_neural_network=True,
                     requires_grad_wrt_coordinates=False,
                     requires_grad_wrt_parameters=False,
+                    include_restraint_energy_contribution=self.include_restraint_energy_contribution,
                 ).energy
-            else:
-                lambda0_e = []
-                lambda1_e = []
-                for coord in coordinates:
-                    # getting coord from [N][3] to [1][N][3]
-                    coord = np.array([coord / unit.angstrom]) * unit.angstrom
-                    e0 = self.ani_model.calculate_energy(
-                        coord,
-                        lambda_value=0.0,
-                        original_neural_network=True,
-                        requires_grad_wrt_coordinates=False,
-                        requires_grad_wrt_parameters=False,
-                    ).energy
-                    lambda0_e.append(e0[0] / kT)
-                    e1 = self.ani_model.calculate_energy(
-                        coord,
-                        lambda_value=1.0,
-                        original_neural_network=True,
-                        requires_grad_wrt_coordinates=False,
-                        requires_grad_wrt_parameters=False,
-                    ).energy
-                    lambda1_e.append(e1[0] / kT)
-                lambda0_e = np.array(lambda0_e) * kT
-                lambda1_e = np.array(lambda1_e) * kT
+                lambda1_e.append(e1[0] / kT)
+            lambda0_e = np.array(lambda0_e) * kT
+            lambda1_e = np.array(lambda1_e) * kT
 
-            logger.debug(f"len(lambda0_e): {len(lambda0_e)}")
+        logger.debug(f"len(lambda0_e): {len(lambda0_e)}")
 
-            u_kn = np.stack(
-                [
-                    get_mix(lambda0_e / kT, lambda1_e / kT, lam)
-                    for lam in sorted(self.lambdas)
-                ]
-            )
+        u_kn = np.stack(
+            [
+                get_mix(lambda0_e / kT, lambda1_e / kT, lam)
+                for lam in sorted(self.lambdas)
+            ]
+        )
 
-            del lambda0_e
-            del lambda1_e
-
-            self.mbar = MBAR(u_kn, N_k)
-            self.coordinates = coordinates
-
-            if pickle_path:
-                # only save if pickle_path is defined
-                p = {"MBAR": self.mbar, "coordinates": self.coordinates}
-                pickle.dump(p, open(pickle_path, "wb"))
-                logger.info(f"Saving MBAR results to: {pickle_path}")
+        del lambda0_e
+        del lambda1_e
+        self.mbar = MBAR(u_kn, N_k)
+        self.coordinates = coordinates
 
     @property
     def free_energy_differences(self):
@@ -248,6 +280,7 @@ class FreeEnergyCalculator:
             lambda_value=0.0,
             original_neural_network=False,
             requires_grad_wrt_coordinates=False,
+            include_restraint_energy_contribution=self.include_restraint_energy_contribution,
         ).energy_tensor
 
         # Note: Use class neural network here (that might or might not be modified)!
@@ -256,6 +289,7 @@ class FreeEnergyCalculator:
             lambda_value=1.0,
             original_neural_network=False,
             requires_grad_wrt_coordinates=False,
+            include_restraint_energy_contribution=self.include_restraint_energy_contribution,
         ).energy_tensor
 
         u_ln = torch.stack([u_0, u_1])
@@ -290,7 +324,6 @@ def get_perturbed_free_energy_difference(fec_list: list) -> torch.Tensor:
         else:
             deltaF = fec._compute_free_energy_difference()
         calc.append(deltaF)
-    logger.debug(calc)
     return torch.stack([e for e in calc])
 
 
@@ -313,7 +346,6 @@ def get_unperturbed_free_energy_difference(fec_list: list):
         else:
             deltaF = fec._end_state_free_energy_difference[0]
         calc.append(deltaF)
-    logger.debug(calc)
     return torch.stack([torchify(e) for e in calc])
 
 
@@ -345,19 +377,47 @@ def calculate_rmse_between_exp_and_calc(
     max_snapshots_per_window: int,
     perturbed_free_energy: bool = True,
     diameter: int = -1,
-) -> (float, list):
-    """
-    Returns the RMSE between calculated and experimental free energy differences as float.
+    load_pickled_FEC: bool = False,
+    include_restraint_energy_contribution: bool = False,
+) -> Tuple[float, list]:
 
-    Arguments:
-        names {list} -- list of system names considered for RMSE calculation
-        data_path {str} -- data path to the location of the trajectories
-        thinning {int} -- nth frame considerd
-        max_snapshots_per_window {int} -- maximum number of snapshots per window
-
-    Returns:
-        [type] -- returns the RMSE as float
     """
+    calculate_rmse_between_exp_and_calc Returns the RMSE between calculated and experimental free energy differences as float
+
+    Parameters
+    ----------
+    names : list
+        list of system names considered for RMSE calculation
+    model : ANI
+        [description]
+    data_path : str
+        data path to the location of the trajectories
+    bulk_energy_calculation : bool
+        [description]
+    env : str
+        [description]
+    max_snapshots_per_window : int
+        maximum number of snapshots per window
+    perturbed_free_energy : bool, optional
+        [description], by default True
+    diameter : int, optional
+        [description], by default -1
+    load_pickled_FEC : bool, optional
+        [description], by default False
+    include_restraint_energy_contribution : bool, optional
+        [description], by default False
+
+    Returns
+    -------
+    Tuple[float, list]
+        returns the RMSE as float, calculated dG values as list
+
+    Raises
+    ------
+    RuntimeError
+        is raised if diameter is not specified for a droplet system
+    """
+
     if env == "droplet" and diameter == -1:
         raise RuntimeError(
             f"Something went wrong. Diameter is set for {diameter}. Aborting."
@@ -368,7 +428,7 @@ def calculate_rmse_between_exp_and_calc(
 
     for name in it:
         fec_list = [
-            setup_mbar(
+            setup_FEC(
                 name=name,
                 ANImodel=model,
                 env=env,
@@ -376,14 +436,22 @@ def calculate_rmse_between_exp_and_calc(
                 data_path=data_path,
                 max_snapshots_per_window=max_snapshots_per_window,
                 diameter=diameter,
+                load_pickled_FEC=load_pickled_FEC,
+                include_restraint_energy_contribution=include_restraint_energy_contribution,
             )
         ]
 
+        # append calculated values
         if perturbed_free_energy:
-            e_calc.append(get_perturbed_free_energy_difference(fec_list)[0].item())
+            e_calc.append(
+                get_perturbed_free_energy_difference(fec_list)[
+                    0
+                ].item()  # NOTE: This is a valid assumption since we are iteration with batchsize=1
+            )
         else:
             e_calc.append(get_unperturbed_free_energy_difference(fec_list)[0].item())
 
+        # append experimental values
         e_exp.append(get_experimental_values([name])[0].item())
         current_rmse = calculate_rmse(
             torch.tensor(e_calc, device=device), torch.tensor(e_exp, device=device)
@@ -398,12 +466,12 @@ def calculate_rmse_between_exp_and_calc(
     return current_rmse, e_calc
 
 
-def calculate_mse(t1: torch.Tensor, t2: torch.Tensor):
+def calculate_mse(t1: torch.Tensor, t2: torch.Tensor) -> torch.Tensor:
     assert t1.size() == t2.size()
     return torch.mean((t1 - t2) ** 2)
 
 
-def calculate_rmse(t1: torch.Tensor, t2: torch.Tensor):
+def calculate_rmse(t1: torch.Tensor, t2: torch.Tensor) -> torch.Tensor:
     assert t1.size() == t2.size()
     return torch.sqrt(calculate_mse(t1, t2))
 
@@ -414,8 +482,43 @@ def chunks(lst, n):
         yield lst[i : i + n]
 
 
-def _log_dG():
-    pass
+def _split_names_in_training_validation_test_set(
+    names_list: list,
+) -> Tuple[list, list, list]:
+    """
+    _split_names_in_training_validation_test_set Splits a list in 3 chunks representing training, validation and test set.
+    Initially, there is a 80:20 split in two sets (training, validation) and (test), subsequently the (training, validation) set is split
+    again 80:20 of the (training, validation) set.
+
+    Parameters
+    ----------
+    names_list : list
+        [description]
+
+    Returns
+    -------
+    Tuple[list, list, list]
+        [description]
+    """
+    from sklearn.model_selection import train_test_split
+
+    names_training_validating, names_test = train_test_split(names_list, test_size=0.2)
+    print(
+        f"Len of training/validation set: {len(names_training_validating)}/{len(names_list)}"
+    )
+
+    names_training, names_validating = train_test_split(
+        names_training_validating, test_size=0.2
+    )
+    print(
+        f"Len of training set: {len(names_training)}/{len(names_training_validating)}"
+    )
+    print(
+        f"Len of validating set: {len(names_validating)}/{len(names_training_validating)}"
+    )
+    print(f"Len of test set: {len(names_test)}/{len(names_list)}")
+
+    return names_training, names_validating, names_test
 
 
 def setup_and_perform_parameter_retraining_with_test_set_split(
@@ -432,7 +535,11 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
     bulk_energy_calculation: bool = True,
     load_checkpoint: bool = True,
     names: list = [],
-):
+    load_pickled_FEC: bool = True,
+    lr_AdamW: float = 1e-3,
+    lr_SGD: float = 1e-3,
+    weight_decay: float = 0.000001,
+) -> Tuple[list, float]:
 
     """
     Calculates the free energy of a staged free energy simulation,
@@ -440,26 +547,52 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
     between the experimental and calculated free energy is minimized.
 
     Parameters:
-        ANImode [ANI]: The ANI model object (not instance)
-        emv [str]: either 'vacuum' or droplet
-        max_snapshots_per_window [int]: how many snapshots should be considered per lambda state
-        checkpoint_filename [str]: filename to save checkpoint files
-        diameter [int] [opt]: diameter in Angstrom for droplet
-        batch_size [int] [opt]
-        elements [str] [opt]:
-
-
+        ANImode : ANI
+            The ANI model object (not instance)
+        emv : str
+            either 'vacuum' or droplet
+        max_snapshots_per_window : int
+            how many snapshots should be considered per lambda state
+        checkpoint_filename : str
+            filename to save/load checkpoint files. Checkpoint file is loaded only if load_checkpoint=True.
+        diameter : int, opt
+            diameter in Angstrom for droplet, by default = -1
+        batch_size : int, opt
+            by default = 1
+        elements : str, opt:
+            by default = 'CHON'
+        names : list, opt
+            for testing only! if names list is provided, no training/validation/test set split is performed but training/validation/test is performed with the names list, by default = []
+        load_pickled_FEC : bool, opt
+            by default = True
+        lr_AdamW : float, opt
+            learning rate of AdamW, by default = 1e-3
+        lr_SGD: float, opt
+            learning rate of SGD minimizer, by default = 1e-3
+        weight_decay : float, opt
+            by default = 1e-6
     Raises:
         RuntimeError: [description]
 
     Returns:
         [type]: [description]
     """
+    import datetime
 
-    from sklearn.model_selection import train_test_split
-    import random
+    # initialize an empty ANI model to set default parameters
+    _ = ANImodel([0, 0])
+    ct = datetime.datetime.now()
 
-    assert int(batch_size) <= 10 and int(batch_size) >= 1
+    # write detail of run and all parameters in the training directory
+    fname = "run_info.csv"
+    logger.info(f"... writing run details to {fname}  ...")
+    local_variables = locals()
+    with open(fname, "w+") as f:
+        f.write(f"{str(ct)}\n")
+        for key, value in local_variables.items():
+            logger.info(f"{key}: {value}")
+            f.write(f"{key}: {value}\n")
+
     assert int(nr_of_nn) <= 8 and int(nr_of_nn) >= 1
 
     if env == "droplet" and diameter == -1:
@@ -470,34 +603,48 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
             "BE CAREFUL! This is not a real training run but a test run with user specified molecule names."
         )
         logger.critical("Validating and test set are the same")
-        names_validating = names
         names_training = names
+        names_validating = names
         names_test = names
     else:
         # split in training/validation/test set
         # get names of molecules we want to optimize
         names_list = _get_names()
+        (
+            names_training,
+            names_validating,
+            names_test,
+        ) = _split_names_in_training_validation_test_set(names_list)
 
-        names_training_validating, names_test = train_test_split(
-            names_list, test_size=0.2
-        )
-        print(
-            f"Len of training/validation set: {len(names_training_validating)}/{len(names_list)}"
-        )
+    # save the split for this particular training/validation/test split
+    split = {}
+    for name, which_set in zip(
+        names_training + names_validating + names_test,
+        ["training"] * len(names_training)
+        + ["validating"] * len(names_validating)
+        + ["testing"] * len(names_test),
+    ):
+        split[name] = which_set
+    pickle.dump(split, open(f"training_validation_tests.pickle", "wb+"))
 
-        names_training, names_validating = train_test_split(
-            names_training_validating, test_size=0.2
-        )
-        print(
-            f"Len of training set: {len(names_training)}/{len(names_training_validating)}"
-        )
-        print(
-            f"Len of validating set: {len(names_validating)}/{len(names_training_validating)}"
-        )
-        print(f"Len of test set: {len(names_test)}/{len(names_list)}")
+    # rmsd calculation on test set
+    rmse_test, dG_calc_test_initial = calculate_rmse_between_exp_and_calc(
+        model=ANImodel,
+        names=names_test,
+        diameter=diameter,
+        data_path=data_path,
+        bulk_energy_calculation=bulk_energy_calculation,
+        env=env,
+        max_snapshots_per_window=max_snapshots_per_window,
+        load_pickled_FEC=load_pickled_FEC,
+        include_restraint_energy_contribution=False,
+        perturbed_free_energy=False,  # NOTE: always unperturbed
+    )
+
+    print(f"RMSE on test set BEFORE optimization: {rmse_test}")
 
     # save batch loss through epochs
-    rmse_training, rmse_validation = setup_and_perform_parameter_retraining(
+    rmse_validation = setup_and_perform_parameter_retraining(
         ANImodel=ANImodel,
         env=env,
         checkpoint_filename=checkpoint_filename,
@@ -512,11 +659,14 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
         bulk_energy_calculation=bulk_energy_calculation,
         names_training=names_training,
         names_validating=names_validating,
+        load_pickled_FEC=load_pickled_FEC,
+        lr_AdamW=lr_AdamW,
+        lr_SGD=lr_SGD,
+        weight_decay=weight_decay,
     )
 
     # final rmsd calculation on test set
-    print("RMSE calulation for test set")
-    rmse_test, dG_calc_test = calculate_rmse_between_exp_and_calc(
+    rmse_test, dG_calc_test_final = calculate_rmse_between_exp_and_calc(
         model=ANImodel,
         names=names_test,
         diameter=diameter,
@@ -524,15 +674,26 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
         bulk_energy_calculation=bulk_energy_calculation,
         env=env,
         max_snapshots_per_window=max_snapshots_per_window,
+        load_pickled_FEC=load_pickled_FEC,
+        include_restraint_energy_contribution=False,
     )
+    print(f"RMSE on test set AFTER optimization: {rmse_test}")
 
     # write out data on dG for test set after optimization
-    results = {}
-    for name, e in zip(names_test, dG_calc_test):
-        results[name] = e
-    pickle.dump(results, open(f"results_AFTER_training_for_test_set.pickle", "wb+"))
+    exp_results = neutromeratio.analysis._get_exp_results()
 
-    return rmse_training, rmse_validation, rmse_test
+    results = {}
+    for name, e_initial, e_final in zip(
+        names_test, dG_calc_test_initial, dG_calc_test_final
+    ):
+        results[name] = (
+            e_initial,
+            e_final,
+            (exp_results[name]["energy"] * unit.kilocalorie_per_mole) / kT,
+        )
+    pickle.dump(results, open(f"results_for_test_set.pickle", "wb+"))
+
+    return rmse_validation, rmse_test
 
 
 def _save_checkpoint(
@@ -540,7 +701,7 @@ def _save_checkpoint(
 ):
     torch.save(
         {
-            "nn": model.tweaked_neural_network.state_dict(),
+            "nn": model.optimized_neural_network.state_dict(),
             "AdamW": AdamW.state_dict(),
             "SGD": SGD.state_dict(),
             "AdamW_scheduler": AdamW_scheduler.state_dict(),
@@ -555,7 +716,6 @@ def _perform_training(
     nr_of_nn: int,
     names_training: list,
     names_validating: list,
-    rmse_training: list,
     checkpoint_filename: str,
     max_epochs: int,
     elements: str,
@@ -566,27 +726,52 @@ def _perform_training(
     data_path: str,
     max_snapshots_per_window: int,
     load_checkpoint: bool,
-    rmse_validation,
-):
+    rmse_validation: list,
+    load_pickled_FEC: bool,
+    lr_AdamW: float,
+    lr_SGD: float,
+    weight_decay: float,
+) -> list:
 
     early_stopping_learning_rate = 1.0e-5
     AdamW, AdamW_scheduler, SGD, SGD_scheduler = _get_nn_layers(
-        nr_of_nn, ANImodel, elements=elements
+        nr_of_nn,
+        ANImodel,
+        elements=elements,
+        lr_AdamW=lr_AdamW,
+        lr_SGD=lr_SGD,
+        weight_decay=weight_decay,
     )
 
+    logger.info("_perform_training called ...")
+    local_variables = locals()
+    for key, value in local_variables.items():
+        logger.info(f"{key}: {value}")
+
     if load_checkpoint:
+        # load checkpoint file and parameters if specified
+        logger.warning(f"CHECKPOINT file {checkpoint_filename} is loaded ...")
         _load_checkpoint(
             checkpoint_filename, ANImodel, AdamW, AdamW_scheduler, SGD, SGD_scheduler
         )
 
-    logger.info(f"training starting from epoch {AdamW_scheduler.last_epoch + 1}")
-
     base = checkpoint_filename.split(".")[0]
     best_model_checkpoint = f"{base}_best.pt"
+    logger.info(f"training starting from epoch {AdamW_scheduler.last_epoch + 1}")
+    logger.info(f"Writing checkpoint files to: {base}")
+
+    # save starting point
+    _save_checkpoint(
+        ANImodel,
+        AdamW,
+        AdamW_scheduler,
+        SGD,
+        SGD_scheduler,
+        f"{base}_{0}.pt",
+    )
 
     ## training loop
-    for i in range(AdamW_scheduler.last_epoch + 1, max_epochs):
-        results = dict()  # save all name : predicted free energies here
+    for _ in range(AdamW_scheduler.last_epoch + 1, max_epochs):
 
         # get the learning group
         learning_rate = AdamW.param_groups[0]["lr"]
@@ -596,7 +781,7 @@ def _perform_training(
         # checkpoint -- if best parameters on validation set save parameters
         if AdamW_scheduler.is_better(rmse_validation[-1], AdamW_scheduler.best):
             torch.save(
-                ANImodel.tweaked_neural_network.state_dict(), best_model_checkpoint
+                ANImodel.optimized_neural_network.state_dict(), best_model_checkpoint
             )
 
         # define the stepsize
@@ -604,7 +789,7 @@ def _perform_training(
         SGD_scheduler.step(rmse_validation[-1])
 
         # perform the parameter optimization and importance weighting
-        dG_calc_training, dG_exp = _tweak_parameters(
+        _tweak_parameters(
             names_training=names_training,
             ANImodel=ANImodel,
             AdamW=AdamW,
@@ -615,6 +800,7 @@ def _perform_training(
             batch_size=batch_size,
             data_path=data_path,
             max_snapshots_per_window=max_snapshots_per_window,
+            load_pickled_FEC=load_pickled_FEC,
         )
 
         # calculate the new free energies on the validation set with optimized parameters
@@ -626,6 +812,9 @@ def _perform_training(
             bulk_energy_calculation=bulk_energy_calculation,
             env=env,
             max_snapshots_per_window=max_snapshots_per_window,
+            perturbed_free_energy=True,
+            load_pickled_FEC=load_pickled_FEC,
+            include_restraint_energy_contribution=False,
         )
 
         rmse_validation.append(current_rmse)
@@ -633,12 +822,7 @@ def _perform_training(
         print(
             f"RMSE on validation set: {rmse_validation[-1]} at epoch {AdamW_scheduler.last_epoch}"
         )
-        rmse_training.append(
-            calculate_rmse(torch.tensor(dG_calc_training), torch.tensor(dG_exp)).item()
-        )
-        print(
-            f"RMSE on training set: {rmse_training[-1]} at epoch {AdamW_scheduler.last_epoch}"
-        )
+
         _save_checkpoint(
             ANImodel,
             AdamW,
@@ -647,24 +831,12 @@ def _perform_training(
             SGD_scheduler,
             f"{base}_{AdamW_scheduler.last_epoch}.pt",
         )
-        # write all results
 
-        logger.info("writing out results")
-        for name, e, which_set in zip(
-            names_training + names_validating,
-            dG_calc_training + dG_calc_validation,
-            ["t"] * len(names_training) + ["v"] * len(names_validating),
-        ):
-            results[name] = [e, which_set]
-        pickle.dump(
-            results, open(f"results_epoch_{AdamW_scheduler.last_epoch}.pickle", "wb+")
-        )
+    # _save_checkpoint(
+    #     ANImodel, AdamW, AdamW_scheduler, SGD, SGD_scheduler, checkpoint_filename
+    # )
 
-    _save_checkpoint(
-        ANImodel, AdamW, AdamW_scheduler, SGD, SGD_scheduler, checkpoint_filename
-    )
-
-    return rmse_training, rmse_validation
+    return rmse_validation
 
 
 def _tweak_parameters(
@@ -678,6 +850,7 @@ def _tweak_parameters(
     batch_size: int,
     data_path: str,
     max_snapshots_per_window: int,
+    load_pickled_FEC: bool,
 ):
     """
     _tweak_parameters
@@ -690,7 +863,7 @@ def _tweak_parameters(
         the ANI class used for energy calculation
     AdamW :
         AdamW instance
-    SGD : [type]
+    SGD :
         SGD instance
     env : str
         either 'droplet' or vacuum
@@ -705,23 +878,18 @@ def _tweak_parameters(
     max_snapshots_per_window : int
         the number of snapshots per lambda state to consider
 
-    Returns
-    -------
-    [type]
-        [description]
     """
 
+    logger.info("_tweak_parameters called ...")
     # iterate over batches of molecules
     it = tqdm(chunks(names_training, batch_size))
-    calc_free_energy_difference_batches = []
-    exp_free_energy_difference_batches = []
 
     for idx, names in enumerate(it):
 
-        # define setup_mbar function
+        # define setup_FEC function
         # get mbar instances in a list
         fec_list = [
-            setup_mbar(
+            setup_FEC(
                 name=name,
                 ANImodel=ANImodel,
                 env=env,
@@ -729,6 +897,8 @@ def _tweak_parameters(
                 bulk_energy_calculation=bulk_energy_calculation,
                 max_snapshots_per_window=max_snapshots_per_window,
                 diameter=diameter,
+                load_pickled_FEC=load_pickled_FEC,
+                include_restraint_energy_contribution=False,
             )
             for name in names
         ]
@@ -741,12 +911,6 @@ def _tweak_parameters(
         loss = calculate_mse(calc_free_energy_difference, exp_free_energy_difference)
         it.set_description(f"Batch {idx} -- MSE: {loss.item()}")
 
-        calc_free_energy_difference_batches.extend(
-            [e.item() for e in calc_free_energy_difference]
-        )
-        exp_free_energy_difference_batches.extend(
-            [e.item() for e in exp_free_energy_difference]
-        )
         # optimization steps
         AdamW.zero_grad()
         SGD.zero_grad()
@@ -755,7 +919,6 @@ def _tweak_parameters(
         SGD.step()
 
         del calc_free_energy_difference
-    return calc_free_energy_difference_batches, exp_free_energy_difference_batches
 
 
 def _load_checkpoint(
@@ -764,38 +927,142 @@ def _load_checkpoint(
     # save checkpoint
     if os.path.isfile(latest_checkpoint):
         checkpoint = torch.load(latest_checkpoint)
-        model.tweaked_neural_network.load_state_dict(checkpoint["nn"])
+        model.optimized_neural_network.load_state_dict(checkpoint["nn"])
         AdamW.load_state_dict(checkpoint["AdamW"])
         SGD.load_state_dict(checkpoint["SGD"])
         AdamW_scheduler.load_state_dict(checkpoint["AdamW_scheduler"])
         SGD_scheduler.load_state_dict(checkpoint["SGD_scheduler"])
     else:
-        logger.info(f"Checkoint {latest_checkpoint} does not exist.")
+        logger.critical(f"Checkoint {latest_checkpoint} does not exist.")
+        raise RuntimeError("Wanted to laod checkpoint but checkpoint does not exist")
 
 
-def _get_nn_layers(nr_of_nn: int, ANImodel: ANI, elements: str = "CHON"):
+def _get_nn_layers(
+    nr_of_nn: int,
+    ANImodel: ANI,
+    elements: str,
+    lr_AdamW: float = 1e-3,
+    lr_SGD: float = 1e-3,
+    weight_decay: float = 1e-6,
+    layer: int = -1,
+):
+
+    """
+    Extracts the trainable parameters of the defined layer for some elements of the pretrained ANI net.
+
+    Parameters
+    -------
+    elements: str
+    lr_AdamW: float
+    lr_SGD: float
+    weight_decay : float
+    layer : which layer will be optimized (default -1)
+
+    Returns
+    -------
+    [type]
+        [description]
+
+    Raises
+    ------
+    RuntimeError
+        [description]
+    """
+
+    model = ANImodel.optimized_neural_network
 
     if elements == "CHON":
         logger.info("Using `CHON` elements.")
-        return _get_nn_layers_CHON(nr_of_nn, ANImodel)
+        weight_layers, bias_layers = _get_nn_layers_CHON(
+            weight_decay, layer, model
+        )
     elif elements == "CN":
         logger.info("Using `CN` elements.")
-        return _get_nn_layers_CN(nr_of_nn, ANImodel)
+        weight_layers, bias_layers = _get_nn_layers_CN(
+            weight_decay, layer, model
+        )
+    elif elements == "H":
+        logger.info("Using `H` elements.")
+        weight_layers, bias_layers = _get_nn_layers_H(
+            weight_decay, layer, model
+        )
+    elif elements == "C":
+        logger.info("Using `C` elements.")
+        weight_layers, bias_layers = _get_nn_layers_C(
+            weight_decay, layer, model
+        )
     else:
-        raise RuntimeError("Only `CHON` or `CN` as atoms allowed. Aborting.")
+        raise RuntimeError(
+            "Only `CHON`, `H`, `C` or `CN` as elements allowed. Aborting."
+        )
+
+    # set up minimizer for weights
+    AdamW = torch.optim.AdamW(weight_layers, lr=lr_AdamW)
+
+    # set up minimizer for bias
+    SGD = torch.optim.SGD(bias_layers, lr=lr_SGD)
+
+    AdamW_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        AdamW, factor=0.5, patience=2, threshold=0.2
+    )
+    SGD_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        SGD, factor=0.5, patience=2, threshold=0.2
+    )
+
+    return (AdamW, AdamW_scheduler, SGD, SGD_scheduler)
 
 
-def _get_nn_layers_CN(nr_of_nn: int, ANImodel: ANI):
+def _get_nn_layers_C(
+    weight_decay: float, layer: int, model
+) -> Tuple[list, list]:
     weight_layers = []
     bias_layers = []
-    layer = 6
-    model = ANImodel.tweaked_neural_network
 
-    for nn in model[:nr_of_nn]:
+    for nn in model:
         weight_layers.extend(
             [
-                {"params": [nn.C[layer].weight], "weight_decay": 0.000001},
-                {"params": [nn.N[layer].weight], "weight_decay": 0.000001},
+                {"params": [nn.C[layer].weight], "weight_decay": weight_decay},
+            ]
+        )
+        bias_layers.extend(
+            [
+                {"params": [nn.C[layer].bias]},
+            ]
+        )
+    return (weight_layers, bias_layers)
+
+
+def _get_nn_layers_H(
+    weight_decay: float, layer: int, model
+) -> Tuple[list, list]:
+    weight_layers = []
+    bias_layers = []
+
+    for nn in model:
+        weight_layers.extend(
+            [
+                {"params": [nn.H[layer].weight], "weight_decay": weight_decay},
+            ]
+        )
+        bias_layers.extend(
+            [
+                {"params": [nn.H[layer].bias]},
+            ]
+        )
+    return (weight_layers, bias_layers)
+
+
+def _get_nn_layers_CN(
+    weight_decay: float, layer: int, model
+) -> Tuple[list, list]:
+    weight_layers = []
+    bias_layers = []
+
+    for nn in model:
+        weight_layers.extend(
+            [
+                {"params": [nn.C[layer].weight], "weight_decay": weight_decay},
+                {"params": [nn.N[layer].weight], "weight_decay": weight_decay},
             ]
         )
         bias_layers.extend(
@@ -804,33 +1071,22 @@ def _get_nn_layers_CN(nr_of_nn: int, ANImodel: ANI):
                 {"params": [nn.N[layer].bias]},
             ]
         )
-    # set up minimizer for weights
-    AdamW = torch.optim.AdamW(weight_layers)
-    # set up minimizer for bias
-    SGD = torch.optim.SGD(bias_layers, lr=1e-3)
-
-    AdamW_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        AdamW, factor=0.5, patience=100, threshold=0
-    )
-    SGD_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        SGD, factor=0.5, patience=100, threshold=0
-    )
-
-    return (AdamW, AdamW_scheduler, SGD, SGD_scheduler)
+    return (weight_layers, bias_layers)
 
 
-def _get_nn_layers_CHON(nr_of_nn: int, ANImodel: ANI):
+def _get_nn_layers_CHON(
+    weight_decay: float, layer: int, model
+) -> Tuple[list, list]:
     weight_layers = []
     bias_layers = []
-    model = ANImodel.tweaked_neural_network
-    layer = 6
-    for nn in model[:nr_of_nn]:
+
+    for nn in model:
         weight_layers.extend(
             [
-                {"params": [nn.C[layer].weight], "weight_decay": 0.000001},
-                {"params": [nn.H[layer].weight], "weight_decay": 0.000001},
-                {"params": [nn.O[layer].weight], "weight_decay": 0.000001},
-                {"params": [nn.N[layer].weight], "weight_decay": 0.000001},
+                {"params": [nn.C[layer].weight], "weight_decay": weight_decay},
+                {"params": [nn.H[layer].weight], "weight_decay": weight_decay},
+                {"params": [nn.O[layer].weight], "weight_decay": weight_decay},
+                {"params": [nn.N[layer].weight], "weight_decay": weight_decay},
             ]
         )
         bias_layers.extend(
@@ -841,19 +1097,8 @@ def _get_nn_layers_CHON(nr_of_nn: int, ANImodel: ANI):
                 {"params": [nn.N[layer].bias]},
             ]
         )
-    # set up minimizer for weights
-    AdamW = torch.optim.AdamW(weight_layers)
-    # set up minimizer for bias
-    SGD = torch.optim.SGD(bias_layers, lr=1e-3)
 
-    AdamW_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        AdamW, factor=0.5, patience=100, threshold=0
-    )
-    SGD_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        SGD, factor=0.5, patience=100, threshold=0
-    )
-
-    return (AdamW, AdamW_scheduler, SGD, SGD_scheduler)
+    return (weight_layers, bias_layers)
 
 
 def setup_and_perform_parameter_retraining(
@@ -861,17 +1106,21 @@ def setup_and_perform_parameter_retraining(
     env: str,
     checkpoint_filename: str,
     max_snapshots_per_window: int,
+    names_training: list,
+    names_validating: list,
     diameter: int = -1,
-    batch_size: int = 10,
+    batch_size: int = 1,
     data_path: str = "../data/",
     nr_of_nn: int = 8,
     max_epochs: int = 10,
     elements: str = "CHON",
     load_checkpoint: bool = True,
     bulk_energy_calculation: bool = True,
-    names_training: list = [],
-    names_validating: list = [],
-):
+    load_pickled_FEC: bool = True,
+    lr_AdamW: float = 1e-3,
+    lr_SGD: float = 1e-3,
+    weight_decay: float = 0.000001,
+) -> list:
     """
     Much of this code is taken from:
     https://aiqm.github.io/torchani/examples/nnp_training.html
@@ -880,76 +1129,82 @@ def setup_and_perform_parameter_retraining(
 
     The function is set up to be called from the notebook or scripts folder.
 
-    Keyword Arguments:
-        batch_size {int} -- how many molecules should be used to calculate the MSE
-        data_path {str} -- should point to where the dcd files are located (default: {"../data/"})
-        nr_of_nn {int} -- number of neural networks that should be tweeked, maximum 8  (default: {8})
-        max_epochs {int} -- (default: {10})
-        thinning {int} -- nth frame taken from simulation (default: {100})
-        max_snapshots_per_window {int} -- total number of frames taken from simulation (default: {100})
-        names {list} -- only used for tests -- this loads specific molecules (default: {[]})
+    Parameters
+    -------
+    ANImode : ANI
+        The ANI model object (not instance)
+    emv : str
+        either 'vacuum' or droplet
+    max_snapshots_per_window : int
+        how many snapshots should be considered per lambda state
+    checkpoint_filename : str
+        filename to save/load checkpoint files. Checkpoint file is loaded only if load_checkpoint=True.
+    diameter : int, opt
+        diameter in Angstrom for droplet, by default = -1
+    batch_size : int, opt
+        by default = 1
+    elements : str, opt:
+        by default = 'CHON'
+    names_training : list
+        names for training set
+    names_validating : list
+        names for validation set
+    load_pickled_FEC : bool, opt
+        by default = True
+    lr_AdamW : float, opt
+        learning rate of AdamW, by default = 1e-3
+    lr_SGD: float, opt
+        learning rate of SGD minimizer, by default = 1e-3
+    weight_decay : float, opt
+        by default = 1e-6
 
-    Returns:
-        (list, list, float) -- rmse on validation set, rmse on training set, rmse on test set
+    Returns
+    -------
+        list : rmse on validation set
     """
 
     assert int(batch_size) <= 10 and int(batch_size) >= 1
     assert int(nr_of_nn) <= 8 and int(nr_of_nn) >= 1
+
+    logger.info("setup_and_perform_parameter_retraining called ...")
+    local_variables = locals()
+    for key, value in local_variables.items():
+        logger.info(f"{key}: {value}")
+
+    if load_pickled_FEC:
+        _ = ANImodel(
+            [0, 0]
+        )  # NOTE: The model needs a single initialized instance to work with pickled tautomer objects
 
     if env == "droplet" and diameter == -1:
         raise RuntimeError(f"Did you forget to pass the 'diamter' argument? Aborting.")
 
     # save batch loss through epochs
     rmse_validation = []
-    rmse_training = []
 
     # calculate the rmse on the current parameters for the validation set
     rmse_validation_set, dG_calc_validation = calculate_rmse_between_exp_and_calc(
         names_validating,
         model=ANImodel,
         data_path=data_path,
-        perturbed_free_energy=False,
         bulk_energy_calculation=bulk_energy_calculation,
         env=env,
         max_snapshots_per_window=max_snapshots_per_window,
         diameter=diameter,
+        perturbed_free_energy=False,
+        load_pickled_FEC=load_pickled_FEC,
+        include_restraint_energy_contribution=False,
     )
 
     rmse_validation.append(rmse_validation_set)
     print(f"RMSE on validation set: {rmse_validation[-1]} at first epoch")
 
-    # calculate the rmse on the current parameters for the training set
-    rmse_training_set, dG_calc_training = calculate_rmse_between_exp_and_calc(
-        names_training,
-        model=ANImodel,
-        data_path=data_path,
-        perturbed_free_energy=False,
-        bulk_energy_calculation=bulk_energy_calculation,
-        env=env,
-        max_snapshots_per_window=max_snapshots_per_window,
-        diameter=diameter,
-    )
-
-    rmse_training.append(rmse_training_set)
-    print(f"RMSE on training set: {rmse_training[-1]} at first epoch")
-
-    # write out data on dG for validation/training set befor optimization
-    results = {}
-    for name, e, which_set in zip(
-        names_training + names_validating,
-        dG_calc_training + dG_calc_validation,
-        ["t"] * len(names_training) + ["v"] * len(names_validating),
-    ):
-        results[name] = [e, which_set]
-    pickle.dump(results, open(f"results_before_training.pickle", "wb+"))
-
     ### main training loop
-    rmse_training, rmse_validation = _perform_training(
+    rmse_validation = _perform_training(
         ANImodel=ANImodel,
         nr_of_nn=nr_of_nn,
         names_training=names_training,
         names_validating=names_validating,
-        rmse_training=rmse_training,
         rmse_validation=rmse_validation,
         checkpoint_filename=checkpoint_filename,
         max_epochs=max_epochs,
@@ -961,53 +1216,107 @@ def setup_and_perform_parameter_retraining(
         data_path=data_path,
         load_checkpoint=load_checkpoint,
         max_snapshots_per_window=max_snapshots_per_window,
+        load_pickled_FEC=load_pickled_FEC,
+        lr_AdamW=lr_AdamW,
+        lr_SGD=lr_SGD,
+        weight_decay=weight_decay,
     )
 
-    return rmse_training, rmse_validation
+    return rmse_validation
 
 
-def setup_mbar(
+def setup_FEC(
     name: str,
     max_snapshots_per_window: int,
     ANImodel: ANI,
     bulk_energy_calculation: bool,
-    env: str = "vacuum",
+    env: str,
+    load_pickled_FEC: bool,
+    include_restraint_energy_contribution: bool,
     checkpoint_file: str = "",
     data_path: str = "../data/",
     diameter: int = -1,
-):
+    save_pickled_FEC: bool = True,  # default saves the pickled FEC
+) -> FreeEnergyCalculator:
+
+    """
+    Automates the setup of the FreeEnergyCalculator object
+
+    Parameters
+    -------
+    name : str
+        Name of the system
+    max_snapshots_per_window : int
+        snapshots/lambda to use
+    bulk_energy_calculation : bool
+        calculate the energies in bulk
+    env : bool
+        environment is either `vacuum` or `droplet`
+    load_pickled_FEC : bool
+        if a pickled FEC is present in the location specified by data_path load it
+    include_restraint_energy_contribution: bool
+        include the restraint contributions in the potential energy function
+    save_pickled_FEC : bool
+        save the pickled FEC in the location specified by data_path, by default save_pickled_FEC = True
+    Returns
+    -------
+    FreeEnergyCalculator
+
+    Raises
+    ------
+    RuntimeError
+        [description]
+    RuntimeError
+        [description]
+    RuntimeError
+        [description]
+    RuntimeError
+        [description]
+    RuntimeError
+        [description]
+    """
 
     from neutromeratio.analysis import setup_alchemical_system_and_energy_function
     import os
+    from compress_pickle import dump, load
+
+    def parse_lambda_from_dcd_filename(dcd_filename) -> float:
+        """parse the dcd filename"""
+        l = dcd_filename[: dcd_filename.find(f"_energy_in_{env}")].split("_")
+        lam = l[-3]
+        return float(lam)
 
     if not (env == "vacuum" or env == "droplet"):
         raise RuntimeError("Only keyword vacuum or droplet are allowed as environment.")
     if env == "droplet" and diameter == -1:
         raise RuntimeError("Something went wrong.")
 
-    def parse_lambda_from_dcd_filename(dcd_filename):
-        """parsed the dcd filename
-
-        Arguments:
-            dcd_filename {str} -- how is the dcd file called?
-
-        Returns:
-            [float] -- lambda value
-        """
-        l = dcd_filename[: dcd_filename.find(f"_energy_in_{env}")].split("_")
-        lam = l[-3]
-        return float(lam)
-
     data_path = os.path.abspath(data_path)
+    # check if data_path exists
     if not os.path.exists(data_path):
         raise RuntimeError(f"{data_path} does not exist!")
 
-    if name in exclude_set_ANI + mols_with_charge + multiple_stereobonds:
-        raise RuntimeError(
-            f"{name} is part of the list of excluded molecules. Aborting"
-        )
+    fec_pickle = f"{data_path}/{name}/{name}_FEC_{max_snapshots_per_window}_for_{ANImodel.name}_restraint_{include_restraint_energy_contribution}.gz"
 
-    #######################
+    # load FEC pickle file
+    if load_pickled_FEC:
+        if os.path.exists(fec_pickle):
+            fec = load(fec_pickle)
+            print(f"{fec_pickle} loading ...")
+            if (
+                fec.include_restraint_energy_contribution
+                != include_restraint_energy_contribution
+            ):
+                raise RuntimeError(
+                    f"Attempted to load FEC with include_restraint_energy_contribution: {fec.include_restraint_energy_contribution}, but asked for include_restraint_energy_contribution: {include_restraint_energy_contribution}"
+                )
+            # NOTE: early exit
+            return fec
+        else:
+            print(f"Tried to load {fec_pickle} but failed!")
+            logger.critical(f"Tried to load {fec_pickle} but failed!")
+
+    # setup alchecmial system and energy function
     energy_function, tautomer, flipped = setup_alchemical_system_and_energy_function(
         name=name,
         ANImodel=ANImodel,
@@ -1016,6 +1325,7 @@ def setup_mbar(
         diameter=diameter,
         base_path=f"{data_path}/{name}/",
     )
+
     # and lambda values in list
     dcds = glob(f"{data_path}/{name}/*.dcd")
 
@@ -1047,27 +1357,29 @@ def setup_mbar(
     assert len(lambdas) == len(energies)
     assert len(lambdas) == len(md_trajs)
 
-    if env == "vacuum":
-        pickle_path = f"{data_path}/{name}/{name}_{ANImodel.name}_{max_snapshots_per_window}_{len(tautomer.hybrid_atoms)}_atoms.pickle"
-    else:
-        pickle_path = f"{data_path}/{name}/{name}_{ANImodel.name}_{max_snapshots_per_window}_{diameter}A_{len(tautomer.ligand_in_water_atoms)}_atoms.pickle"
-
     # calculate free energy in kT
     fec = FreeEnergyCalculator(
         ani_model=energy_function,
         md_trajs=md_trajs,
         potential_energy_trajs=energies,
         lambdas=lambdas,
-        pickle_path=pickle_path,
         bulk_energy_calculation=bulk_energy_calculation,
         max_snapshots_per_window=max_snapshots_per_window,
+        include_restraint_energy_contribution=include_restraint_energy_contribution,
     )
 
     fec.flipped = flipped
+
+    # save FEC
+    if save_pickled_FEC:
+        logger.critical(f"Saving pickled FEC to {fec_pickle}")
+        print(f"Saving pickled FEC to {fec_pickle}")
+        dump(fec, fec_pickle)
+
     return fec
 
 
-def setup_mbar_for_new_tautomer_pairs(
+def setup_FEC_for_new_tautomer_pairs(
     name: str,
     t1_smiles: str,
     t2_smiles: str,

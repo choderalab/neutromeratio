@@ -14,7 +14,7 @@ from .utils import reduced_pot, write_pdb, generate_rdkit_mol
 from .vis import display_mol, generate_nglview_object
 from .mcmc import Instantaneous_MC_Mover, NonequilibriumMC
 from .equilibrium import LangevinDynamics, use_precalculated_md_and_performe_mc
-from .ani import ANI1_force_and_energy, AlchemicalANI2x, AlchemicalANI1ccx
+from .ani import ANI_force_and_energy, AlchemicalANI2x, AlchemicalANI1ccx
 from .analysis import (
     _remove_hydrogens,
     prune_conformers,
