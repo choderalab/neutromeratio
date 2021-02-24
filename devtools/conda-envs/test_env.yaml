@@ -3,6 +3,7 @@ channels:
   - conda-forge
   - omnia/label/dev
   - omnia
+  - pytorch
   - defaults
   - psi4
 
@@ -13,14 +14,14 @@ dependencies:
     # Testing
   - pytest
   - pytest-cov
-  - ase=3.18.1
+  - ase
   - matplotlib
   - bson
   - mdtraj
   - nglview
   - networkx
   - numpy
-  - openmm=7.3.1
+  - openmm
   - openmmtools
   - pdbfixer
   - pip
@@ -32,10 +33,12 @@ dependencies:
   - psi4
   - seaborn
   - scikit-learn
-  - torchani
+  - pytorch
   - pip:
+      - torchani
       - lark-parser
       - six
       - codecov
       - pytest-benchmark
       - compress_pickle
+      - pytorch-lightning

@@ -126,9 +126,38 @@ def test_setup_FEC():
         AlchemicalANI1x,
         AlchemicalANI1ccx,
         CompartimentedAlchemicalANI2x,
+        CompartimentedAlchemicalANI1ccx,
     )
 
     name = "molDWRow_298"
+
+    # CompartimentedAlchemicalANI1ccx
+    fec = setup_FEC(
+        name,
+        env="vacuum",
+        data_path="data/test_data/vacuum",
+        ANImodel=CompartimentedAlchemicalANI1ccx,
+        bulk_energy_calculation=True,
+        max_snapshots_per_window=20,
+        load_pickled_FEC=False,
+        include_restraint_energy_contribution=False,
+        save_pickled_FEC=True,
+    )
+    assert np.isclose(-3.2194226425566055, fec._end_state_free_energy_difference[0])
+
+    # CompartimentedAlchemicalANI1ccx
+    fec = setup_FEC(
+        name,
+        env="vacuum",
+        data_path="data/test_data/vacuum",
+        ANImodel=CompartimentedAlchemicalANI1ccx,
+        bulk_energy_calculation=True,
+        max_snapshots_per_window=10,
+        load_pickled_FEC=False,
+        include_restraint_energy_contribution=False,
+        save_pickled_FEC=True,
+    )
+    assert np.isclose(-1.785018035085307, fec._end_state_free_energy_difference[0])
 
     # vacuum
     fec = setup_FEC(
@@ -140,7 +169,7 @@ def test_setup_FEC():
         max_snapshots_per_window=20,
         load_pickled_FEC=False,
         include_restraint_energy_contribution=True,
-        save_pickled_FEC=False,
+        save_pickled_FEC=True,
     )
     assert np.isclose(-3.2194223855155357, fec._end_state_free_energy_difference[0])
 
@@ -172,6 +201,7 @@ def test_setup_FEC():
     )
     assert np.isclose(-11.554636171428106, fec._end_state_free_energy_difference[0])
 
+    # AlchemicalANI1x
     fec = setup_FEC(
         name,
         env="vacuum",
@@ -354,12 +384,12 @@ def test_FEC_with_different_free_energy_calls():
     # look at the two functions from parameter_gradient
     # both of these correct for the flipped energy calculation
     # and flip the sign of the prediction of mol298
-    fec_values = get_perturbed_free_energy_difference(fec_list)
+    fec_values = [get_perturbed_free_energy_difference(fec) for fec in fec_list]
     print(fec_values)
     for e1, e2 in zip(fec_values, [1.2104, -5.3161]):
         assert np.isclose(e1.item(), e2, rtol=1e-2)
 
-    fec_values = get_unperturbed_free_energy_difference(fec_list)
+    fec_values = [get_perturbed_free_energy_difference(fec) for fec in fec_list]
     print(fec_values)
     for e1, e2 in zip(fec_values, [1.2104, -5.3161]):
         assert np.isclose(e1.item(), e2, rtol=1e-2)
@@ -407,12 +437,12 @@ def test_FEC_with_different_free_energy_calls():
     # look at the two functions from parameter_gradient
     # both of these correct for the flipped energy calculation
     # and flip the sign of the prediction of mol298
-    fec_values = get_perturbed_free_energy_difference(fec_list)
+    fec_values = [get_perturbed_free_energy_difference(fec) for fec in fec_list]
     print(fec_values)
     for e1, e2 in zip(fec_values, [8.7152, -9.2873]):
         assert np.isclose(e1.item(), e2, rtol=1e-2)
 
-    fec_values = get_unperturbed_free_energy_difference(fec_list)
+    fec_values = [get_perturbed_free_energy_difference(fec) for fec in fec_list]
     print(fec_values)
     for e1, e2 in zip(fec_values, [8.7152, -9.2873]):
         assert np.isclose(e1.item(), e2, rtol=1e-2)
@@ -460,12 +490,12 @@ def test_FEC_with_different_free_energy_calls():
     # look at the two functions from parameter_gradient
     # both of these correct for the flipped energy calculation
     # and flip the sign of the prediction of mol298
-    fec_values = get_perturbed_free_energy_difference(fec_list)
+    fec_values = [get_perturbed_free_energy_difference(fec) for fec in fec_list]
     print(fec_values)
     for e1, e2 in zip(fec_values, [8.7152, -9.2873]):
         assert np.isclose(e1.item(), e2, rtol=1e-2)
 
-    fec_values = get_unperturbed_free_energy_difference(fec_list)
+    fec_values = [get_perturbed_free_energy_difference(fec) for fec in fec_list]
     print(fec_values)
     for e1, e2 in zip(fec_values, [8.7152, -9.2873]):
         assert np.isclose(e1.item(), e2, rtol=1e-2)
@@ -537,7 +567,7 @@ def test_FEC_with_perturbed_free_energies():
             ]
 
             assert len(fec_list) == 2
-            fec_values = get_perturbed_free_energy_difference(fec_list)
+            fec_values = [get_perturbed_free_energy_difference(fec) for fec in fec_list]
             for e1, e2 in zip(fec_values, [1.2104, -5.3161]):
                 assert np.isclose(e1.item(), e2, rtol=1e-4)
 
@@ -559,7 +589,7 @@ def test_FEC_with_perturbed_free_energies():
             ]
 
             assert len(fec_list) == 2
-            fec = get_perturbed_free_energy_difference(fec_list)
+            fec = [get_perturbed_free_energy_difference(fec) for fec in fec_list]
             print(fec)
             for e1, e2 in zip(fec, [1.2104, -5.3161]):
                 assert np.isclose(e1.item(), e2, rtol=1e-4)
@@ -600,7 +630,7 @@ def test_FEC_with_perturbed_free_energies():
             ]
 
             assert len(fec_list) == 2
-            fec = get_perturbed_free_energy_difference(fec_list)
+            fec = [get_perturbed_free_energy_difference(fec) for fec in fec_list]
             print(fec)
             for e1, e2 in zip(fec, [10.3192, -9.746403840249418]):
                 assert np.isclose(e1.item(), e2, rtol=1e-4)
@@ -624,7 +654,7 @@ def test_FEC_with_perturbed_free_energies():
             ]
 
             assert len(fec_list) == 2
-            fec = get_perturbed_free_energy_difference(fec_list)
+            fec = [get_perturbed_free_energy_difference(fec) for fec in fec_list]
             print(fec)
             for e1, e2 in zip(fec, [8.8213, -9.664895714083166]):
                 assert np.isclose(e1.item(), e2, rtol=1e-4)
@@ -648,7 +678,7 @@ def test_FEC_with_perturbed_free_energies():
             ]
 
             assert len(fec_list) == 2
-            fec = get_perturbed_free_energy_difference(fec_list)
+            fec = [get_perturbed_free_energy_difference(fec) for fec in fec_list]
             print(fec)
             for e1, e2 in zip(fec, [8.8213, -9.664895714083166]):
                 assert np.isclose(e1.item(), e2, rtol=1e-4)
@@ -689,7 +719,7 @@ def test_FEC_with_perturbed_free_energies_with_and_without_restraints():
     ]
 
     assert len(fec_list) == 2
-    fec = get_perturbed_free_energy_difference(fec_list)
+    fec = [get_perturbed_free_energy_difference(fec) for fec in fec_list]
     print(fec)
     for e1, e2 in zip(fec, [8.8213, -9.6649]):
         assert np.isclose(e1.item(), e2, rtol=1e-4)
@@ -710,7 +740,7 @@ def test_FEC_with_perturbed_free_energies_with_and_without_restraints():
     ]
 
     assert len(fec_list) == 2
-    fec = get_perturbed_free_energy_difference(fec_list)
+    fec = [get_perturbed_free_energy_difference(fec) for fec in fec_list]
     print(fec)
     for e1, e2 in zip(fec, [8.8213, -9.6649]):
         assert np.isclose(e1.item(), e2, rtol=1e-4)
@@ -735,7 +765,7 @@ def test_loading_saving_mbar_object_AlchemicalANI2x():
     name = "molDWRow_298"
     model_instance = AlchemicalANI2x([0, 0])
     AdamW, AdamW_scheduler, SGD, SGD_scheduler = _get_nn_layers(
-        nr_of_nn=8, ANImodel=model_instance, elements="CHON"
+        ANImodel=model_instance, elements="CHON"
     )
     # initial parameters
     params1 = list(model_instance.optimized_neural_network.parameters())[6][0].tolist()
@@ -754,7 +784,7 @@ def test_loading_saving_mbar_object_AlchemicalANI2x():
         save_pickled_FEC=True,
     )
     assert np.isclose(
-        18.348107633661936, get_perturbed_free_energy_difference([fec]).tolist()[0]
+        18.348107633661936, get_perturbed_free_energy_difference(fec).item()
     )
 
     # load checkpoint parameter file and override optimized parameters
@@ -772,7 +802,7 @@ def test_loading_saving_mbar_object_AlchemicalANI2x():
 
     # get new free energy
     assert np.isclose(
-        3.2730393726044866, get_perturbed_free_energy_difference([fec]).tolist()[0]
+        3.2730393726044866, get_perturbed_free_energy_difference(fec).item()
     )
     del fec
 
@@ -791,7 +821,7 @@ def test_loading_saving_mbar_object_AlchemicalANI2x():
     )
 
     assert np.isclose(
-        3.2730393726044866, get_perturbed_free_energy_difference([fec]).tolist()[0]
+        3.2730393726044866, get_perturbed_free_energy_difference(fec).item()
     )
 
     pickled_model = fec.ani_model.model
@@ -816,11 +846,10 @@ def test_loading_saving_mbar_object_CompartimentedAlchemicalANI2x():
     from ..ani import CompartimentedAlchemicalANI2x
 
     CompartimentedAlchemicalANI2x._reset_parameters()
-    model_name = "CompartimentedAlchemicalANI2x"
     name = "molDWRow_298"
     model_instance = CompartimentedAlchemicalANI2x([0, 0])
     AdamW, AdamW_scheduler, SGD, SGD_scheduler = _get_nn_layers(
-        nr_of_nn=8, ANImodel=model_instance, elements="CHON"
+        ANImodel=model_instance, elements="CHON"
     )
     # initial parameters
     params1 = list(model_instance.optimized_neural_network.parameters())[6][0].tolist()
@@ -839,7 +868,7 @@ def test_loading_saving_mbar_object_CompartimentedAlchemicalANI2x():
         save_pickled_FEC=True,
     )
     assert np.isclose(
-        18.348107633661936, get_perturbed_free_energy_difference([fec]).tolist()[0]
+        18.348107633661936, get_perturbed_free_energy_difference(fec).item()
     )
 
     # load checkpoint parameter file and override optimized parameters
@@ -857,7 +886,7 @@ def test_loading_saving_mbar_object_CompartimentedAlchemicalANI2x():
     # get new free energy
     assert np.isclose(
         3.2730393726044866,
-        get_perturbed_free_energy_difference([fec]).tolist()[0],  # -1.3759686627878307
+        get_perturbed_free_energy_difference(fec).item(),  # -1.3759686627878307
     )
     del fec
 
@@ -876,7 +905,7 @@ def test_loading_saving_mbar_object_CompartimentedAlchemicalANI2x():
     )
 
     assert np.isclose(
-        3.2730393726044866, get_perturbed_free_energy_difference([fec]).tolist()[0]
+        3.2730393726044866, get_perturbed_free_energy_difference(fec).item()
     )
 
     pickled_model = fec.ani_model.model
@@ -888,7 +917,7 @@ def test_loading_saving_mbar_object_CompartimentedAlchemicalANI2x():
 
 
 def test_io_checkpoints():
-    from ..parameter_gradients import _save_checkpoint, _load_checkpoint, _get_nn_layers
+    from ..parameter_gradients import _load_checkpoint, _get_nn_layers
     from ..ani import (
         AlchemicalANI1ccx,
         AlchemicalANI1x,
@@ -918,7 +947,7 @@ def test_io_checkpoints():
         print(model_name)
         model_instance = model([0, 0])
         AdamW, AdamW_scheduler, SGD, SGD_scheduler = _get_nn_layers(
-            8, model_instance, elements="CHON"
+            model_instance, elements="CHON"
         )
         # initial parameters
         params1 = list(model.optimized_neural_network.parameters())[6][0].tolist()
@@ -946,7 +975,6 @@ def test_io_checkpoints():
 
 
 def test_load_parameters():
-    from ..parameter_gradients import _save_checkpoint, _load_checkpoint, _get_nn_layers
     from ..ani import (
         AlchemicalANI1ccx,
         AlchemicalANI1x,

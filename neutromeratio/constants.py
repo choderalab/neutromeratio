@@ -1,12 +1,10 @@
 import torch
-import sys
-import numpy as np
 import logging
 import pickle
 
 from openmmtools.constants import kB
 from simtk import unit
-import pkg_resources
+import pkg_resources, sys
 
 logger = logging.getLogger(__name__)
 platform = "cpu"
@@ -17,6 +15,20 @@ num_threads = 1
 
 torch.set_num_threads(num_threads)
 
+this = sys.modules[__name__]
+# we can explicitly make assignments on it
+this.NUM_PROC = 1
+
+
+def initialize_NUM_PROC(n_proc):
+    if this.NUM_PROC == 1:
+        # also in local function scope. no scope specifier like global is needed
+        this.NUM_PROC = n_proc
+    else:
+        msg = "NUM_PROC is already initialized to {0}."
+        raise RuntimeError(msg.format(this.NUM_PROC))
+
+
 # openmm units
 mass_unit = unit.dalton
 distance_unit = unit.nanometer
@@ -25,7 +37,7 @@ energy_unit = unit.kilojoule_per_mole
 speed_unit = distance_unit / time_unit
 force_unit = unit.kilojoule_per_mole / unit.nanometer
 
-# ANI-1 units and conversion factors
+# ANI units and conversion factors
 ani_distance_unit = unit.angstrom
 hartree_to_kJ_mol = 2625.499638
 hartree_to_kcal_mol = 627.50946900

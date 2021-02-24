@@ -1,19 +1,10 @@
 import torch
-import neutromeratio
-from simtk import unit
-import numpy as np
-import pickle
 import sys
 import torch
 from neutromeratio.parameter_gradients import setup_FEC
 from neutromeratio.constants import (
-    kT,
-    device,
-    exclude_set_ANI,
-    mols_with_charge,
     _get_names,
 )
-from glob import glob
 from neutromeratio.ani import AlchemicalANI1ccx, CompartimentedAlchemicalANI2x
 
 #######################

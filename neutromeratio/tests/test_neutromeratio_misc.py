@@ -41,11 +41,7 @@ def test_equilibrium():
     for model_name, model in zip(
         ["AlchemicalANI2x", "AlchemicalANI1ccx"], [AlchemicalANI2x, AlchemicalANI1ccx]
     ):
-        (
-            energy_function,
-            tautomer,
-            _,
-        ) = setup_alchemical_system_and_energy_function(
+        (energy_function, tautomer, _,) = setup_alchemical_system_and_energy_function(
             name=name, ANImodel=model, env="vacuum", base_path="pdbs"
         )
 
@@ -120,11 +116,7 @@ def test_mining_minima():
     t1_smiles = exp_results[name]["t1-smiles"]
     t2_smiles = exp_results[name]["t2-smiles"]
 
-    (
-        _,
-        tautomers,
-        _,
-    ) = neutromeratio.utils.generate_tautomer_class_stereobond_aware(
+    (_, tautomers, _,) = neutromeratio.utils.generate_tautomer_class_stereobond_aware(
         name, t1_smiles, t2_smiles
     )
     tautomer = tautomers[0]
@@ -251,31 +243,49 @@ def test_thinning():
         print(len(snapshots))
         assert max_snapshots_per_window == len(snapshots)
 
+
 @pytest.mark.skipif(
     os.environ.get("TRAVIS", None) == "true",
     reason="Slow tests are failing on Travis.",
 )
 def test_max_nr_of_snapshots():
     from ..parameter_gradients import calculate_rmse_between_exp_and_calc
-    from ..ani import AlchemicalANI1ccx, AlchemicalANI1x, AlchemicalANI2x
+    from ..ani import AlchemicalANI1ccx
 
     names = ["molDWRow_298", "SAMPLmol2", "SAMPLmol4"]
-    exp_results = pickle.load(open("data/test_data/exp_results.pickle", "rb"))
-
+    l_rmse = []
     env = "vacuum"
 
-    model = AlchemicalANI1ccx
+    for model in [AlchemicalANI1ccx]:
+        model([0, 0])
 
-    for nr_of_snapshots in [20, 80, 120, 150]:
-        rmse = calculate_rmse_between_exp_and_calc(
-            names,
-            model=model,
-            data_path=f"./data/test_data/{env}",
-            env=env,
-            bulk_energy_calculation=True,
-            max_snapshots_per_window=nr_of_snapshots,
-        )
-    del model
+        for nr_of_snapshots in [20, 80, 120, 150]:
+            rmse = calculate_rmse_between_exp_and_calc(
+                names,
+                model=model,
+                data_path=f"./data/test_data/{env}",
+                env=env,
+                max_snapshots_per_window=nr_of_snapshots,
+            )
+            l_rmse.append(rmse)
+        del model
+
+    print(l_rmse)
+    assert l_rmse == [
+        (5.745586395263672, [3.219421508256698, -3.984754521510265, 3.775032043152413]),
+        (
+            5.393607139587402,
+            [1.2104192737678794, -5.316053509708738, 4.0559353503118505],
+        ),
+        (
+            5.6913323402404785,
+            [0.6301678213061068, -5.464017066061666, 4.675917867000249],
+        ),
+        (
+            5.574014663696289,
+            [1.1649843159209015, -5.0964898153872005, 4.284151701496853],
+        ),
+    ]
 
 
 def test_unperturbed_perturbed_free_energy():
@@ -302,8 +312,8 @@ def test_unperturbed_perturbed_free_energy():
         save_pickled_FEC=False,
     )
 
-    a_AlchemicalANI2x = get_unperturbed_free_energy_difference([fec])
-    b_AlchemicalANI2x = get_perturbed_free_energy_difference([fec])
+    a_AlchemicalANI2x = get_unperturbed_free_energy_difference(fec)
+    b_AlchemicalANI2x = get_perturbed_free_energy_difference(fec)
     np.isclose(a_AlchemicalANI2x.item(), b_AlchemicalANI2x.item())
     del fec
 
@@ -320,8 +330,8 @@ def test_unperturbed_perturbed_free_energy():
         save_pickled_FEC=False,
     )
 
-    a_CompartimentedAlchemicalANI2x = get_unperturbed_free_energy_difference([fec])
-    b_CompartimentedAlchemicalANI2x = get_perturbed_free_energy_difference([fec])
+    a_CompartimentedAlchemicalANI2x = get_unperturbed_free_energy_difference(fec)
+    b_CompartimentedAlchemicalANI2x = get_perturbed_free_energy_difference(fec)
     np.isclose(
         a_CompartimentedAlchemicalANI2x.item(), b_CompartimentedAlchemicalANI2x.item()
     )
@@ -344,20 +354,20 @@ def test_calculate_rmse_between_exp_and_calc():
     exp_results = pickle.load(open("data/test_data/exp_results.pickle", "rb"))
 
     env = "vacuum"
-    exp_values = get_experimental_values(names)
+    exp_values = [get_experimental_values(name) for name in names]
 
     rmse_list = []
     for model in [AlchemicalANI1ccx, AlchemicalANI2x, AlchemicalANI1x]:
         print(model.name)
+        model([0, 0])
 
         model._reset_parameters()
-        rmse, e_calc = calculate_rmse_between_exp_and_calc(
+        rmse, _ = calculate_rmse_between_exp_and_calc(
             names,
             model=model,
             data_path=f"./data/test_data/{env}",
             env=env,
             perturbed_free_energy=True,
-            bulk_energy_calculation=True,
             max_snapshots_per_window=100,
         )
         assert np.isclose(
@@ -367,13 +377,13 @@ def test_calculate_rmse_between_exp_and_calc():
         rmse_list.append(rmse)
         model._reset_parameters()
         del model
-    print(exp_values.tolist())
+    print(exp_values)
     print(rmse_list)
     for e1, e2 in zip(
-        exp_values.tolist(),
+        exp_values,
         [1.8994317488369707, -10.232118388886946, -3.858011851547537],
     ):
-        assert np.isclose(e1, e2)
+        assert np.isclose(e1.item(), e2)
 
     for e1, e2 in zip(
         rmse_list, [5.662402153015137, 5.6707963943481445, 4.7712321281433105]
@@ -396,7 +406,7 @@ def test_calculate_rmse_between_exp_and_calc_droplet():
     names = ["molDWRow_298"]
     exp_results = pickle.load(open("data/test_data/exp_results.pickle", "rb"))
     env = "droplet"
-    exp_values = get_experimental_values(names)
+    exp_values = [get_experimental_values(name) for name in names]
     diameter = 10
     assert np.isclose(exp_values[0].item(), 1.8994317488369707)
     assert np.isclose(
@@ -407,13 +417,13 @@ def test_calculate_rmse_between_exp_and_calc_droplet():
     for model in [AlchemicalANI1ccx, AlchemicalANI2x, AlchemicalANI1x]:
         model._reset_parameters()
         print(model.name)
+        model([0, 0])
 
         rmse, _ = calculate_rmse_between_exp_and_calc(
             names=names,
             data_path=f"./data/test_data/{env}",
             model=model,
             env=env,
-            bulk_energy_calculation=True,
             max_snapshots_per_window=10,
             diameter=diameter,
             perturbed_free_energy=False,
@@ -451,6 +461,9 @@ def test_calculate_rmse():
     rmse = calculate_rmse(torch.tensor([1.0, 2.0]), torch.tensor([4.0, 2.0]))
     assert np.isclose(rmse, 2.1213)
 
+    rmse = calculate_rmse(torch.tensor([0.1, 0.2]), torch.tensor([0.12, 0.24]))
+    assert np.isclose(rmse, 0.0316, rtol=1e-3)
+
 
 def test_bootstrap_tautomer_exp_predict_results():
 
@@ -480,174 +493,5 @@ def test_experimental_values():
 
     assert _get_names() == compare_get_names()
     names = _get_names()
-    assert len(get_experimental_values(names)) == len(names)
-
-
-@pytest.mark.skipif(
-    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
-)
-def test_postprocessing_vacuum():
-    from ..parameter_gradients import (
-        get_perturbed_free_energy_difference,
-        get_experimental_values,
-    )
-    from ..constants import kT, device, exclude_set_ANI, mols_with_charge
-    from ..parameter_gradients import setup_FEC
-    from glob import glob
-    from ..ani import (
-        AlchemicalANI1ccx,
-        AlchemicalANI1x,
-        AlchemicalANI2x,
-        CompartimentedAlchemicalANI2x,
-    )
-    import numpy as np
-
-    env = "vacuum"
-    exp_results = pickle.load(open("data/test_data/exp_results.pickle", "rb"))
-    names = ["molDWRow_298", "SAMPLmol2", "SAMPLmol4"]
-
-    for idx, model in enumerate(
-        [
-            AlchemicalANI1ccx,
-            AlchemicalANI1x,
-            AlchemicalANI2x,
-            CompartimentedAlchemicalANI2x,
-        ]
-    ):
-
-        model._reset_parameters()
-        print(model.name)
-
-        if idx == 0:
-            fec_list = [
-                setup_FEC(
-                    name,
-                    ANImodel=model,
-                    env=env,
-                    data_path="data/test_data/vacuum",
-                    bulk_energy_calculation=True,
-                    max_snapshots_per_window=80,
-                    load_pickled_FEC=False,
-                    include_restraint_energy_contribution=True,
-                    save_pickled_FEC=False,
-                )
-                for name in names
-            ]
-
-            assert len(fec_list) == 3
-            rmse = torch.sqrt(
-                torch.mean(
-                    (
-                        get_perturbed_free_energy_difference(fec_list)
-                        - get_experimental_values(names)
-                    )
-                    ** 2
-                )
-            )
-            print([e._end_state_free_energy_difference[0] for e in fec_list])
-            for fec, e2 in zip(
-                fec_list, [-1.2104192392489894, -5.31605397264069, 4.055934972298076]
-            ):
-                assert np.isclose(fec._end_state_free_energy_difference[0], e2)
-            assert np.isclose(rmse.item(), 5.393606768321977)
-
-        elif idx == 1:
-            fec_list = [
-                setup_FEC(
-                    name,
-                    ANImodel=model,
-                    env=env,
-                    data_path="data/test_data/vacuum",
-                    bulk_energy_calculation=True,
-                    max_snapshots_per_window=80,
-                    load_pickled_FEC=False,
-                    include_restraint_energy_contribution=True,
-                    save_pickled_FEC=False,
-                )
-                for name in names
-            ]
-
-            assert len(fec_list) == 3
-            rmse = torch.sqrt(
-                torch.mean(
-                    (
-                        get_perturbed_free_energy_difference(fec_list)
-                        - get_experimental_values(names)
-                    )
-                    ** 2
-                )
-            )
-            print([e._end_state_free_energy_difference[0] for e in fec_list])
-            for fec, e2 in zip(
-                fec_list, [-10.201508376053313, -9.919852168528479, 0.6758425107641388]
-            ):
-                assert np.isclose(fec._end_state_free_energy_difference[0], e2)
-            assert np.isclose(rmse.item(), 5.464364003709803)
-
-        elif idx == 2:
-            fec_list = [
-                setup_FEC(
-                    name,
-                    ANImodel=model,
-                    env=env,
-                    data_path="./data/test_data/vacuum",
-                    bulk_energy_calculation=True,
-                    max_snapshots_per_window=50,
-                    load_pickled_FEC=False,
-                    include_restraint_energy_contribution=True,
-                    save_pickled_FEC=False,
-                )
-                for name in names
-            ]
-            assert len(fec_list) == 3
-            rmse = torch.sqrt(
-                torch.mean(
-                    (
-                        get_perturbed_free_energy_difference(fec_list)
-                        - get_experimental_values(names)
-                    )
-                    ** 2
-                )
-            )
-            print([e._end_state_free_energy_difference[0] for e in fec_list])
-            for fec, e2 in zip(
-                fec_list, [-7.6805827500672805, -9.655550628208003, 2.996804928927007]
-            ):
-                assert np.isclose(fec._end_state_free_energy_difference[0], e2)
-            assert np.isclose(rmse.item(), 5.1878913627689895)
-
-        elif idx == 3:
-            fec_list = [
-                setup_FEC(
-                    name,
-                    ANImodel=model,
-                    env=env,
-                    data_path="./data/test_data/vacuum",
-                    bulk_energy_calculation=True,
-                    max_snapshots_per_window=50,
-                    load_pickled_FEC=False,
-                    include_restraint_energy_contribution=True,
-                    save_pickled_FEC=False,
-                )
-                for name in names
-            ]
-            assert len(fec_list) == 3
-            rmse = torch.sqrt(
-                torch.mean(
-                    (
-                        get_perturbed_free_energy_difference(fec_list)
-                        - get_experimental_values(names)
-                    )
-                    ** 2
-                )
-            )
-            print([e._end_state_free_energy_difference[0] for e in fec_list])
-            for fec, e2 in zip(
-                fec_list, [-7.6805827500672805, -9.655550628208003, 2.996804928927007]
-            ):
-                assert np.isclose(fec._end_state_free_energy_difference[0], e2)
-            assert np.isclose(rmse.item(), 5.1878913627689895)
-
-        model._reset_parameters()
-        del model
-    del fec_list
+    n_list = torch.stack([get_experimental_values(name) for name in names])
+    assert len(n_list) == len(names)

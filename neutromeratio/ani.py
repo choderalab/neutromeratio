@@ -2,7 +2,6 @@ import copy
 import logging
 import os
 import random
-from collections import namedtuple
 from typing import NamedTuple, Optional, Tuple
 
 import matplotlib.pyplot as plt
@@ -20,7 +19,6 @@ from torchani.nn import ANIModel, SpeciesEnergies
 from .constants import (
     device,
     eV_to_kJ_mol,
-    hartree_to_kJ_mol,
     hartree_to_kT,
     kT,
     kT_to_kJ_mol,
@@ -85,14 +83,21 @@ class LastLayerANIModel(ANIModel):
     """just like ANIModel, but only does the final calculation and cuts input arrays to the input feature size of the
     different atom nets!"""
 
-    last_ayers_nr_of_feature: dict = {
-        -3: {0: 192, 1: 192, 2: 160, 3: 160},
-        -1: {0: 160, 1: 160, 2: 128, 3: 128},
+    last_layers_nr_of_feature: dict = {
+        "CompartimentedAlchemicalANI2x": {
+            -3: {0: 192, 1: 192, 2: 160, 3: 160},
+            -1: {0: 160, 1: 160, 2: 128, 3: 128},
+        },
+        "CompartimentedAlchemicalANI1ccx": {
+            -3: {0: 192, 1: 192, 2: 160, 3: 160},
+            -1: {0: 96, 1: 96, 2: 96, 3: 96},
+        },
     }
 
-    def __init__(self, modules, index_of_last_layer: int):
+    def __init__(self, modules, index_of_last_layer: int, name: str):
         super().__init__(modules)
         self.index_of_last_layer = index_of_last_layer
+        self.name = name
 
     def forward(
         self,
@@ -112,7 +117,10 @@ class LastLayerANIModel(ANIModel):
             if midx.shape[0] > 0:
                 input_ = aev.index_select(0, midx)
                 input_ = input_[
-                    :, : self.last_ayers_nr_of_feature[self.index_of_last_layer][i]
+                    :,
+                    : self.last_layers_nr_of_feature[self.name][
+                        self.index_of_last_layer
+                    ][i],
                 ]
                 output.masked_scatter_(mask, m(input_).flatten())
         output = output.view_as(species)
@@ -159,7 +167,7 @@ class Precomputation(torch.nn.Module):
 
 
 class LastLayersComputation(torch.nn.Module):
-    def __init__(self, model: ANIModel, index_of_last_layers):
+    def __init__(self, model: ANIModel, index_of_last_layers: int, name: str):
         super().__init__()
         assert len(model) == 2
         assert index_of_last_layers == -1 or index_of_last_layers == -3
@@ -175,7 +183,7 @@ class LastLayersComputation(torch.nn.Module):
                 e_copy[element] = e_original[element][index_of_last_layers:]
 
         ani_models = [
-            LastLayerANIModel(m.children(), index_of_last_layers)
+            LastLayerANIModel(m.children(), index_of_last_layers, name)
             for m in last_step_ensemble
         ]
 
@@ -208,8 +216,6 @@ class DecomposedForce(NamedTuple):
     force: unit'd
     energy: unit'd
     restraint_bias: unit'd (energy contribution of all restraints)
-    stddev: unit'd
-    ensemble_bias: unit'd
     """
 
     force: unit.Quantity
@@ -443,7 +449,6 @@ class AlchemicalANI_Mixin:
         """
 
         species, coordinates, lam, original_parameters = species_coordinates_lamb
-        species_coordinates = (species, coordinates)
 
         if original_parameters:
             logger.debug("Using original neural network parameters.")
@@ -980,6 +985,7 @@ class CompartimentedAlchemicalANI2x(AlchemicalANI_Mixin, ANI2x):
         alchemical_atoms: list,
         periodic_table_index: bool = False,
         split_at: int = 6,
+        training: bool = False,
     ):
         """Scale the indirect contributions of alchemical atoms to the energy sum by
         linearly interpolating, for other atom i, between the energy E_i^0 it would compute
@@ -998,7 +1004,8 @@ class CompartimentedAlchemicalANI2x(AlchemicalANI_Mixin, ANI2x):
         self.neural_networks = None
         assert self.neural_networks == None
         self.precalculation: dict = {}
-        self.split_at = split_at
+        self.split_at: int = split_at
+        self.training: bool = training
         self.ANIFirstPart, _ = self.break_into_two_stages(
             self.optimized_neural_network, split_at=self.split_at
         )  # only keep the first part since this is always the same
@@ -1013,10 +1020,16 @@ class CompartimentedAlchemicalANI2x(AlchemicalANI_Mixin, ANI2x):
         coordinate_hash = hash(tuple(mod_coordinates[0].flatten().tolist()))
 
         if coordinate_hash in self.precalculation:
-            species_y = self.precalculation[coordinate_hash]
+            species, y = self.precalculation[coordinate_hash]
         else:
-            species_y = self.ANIFirstPart.forward(species_coordinates)
-            self.precalculation[coordinate_hash] = species_y
+            species, y = self.ANIFirstPart.forward(species_coordinates)
+            self.precalculation[coordinate_hash] = (species, y)
+
+        if self.training:
+            # detach so we don't compute expensive gradients w.r.t. y
+            species_y = SpeciesEnergies(species, y.detach())
+        else:
+            species_y = SpeciesEnergies(species, y)
 
         return ANILastPart.forward(species_y)
 
@@ -1051,6 +1064,101 @@ class CompartimentedAlchemicalANI2x(AlchemicalANI_Mixin, ANI2x):
         g = LastLayersComputation(
             (model, self.energy_shifter),
             index_of_last_layers=index_of_last_layers,
+            name=self.name,
+        )
+
+        return f, g
+
+
+class CompartimentedAlchemicalANI1ccx(AlchemicalANI_Mixin, ANI1ccx):
+
+    name = "CompartimentedAlchemicalANI1ccx"
+
+    def __init__(
+        self,
+        alchemical_atoms: list,
+        periodic_table_index: bool = False,
+        split_at: int = 6,
+        training: bool = False,
+    ):
+        """Scale the indirect contributions of alchemical atoms to the energy sum by
+        linearly interpolating, for other atom i, between the energy E_i^0 it would compute
+        in the _complete absence_ of the alchemical atoms, and the energy E_i^1 it would compute
+        in the _presence_ of the alchemical atoms.
+        (Also scale direct contributions, as in DirectAlchemicalANI)
+
+        Parameters
+        ----------
+        alchemical_atoms : list
+        """
+
+        assert len(alchemical_atoms) == 2
+        super().__init__(periodic_table_index)
+        self.alchemical_atoms: list = alchemical_atoms
+        self.neural_networks = None
+        assert self.neural_networks == None
+        self.precalculation: dict = {}
+        self.split_at: int = split_at
+        self.training: bool = training
+        self.ANIFirstPart, _ = self.break_into_two_stages(
+            self.optimized_neural_network, split_at=self.split_at
+        )  # only keep the first part since this is always the same
+
+    def _forward(self, nn, mod_species, mod_coordinates):
+        _, ANILastPart = self.break_into_two_stages(
+            nn, split_at=self.split_at
+        )  # only keep
+
+        species_coordinates = (mod_species, mod_coordinates)
+
+        coordinate_hash = hash(tuple(mod_coordinates[0].flatten().tolist()))
+
+        if coordinate_hash in self.precalculation:
+            species, y = self.precalculation[coordinate_hash]
+        else:
+            species, y = self.ANIFirstPart.forward(species_coordinates)
+            self.precalculation[coordinate_hash] = (species, y)
+
+        if self.training:
+            # detach so we don't compute expensive gradients w.r.t. y
+            species_y = SpeciesEnergies(species, y.detach())
+        else:
+            species_y = SpeciesEnergies(species, y)
+
+        return ANILastPart.forward(species_y)
+
+    def break_into_two_stages(
+        self, model: ANIModel, split_at: int
+    ) -> Tuple[Precomputation, LastLayersComputation]:
+        """ANIModel.forward(...) is pretty expensive, and in some cases we might want
+        to do a computation where the first stage of the calculation is pretty expensive
+        and the subsequent stages are less expensive.
+
+        Break ANIModel up into two stages f and g so that
+        ANIModel.forward(x) == g.forward(f.forward(x))
+
+        This is beneficial if we only ever need to recompute and adjust g, not f
+        """
+
+        if split_at == 6:
+            logger.debug("Split at layer 6")
+            index_of_last_layers = -1
+            nr_of_included_layers = 6
+        elif split_at == 4:
+            logger.debug("Split at layer 4")
+            index_of_last_layers = -3
+            nr_of_included_layers = 4
+        else:
+            raise RuntimeError("Either split at layer 4 or 6.")
+
+        f = Precomputation(
+            (model, self.species_converter, self.aev_computer),
+            nr_of_included_layers=nr_of_included_layers,
+        )
+        g = LastLayersComputation(
+            (model, self.energy_shifter),
+            index_of_last_layers=index_of_last_layers,
+            name=self.name,
         )
 
         return f, g

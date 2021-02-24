@@ -22,7 +22,7 @@ base_path="/data/shared/projects/neutromeratio/data/equilibrium_sampling/${poten
 echo 'Idx: '${idx}
 echo 'Base path: '${base_path}
 echo 'Using potential ' ${potential_name}
-echo 'Diameter: ' ${diameter_in_angstrom}
+echo 'Diameter: ' ${diameter}
 
 echo ${nr_of_snapshots} ' snapshots/lambda'
 

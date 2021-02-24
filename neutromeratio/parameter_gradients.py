@@ -1,31 +1,28 @@
 # TODO: gradient of MBAR_estimated free energy difference w.r.t. model parameters
 
+from collections import namedtuple
 import logging
-
+import random
 import torch
 import numpy as np
 from pymbar import MBAR
 from pymbar.timeseries import detectEquilibration
 from simtk import unit
+from torch.types import Number
 from tqdm import tqdm
 from glob import glob
 from .ani import ANI_force_and_energy, ANI
-from neutromeratio.constants import (
-    _get_names,
-    hartree_to_kJ_mol,
-    device,
-    platform,
-    kT,
-    exclude_set_ANI,
-    mols_with_charge,
-    multiple_stereobonds,
-)
-import torchani, torch
+from neutromeratio.constants import _get_names, device, kT
+import torch
 import os
 import neutromeratio
 import mdtraj as md
-from typing import Tuple
+from typing import List, Tuple, NamedTuple
 import pickle
+from torch.multiprocessing import get_context
+from compress_pickle import dump as compress_dump
+from compress_pickle import load as compress_load
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -231,22 +228,22 @@ class FreeEnergyCalculator:
         self.coordinates = coordinates
 
     @property
-    def free_energy_differences(self):
+    def free_energy_differences(self) -> np.ndarray:
         """matrix of free energy differences"""
         return self.mbar.getFreeEnergyDifferences(return_dict=True)["Delta_f"]
 
     @property
-    def free_energy_difference_uncertainties(self):
+    def free_energy_difference_uncertainties(self) -> np.ndarray:
         """matrix of asymptotic uncertainty-estimates accompanying free energy differences"""
         return self.mbar.getFreeEnergyDifferences(return_dict=True)["dDelta_f"]
 
     @property
-    def _end_state_free_energy_difference(self):
+    def _end_state_free_energy_difference(self) -> np.ndarray:
         """DeltaF[lambda=1 --> lambda=0]"""
         results = self.mbar.getFreeEnergyDifferences(return_dict=True)
         return results["Delta_f"][0, -1], results["dDelta_f"][0, -1]
 
-    def _compute_perturbed_free_energies(self, u_ln):
+    def _compute_perturbed_free_energies(self, u_ln) -> torch.Tensor:
         """compute perturbed free energies at new thermodynamic states l"""
         assert type(u_ln) == torch.Tensor
 
@@ -269,7 +266,7 @@ class FreeEnergyCalculator:
         B = -u_ln - log_denominator_n
         return -torch.logsumexp(B, dim=1)
 
-    def _form_u_ln(self):
+    def _form_u_ln(self, original_neural_network: bool = False) -> torch.Tensor:
 
         # bring list of unit'd coordinates in [N][K][3] * unit shape
         coordinates = self.coordinates
@@ -278,7 +275,7 @@ class FreeEnergyCalculator:
         u_0 = self.ani_model.calculate_energy(
             coordinates,
             lambda_value=0.0,
-            original_neural_network=False,
+            original_neural_network=original_neural_network,
             requires_grad_wrt_coordinates=False,
             include_restraint_energy_contribution=self.include_restraint_energy_contribution,
         ).energy_tensor
@@ -287,7 +284,7 @@ class FreeEnergyCalculator:
         u_1 = self.ani_model.calculate_energy(
             coordinates,
             lambda_value=1.0,
-            original_neural_network=False,
+            original_neural_network=original_neural_network,
             requires_grad_wrt_coordinates=False,
             include_restraint_energy_contribution=self.include_restraint_energy_contribution,
         ).energy_tensor
@@ -295,17 +292,110 @@ class FreeEnergyCalculator:
         u_ln = torch.stack([u_0, u_1])
         return u_ln
 
-    def _compute_free_energy_difference(self):
+    def _compute_free_energy_difference(self) -> torch.Tensor:
         u_ln = self._form_u_ln()
         f_k = self._compute_perturbed_free_energies(u_ln)
+        # keep u_ln in memory
+        self.u_ln_rho_star_wrt_parameters = u_ln
         return f_k[1] - f_k[0]
+
+    def get_u_ln_for_rho_and_rho_star(self) -> Tuple[(torch.Tensor, torch.Tensor)]:
+        u_ln_rho = torch.stack(
+            [
+                torch.tensor(
+                    self.mbar.u_kn[0],  # lambda=0
+                    dtype=torch.double,
+                    requires_grad=False,
+                    device=device,
+                ),
+                torch.tensor(
+                    self.mbar.u_kn[-1],  # lambda=1
+                    dtype=torch.double,
+                    requires_grad=False,
+                    device=device,
+                ),
+            ]
+        )
+
+        if torch.is_tensor(self.u_ln_rho_star_wrt_parameters):
+            u_ln_rho_star = self.u_ln_rho_star_wrt_parameters
+        else:
+            logger.critical(
+                "u_ln_rho_star is not set. Calculating. This __might__ indicate a problem!"
+            )
+            u_ln_rho_star = self._form_u_ln()
+        return u_ln_rho, u_ln_rho_star
+
+    def rmse_between_potentials_for_snapshots(
+        self, env: str = "", normalized=False
+    ) -> torch.Tensor:
+        u_ln_rho, u_ln_rho_star = self.get_u_ln_for_rho_and_rho_star()
+        if normalized:
+            # if normalized the individual energies are divided by the number of atoms in the system
+            if env == "vacuum":
+                scale_with = 100
+            elif env == "droplet":
+                scale_with = 400
+            else:
+                raise RuntimeError(
+                    "If normalized, the environment needs to be specified"
+                )
+            nr_of_atoms = len(self.ani_model.species[0])
+            u_ln_rho, u_ln_rho_star = (
+                (u_ln_rho / nr_of_atoms) * scale_with,
+                (u_ln_rho_star / nr_of_atoms) * scale_with,
+            )
+        return calculate_rmse(u_ln_rho, u_ln_rho_star)
+
+    def mae_between_potentials_for_snapshots(
+        self, env: str = "", normalized=False
+    ) -> torch.Tensor:
+        u_ln_rho, u_ln_rho_star = self.get_u_ln_for_rho_and_rho_star()
+        if normalized:
+            # if normalized the individual energies are divided by the number of atoms in the system
+            nr_of_atoms = len(self.ani_model.species[0])
+            if env == "vacuum":
+                scale_with = 100
+            elif env == "droplet":
+                scale_with = 400
+            else:
+                raise RuntimeError(
+                    "If normalized, the environment needs to be specified"
+                )
+            u_ln_rho, u_ln_rho_star = (
+                (u_ln_rho / nr_of_atoms) * scale_with,
+                (u_ln_rho_star / nr_of_atoms) * scale_with,
+            )
+        return calculate_mae(u_ln_rho, u_ln_rho_star)
+
+    def mse_between_potentials_for_snapshots(
+        self, env: str = "", normalized=False
+    ) -> torch.Tensor:
+        u_ln_rho, u_ln_rho_star = self.get_u_ln_for_rho_and_rho_star()
+        if normalized:
+            # if normalized the individual energies are divided by the number of atoms in the system
+            nr_of_atoms = len(self.ani_model.species[0])
+            if env == "vacuum":
+                scale_with = 100
+            elif env == "droplet":
+                scale_with = 400
+            else:
+                raise RuntimeError(
+                    "If normalized, the environment needs to be specified"
+                )
+
+            u_ln_rho, u_ln_rho_star = (
+                (u_ln_rho / nr_of_atoms) * scale_with,
+                (u_ln_rho_star / nr_of_atoms) * scale_with,
+            )
+        return calculate_mse(u_ln_rho, u_ln_rho_star)
 
 
 def torchify(x):
     return torch.tensor(x, dtype=torch.double, requires_grad=True, device=device)
 
 
-def get_perturbed_free_energy_difference(fec_list: list) -> torch.Tensor:
+def get_perturbed_free_energy_difference(fec: FreeEnergyCalculator) -> torch.Tensor:
     """
     Gets a list of fec instances and returns a torch.tensor with
     the computed free energy differences.
@@ -316,18 +406,15 @@ def get_perturbed_free_energy_difference(fec_list: list) -> torch.Tensor:
     Returns:
         torch.tensor -- calculated free energy in kT
     """
-    calc = []
+    if fec.flipped:
+        deltaF = fec._compute_free_energy_difference() * -1.0
+    else:
+        deltaF = fec._compute_free_energy_difference()
 
-    for idx, fec in enumerate(fec_list):
-        if fec.flipped:
-            deltaF = fec._compute_free_energy_difference() * -1.0
-        else:
-            deltaF = fec._compute_free_energy_difference()
-        calc.append(deltaF)
-    return torch.stack([e for e in calc])
+    return deltaF
 
 
-def get_unperturbed_free_energy_difference(fec_list: list):
+def get_unperturbed_free_energy_difference(fec: FreeEnergyCalculator):
     """
     Gets a list of fec instances and returns a torch.tensor with
     the computed free energy differences.
@@ -338,18 +425,16 @@ def get_unperturbed_free_energy_difference(fec_list: list):
     Returns:
         torch.tensor -- calculated free energy in kT
     """
-    calc = []
 
-    for idx, fec in enumerate(fec_list):
-        if fec.flipped:
-            deltaF = fec._end_state_free_energy_difference[0] * -1.0
-        else:
-            deltaF = fec._end_state_free_energy_difference[0]
-        calc.append(deltaF)
-    return torch.stack([torchify(e) for e in calc])
+    if fec.flipped:
+        deltaF = fec._end_state_free_energy_difference[0] * -1.0
+    else:
+        deltaF = fec._end_state_free_energy_difference[0]
+
+    return torchify(deltaF)
 
 
-def get_experimental_values(names: list) -> torch.Tensor:
+def get_experimental_values(name: str) -> torch.Tensor:
     """
     Returns the experimental free energy differen in solution for the tautomer pair
 
@@ -359,27 +444,75 @@ def get_experimental_values(names: list) -> torch.Tensor:
     from neutromeratio.analysis import _get_exp_results
 
     exp_results = _get_exp_results()
-    exp = []
 
-    for idx, name in enumerate(names):
-        e_in_kT = (exp_results[name]["energy"] * unit.kilocalorie_per_mole) / kT
-        exp.append(e_in_kT)
-    logger.debug(exp)
-    return torchify(exp)
+    e_in_kT = (exp_results[name]["energy"] * unit.kilocalorie_per_mole) / kT
+    logger.debug(e_in_kT)
+    return torchify(e_in_kT)
+
+
+class JobTimeoutException(Exception):
+    def __init__(self, jobstack=[]):
+        super().__init__()
+        self.jobstack = jobstack
+
+
+class JobTransferException(Exception):
+    def __init__(self, jobstack=[]):
+        super().__init__()
+        self.jobstack = jobstack
+
+
+def _setup_FEC(prop: dict):
+    start_time = time.time()
+    logger.debug(f"PID {os.getpid()} starting task {prop['name']}")
+    f = _load_FEC(**prop)
+    end_time = time.time()
+    logger.debug(f"PID {os.getpid()} ending task {prop['name']}")
+    logger.debug(f"Time: {start_time - end_time}")
+    return f
+
+
+def init():
+    """This function is called when new processes start."""
+    logger.debug(f"Initializing process {os.getpid()}")
+    # Uncomment the following to see pool process log messages with spawn
+    logging.basicConfig(level=logging.INFO)
+
+
+def _mp(n_proc: int, prop_list: list) -> List[FreeEnergyCalculator]:
+
+    with get_context("forkserver").Pool(processes=n_proc, initializer=init) as pool:
+        pool_result = pool.map_async(_setup_FEC, prop_list)
+        pool_result.wait(timeout=400)  # should take around 120s
+        try:
+            if pool_result.ready():
+                FEC_list = pool_result.get(timeout=10)
+                pool.close()  # no more tasks
+                pool.join()  # wrap up current tasks
+            else:
+                pool.terminate()  # otherwise shared memory is not released
+                pool.join()  # wrap up current tasks
+                raise RuntimeError("Took too long ...")
+
+        except Exception:
+            print("failing gracefully ...")
+            pool.terminate()  # otherwise shared memory is not released
+            pool.join()  # wrap up current tasks
+            raise
+
+    return FEC_list
 
 
 def calculate_rmse_between_exp_and_calc(
     names: list,
     model: ANI,
     data_path: str,
-    bulk_energy_calculation: bool,
     env: str,
     max_snapshots_per_window: int,
     perturbed_free_energy: bool = True,
     diameter: int = -1,
-    load_pickled_FEC: bool = False,
     include_restraint_energy_contribution: bool = False,
-) -> Tuple[float, list]:
+) -> Tuple[Number, list]:
 
     """
     calculate_rmse_between_exp_and_calc Returns the RMSE between calculated and experimental free energy differences as float
@@ -417,53 +550,73 @@ def calculate_rmse_between_exp_and_calc(
     RuntimeError
         is raised if diameter is not specified for a droplet system
     """
-
     if env == "droplet" and diameter == -1:
         raise RuntimeError(
             f"Something went wrong. Diameter is set for {diameter}. Aborting."
         )
 
     e_calc, e_exp = [], []
-    it = tqdm(names)
-
-    for name in it:
-        fec_list = [
-            setup_FEC(
-                name=name,
-                ANImodel=model,
-                env=env,
-                bulk_energy_calculation=bulk_energy_calculation,
-                data_path=data_path,
-                max_snapshots_per_window=max_snapshots_per_window,
-                diameter=diameter,
-                load_pickled_FEC=load_pickled_FEC,
-                include_restraint_energy_contribution=include_restraint_energy_contribution,
-            )
+    current_rmse = -1.0
+    it = tqdm(chunks(names, neutromeratio.constants.NUM_PROC))
+    for name_list in it:
+        prop_list = [
+            {
+                "name": name,
+                "model_name": model.name,
+                "env": env,
+                "data_path": data_path,
+                "max_snapshots_per_window": max_snapshots_per_window,
+                "diameter": diameter,
+                "include_restraint_energy_contribution": include_restraint_energy_contribution,
+            }
+            for name in name_list
         ]
 
-        # append calculated values
-        if perturbed_free_energy:
-            e_calc.append(
-                get_perturbed_free_energy_difference(fec_list)[
-                    0
-                ].item()  # NOTE: This is a valid assumption since we are iteration with batchsize=1
-            )
+        # loading FEC from disk
+        # only one CPU is specified, mp is not needed
+        if len(name_list) == 1:
+            FEC_list = map(_setup_FEC, prop_list)
+        # reading in parallel
         else:
-            e_calc.append(get_unperturbed_free_energy_difference(fec_list)[0].item())
+            success = False
+            while success == False:
+                try:
+                    FEC_list = _mp(len(name_list), prop_list)
+                    success = True
+                except Exception as timeout_ex:
+                    logger.warning("Job timed out %s", timeout_ex)
+                    logger.warning(f"Repeating calculations for: {name_list}")
+                    # run without mp support
+                    FEC_list = map(_setup_FEC, prop_list)
+                    success = True
 
-        # append experimental values
-        e_exp.append(get_experimental_values([name])[0].item())
+        for fec in FEC_list:
+            # append calculated values
+            if perturbed_free_energy:
+                e_calc.append(get_perturbed_free_energy_difference(fec).item())
+            else:
+                e_calc.append(get_unperturbed_free_energy_difference(fec).item())
+
+            # append experimental values
+            e_exp.append(get_experimental_values(fec.name).item())
+
+        del FEC_list
         current_rmse = calculate_rmse(
             torch.tensor(e_calc, device=device), torch.tensor(e_exp, device=device)
         ).item()
 
-        it.set_description(f"RMSE: {current_rmse}")
-
         if current_rmse > 50:
-            logger.critical(f"RMSE above 50 with {current_rmse}: {name}")
+            logger.critical(f"RMSE above 50 with {current_rmse}: {fec.name}")
             logger.critical(names)
 
+        it.set_description(f"RMSE: {current_rmse}")
+
     return current_rmse, e_calc
+
+
+def calculate_mae(t1: torch.Tensor, t2: torch.Tensor) -> torch.Tensor:
+    assert t1.size() == t2.size()
+    return torch.mean(abs(t1 - t2))
 
 
 def calculate_mse(t1: torch.Tensor, t2: torch.Tensor) -> torch.Tensor:
@@ -483,7 +636,7 @@ def chunks(lst, n):
 
 
 def _split_names_in_training_validation_test_set(
-    names_list: list,
+    names_list: list, test_size: float = 0.2, validation_size: float = 0.2
 ) -> Tuple[list, list, list]:
     """
     _split_names_in_training_validation_test_set Splits a list in 3 chunks representing training, validation and test set.
@@ -500,25 +653,44 @@ def _split_names_in_training_validation_test_set(
     Tuple[list, list, list]
         [description]
     """
-    from sklearn.model_selection import train_test_split
+    import pandas as pd
+    import numpy as np
 
-    names_training_validating, names_test = train_test_split(names_list, test_size=0.2)
-    print(
-        f"Len of training/validation set: {len(names_training_validating)}/{len(names_list)}"
+    assert test_size > 0.0 and test_size < 1.0
+
+    training_set_size = 1 - test_size - validation_size
+    training_validation_set_size = 1 - test_size
+
+    df = pd.DataFrame(names_list)
+    training_set, validation_set, test_set = np.split(
+        df.sample(frac=1),
+        [int(training_set_size * len(df)), int(training_validation_set_size * len(df))],
     )
 
-    names_training, names_validating = train_test_split(
-        names_training_validating, test_size=0.2
+    names_training = training_set[0].tolist()
+    names_validating = validation_set[0].tolist()
+    names_test = test_set[0].tolist()
+
+    assert len(names_training) + len(names_validating) + len(names_test) == len(
+        names_list
     )
-    print(
-        f"Len of training set: {len(names_training)}/{len(names_training_validating)}"
-    )
-    print(
-        f"Len of validating set: {len(names_validating)}/{len(names_training_validating)}"
-    )
-    print(f"Len of test set: {len(names_test)}/{len(names_list)}")
 
     return names_training, names_validating, names_test
+
+
+class PenaltyFunction(NamedTuple):
+
+    dE_warm_up: int
+    dE_exp: int
+    dE_den: int
+    dE_max_scale: float
+    dE_active: bool
+    dE_offset: float = 0.0
+
+    dG_exp: int = 1
+    dG_den: int = 1
+    dG_max_scale: float = 1.0
+    dG_offset: float = 0.0
 
 
 def setup_and_perform_parameter_retraining_with_test_set_split(
@@ -530,16 +702,16 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
     batch_size: int = 10,
     elements: str = "CHON",
     data_path: str = "../data/",
-    nr_of_nn: int = 8,
     max_epochs: int = 10,
-    bulk_energy_calculation: bool = True,
     load_checkpoint: bool = True,
     names: list = [],
-    load_pickled_FEC: bool = True,
     lr_AdamW: float = 1e-3,
     lr_SGD: float = 1e-3,
-    weight_decay: float = 0.000001,
-) -> Tuple[list, float]:
+    weight_decay: float = 1e-2,
+    test_size: float = 0.2,
+    validation_size: float = 0.2,
+    snapshot_penalty_f: PenaltyFunction = PenaltyFunction(0, 0, 0, 0, False),
+) -> Tuple[list, Number]:
 
     """
     Calculates the free energy of a staged free energy simulation,
@@ -571,6 +743,13 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
             learning rate of SGD minimizer, by default = 1e-3
         weight_decay : float, opt
             by default = 1e-6
+        test_size : float, opt
+            defines the training:validation:test split
+            by default = 0.2
+        validation_size : float, opt
+            defines the training:validation:test split
+            by default = 0.2
+
     Raises:
         RuntimeError: [description]
 
@@ -578,6 +757,11 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
         [type]: [description]
     """
     import datetime
+
+    # snapshot_penalty must be set to either True or False
+    assert snapshot_penalty_f.dE_active in [True, False]
+
+    logger.info(f"Batch size: {batch_size}")
 
     # initialize an empty ANI model to set default parameters
     _ = ANImodel([0, 0])
@@ -592,8 +776,6 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
         for key, value in local_variables.items():
             logger.info(f"{key}: {value}")
             f.write(f"{key}: {value}\n")
-
-    assert int(nr_of_nn) <= 8 and int(nr_of_nn) >= 1
 
     if env == "droplet" and diameter == -1:
         raise RuntimeError(f"Did you forget to pass the 'diamter' argument? Aborting.")
@@ -614,7 +796,9 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
             names_training,
             names_validating,
             names_test,
-        ) = _split_names_in_training_validation_test_set(names_list)
+        ) = _split_names_in_training_validation_test_set(
+            names_list, test_size=test_size, validation_size=validation_size
+        )
 
     # save the split for this particular training/validation/test split
     split = {}
@@ -633,10 +817,8 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
         names=names_test,
         diameter=diameter,
         data_path=data_path,
-        bulk_energy_calculation=bulk_energy_calculation,
         env=env,
         max_snapshots_per_window=max_snapshots_per_window,
-        load_pickled_FEC=load_pickled_FEC,
         include_restraint_energy_contribution=False,
         perturbed_free_energy=False,  # NOTE: always unperturbed
     )
@@ -652,17 +834,15 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
         diameter=diameter,
         batch_size=batch_size,
         data_path=data_path,
-        nr_of_nn=nr_of_nn,
         max_epochs=max_epochs,
         elements=elements,
         load_checkpoint=load_checkpoint,
-        bulk_energy_calculation=bulk_energy_calculation,
         names_training=names_training,
         names_validating=names_validating,
-        load_pickled_FEC=load_pickled_FEC,
         lr_AdamW=lr_AdamW,
         lr_SGD=lr_SGD,
         weight_decay=weight_decay,
+        snapshot_penalty_f=snapshot_penalty_f,
     )
 
     # final rmsd calculation on test set
@@ -671,10 +851,8 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
         names=names_test,
         diameter=diameter,
         data_path=data_path,
-        bulk_energy_calculation=bulk_energy_calculation,
         env=env,
         max_snapshots_per_window=max_snapshots_per_window,
-        load_pickled_FEC=load_pickled_FEC,
         include_restraint_energy_contribution=False,
     )
     print(f"RMSE on test set AFTER optimization: {rmse_test}")
@@ -713,13 +891,11 @@ def _save_checkpoint(
 
 def _perform_training(
     ANImodel: ANI,
-    nr_of_nn: int,
     names_training: list,
     names_validating: list,
     checkpoint_filename: str,
     max_epochs: int,
     elements: str,
-    bulk_energy_calculation: bool,
     env: str,
     diameter: int,
     batch_size: int,
@@ -727,15 +903,14 @@ def _perform_training(
     max_snapshots_per_window: int,
     load_checkpoint: bool,
     rmse_validation: list,
-    load_pickled_FEC: bool,
     lr_AdamW: float,
     lr_SGD: float,
     weight_decay: float,
+    snapshot_penalty_f: PenaltyFunction,
 ) -> list:
 
-    early_stopping_learning_rate = 1.0e-5
+    early_stopping_learning_rate = 1.0e-8
     AdamW, AdamW_scheduler, SGD, SGD_scheduler = _get_nn_layers(
-        nr_of_nn,
         ANImodel,
         elements=elements,
         lr_AdamW=lr_AdamW,
@@ -775,7 +950,12 @@ def _perform_training(
 
         # get the learning group
         learning_rate = AdamW.param_groups[0]["lr"]
+        logger.debug(f"Learning rate for AdamW for current epoche: {learning_rate}")
         if learning_rate < early_stopping_learning_rate:
+            print(
+                "Learning rate for AdamW is lower than early_stopping_learning_reate!"
+            )
+            print("Stopping!")
             break
 
         # checkpoint -- if best parameters on validation set save parameters
@@ -784,44 +964,41 @@ def _perform_training(
                 ANImodel.optimized_neural_network.state_dict(), best_model_checkpoint
             )
 
-        # define the stepsize
-        AdamW_scheduler.step(rmse_validation[-1])
-        SGD_scheduler.step(rmse_validation[-1])
-
+        # shuffle training set
+        random.shuffle(names_training)
         # perform the parameter optimization and importance weighting
         _tweak_parameters(
             names_training=names_training,
-            ANImodel=ANImodel,
             AdamW=AdamW,
             SGD=SGD,
             env=env,
-            bulk_energy_calculation=bulk_energy_calculation,
+            epoch=AdamW_scheduler.last_epoch + 1,
             diameter=diameter,
+            model_name=ANImodel.name,
             batch_size=batch_size,
             data_path=data_path,
             max_snapshots_per_window=max_snapshots_per_window,
-            load_pickled_FEC=load_pickled_FEC,
+            snapshot_penalty_f=snapshot_penalty_f,
         )
 
-        # calculate the new free energies on the validation set with optimized parameters
-        current_rmse, dG_calc_validation = calculate_rmse_between_exp_and_calc(
-            names_validating,
-            model=ANImodel,
-            diameter=diameter,
-            data_path=data_path,
-            bulk_energy_calculation=bulk_energy_calculation,
-            env=env,
-            max_snapshots_per_window=max_snapshots_per_window,
-            perturbed_free_energy=True,
-            load_pickled_FEC=load_pickled_FEC,
-            include_restraint_energy_contribution=False,
-        )
+        with torch.no_grad():
+            # calculate the new free energies on the validation set with optimized parameters
+            current_rmse, _ = calculate_rmse_between_exp_and_calc(
+                names_validating,
+                model=ANImodel,
+                diameter=diameter,
+                data_path=data_path,
+                env=env,
+                max_snapshots_per_window=max_snapshots_per_window,
+                perturbed_free_energy=True,
+                include_restraint_energy_contribution=False,
+            )
 
-        rmse_validation.append(current_rmse)
+            rmse_validation.append(current_rmse)
 
-        print(
-            f"RMSE on validation set: {rmse_validation[-1]} at epoch {AdamW_scheduler.last_epoch}"
-        )
+        # if appropriate update LR on plateau
+        AdamW_scheduler.step(rmse_validation[-1])
+        SGD_scheduler.step(rmse_validation[-1])
 
         _save_checkpoint(
             ANImodel,
@@ -832,25 +1009,25 @@ def _perform_training(
             f"{base}_{AdamW_scheduler.last_epoch}.pt",
         )
 
-    # _save_checkpoint(
-    #     ANImodel, AdamW, AdamW_scheduler, SGD, SGD_scheduler, checkpoint_filename
-    # )
+        print(
+            f"RMSE on validation set: {rmse_validation[-1]} at epoch {AdamW_scheduler.last_epoch}"
+        )
 
     return rmse_validation
 
 
 def _tweak_parameters(
     names_training: list,
-    ANImodel: ANI,
     AdamW,
     SGD,
+    epoch: int,
     env: str,
+    model_name: str,
     diameter: int,
-    bulk_energy_calculation: bool,
     batch_size: int,
     data_path: str,
     max_snapshots_per_window: int,
-    load_pickled_FEC: bool,
+    snapshot_penalty_f: PenaltyFunction,
 ):
     """
     _tweak_parameters
@@ -869,56 +1046,192 @@ def _tweak_parameters(
         either 'droplet' or vacuum
     diameter : int
         diameter of droplet or -1
-    bulk_energy_calculation : bool
-        controls if the energy calculation should be performed in bluk (parallel) or sequential
     batch_size : int
         the number of molecules used to calculate the loss
     data_path : str
         the location where the trajectories are saved
+    snapshot_penalty_f : dict
     max_snapshots_per_window : int
         the number of snapshots per lambda state to consider
 
     """
 
-    logger.info("_tweak_parameters called ...")
+    logger.debug("_tweak_parameters called ...")
     # iterate over batches of molecules
+    # some points to where the rational comes from:
+    # https://discuss.pytorch.org/t/why-do-we-need-to-set-the-gradients-manually-to-zero-in-pytorch/4903/20
     it = tqdm(chunks(names_training, batch_size))
+    instance_idx = 0
 
-    for idx, names in enumerate(it):
-
-        # define setup_FEC function
-        # get mbar instances in a list
-        fec_list = [
-            setup_FEC(
-                name=name,
-                ANImodel=ANImodel,
-                env=env,
-                data_path=data_path,
-                bulk_energy_calculation=bulk_energy_calculation,
-                max_snapshots_per_window=max_snapshots_per_window,
-                diameter=diameter,
-                load_pickled_FEC=load_pickled_FEC,
-                include_restraint_energy_contribution=False,
-            )
-            for name in names
-        ]
-
-        # calculate the free energies
-        calc_free_energy_difference = get_perturbed_free_energy_difference(fec_list)
-        # obtain the experimental free energies
-        exp_free_energy_difference = get_experimental_values(names)
-        # calculate the loss as MSE
-        loss = calculate_mse(calc_free_energy_difference, exp_free_energy_difference)
-        it.set_description(f"Batch {idx} -- MSE: {loss.item()}")
-
-        # optimization steps
+    # divid in batches
+    for batch_idx, names in enumerate(it):
+        # reset gradient
         AdamW.zero_grad()
         SGD.zero_grad()
-        loss.backward()
+        logger.debug(names)
+
+        # divide in chunks to read in parallel
+        for name_list in chunks(names, neutromeratio.constants.NUM_PROC):
+            prop_list = [
+                {
+                    "name": name,
+                    "model_name": model_name,
+                    "env": env,
+                    "data_path": data_path,
+                    "max_snapshots_per_window": max_snapshots_per_window,
+                    "diameter": diameter,
+                    "include_restraint_energy_contribution": False,
+                }
+                for name in name_list
+            ]
+
+            # only one CPU is specified, mp is not needed
+            if len(name_list) == 1:
+                FEC_list = map(_setup_FEC, prop_list)
+            # reading in parallel
+            else:
+                success = False
+                while success == False:
+                    try:
+                        FEC_list = _mp(len(name_list), prop_list)
+                        success = True
+                    except Exception as timeout_ex:
+                        logger.warning("Job timed out %s", timeout_ex)
+                        logger.warning(f"Repeating calculations for: {name_list}")
+                        FEC_list = map(_setup_FEC, prop_list)
+                        success = True
+
+            # process chunks
+            for fec in FEC_list:
+                # count tautomer pairs
+                instance_idx += 1
+
+                loss, snapshot_penalty = _loss_function(
+                    fec, epoch=epoch, snapshot_penalty_f=snapshot_penalty_f, env=env
+                )
+
+                it.set_description(
+                    f"E:{epoch};B:{batch_idx+1};I:{instance_idx};SP:{snapshot_penalty} -- MSE: {loss.item()}"
+                )
+                logger.debug(f"Instance: {instance_idx} : {loss.item()}")
+                # The loss needs to be scaled, because the mean should be taken across the batch
+                loss = loss / batch_size
+                # gradient is calculated and accumulated
+                loss.backward()
+                # graph is cleared here
+
+                if snapshot_penalty_f.dE_active:
+                    del fec.u_ln_rho_star_wrt_parameters
+
+            del FEC_list
+
+        # optimization steps
         AdamW.step()
         SGD.step()
 
-        del calc_free_energy_difference
+
+def _scale_factor_dE(snapshot_penalty_f: PenaltyFunction, epoch: int) -> torch.Tensor:
+
+    """
+     Returning the scaling factor for the MAE dE(rho, rho*)
+
+    Returns
+    -------
+    [type]
+        [description]
+    """
+
+    if not snapshot_penalty_f.dE_active:
+        return torch.tensor(0)
+
+    warm_up = snapshot_penalty_f.dE_warm_up
+    exp = snapshot_penalty_f.dE_exp
+    den = snapshot_penalty_f.dE_den
+    max_scale = snapshot_penalty_f.dE_max_scale
+    offset = snapshot_penalty_f.dE_offset
+
+    assert warm_up >= 0 and warm_up <= 200
+    assert exp >= 1 and exp <= 3
+    assert den >= 0 and den <= 200
+
+    warm_up_ = torch.tensor(warm_up, dtype=torch.double)
+    epoch_ = torch.tensor(epoch, dtype=torch.double)
+    den_ = torch.tensor(den, dtype=torch.double)
+    max_scale_ = torch.tensor(max_scale, dtype=torch.double)
+    offset_ = torch.tensor(offset, dtype=torch.double)
+
+    f = offset_ + torch.min(
+        (torch.max(epoch_ - warm_up_, torch.tensor(0)) / den_) ** exp,
+        max_scale_,
+    )
+
+    return f
+
+
+def _scale_factor_dG(snapshot_penalty_f: PenaltyFunction, epoch: int) -> torch.Tensor:
+
+    """
+     Returning the scaling factor for the MSE dG
+
+    Returns
+    -------
+    [type]
+        [description]
+    """
+
+    exp = snapshot_penalty_f.dG_exp
+    den = snapshot_penalty_f.dG_den
+    max_scale = snapshot_penalty_f.dG_max_scale
+    offset = snapshot_penalty_f.dG_offset
+
+    assert exp >= 1 and exp <= 3
+    assert den >= 0 and den <= 200
+
+    epoch_ = torch.tensor(epoch, dtype=torch.double)
+    den_ = torch.tensor(den, dtype=torch.double)
+    max_scale_ = torch.tensor(max_scale, dtype=torch.double)
+    offset_ = torch.tensor(offset, dtype=torch.double)
+
+    f = offset_ + torch.min(
+        (epoch_ / den_) ** exp,
+        max_scale_,
+    )
+
+    return f
+
+
+def _loss_function(
+    fec: FreeEnergyCalculator, epoch: int, snapshot_penalty_f: PenaltyFunction, env: str
+) -> Tuple[torch.Tensor, Number]:
+
+    """
+     The the loss function governing the parameter retraining
+
+    Returns
+    -------
+    [type]
+        [description]
+    """
+    snapshot_penalty = torch.tensor([0.0])
+    # calculate the free energies
+    calc_free_energy_difference = get_perturbed_free_energy_difference(fec)
+    # obtain the experimental free energies
+    exp_free_energy_difference = get_experimental_values(fec.name)
+    # calculate the loss as MSE
+    g = _scale_factor_dG(snapshot_penalty_f, epoch)
+    loss = g * calculate_mse(calc_free_energy_difference, exp_free_energy_difference)
+
+    if snapshot_penalty_f.dE_active:
+        f = _scale_factor_dE(snapshot_penalty_f, epoch)
+        snapshot_penalty = fec.mae_between_potentials_for_snapshots(
+            normalized=True, env=env
+        )
+        logger.debug(f"Snapshot penalty: {snapshot_penalty.item()}")
+        logger.debug(f"Scaling factor: {f}")
+
+        loss += f * snapshot_penalty
+
+    return loss, snapshot_penalty.item()
 
 
 def _load_checkpoint(
@@ -938,7 +1251,6 @@ def _load_checkpoint(
 
 
 def _get_nn_layers(
-    nr_of_nn: int,
     ANImodel: ANI,
     elements: str,
     lr_AdamW: float = 1e-3,
@@ -973,24 +1285,16 @@ def _get_nn_layers(
 
     if elements == "CHON":
         logger.info("Using `CHON` elements.")
-        weight_layers, bias_layers = _get_nn_layers_CHON(
-            weight_decay, layer, model
-        )
+        weight_layers, bias_layers = _get_nn_layers_CHON(weight_decay, layer, model)
     elif elements == "CN":
         logger.info("Using `CN` elements.")
-        weight_layers, bias_layers = _get_nn_layers_CN(
-            weight_decay, layer, model
-        )
+        weight_layers, bias_layers = _get_nn_layers_CN(weight_decay, layer, model)
     elif elements == "H":
         logger.info("Using `H` elements.")
-        weight_layers, bias_layers = _get_nn_layers_H(
-            weight_decay, layer, model
-        )
+        weight_layers, bias_layers = _get_nn_layers_H(weight_decay, layer, model)
     elif elements == "C":
         logger.info("Using `C` elements.")
-        weight_layers, bias_layers = _get_nn_layers_C(
-            weight_decay, layer, model
-        )
+        weight_layers, bias_layers = _get_nn_layers_C(weight_decay, layer, model)
     else:
         raise RuntimeError(
             "Only `CHON`, `H`, `C` or `CN` as elements allowed. Aborting."
@@ -1002,19 +1306,18 @@ def _get_nn_layers(
     # set up minimizer for bias
     SGD = torch.optim.SGD(bias_layers, lr=lr_SGD)
 
+    # ReduceLROnPlateau does not make too much sense for AdamW -- set patience to 20
     AdamW_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        AdamW, factor=0.5, patience=2, threshold=0.2
-    )
+        AdamW, "min", verbose=True, threshold=1e-3, patience=20, cooldown=5, factor=0.1
+    )  # using defailt values
     SGD_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        SGD, factor=0.5, patience=2, threshold=0.2
-    )
+        SGD, "min", verbose=True, threshold=1e-3, patience=5, cooldown=5, factor=0.1
+    )  # using defailt values from https://pytorch.org/docs/stable/optim.html#torch.optim.lr_scheduler.ReduceLROnPlateau
 
     return (AdamW, AdamW_scheduler, SGD, SGD_scheduler)
 
 
-def _get_nn_layers_C(
-    weight_decay: float, layer: int, model
-) -> Tuple[list, list]:
+def _get_nn_layers_C(weight_decay: float, layer: int, model) -> Tuple[list, list]:
     weight_layers = []
     bias_layers = []
 
@@ -1032,9 +1335,7 @@ def _get_nn_layers_C(
     return (weight_layers, bias_layers)
 
 
-def _get_nn_layers_H(
-    weight_decay: float, layer: int, model
-) -> Tuple[list, list]:
+def _get_nn_layers_H(weight_decay: float, layer: int, model) -> Tuple[list, list]:
     weight_layers = []
     bias_layers = []
 
@@ -1052,9 +1353,7 @@ def _get_nn_layers_H(
     return (weight_layers, bias_layers)
 
 
-def _get_nn_layers_CN(
-    weight_decay: float, layer: int, model
-) -> Tuple[list, list]:
+def _get_nn_layers_CN(weight_decay: float, layer: int, model) -> Tuple[list, list]:
     weight_layers = []
     bias_layers = []
 
@@ -1074,9 +1373,7 @@ def _get_nn_layers_CN(
     return (weight_layers, bias_layers)
 
 
-def _get_nn_layers_CHON(
-    weight_decay: float, layer: int, model
-) -> Tuple[list, list]:
+def _get_nn_layers_CHON(weight_decay: float, layer: int, model) -> Tuple[list, list]:
     weight_layers = []
     bias_layers = []
 
@@ -1108,15 +1405,13 @@ def setup_and_perform_parameter_retraining(
     max_snapshots_per_window: int,
     names_training: list,
     names_validating: list,
+    snapshot_penalty_f: PenaltyFunction,
     diameter: int = -1,
     batch_size: int = 1,
     data_path: str = "../data/",
-    nr_of_nn: int = 8,
     max_epochs: int = 10,
     elements: str = "CHON",
     load_checkpoint: bool = True,
-    bulk_energy_calculation: bool = True,
-    load_pickled_FEC: bool = True,
     lr_AdamW: float = 1e-3,
     lr_SGD: float = 1e-3,
     weight_decay: float = 0.000001,
@@ -1163,18 +1458,16 @@ def setup_and_perform_parameter_retraining(
         list : rmse on validation set
     """
 
-    assert int(batch_size) <= 10 and int(batch_size) >= 1
-    assert int(nr_of_nn) <= 8 and int(nr_of_nn) >= 1
+    assert int(batch_size) >= 1
 
     logger.info("setup_and_perform_parameter_retraining called ...")
     local_variables = locals()
     for key, value in local_variables.items():
         logger.info(f"{key}: {value}")
 
-    if load_pickled_FEC:
-        _ = ANImodel(
-            [0, 0]
-        )  # NOTE: The model needs a single initialized instance to work with pickled tautomer objects
+    _ = ANImodel(
+        [0, 0]
+    )  # NOTE: The model needs a single initialized instance to work with pickled tautomer objects
 
     if env == "droplet" and diameter == -1:
         raise RuntimeError(f"Did you forget to pass the 'diamter' argument? Aborting.")
@@ -1183,16 +1476,14 @@ def setup_and_perform_parameter_retraining(
     rmse_validation = []
 
     # calculate the rmse on the current parameters for the validation set
-    rmse_validation_set, dG_calc_validation = calculate_rmse_between_exp_and_calc(
+    rmse_validation_set, _ = calculate_rmse_between_exp_and_calc(
         names_validating,
         model=ANImodel,
         data_path=data_path,
-        bulk_energy_calculation=bulk_energy_calculation,
         env=env,
         max_snapshots_per_window=max_snapshots_per_window,
         diameter=diameter,
         perturbed_free_energy=False,
-        load_pickled_FEC=load_pickled_FEC,
         include_restraint_energy_contribution=False,
     )
 
@@ -1202,7 +1493,6 @@ def setup_and_perform_parameter_retraining(
     ### main training loop
     rmse_validation = _perform_training(
         ANImodel=ANImodel,
-        nr_of_nn=nr_of_nn,
         names_training=names_training,
         names_validating=names_validating,
         rmse_validation=rmse_validation,
@@ -1210,19 +1500,90 @@ def setup_and_perform_parameter_retraining(
         max_epochs=max_epochs,
         elements=elements,
         env=env,
-        bulk_energy_calculation=bulk_energy_calculation,
         diameter=diameter,
         batch_size=batch_size,
         data_path=data_path,
         load_checkpoint=load_checkpoint,
         max_snapshots_per_window=max_snapshots_per_window,
-        load_pickled_FEC=load_pickled_FEC,
         lr_AdamW=lr_AdamW,
         lr_SGD=lr_SGD,
         weight_decay=weight_decay,
+        snapshot_penalty_f=snapshot_penalty_f,
     )
 
     return rmse_validation
+
+
+def _load_FEC(
+    name: str,
+    env: str,
+    model_name: str,
+    max_snapshots_per_window: int,
+    include_restraint_energy_contribution: bool,
+    data_path: str = "../data/",
+    diameter: int = -1,
+) -> FreeEnergyCalculator:
+
+    """
+    Load the FreeEnergyCalculator object
+
+    Parameters
+    -------
+    name : str
+        Name of the system
+    model_name: str
+        Name of the ANI model
+    max_snapshots_per_window : int
+        snapshots/lambda to use
+    env : bool
+        environment is either `vacuum` or `droplet`
+    include_restraint_energy_contribution: bool
+        include the restraint contributions in the potential energy function
+    Returns
+    -------
+    FreeEnergyCalculator
+
+    """
+
+    def _check_and_return_fec(
+        fec, include_restraint_energy_contribution: bool
+    ) -> FreeEnergyCalculator:
+        if (
+            fec.include_restraint_energy_contribution
+            != include_restraint_energy_contribution
+        ):
+            raise RuntimeError(
+                f"Attempted to load FEC with include_restraint_energy_contribution: {fec.include_restraint_energy_contribution}, but asked for include_restraint_energy_contribution: {include_restraint_energy_contribution}"
+            )
+        # NOTE: early exit
+        fec.name = name
+        return fec
+
+    if not (env == "vacuum" or env == "droplet"):
+        raise RuntimeError("Only keyword vacuum or droplet are allowed as environment.")
+    if env == "droplet" and diameter == -1:
+        raise RuntimeError("Something went wrong.")
+
+    data_path = os.path.abspath(data_path)
+    # check if data_path exists
+    if not os.path.exists(data_path):
+        raise RuntimeError(f"{data_path} does not exist!")
+
+    fec_pickle = f"{data_path}/{name}/{name}_FEC_{max_snapshots_per_window}_for_{model_name}_restraint_{include_restraint_energy_contribution}"
+
+    # load FEC pickle file
+    if os.path.exists(f"{fec_pickle}.gz"):
+        fec = compress_load(f"{fec_pickle}.gz")
+        return _check_and_return_fec(fec, include_restraint_energy_contribution)
+    elif os.path.exists(f"{fec_pickle}.pickle"):
+        fec = pickle.load(open(f"{fec_pickle}.pickle", "rb"))
+        return _check_and_return_fec(fec, include_restraint_energy_contribution)
+    elif os.path.exists(f"{fec_pickle}"):
+        fec = pickle.load(open(f"{fec_pickle}", "rb"))
+        return _check_and_return_fec(fec, include_restraint_energy_contribution)
+    else:
+        print(f"Tried to load {fec_pickle}[.gz|.pickle|''] but failed!")
+        raise RuntimeError(f"Tried to load {fec_pickle}[.gz|.pickle|''] but failed!")
 
 
 def setup_FEC(
@@ -1276,15 +1637,26 @@ def setup_FEC(
         [description]
     """
 
-    from neutromeratio.analysis import setup_alchemical_system_and_energy_function
-    import os
-    from compress_pickle import dump, load
+    _ = ANImodel([0, 0])
 
     def parse_lambda_from_dcd_filename(dcd_filename) -> float:
         """parse the dcd filename"""
         l = dcd_filename[: dcd_filename.find(f"_energy_in_{env}")].split("_")
         lam = l[-3]
         return float(lam)
+
+    def _check_and_return_fec(
+        fec, include_restraint_energy_contribution: bool
+    ) -> FreeEnergyCalculator:
+        if (
+            fec.include_restraint_energy_contribution
+            != include_restraint_energy_contribution
+        ):
+            raise RuntimeError(
+                f"Attempted to load FEC with include_restraint_energy_contribution: {fec.include_restraint_energy_contribution}, but asked for include_restraint_energy_contribution: {include_restraint_energy_contribution}"
+            )
+        # NOTE: early exit
+        return fec
 
     if not (env == "vacuum" or env == "droplet"):
         raise RuntimeError("Only keyword vacuum or droplet are allowed as environment.")
@@ -1296,28 +1668,33 @@ def setup_FEC(
     if not os.path.exists(data_path):
         raise RuntimeError(f"{data_path} does not exist!")
 
-    fec_pickle = f"{data_path}/{name}/{name}_FEC_{max_snapshots_per_window}_for_{ANImodel.name}_restraint_{include_restraint_energy_contribution}.gz"
+    fec_pickle = f"{data_path}/{name}/{name}_FEC_{max_snapshots_per_window}_for_{ANImodel.name}_restraint_{include_restraint_energy_contribution}"
 
     # load FEC pickle file
     if load_pickled_FEC:
-        if os.path.exists(fec_pickle):
-            fec = load(fec_pickle)
-            print(f"{fec_pickle} loading ...")
-            if (
-                fec.include_restraint_energy_contribution
-                != include_restraint_energy_contribution
-            ):
-                raise RuntimeError(
-                    f"Attempted to load FEC with include_restraint_energy_contribution: {fec.include_restraint_energy_contribution}, but asked for include_restraint_energy_contribution: {include_restraint_energy_contribution}"
-                )
-            # NOTE: early exit
-            return fec
+        logger.debug(f"{fec_pickle}[.gz|.pickle|''] loading ...")
+        if os.path.exists(f"{fec_pickle}.gz"):
+            fec = compress_load(f"{fec_pickle}.gz")
+            fec.name = name
+            return _check_and_return_fec(fec, include_restraint_energy_contribution)
+        elif os.path.exists(f"{fec_pickle}.pickle"):
+            fec = pickle.load(open(f"{fec_pickle}.pickle", "rb"))
+            fec.name = name
+            return _check_and_return_fec(fec, include_restraint_energy_contribution)
+        elif os.path.exists(f"{fec_pickle}"):
+            fec = pickle.load(open(f"{fec_pickle}", "rb"))
+            fec.name = name
+            return _check_and_return_fec(fec, include_restraint_energy_contribution)
         else:
-            print(f"Tried to load {fec_pickle} but failed!")
-            logger.critical(f"Tried to load {fec_pickle} but failed!")
+            print(f"Tried to load {fec_pickle}[.gz|.pickle|''] but failed!")
+            logger.critical(f"Tried to load {fec_pickle}[.gz|.pickle|''] but failed!")
 
     # setup alchecmial system and energy function
-    energy_function, tautomer, flipped = setup_alchemical_system_and_energy_function(
+    (
+        energy_function,
+        tautomer,
+        flipped,
+    ) = neutromeratio.analysis.setup_alchemical_system_and_energy_function(
         name=name,
         ANImodel=ANImodel,
         checkpoint_file=checkpoint_file,
@@ -1343,7 +1720,7 @@ def setup_FEC(
         lam = parse_lambda_from_dcd_filename(dcd_filename)
         lambdas.append(lam)
         traj = md.load_dcd(dcd_filename, top=top)
-        logger.debug(f"Nr of frames in trajectory: {len(traj)}")
+        # logger.debug(f"Nr of frames in trajectory: {len(traj)}")
         md_trajs.append(traj)
         f = open(
             f"{data_path}/{name}/{name}_lambda_{lam:0.4f}_energy_in_{env}.csv", "r"
@@ -1369,12 +1746,13 @@ def setup_FEC(
     )
 
     fec.flipped = flipped
+    fec.name = name
 
     # save FEC
     if save_pickled_FEC:
-        logger.critical(f"Saving pickled FEC to {fec_pickle}")
-        print(f"Saving pickled FEC to {fec_pickle}")
-        dump(fec, fec_pickle)
+        # logger.critical(f"Saving pickled FEC to {fec_pickle}.gz")
+        print(f"Saving pickled FEC to {fec_pickle}.gz")
+        compress_dump(fec, f"{fec_pickle}.gz")
 
     return fec
 
