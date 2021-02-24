@@ -1,4 +1,3 @@
-import torch
 import copy
 import logging
 import os
@@ -9,13 +8,14 @@ from typing import NamedTuple, Optional, Tuple
 import matplotlib.pyplot as plt
 import numpy as np
 import simtk
+import torch
 import torchani
 from ase import Atoms
 from ase.thermochemistry import IdealGasThermo
 from ase.vibrations import Vibrations
 from simtk import unit
 from torch import Tensor
-from torchani.nn import SpeciesEnergies
+from torchani.nn import ANIModel, SpeciesEnergies
 
 from .constants import (
     device,
@@ -32,6 +32,174 @@ from .constants import (
 from .restraints import BaseDistanceRestraint
 
 logger = logging.getLogger(__name__)
+
+
+class PartialANIModel(ANIModel):
+    """just like ANIModel, but don't do the sum over atoms in the last step, and
+    don't flatten last layer output!"""
+
+    def forward(
+        self,
+        species_aev: Tuple[Tensor, Tensor],  # type: ignore
+        cell: Optional[Tensor] = None,
+        pbc: Optional[Tensor] = None,
+    ) -> Tuple[Tensor, Tensor]:
+
+        species, aev = species_aev
+        assert species.shape == aev.shape[:-1]
+
+        # in our case, species will be the same for all snapshots
+        atom_species = species[0]
+        assert (atom_species == species).all()
+
+        # NOTE: depending on the element, outputs will have different dimensions...
+        # something like output.shape = n_snapshots, n_atoms, n_dims
+        # where n_dims is either 160, 128, or 96...
+
+        # Ugly hard-coding approach: make this of size max_dim=200 and only write
+        # into the first 96, 128, or 160, 190 elements, NaN-poisoning the rest
+        # TODO: make this less hard-code-y
+        n_snapshots, n_atoms = species.shape
+        max_dim = 200
+        output = torch.zeros((n_snapshots, n_atoms, max_dim)) * np.nan
+        # TODO: note intentional NaN-poisoning here -- not sure if there's a
+        #   better way to emulate jagged array
+
+        # loop through atom nets
+        for i, (_, module) in enumerate(self.items()):
+            mask = atom_species == i
+            # look only at the elements that are present in species
+            if sum(mask) > 0:
+                # get output for these atoms given the aev for these atoms
+                current_out = module(aev[:, mask, :])
+                # dimenstion of current_out is [nr_of_frames, nr_of_atoms_with_element_i,max_dim]
+                out_dim = current_out.shape[-1]
+                # jagged array
+                output[:, mask, :out_dim] = current_out
+                # final dimenstions are [n_snapshots, n_atoms, max_dim]
+
+        return SpeciesEnergies(species, output)
+
+
+class LastLayerANIModel(ANIModel):
+    """just like ANIModel, but only does the final calculation and cuts input arrays to the input feature size of the
+    different atom nets!"""
+
+    last_ayers_nr_of_feature: dict = {
+        -3: {0: 192, 1: 192, 2: 160, 3: 160},
+        -1: {0: 160, 1: 160, 2: 128, 3: 128},
+    }
+
+    def __init__(self, modules, index_of_last_layer: int):
+        super().__init__(modules)
+        self.index_of_last_layer = index_of_last_layer
+
+    def forward(
+        self,
+        species_aev: Tuple[Tensor, Tensor],
+        cell: Optional[Tensor] = None,
+        pbc: Optional[Tensor] = None,
+    ) -> SpeciesEnergies:
+        species, aev = species_aev
+        species_ = species.flatten()
+        aev = aev.flatten(0, 1)
+
+        output = aev.new_zeros(species_.shape)
+
+        for i, (_, m) in enumerate(self.items()):
+            mask = species_ == i
+            midx = mask.nonzero().flatten()
+            if midx.shape[0] > 0:
+                input_ = aev.index_select(0, midx)
+                input_ = input_[
+                    :, : self.last_ayers_nr_of_feature[self.index_of_last_layer][i]
+                ]
+                output.masked_scatter_(mask, m(input_).flatten())
+        output = output.view_as(species)
+        return SpeciesEnergies(species, torch.sum(output, dim=1))
+
+
+class PartialANIEnsemble(torch.nn.Module):
+    def __init__(self, ani_models):
+        super().__init__()
+        self.ani_models = ani_models
+
+    def forward(self, species_aev):
+        species, _ = species_aev
+        output = torch.stack([m(species_aev).energies for m in self.ani_models], dim=2)
+
+        return SpeciesEnergies(species, output)
+
+
+class Precomputation(torch.nn.Module):
+    def __init__(self, model: ANIModel, nr_of_included_layers: int):
+        super().__init__()
+        assert nr_of_included_layers <= 6
+
+        ensemble = model[0]
+        assert type(ensemble) == torchani.nn.Ensemble
+
+        # define new ensemble that does everything from AEV up to the last layer
+        modified_ensemble = copy.deepcopy(ensemble)
+        # remove last layer
+        for e in modified_ensemble:
+            for element in e.keys():
+                e[element] = e[element][:nr_of_included_layers]
+
+        ani_models = [PartialANIModel(m.children()) for m in modified_ensemble]
+        self.partial_ani_ensemble = PartialANIEnsemble(ani_models)
+        self.species_converter = model[1]
+        self.aev = model[2]
+
+    def forward(self, species_coordinates):
+        # x = self.species_converter.forward(species_coordinates)
+        x = species_coordinates
+        species_y = self.partial_ani_ensemble.forward(self.aev.forward(x))
+        return species_y
+
+
+class LastLayersComputation(torch.nn.Module):
+    def __init__(self, model: ANIModel, index_of_last_layers):
+        super().__init__()
+        assert len(model) == 2
+        assert index_of_last_layers == -1 or index_of_last_layers == -3
+        ensemble = model[0]
+        assert type(ensemble) == torchani.nn.Ensemble
+
+        # define new ensemble that does just the last layer of computation
+        last_step_ensemble = copy.deepcopy(
+            ensemble
+        )  # NOTE: copy reference to original ensemble!
+        for e_original, e_copy in zip(ensemble, last_step_ensemble):
+            for element in e_original.keys():
+                e_copy[element] = e_original[element][index_of_last_layers:]
+
+        ani_models = [
+            LastLayerANIModel(m.children(), index_of_last_layers)
+            for m in last_step_ensemble
+        ]
+
+        self.last_step_ensemble = torchani.nn.Ensemble(ani_models)
+        self.energy_shifter = model[1]
+        assert type(self.energy_shifter) == torchani.EnergyShifter
+
+    def forward(self, species_y):
+        """
+        TODO: this should only work for elements where the last layer dimension
+            is 160
+        """
+        # y contains the tensor with dimension [n_snapshots, n_atoms, ensemble, max_dimension_of_atom_net (160)]
+        species, y = species_y
+        n_nets = len(self.last_step_ensemble)
+        energies = torch.zeros(y.shape[0])
+
+        # loop through ensembles
+        for i in range(n_nets):
+            # get last layer for this ensemble
+            m = self.last_step_ensemble[i]
+
+            energies += m.forward((species, y[:, :, i, :])).energies
+        return self.energy_shifter.forward((species, energies / n_nets))
 
 
 class DecomposedForce(NamedTuple):
@@ -69,17 +237,16 @@ class ANI(torchani.models.BuiltinEnsemble):
         """
         super().__init__(*self._from_neurochem_resources(nn_path, periodic_table_index))
 
-    def load_nn_parameters(
-        self, parameter_path: str, extract_from_checkpoint: bool = False
-    ):
+    def load_nn_parameters(self, parameter_path: str):
+
         if os.path.isfile(parameter_path):
             parameters = torch.load(parameter_path)
-            if extract_from_checkpoint:
+            try:
                 self.optimized_neural_network.load_state_dict(parameters["nn"])
-            else:
+            except KeyError:
                 self.optimized_neural_network.load_state_dict(parameters)
         else:
-            logger.info(f"Parameter file {parameter_path} does not exist.")
+            raise RuntimeError(f"Parameter file {parameter_path} does not exist.")
 
     def _from_neurochem_resources(self, info_file_path, periodic_table_index):
         (
@@ -152,7 +319,10 @@ class ANI1x(ANI):
 
     @classmethod
     def _reset_parameters(cls):
-        ANI1x.optimized_neural_network = copy.deepcopy(ANI1x.original_neural_network)
+        if cls.original_neural_network:
+            cls.optimized_neural_network = copy.deepcopy(cls.original_neural_network)
+        else:
+            logger.info("_reset_parameters called, but nothing to do.")
 
 
 class ANI1ccx(ANI):
@@ -171,9 +341,10 @@ class ANI1ccx(ANI):
 
     @classmethod
     def _reset_parameters(cls):
-        ANI1ccx.optimized_neural_network = copy.deepcopy(
-            ANI1ccx.original_neural_network
-        )
+        if cls.original_neural_network:
+            cls.optimized_neural_network = copy.deepcopy(cls.original_neural_network)
+        else:
+            logger.info("_reset_parameters called, but nothing to do.")
 
 
 class ANI2x(ANI):
@@ -191,7 +362,10 @@ class ANI2x(ANI):
 
     @classmethod
     def _reset_parameters(cls):
-        ANI2x.optimized_neural_network = copy.deepcopy(ANI2x.original_neural_network)
+        if cls.original_neural_network:
+            cls.optimized_neural_network = copy.deepcopy(cls.original_neural_network)
+        else:
+            logger.info("_reset_parameters called, but nothing to do.")
 
 
 class AlchemicalANI_Mixin:
@@ -299,7 +473,6 @@ class AlchemicalANI_Mixin:
             mod_coordinates_1,
             coordinates,
         )
-
         # early exit if at endpoint
         if lam == 0.0:
             _, E_0 = self._forward(nn, mod_species_0, mod_coordinates_0)
@@ -381,12 +554,12 @@ class AlchemicalANI2x(AlchemicalANI_Mixin, ANI2x):
 
         assert len(alchemical_atoms) == 2
         super().__init__(periodic_table_index)
-        self.alchemical_atoms = alchemical_atoms
+        self.alchemical_atoms: list = alchemical_atoms
         self.neural_networks = None
         assert self.neural_networks == None
 
 
-class ANI1_force_and_energy(object):
+class ANI_force_and_energy(object):
     def __init__(self, model: ANI, atoms: str, mol: Atoms = None):
         """
         Performs energy and force calculations.
@@ -677,7 +850,10 @@ class ANI1_force_and_energy(object):
         """
 
         nr_of_mols = len(coordinates)
-        batch_species = torch.stack([self.species[0]] * nr_of_mols)
+        logger.debug(f"len(coordinates): {nr_of_mols}")
+        batch_species = torch.stack(
+            [self.species[0]] * nr_of_mols
+        )  # species is a [1][1] tensor, afterwards it's a [1][nr_of_mols]
 
         if batch_species.size()[:2] != coordinates.size()[:2]:
             raise RuntimeError(
@@ -763,7 +939,7 @@ class ANI1_force_and_energy(object):
 
         assert type(coordinate_list) == unit.Quantity
         assert 0.0 <= float(lambda_value) <= 1.0
-        print(f"Including restraints: {include_restraint_energy_contribution}")
+        logger.debug(f"Including restraints: {include_restraint_energy_contribution}")
 
         logger.debug(f"Batch-size: {len(coordinate_list)}")
 
@@ -793,3 +969,88 @@ class ANI1_force_and_energy(object):
             return DecomposedEnergy(
                 energy, restraint_energy_contribution, energy_in_kT.detach()
             )
+
+
+class CompartimentedAlchemicalANI2x(AlchemicalANI_Mixin, ANI2x):
+
+    name = "CompartimentedAlchemicalANI2x"
+
+    def __init__(
+        self,
+        alchemical_atoms: list,
+        periodic_table_index: bool = False,
+        split_at: int = 6,
+    ):
+        """Scale the indirect contributions of alchemical atoms to the energy sum by
+        linearly interpolating, for other atom i, between the energy E_i^0 it would compute
+        in the _complete absence_ of the alchemical atoms, and the energy E_i^1 it would compute
+        in the _presence_ of the alchemical atoms.
+        (Also scale direct contributions, as in DirectAlchemicalANI)
+
+        Parameters
+        ----------
+        alchemical_atoms : list
+        """
+
+        assert len(alchemical_atoms) == 2
+        super().__init__(periodic_table_index)
+        self.alchemical_atoms: list = alchemical_atoms
+        self.neural_networks = None
+        assert self.neural_networks == None
+        self.precalculation: dict = {}
+        self.split_at = split_at
+        self.ANIFirstPart, _ = self.break_into_two_stages(
+            self.optimized_neural_network, split_at=self.split_at
+        )  # only keep the first part since this is always the same
+
+    def _forward(self, nn, mod_species, mod_coordinates):
+        _, ANILastPart = self.break_into_two_stages(
+            nn, split_at=self.split_at
+        )  # only keep
+
+        species_coordinates = (mod_species, mod_coordinates)
+
+        coordinate_hash = hash(tuple(mod_coordinates[0].flatten().tolist()))
+
+        if coordinate_hash in self.precalculation:
+            species_y = self.precalculation[coordinate_hash]
+        else:
+            species_y = self.ANIFirstPart.forward(species_coordinates)
+            self.precalculation[coordinate_hash] = species_y
+
+        return ANILastPart.forward(species_y)
+
+    def break_into_two_stages(
+        self, model: ANIModel, split_at: int
+    ) -> Tuple[Precomputation, LastLayersComputation]:
+        """ANIModel.forward(...) is pretty expensive, and in some cases we might want
+        to do a computation where the first stage of the calculation is pretty expensive
+        and the subsequent stages are less expensive.
+
+        Break ANIModel up into two stages f and g so that
+        ANIModel.forward(x) == g.forward(f.forward(x))
+
+        This is beneficial if we only ever need to recompute and adjust g, not f
+        """
+
+        if split_at == 6:
+            logger.debug("Split at layer 6")
+            index_of_last_layers = -1
+            nr_of_included_layers = 6
+        elif split_at == 4:
+            logger.debug("Split at layer 4")
+            index_of_last_layers = -3
+            nr_of_included_layers = 4
+        else:
+            raise RuntimeError("Either split at layer 4 or 6.")
+
+        f = Precomputation(
+            (model, self.species_converter, self.aev_computer),
+            nr_of_included_layers=nr_of_included_layers,
+        )
+        g = LastLayersComputation(
+            (model, self.energy_shifter),
+            index_of_last_layers=index_of_last_layers,
+        )
+
+        return f, g

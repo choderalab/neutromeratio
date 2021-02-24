@@ -38,3 +38,4 @@ dependencies:
       - six
       - codecov
       - pytest-benchmark
+      - compress_pickle

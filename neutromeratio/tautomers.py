@@ -19,7 +19,7 @@ from simtk import unit
 from simtk.openmm import Vec3
 from typing import List
 
-from .ani import ANI1_force_and_energy
+from .ani import ANI_force_and_energy
 from .constants import device, gas_constant, kT, platform, temperature
 from .mcmc import MC_Mover
 from .restraints import (
@@ -609,7 +609,7 @@ class Tautomer(object):
         model = ANI1ccx()
         model = model.to(device)
 
-        energy_function = ANI1_force_and_energy(
+        energy_function = ANI_force_and_energy(
             model=model, atoms=hybrid_atoms, mol=None
         )
 
@@ -782,7 +782,7 @@ class Tautomer(object):
             model = ANI1ccx()
             model = model.to(device)
 
-            energy_function = ANI1_force_and_energy(
+            energy_function = ANI_force_and_energy(
                 model=model, atoms=ligand_atoms, mol=ase_mol
             )
 

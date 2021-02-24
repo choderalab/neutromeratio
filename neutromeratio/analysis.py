@@ -23,7 +23,8 @@ from neutromeratio.ani import (
     AlchemicalANI1ccx,
     AlchemicalANI1x,
     AlchemicalANI2x,
-    ANI1_force_and_energy,
+    CompartimentedAlchemicalANI2x,
+    ANI_force_and_energy,
 )
 from neutromeratio.constants import (
     device,
@@ -308,10 +309,10 @@ def compare_confomer_generator_and_trajectory_minimum_structures(
     mol.RemoveAllConformers()
 
     # generate energy function, use atom symbols of rdkti mol
-    from .ani import ANI1_force_and_energy, ANI1ccx
+    from .ani import ANI_force_and_energy, ANI1ccx
 
     model = ANI1ccx()
-    energy_function = ANI1_force_and_energy(
+    energy_function = ANI_force_and_energy(
         model=model, atoms=[a.GetSymbol() for a in mol.GetAtoms()], mol=None
     )
 
@@ -460,7 +461,15 @@ def setup_alchemical_system_and_energy_function(
     import os
 
     if not (
-        issubclass(ANImodel, (AlchemicalANI2x, AlchemicalANI1ccx, AlchemicalANI1x))
+        issubclass(
+            ANImodel,
+            (
+                AlchemicalANI2x,
+                AlchemicalANI1ccx,
+                AlchemicalANI1x,
+                CompartimentedAlchemicalANI2x,
+            ),
+        )
     ):
         raise RuntimeError("Only Alchemical ANI objects allowed! Aborting.")
 
@@ -522,20 +531,20 @@ def setup_alchemical_system_and_energy_function(
     ]
 
     model = ANImodel(alchemical_atoms=alchemical_atoms).to(device)
-    # if specified, load nn parameters
+    # if specified, load nn parameters for modified potential!
     if checkpoint_file:
-        logger.debug("Loading nn parameters ...")
+        logger.warning("Loading nn parameters ...")
         model.load_nn_parameters(checkpoint_file)
 
     # setup energy function
     if env == "vacuum":
-        energy_function = ANI1_force_and_energy(
+        energy_function = ANI_force_and_energy(
             model=model,
             atoms=tautomer.hybrid_atoms,
             mol=None,
         )
     else:
-        energy_function = ANI1_force_and_energy(
+        energy_function = ANI_force_and_energy(
             model=model,
             atoms=tautomer.ligand_in_water_atoms,
             mol=None,
@@ -626,18 +635,18 @@ def setup_new_alchemical_system_and_energy_function(
     model = ANImodel(alchemical_atoms=alchemical_atoms).to(device)
     # if specified, load nn parameters
     if checkpoint_file:
-        logger.debug("Loading nn parameters ...")
+        logger.warning("Loading nn parameters ...")
         model.load_nn_parameters(checkpoint_file)
 
     # setup energy function
     if env == "vacuum":
-        energy_function = ANI1_force_and_energy(
+        energy_function = ANI_force_and_energy(
             model=model,
             atoms=tautomer.hybrid_atoms,
             mol=None,
         )
     else:
-        energy_function = ANI1_force_and_energy(
+        energy_function = ANI_force_and_energy(
             model=model,
             atoms=tautomer.ligand_in_water_atoms,
             mol=None,

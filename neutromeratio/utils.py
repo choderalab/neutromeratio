@@ -23,14 +23,14 @@ def find_idx(query_name: str) -> list:
 
     protocol = dict()
     idx = 1
-    for name in _get_names():
+    for mol_idx, name in enumerate(_get_names()):
         list_of_idx = []
         list_of_lambdas = []
         for lamb in np.linspace(0, 1, 11):
             list_of_lambdas.append(lamb)
             list_of_idx.append(idx)
             idx += 1
-        protocol[name] = (list_of_idx, list_of_lambdas)
+        protocol[name] = (list_of_idx, list_of_lambdas, mol_idx+1)
     return protocol[query_name]
 
 
@@ -82,6 +82,18 @@ def decide_unspec_stereo(smiles: str) -> str:
             )
             bond.SetStereo(Chem.BondStereo.STEREOE)
     return Chem.MolToSmiles(m)
+
+
+def _get_traj(traj_path, top_path, remove_idx=None):
+    top = md.load(top_path).topology
+    traj = md.load(traj_path, top=top)
+    atoms = [a for a in range(top.n_atoms)]
+    if remove_idx:
+        print(atoms)
+        atoms.remove(remove_idx)
+        print(atoms)
+        traj = traj.atom_slice(atoms)
+    return traj, top
 
 
 def get_nr_of_stereobonds(smiles: str) -> int:

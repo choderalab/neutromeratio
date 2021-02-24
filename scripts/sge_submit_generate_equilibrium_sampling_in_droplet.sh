@@ -7,12 +7,12 @@
 #$ -o /data/cluster/projects/SGE_LOG/
 
 idx=${1} 
-n_steps=200000
-ps=100 
+n_steps=400000
+ps=200
 env='droplet'
 potential_name='ANI2x'
 #potential_name='ANI1ccx'
-diameter_in_angstrom=18 #Angstrom
+diameter_in_angstrom=16 #Angstrom
 
 hostname
 echo ${idx}
