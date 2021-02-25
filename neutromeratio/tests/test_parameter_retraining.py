@@ -566,6 +566,9 @@ def test_postprocessing_droplet():
     del fec_list
 
 
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
 def test_snapshot_energy_loss_with_CompartimentedAlchemicalANI2x():
     # test the setup mbar function with different models, environments and potentials
     from ..parameter_gradients import (
@@ -623,7 +626,10 @@ def test_tweak_parameters_and_class_nn_AlchemicalANI():
     # this can lead to some tricky situations.
     # It also means that whenever any optimization is performed,
     # every new instance of the class has the new parameters
-    from ..parameter_gradients import setup_and_perform_parameter_retraining
+    from ..parameter_gradients import (
+        setup_and_perform_parameter_retraining,
+        PenaltyFunction,
+    )
     from ..ani import AlchemicalANI1ccx, CompartimentedAlchemicalANI2x
 
     names = ["molDWRow_298"]
@@ -660,6 +666,7 @@ def test_tweak_parameters_and_class_nn_AlchemicalANI():
             names_training=names,
             names_validating=names,
             ANImodel=model,
+            snapshot_penalty_f=PenaltyFunction(5, 1, 20, 1.0, False),
             max_snapshots_per_window=50,
             batch_size=1,
             data_path="./data/test_data/vacuum",
@@ -706,12 +713,18 @@ def test_tweak_parameters_and_class_nn_AlchemicalANI():
         model._reset_parameters()
 
 
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
 def test_tweak_parameters_and_class_nn_CompartimentedAlchemicalANI():
     # the tweaked parameters are stored as class variables
     # this can lead to some tricky situations.
     # It also means that whenever any optimization is performed,
     # every new instance of the class has the new parameters
-    from ..parameter_gradients import setup_and_perform_parameter_retraining
+    from ..parameter_gradients import (
+        setup_and_perform_parameter_retraining,
+        PenaltyFunction,
+    )
     from ..ani import CompartimentedAlchemicalANI2x, CompartimentedAlchemicalANI1ccx
 
     for model, model_name in [
@@ -743,6 +756,7 @@ def test_tweak_parameters_and_class_nn_CompartimentedAlchemicalANI():
             names_validating=names,
             ANImodel=model,
             max_snapshots_per_window=10,
+            snapshot_penalty_f=PenaltyFunction(5, 1, 20, 1.0, False),
             batch_size=1,
             data_path="./data/test_data/vacuum",
             load_checkpoint=False,
@@ -794,6 +808,9 @@ def test_tweak_parameters_and_class_nn_CompartimentedAlchemicalANI():
         )
 
 
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
 @pytest.mark.skipif(
     os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
 )
@@ -1071,9 +1088,6 @@ def test_retrain_parameters_vacuum_batch_size_all_potentials():
         model._reset_parameters()
 
 
-@pytest.mark.skipif(
-    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
-)
 def test_tweak_parameters_vacuum_single_tautomer_AlchemicalANI2x():
     from ..parameter_gradients import (
         setup_and_perform_parameter_retraining_with_test_set_split,
@@ -1149,6 +1163,9 @@ def test_tweak_parameters_vacuum_single_tautomer_AlchemicalANI2x():
         del model
 
 
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
 def test_retrain_energy_penalty():
     from ..parameter_gradients import (
         setup_and_perform_parameter_retraining_with_test_set_split,
@@ -1191,7 +1208,7 @@ def test_retrain_energy_penalty():
             assert np.isclose(rmse_val[-1], rmse_test, rtol=1e-3)
             assert np.isclose(rmse_val[0], 5.187891006469727, rtol=1e-3)
             assert np.isclose(
-                rmse_val[-1], 4.2210774421691895, rtol=1e-2
+                rmse_val[-1], 4.32212495803833, rtol=1e-1
             )  # NOTE: This is not zero!
         finally:
             _remove_files(model_name + "_vacuum", max_epochs)
@@ -1200,6 +1217,9 @@ def test_retrain_energy_penalty():
         del model
 
 
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
 def test_retrain_mp_mp1():
     from ..parameter_gradients import (
         setup_and_perform_parameter_retraining_with_test_set_split,
@@ -1249,6 +1269,9 @@ def test_retrain_mp_mp1():
         del model
 
 
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
 def test_retrain_mp_mp2():
     from ..parameter_gradients import (
         setup_and_perform_parameter_retraining_with_test_set_split,
@@ -1256,7 +1279,7 @@ def test_retrain_mp_mp2():
     from ..ani import CompartimentedAlchemicalANI2x
     from neutromeratio.constants import initialize_NUM_PROC
 
-    initialize_NUM_PROC(2)
+    #initialize_NUM_PROC(2)
 
     # without pickled tautomer object
     names = ["molDWRow_298", "SAMPLmol2", "SAMPLmol4"]
@@ -1298,6 +1321,9 @@ def test_retrain_mp_mp2():
         del model
 
 
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
 def test_retrain_mp_mp3_epoch20():
     from ..parameter_gradients import (
         setup_and_perform_parameter_retraining_with_test_set_split,
@@ -1305,7 +1331,7 @@ def test_retrain_mp_mp3_epoch20():
     from ..ani import CompartimentedAlchemicalANI2x
     from neutromeratio.constants import initialize_NUM_PROC
 
-    initialize_NUM_PROC(3)
+    #initialize_NUM_PROC(3)
 
     # without pickled tautomer object
     names = ["molDWRow_298", "SAMPLmol2", "SAMPLmol4"]
@@ -1347,18 +1373,21 @@ def test_retrain_mp_mp3_epoch20():
         del model
 
 
-def test_retrain_mp_mp3_epoch100():
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
+def test_retrain_mp_mp3_epoch50():
     from ..parameter_gradients import (
         setup_and_perform_parameter_retraining_with_test_set_split,
     )
     from ..ani import CompartimentedAlchemicalANI2x
     from neutromeratio.constants import initialize_NUM_PROC
 
-    initialize_NUM_PROC(3)
+    #initialize_NUM_PROC(3)
 
     # without pickled tautomer object
     names = ["molDWRow_298", "SAMPLmol2", "SAMPLmol4"]
-    max_epochs = 100
+    max_epochs = 50
     for model, model_name in zip(
         [CompartimentedAlchemicalANI2x],
         ["CompartimentedAlchemicalANI2x"],
@@ -1387,7 +1416,7 @@ def test_retrain_mp_mp3_epoch100():
             assert np.isclose(rmse_val[-1], rmse_test, rtol=1e-3)
             assert np.isclose(rmse_val[0], 5.187891006469727, rtol=1e-3)
             assert np.isclose(
-                rmse_val[-1], 2.192486047744751, rtol=1e-3
+                rmse_val[-1], 3.07578, rtol=1e-2
             )  # NOTE: This is not zero!
         finally:
             _remove_files(model_name + "_vacuum", max_epochs)
@@ -1396,6 +1425,9 @@ def test_retrain_mp_mp3_epoch100():
         del model
 
 
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
 def test_timing():
     from ..ani import CompartimentedAlchemicalANI2x
     from ..parameter_gradients import (
@@ -1439,53 +1471,10 @@ def test_timing():
     print(f"Time: {end - start}")
 
 
-def test_retrain_parameters_CompartimentedAlchemicalANI2x_for_100_epochs():
-    from ..parameter_gradients import (
-        setup_and_perform_parameter_retraining_with_test_set_split,
-    )
-    from ..ani import CompartimentedAlchemicalANI2x
-
-    # without pickled tautomer object
-    names = ["molDWRow_298"]
-    max_epochs = 100
-    for model, model_name in zip(
-        [CompartimentedAlchemicalANI2x],
-        ["CompartimentedAlchemicalANI2x"],
-    ):
-        model._reset_parameters()
-
-        (
-            rmse_val,
-            rmse_test,
-        ) = setup_and_perform_parameter_retraining_with_test_set_split(
-            env="vacuum",
-            checkpoint_filename=f"{model_name}_vacuum.pt",
-            names=names,
-            ANImodel=model,
-            batch_size=1,
-            data_path="./data/test_data/vacuum",
-            max_snapshots_per_window=150,
-            max_epochs=max_epochs,
-            load_checkpoint=False,
-            lr_AdamW=1e-5,
-            lr_SGD=1e-5,
-        )
-
-        print(rmse_val)
-        try:
-            assert np.isclose(rmse_val[-1], rmse_test, rtol=1e-3)
-            assert np.isclose(rmse_val[0], 6.82616662979126, rtol=1e-3)
-            assert np.isclose(
-                rmse_val[-1], 0.4411153793334961, rtol=1e-3
-            )  # NOTE: This is not zero!
-        finally:
-            _remove_files(model_name + "_vacuum", max_epochs)
-
-        model._reset_parameters()
-        del model
-
-
-def test_retrain_parameters_CompartimentedAlchemicalANI2x_extended_loss_50_epochs_single_tautomer():
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
+def test_retrain_parameters_CompartimentedAlchemicalANI2x_for_50_epochs():
     from ..parameter_gradients import (
         setup_and_perform_parameter_retraining_with_test_set_split,
     )
@@ -1522,7 +1511,7 @@ def test_retrain_parameters_CompartimentedAlchemicalANI2x_extended_loss_50_epoch
             assert np.isclose(rmse_val[-1], rmse_test, rtol=1e-3)
             assert np.isclose(rmse_val[0], 6.82616662979126, rtol=1e-3)
             assert np.isclose(
-                rmse_val[-1], 1.8994317054748535, rtol=1e-3
+                rmse_val[-1], 2.5604844093322754, rtol=1e-2
             )  # NOTE: This is not zero!
         finally:
             _remove_files(model_name + "_vacuum", max_epochs)
@@ -1531,7 +1520,61 @@ def test_retrain_parameters_CompartimentedAlchemicalANI2x_extended_loss_50_epoch
         del model
 
 
-def test_retrain_parameters_CompartimentedAlchemicalANI2x_extended_loss_50_epochs_three_tautomers():
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
+def test_retrain_parameters_CompartimentedAlchemicalANI2x_including_dE_single_tautomer_pair():
+    from ..parameter_gradients import (
+        setup_and_perform_parameter_retraining_with_test_set_split,
+        PenaltyFunction,
+    )
+    from ..ani import CompartimentedAlchemicalANI2x
+
+    # without pickled tautomer object
+    names = ["molDWRow_298"]
+    max_epochs = 50
+    for model, model_name in zip(
+        [CompartimentedAlchemicalANI2x],
+        ["CompartimentedAlchemicalANI2x"],
+    ):
+        model._reset_parameters()
+
+        (
+            rmse_val,
+            rmse_test,
+        ) = setup_and_perform_parameter_retraining_with_test_set_split(
+            env="vacuum",
+            checkpoint_filename=f"{model_name}_vacuum.pt",
+            names=names,
+            ANImodel=model,
+            snapshot_penalty_f=PenaltyFunction(1, 1, 1, 1, True),
+            batch_size=1,
+            data_path="./data/test_data/vacuum",
+            max_snapshots_per_window=150,
+            max_epochs=max_epochs,
+            load_checkpoint=False,
+            lr_AdamW=1e-5,
+            lr_SGD=1e-5,
+        )
+
+        print(rmse_val)
+        try:
+            assert np.isclose(rmse_val[-1], rmse_test, rtol=1e-3)
+            assert np.isclose(rmse_val[0], 6.82616662979126, rtol=1e-3)
+            assert np.isclose(
+                rmse_val[-1], 3.3715248107910156, rtol=1e-2
+            )  # NOTE: This is not zero!
+        finally:
+            _remove_files(model_name + "_vacuum", max_epochs)
+
+        model._reset_parameters()
+        del model
+
+
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
+def test_retrain_parameters_CompartimentedAlchemicalANI2x_extended_loss_20_epochs_three_tautomers():
     from ..parameter_gradients import (
         setup_and_perform_parameter_retraining_with_test_set_split,
     )
@@ -1539,7 +1582,7 @@ def test_retrain_parameters_CompartimentedAlchemicalANI2x_extended_loss_50_epoch
 
     # without pickled tautomer object
     names = ["molDWRow_298", "SAMPLmol2", "SAMPLmol4"]
-    max_epochs = 50
+    max_epochs = 20
     for model, model_name in zip(
         [CompartimentedAlchemicalANI2x],
         ["CompartimentedAlchemicalANI2x"],
@@ -1556,7 +1599,7 @@ def test_retrain_parameters_CompartimentedAlchemicalANI2x_extended_loss_50_epoch
             ANImodel=model,
             batch_size=3,
             data_path="./data/test_data/vacuum",
-            max_snapshots_per_window=150,
+            max_snapshots_per_window=200,
             max_epochs=max_epochs,
             load_checkpoint=False,
             lr_AdamW=1e-5,
@@ -1566,9 +1609,9 @@ def test_retrain_parameters_CompartimentedAlchemicalANI2x_extended_loss_50_epoch
         print(rmse_val)
         try:
             assert np.isclose(rmse_val[-1], rmse_test, rtol=1e-3)
-            assert np.isclose(rmse_val[0], 6.126287937164307, rtol=1e-3)
+            assert np.isclose(rmse_val[0], 5.62937593460083, rtol=1e-3)
             assert np.isclose(
-                rmse_val[-1], 3.8655130863189697, rtol=1e-3
+                rmse_val[-1], 4.591619491577148, rtol=1e-2
             )  # NOTE: This is not zero!
         finally:
             _remove_files(model_name + "_vacuum", max_epochs)
@@ -1606,10 +1649,8 @@ def test_tweak_parameters_vacuum_single_tautomer_CompartimentedAlchemicalANI2x()
             batch_size=1,
             data_path="./data/test_data/vacuum",
             max_snapshots_per_window=50,
-            bulk_energy_calculation=True,
             max_epochs=max_epochs,
             load_checkpoint=False,
-            load_pickled_FEC=False,
         )
 
         print(rmse_val)
@@ -1653,10 +1694,8 @@ def test_tweak_parameters_vacuum_single_tautomer_CompartimentedAlchemicalANI2x_l
             batch_size=1,
             data_path="./data/test_data/vacuum",
             max_snapshots_per_window=50,
-            bulk_energy_calculation=True,
             max_epochs=max_epochs,
             load_checkpoint=False,
-            load_pickled_FEC=True,
         )
 
         print(rmse_val)
@@ -1706,13 +1745,12 @@ def test_tweak_parameters_droplet_with_AlchemicalANI():
             max_epochs=max_epochs,
             diameter=diameter,
             load_checkpoint=False,
-            load_pickled_FEC=False,
         )
 
         if idx == 0:
             try:
                 assert np.isclose(rmse_val[-1], rmse_test)
-                assert np.isclose(rmse_val[0], 0.23515522480010986)
+                assert np.isclose(rmse_val[0], 0.23515522480010986, rtol=1e-3)
                 assert np.isclose(rmse_val[-1], 0.8930618762969971, rtol=1e-3)
 
             finally:
@@ -1770,7 +1808,6 @@ def test_tweak_parameters_droplet_with_CompartimentedAlchemicalANI():
         max_epochs=max_epochs,
         diameter=diameter,
         load_checkpoint=False,
-        load_pickled_FEC=False,
     )
 
     try:
@@ -1815,7 +1852,6 @@ def test_tweak_parameters_droplet_with_CompartimentedAlchemicalANI_load_FEC():
         max_epochs=max_epochs,
         diameter=diameter,
         load_checkpoint=False,
-        load_pickled_FEC=True,
     )
 
     try:
@@ -1846,7 +1882,6 @@ def test_tweak_parameters_droplet_with_CompartimentedAlchemicalANI_load_FEC():
         max_epochs=max_epochs,
         diameter=diameter,
         load_checkpoint=False,
-        load_pickled_FEC=True,
         lr_AdamW=1e-4,
         lr_SGD=1e-4,
         weight_decay=0.000001,
@@ -1880,7 +1915,6 @@ def test_tweak_parameters_droplet_with_CompartimentedAlchemicalANI_load_FEC():
         max_epochs=max_epochs,
         diameter=diameter,
         load_checkpoint=False,
-        load_pickled_FEC=True,
         lr_AdamW=1e-3,
         lr_SGD=1e-3,
         weight_decay=0.0,
@@ -1926,7 +1960,6 @@ def test_tweak_parameters_droplet_with_AlchemicalANI2x():
         max_epochs=max_epochs,
         diameter=diameter,
         load_checkpoint=False,
-        load_pickled_FEC=False,
     )
 
     try:
@@ -2033,9 +2066,6 @@ def test_parameter_gradient():
         del model
 
 
-@pytest.mark.skipif(
-    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
-)
 def test_parameter_gradient_opt_script():
     import neutromeratio
 
@@ -2044,7 +2074,7 @@ def test_parameter_gradient_opt_script():
     data_path = f"./data/test_data/{env}"
     for model_name in ["ANI1ccx", "ANI2x"]:
 
-        max_snapshots_per_window = 10
+        max_snapshots_per_window = 50
         print(f"Max nr of snapshots: {max_snapshots_per_window}")
 
         if model_name == "ANI2x":
@@ -2061,11 +2091,6 @@ def test_parameter_gradient_opt_script():
 
         model._reset_parameters()
 
-        if env == "droplet":
-            bulk_energy_calculation = False
-        else:
-            bulk_energy_calculation = True
-
         names = ["molDWRow_298", "SAMPLmol2", "SAMPLmol4"]
 
         (
@@ -2078,13 +2103,11 @@ def test_parameter_gradient_opt_script():
             max_snapshots_per_window=max_snapshots_per_window,
             checkpoint_filename=f"parameters_{model_name}_{env}.pt",
             data_path=data_path,
-            bulk_energy_calculation=bulk_energy_calculation,
             elements=elements,
             max_epochs=5,
             names=names,
             diameter=10,
             load_checkpoint=False,
-            load_pickled_FEC=False,
         )
 
         model._reset_parameters()
