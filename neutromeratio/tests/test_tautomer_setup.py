@@ -302,6 +302,9 @@ def test_species_conversion():
         print(m.species_to_tensor(tautomer.initial_state_ligand_atoms))
 
 
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
 def test_setup_tautomer_system_in_vaccum():
     from ..analysis import setup_alchemical_system_and_energy_function
     from ..ani import AlchemicalANI1ccx, AlchemicalANI2x

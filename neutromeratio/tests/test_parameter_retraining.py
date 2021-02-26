@@ -75,6 +75,9 @@ def test_u_ln_50_snapshots():
     assert np.isclose(f_per_molecule.item(), f_scaled_to_mol.item())
 
 
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Can't upload necessary files."
+)
 def test_u_ln_20_snapshots():
     from ..parameter_gradients import (
         setup_FEC,
@@ -99,7 +102,7 @@ def test_u_ln_20_snapshots():
         data_path="data/test_data/vacuum",
         ANImodel=model,
         bulk_energy_calculation=False,
-        max_snapshots_per_window=50,
+        max_snapshots_per_window=20,
         load_pickled_FEC=True,
         include_restraint_energy_contribution=False,
     )
@@ -855,9 +858,6 @@ def test_tweak_parameters_and_class_nn_CompartimentedAlchemicalANI():
         )
 
 
-@pytest.mark.skipif(
-    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
-)
 @pytest.mark.skipif(
     os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
 )
@@ -2113,6 +2113,9 @@ def test_parameter_gradient():
         del model
 
 
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Can't upload necessary files."
+)
 def test_parameter_gradient_opt_script():
     import neutromeratio
 
