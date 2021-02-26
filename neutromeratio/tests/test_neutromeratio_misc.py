@@ -187,7 +187,7 @@ def test_generating_droplet():
     energy = energy_function.calculate_energy(x0)
     print(energy.energy[0])
     assert is_quantity_close(
-        energy.energy[0], (-15146778.81228019 * unit.kilojoule_per_mole)
+        energy.energy[0], (-15146778.81228019 * unit.kilojoule_per_mole), rtol=1e-5
     )
 
     tautomer.add_COM_for_hybrid_ligand(
@@ -202,10 +202,10 @@ def test_generating_droplet():
 
     energy = energy_function.calculate_energy(x0)
     assert is_quantity_close(
-        energy.energy[0], (-15018039.455067404 * unit.kilojoule_per_mole)
+        energy.energy[0], (-15018039.455067404 * unit.kilojoule_per_mole), rtol=1e-5
     )
 
-    energy_function, tautomer, flipped = setup_alchemical_system_and_energy_function(
+    energy_function, tautomer, _ = setup_alchemical_system_and_energy_function(
         name=name,
         env="droplet",
         ANImodel=AlchemicalANI1ccx,

@@ -28,7 +28,10 @@ def test_chunks():
     len(elements) == 3
 
 
-def test_u_ln():
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Can't upload necessary files."
+)
+def test_u_ln_50_snapshots():
     from ..parameter_gradients import (
         setup_FEC,
     )
@@ -37,8 +40,52 @@ def test_u_ln():
 
     initialize_NUM_PROC(1)
 
-    # without pickled tautomer object
+    # with pickled tautomer object
     name = "SAMPLmol2"
+    model, model_name = CompartimentedAlchemicalANI2x, "CompartimentedAlchemicalANI2x"
+    model._reset_parameters()
+    model_instance = model([0, 0])
+    model_instance.load_nn_parameters(
+        parameter_path="data/test_data/AlchemicalANI2x_3.pt"
+    )
+    # vacuum
+    fec = setup_FEC(
+        name,
+        env="vacuum",
+        data_path="data/test_data/vacuum",
+        ANImodel=model,
+        bulk_energy_calculation=False,
+        max_snapshots_per_window=50,
+        load_pickled_FEC=True,
+        include_restraint_energy_contribution=False,
+    )
+    fec._compute_free_energy_difference()
+    # compare to manually scaling
+    f_per_molecule = fec.mae_between_potentials_for_snapshots(env="vacuum")
+    f_per_atom = fec.mae_between_potentials_for_snapshots(normalized=True, env="vacuum")
+    f_scaled_to_mol = (f_per_atom / 100) * len(fec.ani_model.species[0])
+    assert np.isclose(f_per_molecule.item(), f_scaled_to_mol.item())
+    # for droplet
+    # compare to manually scaling
+    f_per_molecule = fec.mae_between_potentials_for_snapshots(env="droplet")
+    f_per_atom = fec.mae_between_potentials_for_snapshots(
+        normalized=True, env="droplet"
+    )
+    f_scaled_to_mol = (f_per_atom / 400) * len(fec.ani_model.species[0])
+    assert np.isclose(f_per_molecule.item(), f_scaled_to_mol.item())
+
+
+def test_u_ln_20_snapshots():
+    from ..parameter_gradients import (
+        setup_FEC,
+    )
+    from ..ani import CompartimentedAlchemicalANI2x
+    from neutromeratio.constants import initialize_NUM_PROC
+
+    initialize_NUM_PROC(1)
+
+    # with pickled tautomer object
+    name = "molDWRow_298"
     model, model_name = CompartimentedAlchemicalANI2x, "CompartimentedAlchemicalANI2x"
     model._reset_parameters()
     model_instance = model([0, 0])
@@ -1279,7 +1326,7 @@ def test_retrain_mp_mp2():
     from ..ani import CompartimentedAlchemicalANI2x
     from neutromeratio.constants import initialize_NUM_PROC
 
-    #initialize_NUM_PROC(2)
+    # initialize_NUM_PROC(2)
 
     # without pickled tautomer object
     names = ["molDWRow_298", "SAMPLmol2", "SAMPLmol4"]
@@ -1331,7 +1378,7 @@ def test_retrain_mp_mp3_epoch20():
     from ..ani import CompartimentedAlchemicalANI2x
     from neutromeratio.constants import initialize_NUM_PROC
 
-    #initialize_NUM_PROC(3)
+    # initialize_NUM_PROC(3)
 
     # without pickled tautomer object
     names = ["molDWRow_298", "SAMPLmol2", "SAMPLmol4"]
@@ -1383,7 +1430,7 @@ def test_retrain_mp_mp3_epoch50():
     from ..ani import CompartimentedAlchemicalANI2x
     from neutromeratio.constants import initialize_NUM_PROC
 
-    #initialize_NUM_PROC(3)
+    # initialize_NUM_PROC(3)
 
     # without pickled tautomer object
     names = ["molDWRow_298", "SAMPLmol2", "SAMPLmol4"]

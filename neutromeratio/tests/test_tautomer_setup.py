@@ -340,6 +340,9 @@ def test_setup_tautomer_system_in_vaccum():
         f = energy_function.calculate_energy(x0, lambda_value)
 
 
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
 def test_setup_tautomer_system_in_droplet():
     from ..analysis import setup_alchemical_system_and_energy_function
     from ..ani import AlchemicalANI1ccx, AlchemicalANI2x
@@ -586,6 +589,9 @@ def test_min_and_single_point_energy():
             print(energy_function.calculate_energy(x0).energy)
 
 
+@pytest.mark.skipif(
+    os.environ.get("TRAVIS", None) == "true", reason="Slow tests fail on travis."
+)
 def test_thermochemistry():
     from ..ani import ANI1ccx
 
