@@ -479,28 +479,28 @@ def init():
     logging.basicConfig(level=logging.INFO)
 
 
-def _mp(n_proc: int, prop_list: list) -> List[FreeEnergyCalculator]:
+# def _mp(n_proc: int, prop_list: list) -> List[FreeEnergyCalculator]:
 
-    with get_context("forkserver").Pool(processes=n_proc, initializer=init) as pool:
-        pool_result = pool.map_async(_setup_FEC, prop_list)
-        pool_result.wait(timeout=400)  # should take around 120s
-        try:
-            if pool_result.ready():
-                FEC_list = pool_result.get(timeout=10)
-                pool.close()  # no more tasks
-                pool.join()  # wrap up current tasks
-            else:
-                pool.terminate()  # otherwise shared memory is not released
-                pool.join()  # wrap up current tasks
-                raise RuntimeError("Took too long ...")
+#     with get_context("forkserver").Pool(processes=n_proc, initializer=init) as pool:
+#         pool_result = pool.map_async(_setup_FEC, prop_list)
+#         pool_result.wait(timeout=400)  # should take around 120s
+#         try:
+#             if pool_result.ready():
+#                 FEC_list = pool_result.get(timeout=10)
+#                 pool.close()  # no more tasks
+#                 pool.join()  # wrap up current tasks
+#             else:
+#                 pool.terminate()  # otherwise shared memory is not released
+#                 pool.join()  # wrap up current tasks
+#                 raise RuntimeError("Took too long ...")
 
-        except Exception:
-            print("failing gracefully ...")
-            pool.terminate()  # otherwise shared memory is not released
-            pool.join()  # wrap up current tasks
-            raise
+#         except Exception:
+#             print("failing gracefully ...")
+#             pool.terminate()  # otherwise shared memory is not released
+#             pool.join()  # wrap up current tasks
+#             raise
 
-    return FEC_list
+#     return FEC_list
 
 
 def calculate_rmse_between_exp_and_calc(
@@ -558,56 +558,41 @@ def calculate_rmse_between_exp_and_calc(
     e_calc, e_exp = [], []
     current_rmse = -1.0
     it = tqdm(chunks(names, neutromeratio.constants.NUM_PROC))
-    for name_list in it:
-        prop_list = [
-            {
-                "name": name,
-                "model_name": model.name,
-                "env": env,
-                "data_path": data_path,
-                "max_snapshots_per_window": max_snapshots_per_window,
-                "diameter": diameter,
-                "include_restraint_energy_contribution": include_restraint_energy_contribution,
-            }
-            for name in name_list
-        ]
+    with get_context("forkserver").Pool(
+        processes=neutromeratio.constants.NUM_PROC, initializer=init
+    ) as pool:
+        for name_list in it:
+            prop_list = [
+                {
+                    "name": name,
+                    "model_name": model.name,
+                    "env": env,
+                    "data_path": data_path,
+                    "max_snapshots_per_window": max_snapshots_per_window,
+                    "diameter": diameter,
+                    "include_restraint_energy_contribution": include_restraint_energy_contribution,
+                }
+                for name in name_list
+            ]
 
-        # loading FEC from disk
-        # only one CPU is specified, mp is not needed
-        if len(name_list) == 1:
-            FEC_list = map(_setup_FEC, prop_list)
-        # reading in parallel
-        else:
-            success = False
-            while success == False:
-                try:
-                    FEC_list = _mp(len(name_list), prop_list)
-                    success = True
-                except Exception as timeout_ex:
-                    logger.warning("Job timed out %s", timeout_ex)
-                    logger.warning(f"Repeating calculations for: {name_list}")
-                    # run without mp support
-                    FEC_list = map(_setup_FEC, prop_list)
-                    success = True
+            FEC_list = pool.map(_setup_FEC, prop_list)
 
-        for fec in FEC_list:
-            # append calculated values
-            if perturbed_free_energy:
-                e_calc.append(get_perturbed_free_energy_difference(fec).item())
-            else:
-                e_calc.append(get_unperturbed_free_energy_difference(fec).item())
+            for fec in FEC_list:
+                # append calculated values
+                if perturbed_free_energy:
+                    e_calc.append(get_perturbed_free_energy_difference(fec).item())
+                else:
+                    e_calc.append(get_unperturbed_free_energy_difference(fec).item())
+                # append experimental values
+                e_exp.append(get_experimental_values(fec.name).item())
 
-            # append experimental values
-            e_exp.append(get_experimental_values(fec.name).item())
-
-        del FEC_list
-        current_rmse = calculate_rmse(
-            torch.tensor(e_calc, device=device), torch.tensor(e_exp, device=device)
-        ).item()
-
-        if current_rmse > 50:
-            logger.critical(f"RMSE above 50 with {current_rmse}: {fec.name}")
-            logger.critical(names)
+                current_rmse = calculate_rmse(
+                    torch.tensor(e_calc, device=device),
+                    torch.tensor(e_exp, device=device),
+                ).item()
+            del FEC_list
+            if current_rmse > 50:
+                logger.critical(f"RMSE above 50 with {current_rmse}: {name_list}")
 
         it.set_description(f"RMSE: {current_rmse}")
 
@@ -945,8 +930,9 @@ def _perform_training(
         f"{base}_{0}.pt",
     )
 
+    current_rmse = -1
     ## training loop
-    for _ in range(AdamW_scheduler.last_epoch + 1, max_epochs):
+    for idx in range(AdamW_scheduler.last_epoch + 1, max_epochs):
 
         # get the learning group
         learning_rate = AdamW.param_groups[0]["lr"]
@@ -981,19 +967,23 @@ def _perform_training(
             snapshot_penalty_f=snapshot_penalty_f,
         )
 
-        with torch.no_grad():
-            # calculate the new free energies on the validation set with optimized parameters
-            current_rmse, _ = calculate_rmse_between_exp_and_calc(
-                names_validating,
-                model=ANImodel,
-                diameter=diameter,
-                data_path=data_path,
-                env=env,
-                max_snapshots_per_window=max_snapshots_per_window,
-                perturbed_free_energy=True,
-                include_restraint_energy_contribution=False,
-            )
+        if idx > 1 and idx % 2:
+            #skip every second validation set calculation
+            with torch.no_grad():
+                # calculate the new free energies on the validation set with optimized parameters
+                current_rmse, _ = calculate_rmse_between_exp_and_calc(
+                    names_validating,
+                    model=ANImodel,
+                    diameter=diameter,
+                    data_path=data_path,
+                    env=env,
+                    max_snapshots_per_window=max_snapshots_per_window,
+                    perturbed_free_energy=True,
+                    include_restraint_energy_contribution=False,
+                )
 
+                rmse_validation.append(current_rmse)
+        else:
             rmse_validation.append(current_rmse)
 
         # if appropriate update LR on plateau
@@ -1062,72 +1052,59 @@ def _tweak_parameters(
     # https://discuss.pytorch.org/t/why-do-we-need-to-set-the-gradients-manually-to-zero-in-pytorch/4903/20
     it = tqdm(chunks(names_training, batch_size))
     instance_idx = 0
+    n_proc = neutromeratio.constants.NUM_PROC
 
-    # divid in batches
-    for batch_idx, names in enumerate(it):
-        # reset gradient
-        AdamW.zero_grad()
-        SGD.zero_grad()
-        logger.debug(names)
+    with get_context("forkserver").Pool(processes=n_proc, initializer=init) as pool:
+        # divid in batches
+        for batch_idx, names in enumerate(it):
+            # reset gradient
+            AdamW.zero_grad()
+            SGD.zero_grad()
+            logger.debug(names)
 
-        # divide in chunks to read in parallel
-        for name_list in chunks(names, neutromeratio.constants.NUM_PROC):
-            prop_list = [
-                {
-                    "name": name,
-                    "model_name": model_name,
-                    "env": env,
-                    "data_path": data_path,
-                    "max_snapshots_per_window": max_snapshots_per_window,
-                    "diameter": diameter,
-                    "include_restraint_energy_contribution": False,
-                }
-                for name in name_list
-            ]
+            # divide in chunks to read in parallel and accumulate gradient
+            for name_list in chunks(names, n_proc):
+                prop_list = [
+                    {
+                        "name": name,
+                        "model_name": model_name,
+                        "env": env,
+                        "data_path": data_path,
+                        "max_snapshots_per_window": max_snapshots_per_window,
+                        "diameter": diameter,
+                        "include_restraint_energy_contribution": False,
+                    }
+                    for name in name_list
+                ]
 
-            # only one CPU is specified, mp is not needed
-            if len(name_list) == 1:
-                FEC_list = map(_setup_FEC, prop_list)
-            # reading in parallel
-            else:
-                success = False
-                while success == False:
-                    try:
-                        FEC_list = _mp(len(name_list), prop_list)
-                        success = True
-                    except Exception as timeout_ex:
-                        logger.warning("Job timed out %s", timeout_ex)
-                        logger.warning(f"Repeating calculations for: {name_list}")
-                        FEC_list = map(_setup_FEC, prop_list)
-                        success = True
+                FEC_list = pool.map(_setup_FEC, prop_list)
+                # process chunks
+                for fec in FEC_list:
+                    # count tautomer pairs
+                    instance_idx += 1
 
-            # process chunks
-            for fec in FEC_list:
-                # count tautomer pairs
-                instance_idx += 1
+                    loss, snapshot_penalty = _loss_function(
+                        fec, epoch=epoch, snapshot_penalty_f=snapshot_penalty_f, env=env
+                    )
 
-                loss, snapshot_penalty = _loss_function(
-                    fec, epoch=epoch, snapshot_penalty_f=snapshot_penalty_f, env=env
-                )
+                    it.set_description(
+                        f"E:{epoch};B:{batch_idx+1};I:{instance_idx};SP:{snapshot_penalty} -- MSE: {loss.item()}"
+                    )
+                    logger.debug(f"Instance: {instance_idx} : {loss.item()}")
+                    # The loss needs to be scaled, because the mean should be taken across the batch
+                    loss = loss / batch_size
+                    # gradient is calculated and accumulated
+                    loss.backward()
+                    # graph is cleared here
 
-                it.set_description(
-                    f"E:{epoch};B:{batch_idx+1};I:{instance_idx};SP:{snapshot_penalty} -- MSE: {loss.item()}"
-                )
-                logger.debug(f"Instance: {instance_idx} : {loss.item()}")
-                # The loss needs to be scaled, because the mean should be taken across the batch
-                loss = loss / batch_size
-                # gradient is calculated and accumulated
-                loss.backward()
-                # graph is cleared here
+                    if snapshot_penalty_f.dE_active:
+                        del fec.u_ln_rho_star_wrt_parameters
 
-                if snapshot_penalty_f.dE_active:
-                    del fec.u_ln_rho_star_wrt_parameters
+                del FEC_list
 
-            del FEC_list
-
-        # optimization steps
-        AdamW.step()
-        SGD.step()
+            # optimization steps
+            AdamW.step()
+            SGD.step()
 
 
 def _scale_factor_dE(snapshot_penalty_f: PenaltyFunction, epoch: int) -> torch.Tensor:
@@ -1311,7 +1288,7 @@ def _get_nn_layers(
         AdamW, "min", verbose=True, threshold=1e-3, patience=20, cooldown=5, factor=0.1
     )  # using defailt values
     SGD_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        SGD, "min", verbose=True, threshold=1e-3, patience=5, cooldown=5, factor=0.1
+        SGD, "min", verbose=True, threshold=1e-3, patience=10, cooldown=5, factor=0.1
     )  # using defailt values from https://pytorch.org/docs/stable/optim.html#torch.optim.lr_scheduler.ReduceLROnPlateau
 
     return (AdamW, AdamW_scheduler, SGD, SGD_scheduler)
