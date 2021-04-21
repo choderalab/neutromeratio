@@ -243,7 +243,7 @@ class FreeEnergyCalculator:
         results = self.mbar.getFreeEnergyDifferences(return_dict=True)
         return results["Delta_f"][0, -1], results["dDelta_f"][0, -1]
 
-    def _compute_perturbed_free_energies(self, u_ln) -> torch.Tensor:
+    def _compute_perturbed_free_energies(self, u_ln) -> (torch.Tensor, float):
         """compute perturbed free energies at new thermodynamic states l"""
         assert type(u_ln) == torch.Tensor
 
@@ -258,13 +258,15 @@ class FreeEnergyCalculator:
             self.mbar.u_kn, dtype=torch.double, requires_grad=False, device=device
         )
 
+        _, dG_error = self.mbar.computePerturbedFreeEnergies(u_ln.detach().numpy())
+
         # importance weighting
         log_q_k = f_k - u_kn.T
         A = log_q_k + torch.log(N_k)
         log_denominator_n = torch.logsumexp(A, dim=1)
 
         B = -u_ln - log_denominator_n
-        return -torch.logsumexp(B, dim=1)
+        return -torch.logsumexp(B, dim=1), dG_error[0][-1]
 
     def _form_u_ln(self, original_neural_network: bool = False) -> torch.Tensor:
 
@@ -292,12 +294,12 @@ class FreeEnergyCalculator:
         u_ln = torch.stack([u_0, u_1])
         return u_ln
 
-    def _compute_free_energy_difference(self) -> torch.Tensor:
+    def _compute_free_energy_difference(self) -> (torch.Tensor, float):
         u_ln = self._form_u_ln()
-        f_k = self._compute_perturbed_free_energies(u_ln)
+        f_k, dG_error = self._compute_perturbed_free_energies(u_ln)
         # keep u_ln in memory
         self.u_ln_rho_star_wrt_parameters = u_ln
-        return f_k[1] - f_k[0]
+        return f_k[1] - f_k[0], dG_error
 
     def get_u_ln_for_rho_and_rho_star(self) -> Tuple[(torch.Tensor, torch.Tensor)]:
         u_ln_rho = torch.stack(
@@ -357,7 +359,7 @@ class FreeEnergyCalculator:
             if env == "vacuum":
                 scale_with = 100
             elif env == "droplet":
-                scale_with = 400
+                scale_with = 100
             else:
                 raise RuntimeError(
                     "If normalized, the environment needs to be specified"
@@ -395,7 +397,9 @@ def torchify(x):
     return torch.tensor(x, dtype=torch.double, requires_grad=True, device=device)
 
 
-def get_perturbed_free_energy_difference(fec: FreeEnergyCalculator) -> torch.Tensor:
+def get_perturbed_free_energy_difference(
+    fec: FreeEnergyCalculator,
+) -> (torch.Tensor, float):
     """
     Gets a list of fec instances and returns a torch.tensor with
     the computed free energy differences.
@@ -407,11 +411,12 @@ def get_perturbed_free_energy_difference(fec: FreeEnergyCalculator) -> torch.Ten
         torch.tensor -- calculated free energy in kT
     """
     if fec.flipped:
-        deltaF = fec._compute_free_energy_difference() * -1.0
+        deltaF, dG_error = fec._compute_free_energy_difference()
+        deltaF *= -1
     else:
-        deltaF = fec._compute_free_energy_difference()
+        deltaF, dG_error = fec._compute_free_energy_difference()
 
-    return deltaF
+    return deltaF, dG_error
 
 
 def get_unperturbed_free_energy_difference(fec: FreeEnergyCalculator):
@@ -930,7 +935,7 @@ def _perform_training(
         f"{base}_{0}.pt",
     )
 
-    current_rmse = -1
+    current_rmse = rmse_validation[-1]
     ## training loop
     for idx in range(AdamW_scheduler.last_epoch + 1, max_epochs):
 
@@ -967,8 +972,8 @@ def _perform_training(
             snapshot_penalty_f=snapshot_penalty_f,
         )
 
-        if idx > 1 and idx % 2:
-            #skip every second validation set calculation
+        if idx > 1 and idx % 3 == 0:
+            # skip every second validation set calculation
             with torch.no_grad():
                 # calculate the new free energies on the validation set with optimized parameters
                 current_rmse, _ = calculate_rmse_between_exp_and_calc(
