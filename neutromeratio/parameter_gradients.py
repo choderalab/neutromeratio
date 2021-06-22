@@ -696,6 +696,7 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
     test_size: float = 0.2,
     validation_size: float = 0.2,
     snapshot_penalty_f: PenaltyFunction = PenaltyFunction(0, 0, 0, 0, False),
+    skipping: float = 1,
 ) -> Tuple[list, Number]:
 
     """
@@ -828,6 +829,7 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
         lr_SGD=lr_SGD,
         weight_decay=weight_decay,
         snapshot_penalty_f=snapshot_penalty_f,
+        skipping=skipping,
     )
 
     # final rmsd calculation on test set
@@ -892,6 +894,7 @@ def _perform_training(
     lr_SGD: float,
     weight_decay: float,
     snapshot_penalty_f: PenaltyFunction,
+    skipping: float,
 ) -> list:
 
     early_stopping_learning_rate = 1.0e-8
@@ -967,7 +970,7 @@ def _perform_training(
             snapshot_penalty_f=snapshot_penalty_f,
         )
 
-        if idx > 1 and idx % 3 == 0:
+        if idx > 1 and idx % skipping == 0:
             # skip every second validation set calculation
             with torch.no_grad():
                 # calculate the new free energies on the validation set with optimized parameters
@@ -1191,7 +1194,9 @@ def _loss_function(
     """
     snapshot_penalty = torch.tensor([0.0])
     # calculate the free energies
-    calc_free_energy_difference = get_perturbed_free_energy_difference(fec).free_energy_estimate
+    calc_free_energy_difference = get_perturbed_free_energy_difference(
+        fec
+    ).free_energy_estimate
     # obtain the experimental free energies
     exp_free_energy_difference = get_experimental_values(fec.name)
     # calculate the loss as MSE
@@ -1392,6 +1397,7 @@ def setup_and_perform_parameter_retraining(
     lr_AdamW: float = 1e-3,
     lr_SGD: float = 1e-3,
     weight_decay: float = 0.000001,
+    skipping: float = 1,
 ) -> list:
     """
     Much of this code is taken from:
@@ -1486,6 +1492,7 @@ def setup_and_perform_parameter_retraining(
         lr_SGD=lr_SGD,
         weight_decay=weight_decay,
         snapshot_penalty_f=snapshot_penalty_f,
+        skipping=skipping,
     )
 
     return rmse_validation
