@@ -27,6 +27,17 @@ import time
 logger = logging.getLogger(__name__)
 
 
+class FreeEnergy(NamedTuple):
+    """Returned by
+
+    free_energy_estimate: tensor in kT
+    free_energy_estimate_error: float in kT
+    """
+
+    free_energy_estimate: torch.Tensor  # in kT
+    free_energy_estimate_error: float  # in kT
+
+
 class FreeEnergyCalculator:
     def __init__(
         self,
@@ -399,7 +410,7 @@ def torchify(x):
 
 def get_perturbed_free_energy_difference(
     fec: FreeEnergyCalculator,
-) -> (torch.Tensor, float):
+) -> FreeEnergy:
     """
     Gets a list of fec instances and returns a torch.tensor with
     the computed free energy differences.
@@ -416,7 +427,7 @@ def get_perturbed_free_energy_difference(
     else:
         deltaF, dG_error = fec._compute_free_energy_difference()
 
-    return deltaF, dG_error
+    return FreeEnergy(deltaF, dG_error)
 
 
 def get_unperturbed_free_energy_difference(fec: FreeEnergyCalculator):
@@ -436,7 +447,7 @@ def get_unperturbed_free_energy_difference(fec: FreeEnergyCalculator):
     else:
         deltaF = fec._end_state_free_energy_difference[0]
 
-    return torchify(deltaF)
+    return FreeEnergy(torchify(deltaF), fec._end_state_free_energy_difference[1])
 
 
 def get_experimental_values(name: str) -> torch.Tensor:
@@ -482,30 +493,6 @@ def init():
     logger.debug(f"Initializing process {os.getpid()}")
     # Uncomment the following to see pool process log messages with spawn
     logging.basicConfig(level=logging.INFO)
-
-
-# def _mp(n_proc: int, prop_list: list) -> List[FreeEnergyCalculator]:
-
-#     with get_context("forkserver").Pool(processes=n_proc, initializer=init) as pool:
-#         pool_result = pool.map_async(_setup_FEC, prop_list)
-#         pool_result.wait(timeout=400)  # should take around 120s
-#         try:
-#             if pool_result.ready():
-#                 FEC_list = pool_result.get(timeout=10)
-#                 pool.close()  # no more tasks
-#                 pool.join()  # wrap up current tasks
-#             else:
-#                 pool.terminate()  # otherwise shared memory is not released
-#                 pool.join()  # wrap up current tasks
-#                 raise RuntimeError("Took too long ...")
-
-#         except Exception:
-#             print("failing gracefully ...")
-#             pool.terminate()  # otherwise shared memory is not released
-#             pool.join()  # wrap up current tasks
-#             raise
-
-#     return FEC_list
 
 
 def calculate_rmse_between_exp_and_calc(
@@ -585,9 +572,17 @@ def calculate_rmse_between_exp_and_calc(
             for fec in FEC_list:
                 # append calculated values
                 if perturbed_free_energy:
-                    e_calc.append(get_perturbed_free_energy_difference(fec).item())
+                    e_calc.append(
+                        get_perturbed_free_energy_difference(
+                            fec
+                        ).free_energy_estimate.item()
+                    )
                 else:
-                    e_calc.append(get_unperturbed_free_energy_difference(fec).item())
+                    e_calc.append(
+                        get_unperturbed_free_energy_difference(
+                            fec
+                        ).free_energy_estimate.item()
+                    )
                 # append experimental values
                 e_exp.append(get_experimental_values(fec.name).item())
 
@@ -1196,7 +1191,7 @@ def _loss_function(
     """
     snapshot_penalty = torch.tensor([0.0])
     # calculate the free energies
-    calc_free_energy_difference = get_perturbed_free_energy_difference(fec)
+    calc_free_energy_difference = get_perturbed_free_energy_difference(fec).free_energy_estimate
     # obtain the experimental free energies
     exp_free_energy_difference = get_experimental_values(fec.name)
     # calculate the loss as MSE
