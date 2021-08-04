@@ -9,7 +9,6 @@ import os
 import pickle
 from simtk import unit
 from neutromeratio.constants import device
-import torchani
 from openmmtools.utils import is_quantity_close
 from neutromeratio.constants import device
 from neutromeratio.utils import _get_traj

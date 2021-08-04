@@ -73,11 +73,9 @@ def test_tochani_neutromeratio_sync():
 
 def test_neutromeratio_energy_calculations_with_ANI_in_vacuum():
 
-    from ..tautomers import Tautomer
-    from ..constants import kT
     from ..analysis import setup_alchemical_system_and_energy_function
     import numpy as np
-    from ..ani import AlchemicalANI1ccx, ANI1ccx, ANI2x
+    from ..ani import AlchemicalANI1ccx
 
     # read in exp_results.pickle
     with open("data/test_data/exp_results.pickle", "rb") as f:
@@ -128,11 +126,8 @@ def test_neutromeratio_energy_calculations_with_ANI_in_vacuum():
 
 
 def test_neutromeratio_energy_calculations_with_AlchemicalANI1ccx():
-    from ..tautomers import Tautomer
-    import numpy as np
-    from ..constants import kT
     from ..analysis import setup_alchemical_system_and_energy_function
-    from ..ani import AlchemicalANI1ccx, AlchemicalANI2x, ANI1ccx
+    from ..ani import AlchemicalANI1ccx
 
     # read in exp_results.pickle
     with open("data/test_data/exp_results.pickle", "rb") as f:
@@ -175,10 +170,7 @@ def test_neutromeratio_energy_calculations_with_AlchemicalANI1ccx():
 
 
 def test_neutromeratio_energy_calculations_with_ANI_in_droplet():
-    from ..tautomers import Tautomer
-    from ..constants import kT
     from ..analysis import setup_alchemical_system_and_energy_function
-    import numpy as np
     from ..ani import AlchemicalANI1ccx
 
     # read in exp_results.pickle

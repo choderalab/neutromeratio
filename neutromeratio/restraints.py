@@ -3,18 +3,14 @@ import logging
 
 import numpy as np
 from openmmtools.constants import kB
-from scipy.stats import norm
 from simtk import unit
-from torch.distributions.normal import Normal
 
 from .constants import (
     bond_length_dict,
     device,
     mass_dict_in_daltons,
-    nm_to_angstroms,
     temperature,
     water_hoh_angle,
-    radian_to_degree,
 )
 
 logger = logging.getLogger(__name__)

@@ -27,6 +27,17 @@ import time
 logger = logging.getLogger(__name__)
 
 
+class FreeEnergy(NamedTuple):
+    """Returned by
+
+    free_energy_estimate: tensor in kT
+    free_energy_estimate_error: float in kT
+    """
+
+    free_energy_estimate: torch.Tensor  # in kT
+    free_energy_estimate_error: float  # in kT
+
+
 class FreeEnergyCalculator:
     def __init__(
         self,
@@ -243,7 +254,7 @@ class FreeEnergyCalculator:
         results = self.mbar.getFreeEnergyDifferences(return_dict=True)
         return results["Delta_f"][0, -1], results["dDelta_f"][0, -1]
 
-    def _compute_perturbed_free_energies(self, u_ln) -> torch.Tensor:
+    def _compute_perturbed_free_energies(self, u_ln) -> (torch.Tensor, float):
         """compute perturbed free energies at new thermodynamic states l"""
         assert type(u_ln) == torch.Tensor
 
@@ -258,13 +269,15 @@ class FreeEnergyCalculator:
             self.mbar.u_kn, dtype=torch.double, requires_grad=False, device=device
         )
 
+        _, dG_error = self.mbar.computePerturbedFreeEnergies(u_ln.detach().numpy())
+
         # importance weighting
         log_q_k = f_k - u_kn.T
         A = log_q_k + torch.log(N_k)
         log_denominator_n = torch.logsumexp(A, dim=1)
 
         B = -u_ln - log_denominator_n
-        return -torch.logsumexp(B, dim=1)
+        return -torch.logsumexp(B, dim=1), dG_error[0][-1]
 
     def _form_u_ln(self, original_neural_network: bool = False) -> torch.Tensor:
 
@@ -292,12 +305,12 @@ class FreeEnergyCalculator:
         u_ln = torch.stack([u_0, u_1])
         return u_ln
 
-    def _compute_free_energy_difference(self) -> torch.Tensor:
+    def _compute_free_energy_difference(self) -> (torch.Tensor, float):
         u_ln = self._form_u_ln()
-        f_k = self._compute_perturbed_free_energies(u_ln)
+        f_k, dG_error = self._compute_perturbed_free_energies(u_ln)
         # keep u_ln in memory
         self.u_ln_rho_star_wrt_parameters = u_ln
-        return f_k[1] - f_k[0]
+        return f_k[1] - f_k[0], dG_error
 
     def get_u_ln_for_rho_and_rho_star(self) -> Tuple[(torch.Tensor, torch.Tensor)]:
         u_ln_rho = torch.stack(
@@ -357,7 +370,7 @@ class FreeEnergyCalculator:
             if env == "vacuum":
                 scale_with = 100
             elif env == "droplet":
-                scale_with = 400
+                scale_with = 100
             else:
                 raise RuntimeError(
                     "If normalized, the environment needs to be specified"
@@ -395,7 +408,9 @@ def torchify(x):
     return torch.tensor(x, dtype=torch.double, requires_grad=True, device=device)
 
 
-def get_perturbed_free_energy_difference(fec: FreeEnergyCalculator) -> torch.Tensor:
+def get_perturbed_free_energy_difference(
+    fec: FreeEnergyCalculator,
+) -> FreeEnergy:
     """
     Gets a list of fec instances and returns a torch.tensor with
     the computed free energy differences.
@@ -407,11 +422,12 @@ def get_perturbed_free_energy_difference(fec: FreeEnergyCalculator) -> torch.Ten
         torch.tensor -- calculated free energy in kT
     """
     if fec.flipped:
-        deltaF = fec._compute_free_energy_difference() * -1.0
+        deltaF, dG_error = fec._compute_free_energy_difference()
+        deltaF *= -1
     else:
-        deltaF = fec._compute_free_energy_difference()
+        deltaF, dG_error = fec._compute_free_energy_difference()
 
-    return deltaF
+    return FreeEnergy(deltaF, dG_error)
 
 
 def get_unperturbed_free_energy_difference(fec: FreeEnergyCalculator):
@@ -431,7 +447,7 @@ def get_unperturbed_free_energy_difference(fec: FreeEnergyCalculator):
     else:
         deltaF = fec._end_state_free_energy_difference[0]
 
-    return torchify(deltaF)
+    return FreeEnergy(torchify(deltaF), fec._end_state_free_energy_difference[1])
 
 
 def get_experimental_values(name: str) -> torch.Tensor:
@@ -477,30 +493,6 @@ def init():
     logger.debug(f"Initializing process {os.getpid()}")
     # Uncomment the following to see pool process log messages with spawn
     logging.basicConfig(level=logging.INFO)
-
-
-# def _mp(n_proc: int, prop_list: list) -> List[FreeEnergyCalculator]:
-
-#     with get_context("forkserver").Pool(processes=n_proc, initializer=init) as pool:
-#         pool_result = pool.map_async(_setup_FEC, prop_list)
-#         pool_result.wait(timeout=400)  # should take around 120s
-#         try:
-#             if pool_result.ready():
-#                 FEC_list = pool_result.get(timeout=10)
-#                 pool.close()  # no more tasks
-#                 pool.join()  # wrap up current tasks
-#             else:
-#                 pool.terminate()  # otherwise shared memory is not released
-#                 pool.join()  # wrap up current tasks
-#                 raise RuntimeError("Took too long ...")
-
-#         except Exception:
-#             print("failing gracefully ...")
-#             pool.terminate()  # otherwise shared memory is not released
-#             pool.join()  # wrap up current tasks
-#             raise
-
-#     return FEC_list
 
 
 def calculate_rmse_between_exp_and_calc(
@@ -580,9 +572,17 @@ def calculate_rmse_between_exp_and_calc(
             for fec in FEC_list:
                 # append calculated values
                 if perturbed_free_energy:
-                    e_calc.append(get_perturbed_free_energy_difference(fec).item())
+                    e_calc.append(
+                        get_perturbed_free_energy_difference(
+                            fec
+                        ).free_energy_estimate.item()
+                    )
                 else:
-                    e_calc.append(get_unperturbed_free_energy_difference(fec).item())
+                    e_calc.append(
+                        get_unperturbed_free_energy_difference(
+                            fec
+                        ).free_energy_estimate.item()
+                    )
                 # append experimental values
                 e_exp.append(get_experimental_values(fec.name).item())
 
@@ -696,6 +696,7 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
     test_size: float = 0.2,
     validation_size: float = 0.2,
     snapshot_penalty_f: PenaltyFunction = PenaltyFunction(0, 0, 0, 0, False),
+    skipping: float = 1,
 ) -> Tuple[list, Number]:
 
     """
@@ -828,6 +829,7 @@ def setup_and_perform_parameter_retraining_with_test_set_split(
         lr_SGD=lr_SGD,
         weight_decay=weight_decay,
         snapshot_penalty_f=snapshot_penalty_f,
+        skipping=skipping,
     )
 
     # final rmsd calculation on test set
@@ -892,6 +894,7 @@ def _perform_training(
     lr_SGD: float,
     weight_decay: float,
     snapshot_penalty_f: PenaltyFunction,
+    skipping: float,
 ) -> list:
 
     early_stopping_learning_rate = 1.0e-8
@@ -930,7 +933,7 @@ def _perform_training(
         f"{base}_{0}.pt",
     )
 
-    current_rmse = -1
+    current_rmse = rmse_validation[-1]
     ## training loop
     for idx in range(AdamW_scheduler.last_epoch + 1, max_epochs):
 
@@ -967,8 +970,8 @@ def _perform_training(
             snapshot_penalty_f=snapshot_penalty_f,
         )
 
-        if idx > 1 and idx % 2:
-            #skip every second validation set calculation
+        if idx > 1 and idx % skipping == 0:
+            # skip every second validation set calculation
             with torch.no_grad():
                 # calculate the new free energies on the validation set with optimized parameters
                 current_rmse, _ = calculate_rmse_between_exp_and_calc(
@@ -1191,7 +1194,9 @@ def _loss_function(
     """
     snapshot_penalty = torch.tensor([0.0])
     # calculate the free energies
-    calc_free_energy_difference = get_perturbed_free_energy_difference(fec)
+    calc_free_energy_difference = get_perturbed_free_energy_difference(
+        fec
+    ).free_energy_estimate
     # obtain the experimental free energies
     exp_free_energy_difference = get_experimental_values(fec.name)
     # calculate the loss as MSE
@@ -1392,6 +1397,7 @@ def setup_and_perform_parameter_retraining(
     lr_AdamW: float = 1e-3,
     lr_SGD: float = 1e-3,
     weight_decay: float = 0.000001,
+    skipping: float = 1,
 ) -> list:
     """
     Much of this code is taken from:
@@ -1486,6 +1492,7 @@ def setup_and_perform_parameter_retraining(
         lr_SGD=lr_SGD,
         weight_decay=weight_decay,
         snapshot_penalty_f=snapshot_penalty_f,
+        skipping=skipping,
     )
 
     return rmse_validation

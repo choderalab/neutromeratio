@@ -341,14 +341,10 @@ def test_setup_FEC_test_pickle_files():
 def test_FEC_with_different_free_energy_calls():
     from ..parameter_gradients import (
         get_perturbed_free_energy_difference,
-        get_unperturbed_free_energy_difference,
     )
-    from ..constants import kT, device, exclude_set_ANI, mols_with_charge
     from ..parameter_gradients import setup_FEC
-    from glob import glob
     from ..ani import (
         AlchemicalANI1ccx,
-        AlchemicalANI1x,
         AlchemicalANI2x,
         CompartimentedAlchemicalANI2x,
     )
@@ -384,12 +380,12 @@ def test_FEC_with_different_free_energy_calls():
     # look at the two functions from parameter_gradient
     # both of these correct for the flipped energy calculation
     # and flip the sign of the prediction of mol298
-    fec_values = [get_perturbed_free_energy_difference(fec) for fec in fec_list]
+    fec_values = [get_perturbed_free_energy_difference(fec).free_energy_estimate for fec in fec_list]
     print(fec_values)
     for e1, e2 in zip(fec_values, [1.2104, -5.3161]):
         assert np.isclose(e1.item(), e2, rtol=1e-2)
 
-    fec_values = [get_perturbed_free_energy_difference(fec) for fec in fec_list]
+    fec_values = [get_perturbed_free_energy_difference(fec).free_energy_estimate for fec in fec_list]
     print(fec_values)
     for e1, e2 in zip(fec_values, [1.2104, -5.3161]):
         assert np.isclose(e1.item(), e2, rtol=1e-2)
@@ -403,8 +399,8 @@ def test_FEC_with_different_free_energy_calls():
         assert np.isclose(e1.item(), e2, rtol=1e-2)
 
     fec_values = (
-        fec_list[0]._compute_free_energy_difference(),
-        fec_list[1]._compute_free_energy_difference(),
+        fec_list[0]._compute_free_energy_difference()[0],
+        fec_list[1]._compute_free_energy_difference()[0],
     )
     print(fec_values)
     for e1, e2 in zip(fec_values, [-1.2104, -5.3161]):
@@ -437,12 +433,12 @@ def test_FEC_with_different_free_energy_calls():
     # look at the two functions from parameter_gradient
     # both of these correct for the flipped energy calculation
     # and flip the sign of the prediction of mol298
-    fec_values = [get_perturbed_free_energy_difference(fec) for fec in fec_list]
+    fec_values = [get_perturbed_free_energy_difference(fec).free_energy_estimate for fec in fec_list]
     print(fec_values)
     for e1, e2 in zip(fec_values, [8.7152, -9.2873]):
         assert np.isclose(e1.item(), e2, rtol=1e-2)
 
-    fec_values = [get_perturbed_free_energy_difference(fec) for fec in fec_list]
+    fec_values = [get_perturbed_free_energy_difference(fec).free_energy_estimate for fec in fec_list]
     print(fec_values)
     for e1, e2 in zip(fec_values, [8.7152, -9.2873]):
         assert np.isclose(e1.item(), e2, rtol=1e-2)
@@ -456,8 +452,8 @@ def test_FEC_with_different_free_energy_calls():
         assert np.isclose(e1.item(), e2, rtol=1e-2)
 
     fec_values = (
-        fec_list[0]._compute_free_energy_difference(),
-        fec_list[1]._compute_free_energy_difference(),
+        fec_list[0]._compute_free_energy_difference()[0],
+        fec_list[1]._compute_free_energy_difference()[0],
     )
     print(fec_values)
     for e1, e2 in zip(fec_values, [-8.7152, -9.2873]):
@@ -490,12 +486,12 @@ def test_FEC_with_different_free_energy_calls():
     # look at the two functions from parameter_gradient
     # both of these correct for the flipped energy calculation
     # and flip the sign of the prediction of mol298
-    fec_values = [get_perturbed_free_energy_difference(fec) for fec in fec_list]
+    fec_values = [get_perturbed_free_energy_difference(fec).free_energy_estimate for fec in fec_list]
     print(fec_values)
     for e1, e2 in zip(fec_values, [8.7152, -9.2873]):
         assert np.isclose(e1.item(), e2, rtol=1e-2)
 
-    fec_values = [get_perturbed_free_energy_difference(fec) for fec in fec_list]
+    fec_values = [get_perturbed_free_energy_difference(fec).free_energy_estimate for fec in fec_list]
     print(fec_values)
     for e1, e2 in zip(fec_values, [8.7152, -9.2873]):
         assert np.isclose(e1.item(), e2, rtol=1e-2)
@@ -509,8 +505,8 @@ def test_FEC_with_different_free_energy_calls():
         assert np.isclose(e1.item(), e2, rtol=1e-2)
 
     fec_values = (
-        fec_list[0]._compute_free_energy_difference(),
-        fec_list[1]._compute_free_energy_difference(),
+        fec_list[0]._compute_free_energy_difference()[0],
+        fec_list[1]._compute_free_energy_difference()[0],
     )
     print(fec_values)
     for e1, e2 in zip(fec_values, [-8.7152, -9.2873]):
@@ -524,7 +520,6 @@ def test_FEC_with_different_free_energy_calls():
 )
 def test_FEC_with_perturbed_free_energies():
     from ..parameter_gradients import get_perturbed_free_energy_difference
-    from ..constants import kT, device
     from ..parameter_gradients import setup_FEC
     from ..ani import (
         AlchemicalANI1ccx,
@@ -567,7 +562,8 @@ def test_FEC_with_perturbed_free_energies():
             ]
 
             assert len(fec_list) == 2
-            fec_values = [get_perturbed_free_energy_difference(fec) for fec in fec_list]
+            fec_values = [get_perturbed_free_energy_difference(fec).free_energy_estimate for fec in fec_list]
+            print(fec_values)
             for e1, e2 in zip(fec_values, [1.2104, -5.3161]):
                 assert np.isclose(e1.item(), e2, rtol=1e-4)
 
@@ -589,7 +585,7 @@ def test_FEC_with_perturbed_free_energies():
             ]
 
             assert len(fec_list) == 2
-            fec = [get_perturbed_free_energy_difference(fec) for fec in fec_list]
+            fec = [get_perturbed_free_energy_difference(fec).free_energy_estimate for fec in fec_list]
             print(fec)
             for e1, e2 in zip(fec, [1.2104, -5.3161]):
                 assert np.isclose(e1.item(), e2, rtol=1e-4)
@@ -607,7 +603,7 @@ def test_FEC_with_perturbed_free_energies():
             )
             assert np.isclose(
                 fec._end_state_free_energy_difference[0],
-                fec._compute_free_energy_difference().item(),
+                fec._compute_free_energy_difference()[0].item(),
                 rtol=1e-5,
             )
 
@@ -630,7 +626,7 @@ def test_FEC_with_perturbed_free_energies():
             ]
 
             assert len(fec_list) == 2
-            fec = [get_perturbed_free_energy_difference(fec) for fec in fec_list]
+            fec = [get_perturbed_free_energy_difference(fec).free_energy_estimate for fec in fec_list]
             print(fec)
             for e1, e2 in zip(fec, [10.3192, -9.746403840249418]):
                 assert np.isclose(e1.item(), e2, rtol=1e-4)
@@ -654,7 +650,7 @@ def test_FEC_with_perturbed_free_energies():
             ]
 
             assert len(fec_list) == 2
-            fec = [get_perturbed_free_energy_difference(fec) for fec in fec_list]
+            fec = [get_perturbed_free_energy_difference(fec).free_energy_estimate for fec in fec_list]
             print(fec)
             for e1, e2 in zip(fec, [8.8213, -9.664895714083166]):
                 assert np.isclose(e1.item(), e2, rtol=1e-4)
@@ -678,13 +674,12 @@ def test_FEC_with_perturbed_free_energies():
             ]
 
             assert len(fec_list) == 2
-            fec = [get_perturbed_free_energy_difference(fec) for fec in fec_list]
+            fec = [get_perturbed_free_energy_difference(fec).free_energy_estimate for fec in fec_list]
             print(fec)
             for e1, e2 in zip(fec, [8.8213, -9.664895714083166]):
                 assert np.isclose(e1.item(), e2, rtol=1e-4)
         del fec_list
         del model
-
 
 @pytest.mark.skipif(
     os.environ.get("TRAVIS", None) == "true", reason="Slow calculation."
@@ -719,7 +714,7 @@ def test_FEC_with_perturbed_free_energies_with_and_without_restraints():
     ]
 
     assert len(fec_list) == 2
-    fec = [get_perturbed_free_energy_difference(fec) for fec in fec_list]
+    fec = [get_perturbed_free_energy_difference(fec).free_energy_estimate for fec in fec_list]
     print(fec)
     for e1, e2 in zip(fec, [8.8213, -9.6649]):
         assert np.isclose(e1.item(), e2, rtol=1e-4)
@@ -740,7 +735,7 @@ def test_FEC_with_perturbed_free_energies_with_and_without_restraints():
     ]
 
     assert len(fec_list) == 2
-    fec = [get_perturbed_free_energy_difference(fec) for fec in fec_list]
+    fec = [get_perturbed_free_energy_difference(fec).free_energy_estimate for fec in fec_list]
     print(fec)
     for e1, e2 in zip(fec, [8.8213, -9.6649]):
         assert np.isclose(e1.item(), e2, rtol=1e-4)
@@ -784,7 +779,7 @@ def test_loading_saving_mbar_object_AlchemicalANI2x():
         save_pickled_FEC=True,
     )
     assert np.isclose(
-        18.348107633661936, get_perturbed_free_energy_difference(fec).item()
+        18.348107633661936, get_perturbed_free_energy_difference(fec).free_energy_estimate.item()
     )
 
     # load checkpoint parameter file and override optimized parameters
@@ -802,7 +797,7 @@ def test_loading_saving_mbar_object_AlchemicalANI2x():
 
     # get new free energy
     assert np.isclose(
-        3.2730393726044866, get_perturbed_free_energy_difference(fec).item()
+        3.2730393726044866, get_perturbed_free_energy_difference(fec).free_energy_estimate.item()
     )
     del fec
 
@@ -821,7 +816,7 @@ def test_loading_saving_mbar_object_AlchemicalANI2x():
     )
 
     assert np.isclose(
-        3.2730393726044866, get_perturbed_free_energy_difference(fec).item()
+        3.2730393726044866, get_perturbed_free_energy_difference(fec).free_energy_estimate.item()
     )
 
     pickled_model = fec.ani_model.model
@@ -868,7 +863,7 @@ def test_loading_saving_mbar_object_CompartimentedAlchemicalANI2x():
         save_pickled_FEC=True,
     )
     assert np.isclose(
-        18.348107633661936, get_perturbed_free_energy_difference(fec).item()
+        18.348107633661936, get_perturbed_free_energy_difference(fec).free_energy_estimate.item()
     )
 
     # load checkpoint parameter file and override optimized parameters
@@ -886,7 +881,7 @@ def test_loading_saving_mbar_object_CompartimentedAlchemicalANI2x():
     # get new free energy
     assert np.isclose(
         3.2730393726044866,
-        get_perturbed_free_energy_difference(fec).item(),  # -1.3759686627878307
+        get_perturbed_free_energy_difference(fec).free_energy_estimate.item(),  # -1.3759686627878307
     )
     del fec
 
@@ -905,7 +900,7 @@ def test_loading_saving_mbar_object_CompartimentedAlchemicalANI2x():
     )
 
     assert np.isclose(
-        3.2730393726044866, get_perturbed_free_energy_difference(fec).item()
+        3.2730393726044866, get_perturbed_free_energy_difference(fec).free_energy_estimate.item()
     )
 
     pickled_model = fec.ani_model.model

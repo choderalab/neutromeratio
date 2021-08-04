@@ -54,7 +54,7 @@ def test_u_ln_50_snapshots():
         env="vacuum",
         data_path="data/test_data/vacuum",
         ANImodel=model,
-        bulk_energy_calculation=False,
+        bulk_energy_calculation=True,
         max_snapshots_per_window=50,
         load_pickled_FEC=True,
         include_restraint_energy_contribution=False,
@@ -71,54 +71,7 @@ def test_u_ln_50_snapshots():
     f_per_atom = fec.mae_between_potentials_for_snapshots(
         normalized=True, env="droplet"
     )
-    f_scaled_to_mol = (f_per_atom / 400) * len(fec.ani_model.species[0])
-    assert np.isclose(f_per_molecule.item(), f_scaled_to_mol.item())
-
-
-@pytest.mark.skipif(
-    os.environ.get("TRAVIS", None) == "true", reason="Can't upload necessary files."
-)
-def test_u_ln_20_snapshots():
-    from ..parameter_gradients import (
-        setup_FEC,
-    )
-    from ..ani import CompartimentedAlchemicalANI2x
-    from neutromeratio.constants import initialize_NUM_PROC
-
-    initialize_NUM_PROC(1)
-
-    # with pickled tautomer object
-    name = "molDWRow_298"
-    model, model_name = CompartimentedAlchemicalANI2x, "CompartimentedAlchemicalANI2x"
-    model._reset_parameters()
-    model_instance = model([0, 0])
-    model_instance.load_nn_parameters(
-        parameter_path="data/test_data/AlchemicalANI2x_3.pt"
-    )
-    # vacuum
-    fec = setup_FEC(
-        name,
-        env="vacuum",
-        data_path="data/test_data/vacuum",
-        ANImodel=model,
-        bulk_energy_calculation=False,
-        max_snapshots_per_window=20,
-        load_pickled_FEC=True,
-        include_restraint_energy_contribution=False,
-    )
-    fec._compute_free_energy_difference()
-    # compare to manually scaling
-    f_per_molecule = fec.mae_between_potentials_for_snapshots(env="vacuum")
-    f_per_atom = fec.mae_between_potentials_for_snapshots(normalized=True, env="vacuum")
     f_scaled_to_mol = (f_per_atom / 100) * len(fec.ani_model.species[0])
-    assert np.isclose(f_per_molecule.item(), f_scaled_to_mol.item())
-    # for droplet
-    # compare to manually scaling
-    f_per_molecule = fec.mae_between_potentials_for_snapshots(env="droplet")
-    f_per_atom = fec.mae_between_potentials_for_snapshots(
-        normalized=True, env="droplet"
-    )
-    f_scaled_to_mol = (f_per_atom / 400) * len(fec.ani_model.species[0])
     assert np.isclose(f_per_molecule.item(), f_scaled_to_mol.item())
 
 
@@ -357,7 +310,12 @@ def test_postprocessing_vacuum():
         ]
 
         # get calc free energy
-        f = torch.stack([get_perturbed_free_energy_difference(fec) for fec in fec_list])
+        f = torch.stack(
+            [
+                get_perturbed_free_energy_difference(fec).free_energy_estimate
+                for fec in fec_list
+            ]
+        )
         # get exp free energy
         e = torch.stack([get_experimental_values(name) for name in names])
         assert len(f) == 3
@@ -441,7 +399,12 @@ def test_postprocessing_droplet():
             for name in names
         ]
         # get calc free energy
-        f = torch.stack([get_perturbed_free_energy_difference(fec) for fec in fec_list])
+        f = torch.stack(
+            [
+                get_perturbed_free_energy_difference(fec).free_energy_estimate
+                for fec in fec_list
+            ]
+        )
         # get exp free energy
         e = torch.stack([get_experimental_values(name) for name in names])
 
@@ -488,7 +451,12 @@ def test_postprocessing_droplet():
             for name in names
         ]
         # get calc free energy
-        f = torch.stack([get_perturbed_free_energy_difference(fec) for fec in fec_list])
+        f = torch.stack(
+            [
+                get_perturbed_free_energy_difference(fec).free_energy_estimate
+                for fec in fec_list
+            ]
+        )
         # get exp free energy
         e = torch.stack([get_experimental_values(name) for name in names])
 
@@ -536,7 +504,12 @@ def test_postprocessing_droplet():
         ]
 
         # get calc free energy
-        f = torch.stack([get_perturbed_free_energy_difference(fec) for fec in fec_list])
+        f = torch.stack(
+            [
+                get_perturbed_free_energy_difference(fec).free_energy_estimate
+                for fec in fec_list
+            ]
+        )
         # get exp free energy
         e = torch.stack([get_experimental_values(name) for name in names])
 
@@ -583,7 +556,12 @@ def test_postprocessing_droplet():
         ]
 
         # get calc free energy
-        f = torch.stack([get_perturbed_free_energy_difference(fec) for fec in fec_list])
+        f = torch.stack(
+            [
+                get_perturbed_free_energy_difference(fec).free_energy_estimate
+                for fec in fec_list
+            ]
+        )
         # get exp free energy
         e = torch.stack([get_experimental_values(name) for name in names])
 
@@ -627,7 +605,7 @@ def test_snapshot_energy_loss_with_CompartimentedAlchemicalANI2x():
     )
     from ..ani import CompartimentedAlchemicalANI2x
 
-    CompartimentedAlchemicalANI2x._reset_parameters()
+    # CompartimentedAlchemicalANI2x._reset_parameters()
     name = "molDWRow_298"
     model_instance = CompartimentedAlchemicalANI2x([0, 0])
     env = "vacuum"
@@ -636,17 +614,19 @@ def test_snapshot_energy_loss_with_CompartimentedAlchemicalANI2x():
     fec = setup_FEC(
         name,
         env=env,
-        diameter=10,
+        diameter=-1,
         data_path="data/test_data/vacuum",
         ANImodel=CompartimentedAlchemicalANI2x,
         bulk_energy_calculation=True,
         max_snapshots_per_window=100,
-        load_pickled_FEC=True,
+        load_pickled_FEC=False,
         include_restraint_energy_contribution=False,
-        save_pickled_FEC=True,
+        save_pickled_FEC=False,
     )
     assert np.isclose(
-        7.981540, get_perturbed_free_energy_difference(fec).item(), rtol=1e-3
+        7.981540,
+        get_perturbed_free_energy_difference(fec).free_energy_estimate.item(),
+        rtol=1e-3,
     )
 
     assert np.isclose(fec.rmse_between_potentials_for_snapshots().item(), 0.0)
@@ -655,7 +635,9 @@ def test_snapshot_energy_loss_with_CompartimentedAlchemicalANI2x():
     model_instance.load_nn_parameters(f"data/test_data/AlchemicalANI2x_3.pt")
 
     assert np.isclose(
-        -11.25832, get_perturbed_free_energy_difference(fec).item(), rtol=1e-3
+        -11.25832,
+        get_perturbed_free_energy_difference(fec).free_energy_estimate.item(),
+        rtol=1e-3,
     )
     assert np.isclose(
         fec.rmse_between_potentials_for_snapshots().item(),

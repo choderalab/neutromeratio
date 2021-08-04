@@ -272,19 +272,16 @@ def test_max_nr_of_snapshots():
 
     print(l_rmse)
     assert l_rmse == [
-        (5.745586395263672, [3.219421508256698, -3.984754521510265, 3.775032043152413]),
         (
-            5.393607139587402,
-            [1.2104192737678794, -5.316053509708738, 4.0559353503118505],
+            5.745594501495361,
+            [3.219412789711892, -3.984756004408934, 3.7750394158567984],
         ),
+        (5.393613815307617, [1.21041203944986, -5.316059264760289, 4.055940344778948]),
         (
-            5.6913323402404785,
-            [0.6301678213061068, -5.464017066061666, 4.675917867000249],
+            5.691339015960693,
+            [0.6301607712237898, -5.464022528356984, 4.675923042604108],
         ),
-        (
-            5.574014663696289,
-            [1.1649843159209015, -5.0964898153872005, 4.284151701496853],
-        ),
+        (5.57402229309082, [1.1649766159387198, -5.096495181564678, 4.284156815859456]),
     ]
 
 
@@ -312,8 +309,8 @@ def test_unperturbed_perturbed_free_energy():
         save_pickled_FEC=False,
     )
 
-    a_AlchemicalANI2x = get_unperturbed_free_energy_difference(fec)
-    b_AlchemicalANI2x = get_perturbed_free_energy_difference(fec)
+    a_AlchemicalANI2x = get_unperturbed_free_energy_difference(fec).free_energy_estimate
+    b_AlchemicalANI2x = get_perturbed_free_energy_difference(fec).free_energy_estimate
     np.isclose(a_AlchemicalANI2x.item(), b_AlchemicalANI2x.item())
     del fec
 
@@ -330,8 +327,8 @@ def test_unperturbed_perturbed_free_energy():
         save_pickled_FEC=False,
     )
 
-    a_CompartimentedAlchemicalANI2x = get_unperturbed_free_energy_difference(fec)
-    b_CompartimentedAlchemicalANI2x = get_perturbed_free_energy_difference(fec)
+    a_CompartimentedAlchemicalANI2x = get_unperturbed_free_energy_difference(fec).free_energy_estimate
+    b_CompartimentedAlchemicalANI2x = get_perturbed_free_energy_difference(fec).free_energy_estimate
     np.isclose(
         a_CompartimentedAlchemicalANI2x.item(), b_CompartimentedAlchemicalANI2x.item()
     )
